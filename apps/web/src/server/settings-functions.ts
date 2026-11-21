@@ -31,6 +31,8 @@ import {
   saveLabel,
   saveMappingState,
   saveMcpWriteSetting,
+  saveMergedState,
+  mergedStateInput,
   savePowerSetting,
   saveTrackerConnectionSetting,
   trackerConnectionInput,
@@ -120,6 +122,10 @@ export const saveWorkspaceMapping = createServerFn({ method: "POST" })
 export const saveWorkspaceInProgressState = createServerFn({ method: "POST" })
   .validator(inProgressInput)
   .handler(({ data }) => saveInProgressState(context(), data));
+
+export const saveWorkspaceMergedState = createServerFn({ method: "POST" })
+  .validator(mergedStateInput)
+  .handler(({ data }) => saveMergedState(context(), data));
 
 export const saveWorkspaceLabel = createServerFn({ method: "POST" })
   .validator(labelInput)

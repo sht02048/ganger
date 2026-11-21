@@ -670,6 +670,8 @@ describe("다섯 단계를 마치기", () => {
       project: { id: "tp-web", name: "Web" },
       mapping: null,
       inProgressStateId: "st-doing",
+      mergedStateId: null,
+      trackerKind: "linear",
       states: { ok: true as const, items: [] },
       labels: { ok: true as const, items: [] },
     };

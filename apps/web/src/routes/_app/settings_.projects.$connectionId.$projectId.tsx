@@ -6,7 +6,7 @@ import { ScreenMessages, defaultLocale } from "../../i18n";
 import { loadCachedRouteQuery, loadRouteQuery } from "../../query/route-query";
 import { settingsMessages } from "../../settings/messages";
 import { ProjectDetailScreen, findBoundProject } from "../../settings/project-detail";
-import type { SettingsActions } from "../../settings/settings-screen";
+import type { ProjectDetailActions } from "../../settings/settings-screen";
 import { NavigationGuard } from "../../settings/navigation-guard";
 import {
   boundProjectReadsQuery,
@@ -66,7 +66,7 @@ function ProjectDetailRoute() {
       .name ?? null,
   );
   const actions = useMemo(
-    (): SettingsActions => ({
+    (): ProjectDetailActions => ({
       ...settingsActions,
       removeProject: async (data) => {
         setPageBeforeRemoval(page);

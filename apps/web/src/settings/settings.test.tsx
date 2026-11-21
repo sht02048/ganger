@@ -51,6 +51,7 @@ import {
   saveInProgressState,
   saveLabel,
   saveMappingSetting,
+  saveMergedState,
   saveRunnerSetting,
   runnerInput,
   saveTrackerConnectionSetting,
@@ -71,7 +72,7 @@ import settingsJson from "../../messages/ko/settings.json" with { type: "json" }
 import { ProjectDetailScreen, findBoundProject } from "./project-detail";
 import { ProjectCandidates, SettingsScreen, sectionProblems } from "./settings-page";
 import { RunnerCheck, RunnerForm, nameFromSshTarget, sshCheckCommand } from "./settings-screen";
-import type { SettingsActions } from "./settings-screen";
+import type { ProjectDetailActions } from "./settings-screen";
 
 const now = new Date("2026-11-17T09:00:00Z");
 const commerce = toWorkspaceId("ws-commerce");
@@ -152,13 +153,14 @@ function addRunner(f: Fixture): RunnerId {
   return id;
 }
 
-const noopActions: SettingsActions = {
+const noopActions: ProjectDetailActions = {
   saveGeneral: () => Promise.resolve({ ok: true }),
   saveBrief: () => Promise.resolve({ ok: true }),
   addProject: () => Promise.resolve({ ok: true }),
   removeProject: () => Promise.resolve({ ok: true }),
   saveMapping: () => Promise.resolve({ ok: true }),
   saveInProgress: () => Promise.resolve({ ok: true }),
+  saveMergedState: () => Promise.resolve({ ok: true }),
   saveLabel: () => Promise.resolve({ ok: true }),
   saveConnection: () => Promise.resolve({ ok: true }),
   checkConnection: () => Promise.resolve({ ok: true }),
@@ -267,6 +269,15 @@ describe("Settings 저장하고 다시 열기", () => {
     expect(saveInProgressState(f.context, { ...project, stateId: "st-doing" })).toEqual({
       ok: true,
     });
+    expect(saveMergedState(f.context, { ...project, stateId: "st-done" })).toEqual({ ok: true });
+    expect((await loadSettingsPage(f.context, ws, now)).workspace?.bound[0]?.mergedStateId).toBe(
+      "st-done",
+    );
+    expect(saveMergedState(f.context, { ...project, stateId: null })).toEqual({ ok: true });
+    expect(
+      (await loadSettingsPage(f.context, ws, now)).workspace?.bound[0]?.mergedStateId,
+    ).toBeNull();
+    expect(saveMergedState(f.context, { ...project, stateId: "st-todo" })).toEqual({ ok: true });
     expect(saveLabel(f.context, { ws, connectionId: connection, labelId: "lb-auto" })).toEqual({
       ok: true,
     });
@@ -291,6 +302,7 @@ describe("Settings 저장하고 다시 열기", () => {
     expect(page.workspace?.bound).toEqual([
       {
         connection: { id: connection, name: "Acme" },
+        trackerKind: "fake",
         project: { id: webProject, name: "Web" },
         mapping: {
           agent: "codex",
@@ -298,6 +310,7 @@ describe("Settings 저장하고 다시 열기", () => {
           repos: [{ id: repo, isDefault: true, labelId: null }],
         },
         inProgressStateId: "st-doing",
+        mergedStateId: "st-todo",
         states: {
           ok: true,
           items: [
@@ -350,6 +363,24 @@ describe("Settings 저장하고 다시 열기", () => {
     const detail = renderProject(page, connection, webProject);
     expect(detail).toContain("acme/web");
     expect(textOf(detail)).toContain("In Progress");
+    expect(textOf(detail)).toContain("트래커 티켓 상태");
+    expect(textOf(detail)).toContain("런이 바뀔 때 트래커 티켓 상태를 같이 바꿔요");
+    const workspaceSettings = page.workspace;
+    if (workspaceSettings === null) throw new Error("no workspace");
+    const onLinear = renderProject(
+      {
+        ...page,
+        workspace: {
+          ...workspaceSettings,
+          bound: workspaceSettings.bound.map((b) => ({ ...b, trackerKind: "linear" })),
+        },
+      },
+      connection,
+      webProject,
+    );
+    expect(textOf(onLinear)).toContain("런이 바뀔 때 Linear 티켓 상태를 같이 바꿔요");
+    expect(textOf(detail)).toContain("런이 시작되면 바꿀 상태");
+    expect(textOf(detail)).toContain("PR이 머지되면 바꿀 상태");
     expect(textOf(detail)).toContain("factory");
     expect(detail).toContain('value="gpt-example"');
     const runner = page.install.runners[0];
