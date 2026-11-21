@@ -1,5 +1,12 @@
 import { summarizeRunOutcome } from "@ganger/core";
+import type { CiState } from "@ganger/core";
 import type { RunRecords, StoredRun } from "@ganger/db";
+import type { CiView } from "./run-detail/model.js";
+
+export function toCiView(ci: CiState): CiView {
+  const known: ReadonlyArray<CiView> = ["success", "failure", "pending", "none", "unavailable"];
+  return known.find((value) => value === ci) ?? "unknown";
+}
 
 export interface PrSignalsView {
   ciFailed: boolean;

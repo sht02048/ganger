@@ -24,7 +24,7 @@ import {
 import { loadHomePage } from "@ganger/app/home/load";
 import { loadRunsPage } from "@ganger/app/runs/load";
 import { runsMessages } from "./messages";
-import type { RunFilter, RunsPage } from "@ganger/app/runs/model";
+import type { RunFilter, RunsPage, RunView } from "@ganger/app/runs/model";
 import { RunsScreen } from "./runs-screen";
 
 const noop = () => {};
@@ -235,7 +235,7 @@ describe("Runs 화면", () => {
     );
     expect(text).toContain(domain.summary.failed);
     expect(text).toContain(domain.agentResult["reported-failure"]);
-    expect(text).toContain(domain.prState.open);
+    expect(text).toContain(runsJson.panel.prSection.state.open);
     expect(text).toContain(runsJson.panel.reason.failed);
     expect(text).toContain("runner-a");
     expect(text).toContain(domain.agent.claude);
@@ -490,10 +490,9 @@ describe("Runs 화면", () => {
     );
     expect(row?.pill).toBe(domain.summary.succeeded);
     const text = panelText(render(page, { selectedId: id }));
-    expect(text).toContain(
-      `${runsJson.panel.reason.succeeded} ${runsJson.panel.prUnread["no-access"]}`,
-    );
-    expect(text).toContain(domain.prState.unknown);
+    expect(text).toContain(runsJson.panel.reason.succeeded);
+    expect(text).toContain(runsJson.panel.prUnread["no-access"]);
+    expect(text).toContain(runsJson.panel.prSection.state.unknown);
   });
 
   it("열린 PR 의 CI 실패·충돌·뒤처짐을 행에 보이고 요약 결과는 그대로다 (0150)", () => {
@@ -555,7 +554,8 @@ describe("Runs 화면", () => {
     );
     expect(ended.ok).toBe(true);
     const text = panelText(render(loadRunsPage(db, undefined, now), { selectedId: id }));
-    expect(text).toContain(`${runsJson.panel.reason.failed} ${runsJson.panel.prUnread.other}`);
+    expect(text).toContain(runsJson.panel.reason.failed);
+    expect(text).toContain(runsJson.panel.prUnread.other);
   });
 
   it("Succeeded 필터는 성공을 보고한 런만 보이고, 처리할 일에는 Succeeded 런이 없다 (0145)", () => {
@@ -628,6 +628,232 @@ describe("Runs 화면", () => {
     const text = panelText(render(page, { selectedId: id }));
     expect(text).toContain(runsJson.panel.cancelling);
     expect(text).toContain(runsJson.panel.cancellingReason);
+  });
+
+  describe("상세 패널(0166)", () => {
+    const section = runsJson.panel.prSection;
+    const signals = {
+      open: true,
+      headCommit: "abc",
+      ciFailed: true,
+      checkTotal: 7,
+      failedCount: 2,
+      failedChecks: ["lint", "static"],
+      checksTruncated: false,
+      conflict: true,
+      behindBy: 3,
+    };
+    const pullRequest = {
+      id: toPullRequestId("12"),
+      displayId: "#12",
+      url: "https://code.example.com/acme/web/pull/12",
+      ci: "failure",
+      checkedAt: minutes(111),
+    };
+
+    function endWithPr(prState: "open" | "merged", ci = "failure") {
+      const { db, ids } = seedDatabase();
+      const id = ids.get("ACME-10");
+      if (id === undefined) throw new Error("seed");
+      expect(
+        changeRunState(
+          db,
+          id,
+          { to: "ended", agentResult: "reported-success", prState },
+          minutes(110),
+        ).ok,
+      ).toBe(true);
+      updateRunRecords(db, id, {
+        pullRequest: {
+          ...pullRequest,
+          ci,
+          signals: { ...signals, open: prState === "open" },
+        },
+      });
+      return { db, id, html: render(loadRunsPage(db, undefined, now), { selectedId: id }) };
+    }
+
+    const panelHtml = (html: string) => html.split("<aside")[1] ?? "";
+    const tones = (html: string) =>
+      [...panelHtml(html).matchAll(/data-signal-tone="(\w+)"/g)].map((m) => m[1]);
+
+    it.each([
+      ["ACME-13", domain.runState.queued, "기다리는 중"],
+      ["ACME-10", domain.runState.running, " min"],
+      ["ACME-11", domain.runState["waiting-for-input"], " min"],
+      ["ACME-12", domain.runState.disconnected, " min"],
+    ])("%s 는 머리에 상태와 시간을 두고 에이전트 결과 줄이 없다", (key, pill, time) => {
+      const { db, ids } = seedDatabase();
+      const text = panelText(
+        render(loadRunsPage(db, undefined, now), { selectedId: ids.get(key) }),
+      );
+      expect(text).toContain(pill);
+      expect(text).toContain(time);
+      expect(text).toContain(section.none);
+      expect(text).not.toContain(runsJson.panel.agentResult);
+    });
+
+    it("Paused 런은 멈춘 시간과 이유를 보인다", () => {
+      const { db, ids } = seedDatabase();
+      const page = loadRunsPage(db, undefined, now);
+      const id = ids.get("ACME-10");
+      const paused: RunsPage = {
+        ...page,
+        runs: page.runs.map((run) =>
+          run.id === id && run.state === "running"
+            ? { ...run, state: "paused", pausedMs: 120_000 }
+            : run,
+        ),
+      };
+      const text = panelText(render(paused, { selectedId: id }));
+      expect(text).toContain(domain.runState.paused);
+      expect(text).toContain("2 min 멈춰 있어요");
+      expect(text).toContain(runsJson.panel.reason.paused);
+    });
+
+    it.each([
+      ["reported-success", "succeeded"],
+      ["reported-failure", "failed"],
+      ["canceled", "canceled"],
+    ] as const)(
+      "끝난 런(%s)은 끝난 때·걸린 시간과 에이전트 결과를 보인다",
+      (agentResult, summary) => {
+        const { db, ids } = seedDatabase();
+        const id = ids.get("ACME-10");
+        if (id === undefined) throw new Error("seed");
+        expect(
+          changeRunState(db, id, { to: "ended", agentResult, prState: "none" }, minutes(110)).ok,
+        ).toBe(true);
+        const text = panelText(render(loadRunsPage(db, undefined, now), { selectedId: id }));
+        expect(text).toContain(domain.summary[summary]);
+        expect(text).toMatch(/끝남 · .+ 걸림/);
+        expect(text).toContain(runsJson.panel.reason[summary]);
+        expect(text).toContain(domain.agentResult[agentResult]);
+        expect(text).toContain(section.none);
+      },
+    );
+
+    it("머리 첫 줄은 번호·프로젝트·브랜치이고 없앤 줄은 보이지 않는다", () => {
+      const { html } = endWithPr("open");
+      const panel = panelHtml(html);
+      expect(panelText(html)).toMatch(/ACME-10 · Web · \S+/);
+      expect(panel.indexOf("ACME-10")).toBeLessThan(panel.indexOf("<h2"));
+      const terms = [...panel.matchAll(/<dt[^>]*>([^<]+)<\/dt>/g)].map((m) => m[1]);
+      expect(terms).toEqual([
+        section.ci,
+        section.conflict,
+        section.base,
+        runsJson.panel.runner,
+        runsJson.panel.agent,
+        runsJson.panel.agentResult,
+      ]);
+    });
+
+    it("Open·CI 실패·충돌·뒤처짐을 줄마다 보이고 이유 끝에 확인 문장을 붙이며 결과는 그대로다", () => {
+      const { html } = endWithPr("open");
+      const text = panelText(html);
+      expect(text).toContain("PR #12");
+      expect(text).toContain(section.state.open);
+      expect(text).toContain("7개 중 2개 실패");
+      expect(text).toContain(section.conflictValue.some);
+      expect(text).toContain("3커밋 뒤");
+      expect(text).toContain("읽음");
+      expect(text).toContain(
+        `${runsJson.panel.reason.succeeded} PR의 CI가 실패해서 확인이 필요해요.`,
+      );
+      expect(text).toContain(domain.summary.succeeded);
+      expect(tones(html)).toEqual(["problem", "problem", "warning"]);
+      expect(panelHtml(html)).toContain(`href="${pullRequest.url}/checks"`);
+    });
+
+    it("Merged PR 은 CI 줄만 두고 확인 문장을 붙이지 않는다", () => {
+      const { html } = endWithPr("merged", "success");
+      const text = panelText(html);
+      expect(text).toContain(section.state.merged);
+      expect(text).toContain(section.ciValue.success);
+      expect(tones(html)).toEqual(["pass"]);
+      expect(text).not.toContain(section.conflict);
+      expect(text).not.toContain("확인이 필요해요");
+    });
+
+    function withPullRequest(change: Partial<NonNullable<RunView["pullRequest"]>>) {
+      const { db, id } = endWithPr("open");
+      const page = loadRunsPage(db, undefined, now);
+      const changed: RunsPage = {
+        ...page,
+        runs: page.runs.map((run) =>
+          run.id === id && run.pullRequest !== null
+            ? { ...run, pullRequest: { ...run.pullRequest, ...change } }
+            : run,
+        ),
+      };
+      return render(changed, { selectedId: id });
+    }
+
+    it("더 읽지 않는 Open PR 의 지난 CI 실패로는 확인 문장을 붙이지 않고 충돌·base 는 모름으로 둔다", () => {
+      const html = withPullRequest({ signals: null, ci: "failure" });
+      const text = panelText(html);
+      expect(text).not.toContain("확인이 필요해요");
+      expect(text).toContain(section.conflictValue.unknown);
+      expect(tones(html)).toEqual(["problem", "neutral", "neutral"]);
+    });
+
+    it("진행 중 런의 PR 신호를 못 읽었으면 충돌·base 를 모름으로 둔다", () => {
+      const { db, ids } = seedDatabase();
+      const id = ids.get("ACME-10");
+      if (id === undefined) throw new Error("seed");
+      updateRunRecords(db, id, { pullRequest: { ...pullRequest, ci: "pending" } });
+      const html = render(loadRunsPage(db, undefined, now), { selectedId: id });
+      expect(panelText(html)).toContain(section.ciValue.pending);
+      expect(tones(html)).toEqual(["neutral", "neutral", "neutral"]);
+    });
+
+    it("진행 중 런의 PR 이 코드 호스트에서 닫혔으면 CI 줄만 두고 읽은 때를 보인다", () => {
+      const { db, ids } = seedDatabase();
+      const id = ids.get("ACME-10");
+      if (id === undefined) throw new Error("seed");
+      updateRunRecords(db, id, {
+        pullRequest: {
+          ...pullRequest,
+          ci: "success",
+          signals: { ...signals, open: false, ciFailed: false, conflict: null, behindBy: null },
+        },
+      });
+      const html = render(loadRunsPage(db, undefined, now), { selectedId: id });
+      expect(tones(html)).toEqual(["pass"]);
+      expect(panelText(html)).toContain("읽음");
+    });
+
+    it("검사 목록이 잘렸으면 실패 수를 '이상'으로 말한다", () => {
+      const html = withPullRequest({
+        signals: {
+          ciFailed: true,
+          checkTotal: 150,
+          failedCount: 2,
+          failedChecks: ["lint"],
+          checksTruncated: true,
+          conflict: false,
+          behindBy: 0,
+          checkedAt: minutes(111).toISOString(),
+        },
+      });
+      expect(panelText(html)).toContain("150개 중 2개 이상 실패");
+    });
+
+    it("자세히 보기는 주 버튼, PR 은 새 탭으로 여는 보조 버튼이다", () => {
+      const { html, id } = endWithPr("open");
+      const panel = panelHtml(html);
+      const anchor = (href: string) =>
+        [...panel.matchAll(/<a [^>]*>/g)]
+          .map((m) => m[0])
+          .find((tag) => tag.includes(`href="${href}"`));
+      expect(anchor(`/runs/${id}`)).toContain('data-variant="primary"');
+      const prLink = anchor(pullRequest.url);
+      expect(prLink).toContain('data-variant="secondary"');
+      expect(prLink).toContain('target="_blank"');
+      expect(prLink).toContain('rel="noreferrer"');
+      expect(panel.match(/data-variant="primary"/g)).toHaveLength(1);
+    });
   });
 
   it("Workspace 를 바꾸면 그 Workspace 의 런만 보인다", () => {

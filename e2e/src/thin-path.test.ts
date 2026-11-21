@@ -46,6 +46,7 @@ import type { RunningWorker } from "@ganger/worker";
 import type { ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
+import runsJson from "../../apps/web/messages/ko/runs.json" with { type: "json" };
 import { startWebServer } from "./web-server.js";
 
 const fakeKind = "fake";
@@ -173,7 +174,11 @@ describe("끝에서 끝까지 얇은 경로", () => {
       expect(panel).toContain(scenario.key);
       expect(panel).toContain(domain.summary[scenario.summary]);
       expect(panel).toContain(domain.agentResult[scenario.agentResult]);
-      expect(panel).toContain(domain.prState[scenario.prState]);
+      expect(panel).toContain(
+        scenario.prState === "none"
+          ? runsJson.panel.prSection.none
+          : runsJson.panel.prSection.state[scenario.prState],
+      );
       expect(panel.includes("#pr")).toBe(scenario.pr !== null);
     });
   }

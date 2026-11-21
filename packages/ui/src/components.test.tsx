@@ -69,7 +69,10 @@ import {
   UsageBar,
   UsageMeter,
   PanelRows,
+  PanelHeader,
   PanelSection,
+  SignalList,
+  SignalRow,
   PinnedToast,
   Toaster,
   ResponsiveColumns,
@@ -1054,6 +1057,42 @@ describe("새 컴포넌트(티켓 0073)", () => {
     expect(html).toContain(`<h3 id="${id}"`);
     expect(html).toMatch(/>자리<\/h3><span[^>]*>1\/2<\/span><\/div><p>본문<\/p>/);
     expect(renderToString(<PanelSection title="t">x</PanelSection>)).not.toMatch(/<\/h3><span/);
+  });
+
+  it("PanelSection 의 detail 은 제목 바로 옆, meta 는 줄 끝에 둔다", () => {
+    const html = renderToString(
+      <PanelSection title="PR #1" detail="Open" meta="방금">
+        x
+      </PanelSection>,
+    );
+    expect(html).toMatch(/>PR #1<\/h3><span[^>]*>Open<\/span><\/span><span[^>]*>방금<\/span>/);
+  });
+
+  it("PanelHeader 에 eyebrow 를 주면 첫 줄이 그 글이고 상태는 제목 아래로 온다", () => {
+    const html = renderToString(<PanelHeader eyebrow="ACME-1" status="상태" title="제목" />);
+    expect(html.indexOf("ACME-1")).toBeLessThan(html.indexOf("제목"));
+    expect(html.indexOf("제목")).toBeLessThan(html.indexOf("상태"));
+    const plain = renderToString(<PanelHeader status="상태" title="제목" />);
+    expect(plain.indexOf("상태")).toBeLessThan(plain.indexOf("제목"));
+  });
+
+  it("SignalRow 는 이름·값을 dt·dd 로 두고 톤마다 아이콘 모양이 다르다", () => {
+    const tones = ["pass", "problem", "warning", "neutral"] as const;
+    const paths = tones.map((tone) => {
+      const html = renderToString(
+        <SignalList>
+          <SignalRow label="CI" tone={tone} action={<a href="/x">보기</a>}>
+            값
+          </SignalRow>
+        </SignalList>,
+      );
+      expect(html).toMatch(/^<dl /);
+      expect(html).toContain(`data-signal-tone="${tone}"`);
+      expect(html).toMatch(/<dt[^>]*>CI<\/dt><dd/);
+      expect(html).toContain(">보기</a>");
+      return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
+    });
+    expect(new Set(paths).size).toBe(tones.length);
   });
 
   it("CapacityCells 는 자리 하나를 칸 하나로 그리고 칸 묶음을 이름 하나로 읽는다", () => {

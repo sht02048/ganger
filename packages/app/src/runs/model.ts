@@ -1,4 +1,5 @@
 import type { PrSignalsView } from "../pr-signals-view.js";
+import type { CiView } from "../run-detail/model.js";
 import type { AgentResult, PrReadError, PrState, SummaryOutcome } from "@ganger/core";
 import type { WorkspaceChoice } from "../shell/model.js";
 import type { StatsPeriodDays } from "../stats/model.js";
@@ -46,7 +47,15 @@ interface RunViewBase {
   agent: string;
   waitMs: number;
   executionMs: number | null;
-  pullRequest: { displayId: string; url: string; signals: PrSignalsView | null } | null;
+  pullRequest: {
+    displayId: string;
+    url: string;
+    ci: CiView;
+    signals: PrSignalsView | null;
+    checkedAt: string;
+    checkedAgoMs: number;
+    closedOnHost: boolean;
+  } | null;
   attention: boolean;
 }
 
