@@ -32,8 +32,8 @@ describe("Dashboard 시간 글자는 다시 읽지 않아도 흐른다", () => {
     const { db } = seedDatabase();
     const page = loadHomePage(db, "ws-commerce", now, "UTC");
     const aged = agedHomePage(page, 2 * MINUTE);
-    const runs = [...page.running, ...page.queued, ...page.endedToday];
-    const agedRuns = [...aged.running, ...aged.queued, ...aged.endedToday];
+    const runs = [...page.running, ...page.queued, ...page.endedRecently];
+    const agedRuns = [...aged.running, ...aged.queued, ...aged.endedRecently];
 
     expect(agedRuns.map((run) => run.id)).toEqual(runs.map((run) => run.id));
     expect(agedRuns.map(shownTime)).toEqual(runs.map((run) => later(shownTime(run))));

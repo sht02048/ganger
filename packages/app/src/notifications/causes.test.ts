@@ -13,7 +13,7 @@ const emptyPage = partitionHome({
   runs: [],
   runners: { list: [] },
   doneToday: [],
-  endedToday: [],
+  endedRecently: [],
 });
 
 function runner(id: string, overrides: Partial<StoredRunner> = {}): StoredRunner {
