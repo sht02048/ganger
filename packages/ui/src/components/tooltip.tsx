@@ -5,7 +5,7 @@ import {
   TooltipShortcut,
   TooltipTrigger,
 } from "@ui-sdk/react/tooltip";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
 import { buttonStyles, type ButtonVariant } from "./button";
 import { cx } from "../cx";
 import { ExternalIcon, InfoIcon } from "./icons";
@@ -24,6 +24,9 @@ export interface TooltipAction {
   variant?: ButtonVariant;
   busy?: boolean;
   onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
+  expanded?: boolean;
+  label?: string;
 }
 
 export interface TooltipProps {
@@ -119,6 +122,9 @@ function ActionTrigger({ action, children }: { action: TooltipAction; children: 
   return (
     <TooltipTrigger
       data-variant={variant}
+      {...(action.ref === undefined ? {} : { ref: action.ref })}
+      {...(action.expanded === undefined ? {} : { "aria-expanded": action.expanded })}
+      {...(action.label === undefined ? {} : { "aria-label": action.label })}
       {...(busy ? { "aria-disabled": true } : {})}
       onClick={() => {
         if (!busy) action.onClick();

@@ -8,7 +8,7 @@ export interface PanelSectionProps {
   title: ReactNode;
   detail?: ReactNode;
   meta?: ReactNode;
-  count?: number;
+  count?: ReactNode;
   info?: ReactNode;
   titleRole?: "subheading";
   children: ReactNode;

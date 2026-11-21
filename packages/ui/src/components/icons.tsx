@@ -82,6 +82,34 @@ export function ExternalIcon() {
   );
 }
 
+export function EditIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M3 13h2.5L13 5.5 10.5 3 3 10.5V13z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function UnknownIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path
+        d="M6 6.2a2 2 0 1 1 3.1 1.7c-.7.4-1.1.9-1.1 1.6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <circle cx="8" cy="12.3" r="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
 export function MoreIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
