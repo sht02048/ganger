@@ -13,10 +13,10 @@
     "back": "Runs로 가기"
   },
   "when": {
-    "waitingFor": "{duration}째 기다리는 중",
+    "waitingFor": "{duration} 기다리는 중",
     "endedAfter": "{duration} 만에 끝났어요",
     "endedBeforeStart": "시작하지 않고 {duration} 기다린 뒤 끝났어요",
-    "pausedFor": "{duration}째 멈춰 있어요"
+    "pausedFor": "{duration} 멈춰 있어요"
   },
   "cancelPending": "취소 중",
   "reason": {

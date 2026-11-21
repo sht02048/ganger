@@ -86,14 +86,15 @@ export function useCheckingText(
     setSinceRender(0);
     if (agoMs === null) return;
     const renderedAt = Date.now();
-    const timer = setInterval(() => setSinceRender(Date.now() - renderedAt), 1000);
+    const timer = setInterval(() => setSinceRender(Date.now() - renderedAt), CHECKING_TEXT_TICK_MS);
     return () => clearInterval(timer);
   }, [agoMs]);
   if (agoMs === null) return null;
-  return t(form === "sentence" ? "checking" : "elapsed", {
-    duration: duration(agoMs + sinceRender),
-  });
+  const elapsed = duration(agoMs + sinceRender);
+  return form === "sentence" ? t("checking", { duration: elapsed }) : elapsed;
 }
+
+const CHECKING_TEXT_TICK_MS = 15_000;
 
 const styles = stylex.create({
   stack: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },

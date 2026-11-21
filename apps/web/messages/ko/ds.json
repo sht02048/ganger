@@ -95,7 +95,7 @@
     "sampleTitle": "주문 목록 필터가 새로고침 뒤 사라짐",
     "sampleBody": "PR이 열려 있지만 병합되지 않았어요. CI는 통과했고 리뷰를 기다려요.",
     "sampleUi": "runner-a에서 Claude Code가 처리했어요",
-    "sampleMeta": "ACME-123 · 12분 전",
+    "sampleMeta": "ACME-123 · 12 min ago",
     "sampleLabel": "열 머리글",
     "fontSize": "크기 fontSize",
     "fontWeight": "굵기 fontWeight",
@@ -157,9 +157,9 @@
     "timeNote": "시간은 TimeSlot, 버튼은 RowActionSlot에 둬요. 글 길이가 달라도, 버튼이 없어도 시간과 버튼이 같은 자리에 서요.",
     "timeLabel": "시간 칸 예시",
     "answer": "답하기",
-    "timeSeconds": "42초째",
-    "timeMinutes": "12분째",
-    "timeHours": "1시간 3분째",
+    "timeSeconds": "<1 min",
+    "timeMinutes": "12 min",
+    "timeHours": "1 hr 3 min",
     "timeDate": "11월 17일"
   },
   "tabs": {
@@ -295,9 +295,9 @@
     "waiting": "주문 목록 필터 유지",
     "queued": "헬스 체크 엔드포인트 추가",
     "sectionTitle": "In progress",
-    "runningTime": "25분째",
-    "waitingTime": "3분째",
-    "queuedTime": "방금"
+    "runningTime": "25 min",
+    "waitingTime": "3 min",
+    "queuedTime": "<1 min"
   },
   "sections": {
     "note": "제목 역할로 구역의 무게를 골라요. 오른쪽에 링크를 둘 수 있어요.",
@@ -336,7 +336,7 @@
     "session": "Claude 5시간",
     "weekly": "Claude 주간",
     "panelTitle": "공급자 사용량",
-    "panelMeta": "3분 전 읽었어요",
+    "panelMeta": "3 min ago 읽었어요",
     "panelRow": "PanelRows는 Row의 안쪽 여백만큼 밖으로 내어 글자를 블록 제목 선에 맞춰요.",
     "columnsLead": "ResponsiveColumns 행",
     "columnsUsage": "사용량",
@@ -356,7 +356,7 @@
     "step2": "다시 확인을 눌러요",
     "recheck": "다시 확인",
     "offlineTitle": "runner-c가 Offline이에요",
-    "offlineBody": "10분 전부터 응답이 없어요."
+    "offlineBody": "10 min 동안 응답이 없어요."
   },
   "statTile": {
     "note": "큰 숫자와 뜻, 앞 기간과 비교한 줄이에요. 좋아지면 초록, 나빠지면 빨강이에요.",
@@ -366,7 +366,7 @@
     "failedDetail": "앞 7일보다 2개 늘었어요",
     "wait": "사람을 기다린 시간",
     "waitDetail": "앞 7일과 같아요",
-    "waitValue": "12분"
+    "waitValue": "12 min"
   },
   "brand": {
     "note": "제품 기호와 반장 마스코트예요. 레일에는 취구가 노란 브랜드판을 쓰고, 마스코트는 빈 상태·로딩·404에만 둬요. 마스코트는 장식이라 화면 읽기 프로그램이 건너뛰어요.",
@@ -511,7 +511,7 @@
       "title": "ACME-11 재시도 간격 바꾸기",
       "detail": "재시도 간격을 바꿀까요?",
       "meta": "runner-a · Claude Code",
-      "time": "12분째",
+      "time": "12 min",
       "action": "답하기",
       "plainTitle": "ACME-10 결제 실패 재시도",
       "blockedKey": "ACME-15",

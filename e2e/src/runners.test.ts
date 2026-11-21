@@ -175,10 +175,7 @@ describe("Runners 목록 + 패널(브라우저, 0057·0071)", () => {
 
     const panel = page.getByRole("region", { name: runners.panel.label });
     await panel.getByRole("button", { name: runners.panel.recheck }).click();
-    const checking = panel.getByText(/^\d+초째$/);
-    await checking.waitFor();
-    const first = await checking.textContent();
-    await expect.poll(async () => checking.textContent(), { timeout: 5_000 }).not.toBe(first);
+    await panel.getByText("<1 min", { exact: true }).waitFor();
     expect(await panel.getByRole("button", { name: runners.panel.checking }).isDisabled()).toBe(
       true,
     );

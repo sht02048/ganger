@@ -218,9 +218,13 @@ describe("Runs 화면", () => {
       ended: run.state === "ended",
       time: rows.get(run.ticketKey)?.time ?? "",
     }));
-    const relative = /^(방금|\d+(분|시간) 전|\d+월 \d+일)$/;
+    const relative = /^(Just now|\d+ (min|hr) ago|\d+월 \d+일)$/;
     expect(times.filter((r) => r.ended).every((r) => relative.test(r.time))).toBe(true);
-    expect(times.filter((r) => !r.ended).every((r) => r.time.endsWith("째"))).toBe(true);
+    expect(
+      times
+        .filter((r) => !r.ended)
+        .every((r) => /^(<1 min|\d+ min|\d+ hr( \d+ min)?|\d+ days?)$/.test(r.time)),
+    ).toBe(true);
     expect(times.some((r) => r.ended) && times.some((r) => !r.ended)).toBe(true);
   });
 
@@ -235,7 +239,7 @@ describe("Runs 화면", () => {
     expect(text).toContain(runsJson.panel.reason.failed);
     expect(text).toContain("runner-a");
     expect(text).toContain(domain.agent.claude);
-    expect(text).toContain("29분");
+    expect(text).toContain("29 min");
     expect(text).toContain("#2");
   });
 
@@ -260,11 +264,8 @@ describe("Runs 화면", () => {
   it("진행 중인 런의 경과 시간은 패널에 한 번만 보인다", () => {
     const { db, ids } = seedDatabase();
     const page = loadRunsPage(db, undefined, now);
-    const running = page.runs.find((run) => run.ticketKey === "ACME-10");
-    const minutesElapsed = Math.floor((running?.executionMs ?? 0) / 60_000);
     const text = panelText(render(page, { selectedId: ids.get("ACME-10") }));
-    expect(text.match(/째/g)).toHaveLength(1);
-    expect(text).not.toContain(`${String(minutesElapsed)}분 `);
+    expect(text.match(/(<1 min|\d+ days?|\d+ hr( \d+ min)?|\d+ min)(?! ago)\b/g)).toHaveLength(1);
   });
 
   it("러너가 Offline 이면 패널에 Offline 알약을 보인다", () => {

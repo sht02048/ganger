@@ -25,7 +25,7 @@
   },
   "row": {
     "offline": "오케스트레이터가 이 러너에 닿지 않아요.",
-    "offlineFor": "오케스트레이터가 이 러너에 {duration}째 닿지 않아요.",
+    "offlineFor": "오케스트레이터가 이 러너에 {duration} 닿지 않아요.",
     "assignmentBlocked": "러너 확인 항목이 깨져 새 할당에서 빠졌어요.",
     "full": "꽉 찼어요.",
     "fullWaiting": "꽉 찼어요. 런 {count}개가 자리를 기다려요.",
@@ -67,7 +67,7 @@
     },
     "capacity": "자리",
     "noRuns": "지금 하는 런이 없어요.",
-    "queuedFor": "{duration}째 기다려요",
+    "queuedFor": "{duration} 기다려요",
     "checksTitle": "확인 항목",
     "checksPassed": "{passed}/{total} 통과",
     "unreachable": "ssh로 닿지 않아요",

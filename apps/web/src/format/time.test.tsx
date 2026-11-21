@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { renderWithMessages } from "../testing/render";
 import { useTime, type TimeFormat } from "./time";
 
-const MINUTE = 60 * 1000;
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
@@ -12,21 +13,26 @@ function draw(use: (time: TimeFormat) => string, timeZone = "UTC"): string {
   function Probe() {
     return <>{use(useTime())}</>;
   }
-  return renderWithMessages(<Probe />, {}, timeZone);
+  return renderWithMessages(<Probe />, {}, timeZone).replaceAll("&lt;", "<");
 }
 
 describe("시간 표기(ADR 0010 7번)", () => {
-  it("진행 중인 것은 경과로 쓴다", () => {
-    expect(draw((time) => time.elapsed(25 * MINUTE))).toBe("25분째");
-    expect(draw((time) => time.elapsed(HOUR + 10 * MINUTE))).toBe("1시간 10분째");
-  });
-
-  it("지난 일은 1분 안이면 방금, 그 뒤는 상대 시간이다", () => {
-    const at = "2026-11-18T01:00:00.000Z";
-    expect(draw((time) => time.ago(at, 0))).toBe("방금");
-    expect(draw((time) => time.ago(at, 59 * 1000))).toBe("방금");
-    expect(draw((time) => time.ago(at, 25 * MINUTE))).toBe("25분 전");
-    expect(draw((time) => time.ago(at, 3 * HOUR + 20 * MINUTE))).toBe("3시간 전");
+  it.each([
+    ["0초", 0, "<1 min", "Just now"],
+    ["59초", 59 * SECOND, "<1 min", "Just now"],
+    ["60초", MINUTE, "1 min", "1 min ago"],
+    ["59분 59초", 59 * MINUTE + 59 * SECOND, "59 min", "59 min ago"],
+    ["1시간 정각", HOUR, "1 hr", "1 hr ago"],
+    ["1시간 3분", HOUR + 3 * MINUTE, "1 hr 3 min", "1 hr ago"],
+    ["23시간 59분", 23 * HOUR + 59 * MINUTE, "23 hr 59 min", "23 hr ago"],
+    ["24시간", DAY, "1 day", "11월 17일"],
+    ["47시간", 47 * HOUR, "1 day", "11월 17일"],
+    ["49시간", 49 * HOUR, "2 days", "11월 17일"],
+  ])("%s는 경과·양과 지난 일을 영어 단위로 쓴다", (_name, ms, amount, past) => {
+    const at = "2026-11-17T01:00:00.000Z";
+    expect(draw((time) => time.elapsed(ms))).toBe(amount);
+    expect(draw((time) => time.duration(ms))).toBe(amount);
+    expect(draw((time) => time.ago(at, ms))).toBe(past);
   });
 
   it("하루가 넘으면 운영자 시간대의 날짜를 쓴다", () => {
@@ -55,10 +61,8 @@ describe("시간 표기(ADR 0010 7번)", () => {
     expect(draw((time) => time.statsDay(day).short, "America/New_York")).toBe("11/4");
   });
 
-  it("시간의 양은 단위를 붙여 쓴다", () => {
-    expect(draw((time) => time.duration(40 * 1000))).toBe("40초");
-    expect(draw((time) => time.duration(12 * MINUTE))).toBe("12분");
-    expect(draw((time) => time.duration(2 * HOUR))).toBe("2시간");
+  it("음수 시간은 1분 안으로 쓴다", () => {
+    expect(draw((time) => time.duration(-5 * SECOND))).toBe("<1 min");
   });
 });
 

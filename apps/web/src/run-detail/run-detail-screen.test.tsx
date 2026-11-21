@@ -655,7 +655,7 @@ describe("Run 상세 화면", () => {
     const { db } = seedDatabase();
     const extra = addExtraEnded(db);
     const body = text(render(page(db, extra.get("ACME-23"))));
-    expect(body).toContain("시작하지 않고 1분 기다린 뒤 끝났어요");
+    expect(body).toContain("시작하지 않고 1 min 기다린 뒤 끝났어요");
     expect(body).not.toContain("만에 끝났어요");
   });
 
@@ -1031,7 +1031,7 @@ describe("Run 상세 화면", () => {
       queuedReason: { kind: "usage-limit", provider: "claude", resetsInMs: 68 * 60_000 },
     });
     expect(text(render(page(db, id)))).toContain(
-      "모든 러너가 Claude 한도에 닿아 1시간 8분 뒤 풀려요",
+      "모든 러너가 Claude 한도에 닿아 1 hr 8 min 뒤 풀려요",
     );
   });
 
@@ -1069,13 +1069,13 @@ describe("Run 상세 화면", () => {
     recordRunQuestions(db, id, [
       { id: toQuestionId("q-1"), body: "계속할까요?", options: [], askedAt: minutes(50) },
     ]);
-    expect(text(render(page(db, id)))).toContain("Question 1시간 10분째 답을 기다려요");
+    expect(text(render(page(db, id)))).toContain("Question 1 hr 10 min 답을 기다려요");
     recordRunQuestions(db, id, [
       { id: toQuestionId("q-2"), body: "나중 질문", options: [], askedAt: minutes(100) },
     ]);
     const body = text(render(page(db, id)));
-    expect(body).toContain("Question 1시간 10분째 답을 기다려요 계속할까요?");
-    expect(body).not.toContain("20분째 답을 기다려요");
+    expect(body).toContain("Question 1 hr 10 min 답을 기다려요 계속할까요?");
+    expect(body).not.toContain("20 min 답을 기다려요");
   });
 
   it("타임라인은 같은 날이면 시각만, 다른 날이면 날짜를 붙인다", () => {
