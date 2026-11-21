@@ -679,9 +679,9 @@ describe("Runs 화면", () => {
 
     it.each([
       ["ACME-13", domain.runState.queued, "기다리는 중"],
-      ["ACME-10", domain.runState.running, "째"],
-      ["ACME-11", domain.runState["waiting-for-input"], "째"],
-      ["ACME-12", domain.runState.disconnected, "째"],
+      ["ACME-10", domain.runState.running, " min"],
+      ["ACME-11", domain.runState["waiting-for-input"], " min"],
+      ["ACME-12", domain.runState.disconnected, " min"],
     ])("%s 는 머리에 상태와 시간을 두고 에이전트 결과 줄이 없다", (key, pill, time) => {
       const { db, ids } = seedDatabase();
       const text = panelText(
@@ -707,7 +707,7 @@ describe("Runs 화면", () => {
       };
       const text = panelText(render(paused, { selectedId: id }));
       expect(text).toContain(domain.runState.paused);
-      expect(text).toContain("2분째 멈춰 있어요");
+      expect(text).toContain("2 min 멈춰 있어요");
       expect(text).toContain(runsJson.panel.reason.paused);
     });
 
