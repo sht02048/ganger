@@ -315,13 +315,13 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     const done = section(
       render({
         ...page,
-        endedRecently: page.endedRecently.filter((run) => run.ticketKey !== "ACME-2"),
+        endedRecently: page.endedRecently.filter((run) => run.ticketKey !== "ACME-6"),
       }),
       "Done",
     );
     expect(done).toMatch(/<\/h2><span[^>]*>6<\/span>/);
+    expect(row(done, "ACME-6")).toContain("data-tag=");
     expect(section(render(page), "Done")).toMatch(/<\/h2><span[^>]*>7<\/span>/);
-    expect(renderView(page, "todo")).toContain("ACME-2");
   });
 
   it("Queued·Running 칸은 6장이 넘으면 앞 6장과 N개 더 보기를 보인다", () => {
