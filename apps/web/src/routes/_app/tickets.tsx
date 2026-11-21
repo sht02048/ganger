@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo } from "react";
 import { createTranslator } from "use-intl";
 import { z } from "zod";
+import { trackerProjectKey } from "@ganger/app/runs/conditions";
 import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
 import { mergeTicketsPage } from "@ganger/app/tickets/merge";
 import { ASSIGN_REJECT_REASONS, TICKET_FILTERS } from "@ganger/app/tickets/model";
@@ -88,6 +89,15 @@ function TicketsRoute() {
         }}
         onOpenRun={(runId) => {
           void navigate({ to: "/runs", search: (prev) => ({ ws: prev.ws, sel: runId }) });
+        }}
+        onOpenRuns={(ticket) => {
+          void navigate({
+            to: "/runs",
+            search: (prev) => ({
+              ws: prev.ws,
+              project: trackerProjectKey(ticket.connection, ticket.trackerProject.id),
+            }),
+          });
         }}
         onAssign={(input) =>
           assign.mutateAsync(input).then((result): AssignResult => result, assignResultOf)

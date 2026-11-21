@@ -2,22 +2,27 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Actions,
   BlockerChip,
+  blockerDotStyles,
   Button,
-  buttonStyles,
   Card,
+  Chip,
   DefinitionItem,
   DefinitionList,
   DetailPanel,
+  ExternalIconLink,
+  InfoTip,
   Input,
   MascotMessage,
   NoticeLayout,
   PageHeader,
+  PanelList,
+  PanelListRow,
   PanelSection,
   ScreenLayout,
-  PanelFooter,
   RowTitle,
   SegmentedTabs,
   SplitView,
+  statusDotStyles,
   StatusPill,
   Table,
   TableCell,
@@ -28,11 +33,12 @@ import {
   TableRow,
   TableRows,
   Text,
+  TimeSlot,
   VisuallyHidden,
   showToast,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
@@ -40,6 +46,7 @@ import { currentPrState } from "@ganger/app/runs/model";
 import type { WorkspaceSummary } from "@ganger/app/shell/model";
 import { runStatus, useStatusName } from "../status";
 import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
+import { ticketId } from "@ganger/app/tickets/merge";
 import { AssignDialog } from "./assign-dialog";
 import {
   TICKET_FILTERS,
@@ -58,8 +65,8 @@ import type {
 import { allBlockersOf } from "@ganger/app/runs/model";
 import type { BlockerReason } from "@ganger/app/runs/model";
 import { isBlockerFinished } from "@ganger/core";
-import { BlockerRows, blockerChipState } from "../blockers";
-import { useQueuedReasonText } from "../labels";
+import { blockerChipState } from "../blockers";
+import { useAgentName, useQueuedReasonText } from "../labels";
 import { useRowWindow } from "./row-window";
 
 export interface TicketsScreenProps {
@@ -71,6 +78,7 @@ export interface TicketsScreenProps {
   onSelect: (ticketId: string) => void;
   onPickWorkspace: (workspaceId: string) => void;
   onOpenRun: (runId: string) => void;
+  onOpenRuns: (ticket: TicketView) => void;
   onAssign: (input: AssignInput) => Promise<AssignResult>;
   onAssigned: (ticketId: string) => void;
   onReadBlockers: (ticket: TicketView) => Promise<TicketBlockersResult>;
@@ -222,6 +230,7 @@ function TicketsList({
   onFilterChange,
   onSelect,
   onOpenRun,
+  onOpenRuns,
   onAssign,
   onAssigned,
   onReadBlockers,
@@ -248,6 +257,7 @@ function TicketsList({
   const rows = useRowWindow(listRef, visible.length, selectedIndex);
   const moreBelow = useMoreBelow(scrollRef, listRef, visible.length);
   const [assignedId, setAssignedId] = useState<string | null>(null);
+  const [relationPickedId, setRelationPickedId] = useState<string | null>(null);
   const showTrackerProject = page.trackerProjectCount > 1;
 
   let empty: string;
@@ -389,6 +399,13 @@ function TicketsList({
                 ticket={selected}
                 page={page}
                 onOpenRun={onOpenRun}
+                onOpenRuns={onOpenRuns}
+                onSelectTicket={(id) => {
+                  setRelationPickedId(id);
+                  onSelect(id);
+                }}
+                focusTitle={relationPickedId === selected.id}
+                onFocusedTitle={() => setRelationPickedId(null)}
                 onAssign={onAssign}
                 onReadBlockers={onReadBlockers}
                 rereads={reread.rereads}
@@ -516,7 +533,7 @@ function WaitMark({ wait }: { wait: BlockerReason }) {
   );
 }
 
-type BlockerRead =
+export type BlockerRead =
   | { status: "idle" }
   | { status: "reading" }
   | { status: "done"; result: TicketBlockersResult };
@@ -563,60 +580,234 @@ function useTicketBlockers(
     : { read: storedBlockerRead(ticket.blockerWait), start: null };
 }
 
-function TicketRelations({
-  ticket,
-  onReadBlockers,
-  rereads,
+function RelationGroup({
+  title,
+  count,
+  children,
 }: {
-  ticket: TicketView;
-  onReadBlockers: TicketsScreenProps["onReadBlockers"];
-  rereads: number;
+  title: string;
+  count: number;
+  children: ReactNode;
 }) {
-  const t = useTranslations("tickets.panel");
-  const { read, start } = useTicketBlockers(ticket, onReadBlockers, rereads);
+  const titleId = useId();
   return (
-    <>
-      <PanelSection title={t("blockers")}>
-        <div role="status">
-          {read.status !== "done" ? null : !read.result.ok ? (
-            <Text variant="meta" tone="problem">
-              {t(`blockersFailed.${read.result.reason}`)}
+    <div role="group" aria-labelledby={titleId} {...stylex.props(styles.relationGroup)}>
+      <span id={titleId}>
+        <Text variant="label">{title}</Text>
+        {count === 0 ? null : (
+          <>
+            {" "}
+            <Text variant="label" tone="muted" numeric>
+              {count}
             </Text>
-          ) : read.result.blockers.length === 0 ? (
-            <Text variant="meta">{t("blockersNone")}</Text>
-          ) : (
-            <BlockerRows blockers={read.result.blockers} />
-          )}
-        </div>
-        {start === null ? null : (
-          <Actions>
-            <Button
-              busy={{ active: read.status === "reading", label: t("blockersReading") }}
-              onClick={start}
-            >
-              {t("blockersRead")}
-            </Button>
-          </Actions>
+          </>
         )}
-      </PanelSection>
-      <PanelSection title={t("waiting")}>
+      </span>
+      {children}
+    </div>
+  );
+}
+
+function BlockerReadStatus({ read }: { read: BlockerRead }) {
+  const t = useTranslations("tickets.panel");
+  if (read.status === "idle") return <Text variant="meta">{t("blockersUnread")}</Text>;
+  if (read.status === "reading") return <Text variant="meta">{t("blockersReadingNote")}</Text>;
+  if (!read.result.ok)
+    return (
+      <Text variant="meta" tone="problem">
+        {t(`blockersFailed.${read.result.reason}`)}
+      </Text>
+    );
+  if (read.result.blockers.length === 0) return <Text variant="meta">{t("blockersNone")}</Text>;
+  return (
+    <VisuallyHidden>{t("blockersLoaded", { count: read.result.blockers.length })}</VisuallyHidden>
+  );
+}
+
+export interface TicketRelationsProps {
+  ticket: TicketView;
+  tickets: ReadonlyArray<TicketView>;
+  read: BlockerRead;
+  onRead: (() => void) | null;
+  onSelectTicket: (ticketId: string) => void;
+}
+
+export function TicketRelations({
+  ticket,
+  tickets,
+  read,
+  onRead,
+  onSelectTicket,
+}: TicketRelationsProps) {
+  const t = useTranslations("tickets.panel");
+  const statusName = useStatusName();
+  const blockers = read.status === "done" && read.result.ok ? read.result.blockers : [];
+  const known = new Map(tickets.map((candidate) => [candidate.id, candidate]));
+  const pick = (key: string) => {
+    const id = ticketId(ticket.connection, key);
+    return known.has(id) ? { onClick: () => onSelectTicket(id) } : {};
+  };
+  return (
+    <PanelSection
+      title={t("relations")}
+      titleRole="subheading"
+      info={<InfoTip label={t("relationsInfo")} content={t("relationsNote")} />}
+      {...(onRead === null
+        ? {}
+        : {
+            meta: (
+              <Button
+                compact
+                busy={{ active: read.status === "reading", label: t("blockersReading") }}
+                onClick={onRead}
+              >
+                {read.status === "done" ? t("blockersReread") : t("blockersRead")}
+              </Button>
+            ),
+          })}
+    >
+      <RelationGroup title={t("blockers")} count={blockers.length}>
+        <div role="status">
+          <BlockerReadStatus read={read} />
+        </div>
+        {blockers.length === 0 ? null : (
+          <PanelList>
+            {blockers.map((blocker) => {
+              const state = blockerChipState(blocker.stateCategory);
+              return (
+                <PanelListRow
+                  key={blocker.key}
+                  marker={<span aria-hidden="true" {...stylex.props(blockerDotStyles(state))} />}
+                  ticketKey={blocker.key}
+                  title={blocker.title}
+                  done={state === "done"}
+                  trailing={blocker.stateName}
+                  {...pick(blocker.key)}
+                />
+              );
+            })}
+          </PanelList>
+        )}
+      </RelationGroup>
+      <RelationGroup title={t("waiting")} count={ticket.waitingTickets.length}>
         {ticket.waitingTickets.length === 0 ? (
           <Text variant="meta">{t("waitingNone")}</Text>
         ) : (
-          <ul {...stylex.props(styles.waitingList)}>
-            {ticket.waitingTickets.map((waiter) => (
-              <li key={waiter.key} {...stylex.props(styles.waitingRow)}>
-                <Text variant="meta" numeric>
-                  {waiter.key}
-                </Text>
-                {waiter.title === null ? null : <Text variant="ui">{waiter.title}</Text>}
-              </li>
-            ))}
-          </ul>
+          <PanelList>
+            {ticket.waitingTickets.map((waiter) => {
+              const found = known.get(ticketId(ticket.connection, waiter.key));
+              const run = found === undefined ? undefined : lastRun(found);
+              const status = run === undefined ? null : runStatus(run);
+              return (
+                <PanelListRow
+                  key={waiter.key}
+                  ticketKey={waiter.key}
+                  title={waiter.title ?? found?.title ?? ""}
+                  {...(status === null
+                    ? {}
+                    : {
+                        marker: (
+                          <span aria-hidden="true" {...stylex.props(statusDotStyles(status))} />
+                        ),
+                        trailing: statusName(status),
+                      })}
+                  {...pick(waiter.key)}
+                />
+              );
+            })}
+          </PanelList>
         )}
-      </PanelSection>
-      <Text variant="meta">{t("relationsNote")}</Text>
-    </>
+      </RelationGroup>
+    </PanelSection>
+  );
+}
+
+export const VISIBLE_RUN_ROWS = 5;
+
+function TicketRuns({
+  ticket,
+  onOpenRun,
+  onOpenRuns,
+}: {
+  ticket: TicketView;
+  onOpenRun: (runId: string) => void;
+  onOpenRuns: (ticket: TicketView) => void;
+}) {
+  const t = useTranslations("tickets.panel");
+  const statusName = useStatusName();
+  if (ticket.runs.length === 0) return null;
+  return (
+    <PanelSection title={t("runs")} titleRole="subheading" count={ticket.runs.length}>
+      <PanelList>
+        {ticket.runs.slice(0, VISIBLE_RUN_ROWS).map((run) => {
+          const status = runStatus(run);
+          return (
+            <PanelListRow
+              key={run.id}
+              marker={<span aria-hidden="true" {...stylex.props(statusDotStyles(status))} />}
+              title={`${statusName(status)} · ${run.runnerName ?? t("noRunnerName")}`}
+              trailing={<RunTime run={run} />}
+              onClick={() => onOpenRun(run.id)}
+            />
+          );
+        })}
+      </PanelList>
+      {ticket.runs.length <= VISIBLE_RUN_ROWS ? null : (
+        <div>
+          <Button variant="ghost" compact onClick={() => onOpenRuns(ticket)}>
+            {t("runsAll")}
+          </Button>
+        </div>
+      )}
+    </PanelSection>
+  );
+}
+
+function readableRepo(repo: { id: string; name: string } | undefined, fallback: string): string {
+  const name = repo?.name ?? fallback;
+  return name === (repo?.id ?? fallback) ? name.replace(/^[a-z][a-z0-9-]*:/, "") : name;
+}
+
+function AssignmentSetup({ ticket }: { ticket: TicketView }) {
+  const t = useTranslations("tickets.panel");
+  const agentName = useAgentName();
+  const { mapping } = ticket;
+  const labels = ticket.labels.toSorted((a, b) => Number(b.autoAssign) - Number(a.autoAssign));
+  return (
+    <PanelSection title={t("setup")} titleRole="subheading">
+      <DefinitionList>
+        <DefinitionItem label={t("mapping")} empty={mapping === null}>
+          {mapping === null
+            ? t("noMapping")
+            : t("mappingValue", {
+                project: readableRepo(
+                  mapping.repos.find((repo) => repo.id === mapping.runnerProject),
+                  mapping.runnerProject,
+                ),
+                agent: agentName(mapping.agent),
+              })}
+        </DefinitionItem>
+        <DefinitionItem label={t("labels")} empty={labels.length === 0}>
+          {labels.length === 0 ? (
+            t("none")
+          ) : (
+            <span {...stylex.props(styles.chips)}>
+              {labels.map((label) =>
+                label.autoAssign ? (
+                  <Chip key={label.name} tone="accent" wrapText>
+                    {`${label.name} · ${t("autoAssign")}`}
+                  </Chip>
+                ) : (
+                  <Chip key={label.name} wrapText>
+                    {label.name}
+                  </Chip>
+                ),
+              )}
+            </span>
+          )}
+        </DefinitionItem>
+      </DefinitionList>
+    </PanelSection>
   );
 }
 
@@ -648,10 +839,29 @@ function nextStepOf(ticket: TicketView): NextStep {
   return run.summary;
 }
 
+function useNextSentence(ticket: TicketView, read: BlockerRead): string {
+  const t = useTranslations("tickets.panel");
+  const queuedReasonText = useQueuedReasonText();
+  if (ticket.blockerWait !== null) return queuedReasonText(ticket.blockerWait);
+  const step = nextStepOf(ticket);
+  if (step !== "unassigned" || read.status !== "done" || !read.result.ok) return t(`next.${step}`);
+  const unfinished = read.result.blockers.filter(
+    (blocker) => !isBlockerFinished(blocker.stateCategory),
+  );
+  const [first] = unfinished;
+  if (first === undefined || unfinished.some((blocker) => blocker.stateCategory === "canceled"))
+    return t(`next.${step}`);
+  return t("next.unassignedBlocked", { key: first.key, rest: unfinished.length - 1 });
+}
+
 function TicketPanel({
   ticket,
   page,
   onOpenRun,
+  onOpenRuns,
+  onSelectTicket,
+  focusTitle,
+  onFocusedTitle,
   onAssign,
   onReadBlockers,
   rereads,
@@ -662,6 +872,10 @@ function TicketPanel({
   ticket: TicketView;
   page: TicketsPage;
   onOpenRun: (runId: string) => void;
+  onOpenRuns: (ticket: TicketView) => void;
+  onSelectTicket: (ticketId: string) => void;
+  focusTitle: boolean;
+  onFocusedTitle: () => void;
   onAssign: TicketsScreenProps["onAssign"];
   onReadBlockers: TicketsScreenProps["onReadBlockers"];
   rereads: number;
@@ -671,10 +885,12 @@ function TicketPanel({
 }) {
   const t = useTranslations("tickets.panel");
   const tTickets = useTranslations("tickets");
-  const queuedReasonText = useQueuedReasonText();
+  const { read, start } = useTicketBlockers(ticket, onReadBlockers, rereads);
+  const nextSentence = useNextSentence(ticket, read);
   const run = lastRun(ticket);
   const { assignability } = ticket;
   const openRunRef = useRef<HTMLSpanElement>(null);
+  const titleRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!focusOpenRun) return;
     const button = openRunRef.current?.querySelector("button");
@@ -682,35 +898,60 @@ function TicketPanel({
     button.focus();
     onFocusedOpenRun();
   }, [focusOpenRun, assignability.kind, onFocusedOpenRun]);
+  useEffect(() => {
+    if (!focusTitle) return;
+    titleRef.current?.focus();
+    onFocusedTitle();
+  }, [focusTitle, onFocusedTitle]);
 
   const openRunId = assignability.kind === "active-run" ? assignability.runId : run?.id;
-  const labels = ticket.labels;
   return (
     <DetailPanel>
       <div {...stylex.props(styles.panelHead)}>
-        <Text variant="meta">
-          {[
-            ticket.key,
-            ticket.trackerProject.name,
-            ...(ticket.priority === "none" ? [] : [tTickets(`priority.${ticket.priority}`)]),
-            ticket.trackerState.name,
-          ].join(" · ")}
-        </Text>
-        <Text variant="heading">{ticket.title}</Text>
-      </div>
-      <Card surface="inset" label={t("lastRun")}>
-        <div {...stylex.props(styles.lastRun)}>
-          <Text variant="label">{t("lastRun")}</Text>
-          <div {...stylex.props(styles.lastRunState)}>
-            <LastRunStatus run={run} />
-            {run === undefined ? null : <RunTiming run={run} />}
-            {run?.state === "ended" ? <RunPullRequest run={run} /> : null}
-          </div>
-          <Text variant="body">
-            {ticket.blockerWait === null
-              ? t(`next.${nextStepOf(ticket)}`)
-              : queuedReasonText(ticket.blockerWait)}
+        <div {...stylex.props(styles.panelMeta)}>
+          <Text variant="meta" numeric>
+            {`${ticket.key} · ${ticket.trackerProject.name}`}
           </Text>
+          {ticket.url === null ? null : (
+            <ExternalIconLink href={ticket.url} label={`${t("openInTracker")} (${t("newTab")})`} />
+          )}
+        </div>
+        <Text ref={titleRef} tabIndex={-1} variant="heading">
+          {ticket.title}
+        </Text>
+        <div {...stylex.props(styles.chips)}>
+          <Chip
+            leading={
+              <span
+                aria-hidden="true"
+                {...stylex.props(blockerDotStyles(blockerChipState(ticket.trackerState.category)))}
+              />
+            }
+          >
+            {ticket.trackerState.name}
+          </Chip>
+          {ticket.priority === "none" ? null : (
+            <Chip>{tTickets(`priority.${ticket.priority}`)}</Chip>
+          )}
+        </div>
+      </div>
+      <Card label={t("lastRun")}>
+        <div {...stylex.props(styles.lastRun)}>
+          <div {...stylex.props(styles.lastRunState)}>
+            {run === undefined ? (
+              <Text variant="ui">{t("noRun")}</Text>
+            ) : (
+              <>
+                <LastRunStatus run={run} />
+                <span {...stylex.props(styles.lastRunRunner)}>
+                  <Text variant="meta">{run.runnerName ?? t("noRunnerName")}</Text>
+                  {run.state === "ended" ? <RunPullRequest run={run} /> : null}
+                </span>
+                <RunTime run={run} />
+              </>
+            )}
+          </div>
+          <Text variant="body">{nextSentence}</Text>
           <Actions>
             {assignability.kind === "ready" ? (
               <AssignDialog
@@ -731,54 +972,15 @@ function TicketPanel({
           </Actions>
         </div>
       </Card>
-      <TicketRelations ticket={ticket} onReadBlockers={onReadBlockers} rereads={rereads} />
-      <DefinitionList>
-        <DefinitionItem label={t("labels")} empty={labels.length === 0}>
-          {labels.length === 0 ? (
-            t("none")
-          ) : (
-            <span {...stylex.props(styles.labels)}>
-              {labels.map((label) =>
-                label.autoAssign ? (
-                  <Text key={label.name} variant="ui">
-                    {`${label.name} · ${t("autoAssign")}`}
-                  </Text>
-                ) : (
-                  <Text key={label.name} variant="meta">
-                    {label.name}
-                  </Text>
-                ),
-              )}
-            </span>
-          )}
-        </DefinitionItem>
-        <DefinitionItem label={t("mapping")} empty={ticket.mapping === null}>
-          {ticket.mapping === null
-            ? t("noMapping")
-            : t("mappingValue", {
-                project: ticket.mapping.runnerProject,
-                agent: ticket.mapping.agent,
-              })}
-        </DefinitionItem>
-        <DefinitionItem label={t("runCount")}>
-          {t("runCountValue", { count: ticket.runs.length })}
-        </DefinitionItem>
-      </DefinitionList>
-      {ticket.url === null ? null : (
-        <PanelFooter>
-          <a
-            href={ticket.url}
-            target="_blank"
-            rel="noreferrer"
-            aria-label={`${t("openInTracker")} (${t("newTab")})`}
-            data-variant="ghost"
-            {...stylex.props(buttonStyles("ghost"))}
-          >
-            {t("openInTracker")}
-            <span aria-hidden="true"> ↗</span>
-          </a>
-        </PanelFooter>
-      )}
+      <TicketRelations
+        ticket={ticket}
+        tickets={page.tickets}
+        read={read}
+        onRead={start}
+        onSelectTicket={onSelectTicket}
+      />
+      <TicketRuns ticket={ticket} onOpenRun={onOpenRun} onOpenRuns={onOpenRuns} />
+      <AssignmentSetup ticket={ticket} />
     </DetailPanel>
   );
 }
@@ -798,16 +1000,12 @@ function RunPullRequest({ run }: { run: TicketRun & { state: "ended" } }) {
   );
 }
 
-function RunTiming({ run }: { run: TicketRun }) {
-  const t = useTranslations("tickets.panel");
+function RunTime({ run }: { run: TicketRun }) {
   const { ago, elapsed } = useTime();
-  const time = run.state === "ended" ? ago(run.endedAt, run.endedAgoMs) : elapsed(run.elapsedMs);
-  return (
-    <Text variant="meta">
-      {run.runnerName === null
-        ? t("noRunner", { time })
-        : t("runner", { runner: run.runnerName, time })}
-    </Text>
+  return run.state === "ended" ? (
+    <TimeSlot dateTime={run.endedAt}>{ago(run.endedAt, run.endedAgoMs)}</TimeSlot>
+  ) : (
+    <TimeSlot>{elapsed(run.elapsedMs)}</TimeSlot>
   );
 }
 
@@ -848,18 +1046,25 @@ const styles = stylex.create({
   contents: { display: "contents" },
   panelHead: { display: "flex", flexDirection: "column", gap: space.s2 },
   lastRun: { display: "flex", flexDirection: "column", gap: space.s3 },
-  lastRunState: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
-  labels: { display: "inline-flex", flexWrap: "wrap", gap: space.s2 },
+  panelMeta: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s2,
+    minWidth: 0,
+  },
+  lastRunState: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
+  lastRunRunner: {
+    display: "flex",
+    flexGrow: 1,
+    flexShrink: 1,
+    flexWrap: "wrap",
+    columnGap: space.s2,
+    minWidth: 0,
+  },
+  chips: { display: "flex", flexWrap: "wrap", gap: space.px6, minWidth: 0 },
+  relationGroup: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
   titleLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
   titleText: { display: "grid", flexShrink: 1, minWidth: 0 },
   waitMark: { display: "inline-flex", flexShrink: 0, alignItems: "center", gap: space.s1 },
-  waitingList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: space.s2,
-    margin: 0,
-    padding: 0,
-    listStyle: "none",
-  },
-  waitingRow: { display: "flex", alignItems: "baseline", gap: space.s2, minWidth: 0 },
 });
