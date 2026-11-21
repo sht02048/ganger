@@ -791,7 +791,7 @@ describe("Runs 화면", () => {
     }
 
     it("더 읽지 않는 Open PR 의 지난 CI 실패로는 확인 문장을 붙이지 않고 충돌·base 는 모름으로 둔다", () => {
-      const html = withPullRequest({ signals: null, signalsReadAgoMs: null, ci: "failure" });
+      const html = withPullRequest({ signals: null, ci: "failure" });
       const text = panelText(html);
       expect(text).not.toContain("확인이 필요해요");
       expect(text).toContain(section.conflictValue.unknown);
@@ -806,6 +806,22 @@ describe("Runs 화면", () => {
       const html = render(loadRunsPage(db, undefined, now), { selectedId: id });
       expect(panelText(html)).toContain(section.ciValue.pending);
       expect(tones(html)).toEqual(["neutral", "neutral", "neutral"]);
+    });
+
+    it("진행 중 런의 PR 이 코드 호스트에서 닫혔으면 CI 줄만 두고 읽은 때를 보인다", () => {
+      const { db, ids } = seedDatabase();
+      const id = ids.get("ACME-10");
+      if (id === undefined) throw new Error("seed");
+      updateRunRecords(db, id, {
+        pullRequest: {
+          ...pullRequest,
+          ci: "success",
+          signals: { ...signals, open: false, ciFailed: false, conflict: null, behindBy: null },
+        },
+      });
+      const html = render(loadRunsPage(db, undefined, now), { selectedId: id });
+      expect(tones(html)).toEqual(["pass"]);
+      expect(panelText(html)).toContain("읽음");
     });
 
     it("검사 목록이 잘렸으면 실패 수를 '이상'으로 말한다", () => {

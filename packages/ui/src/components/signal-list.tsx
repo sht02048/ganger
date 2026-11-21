@@ -1,12 +1,13 @@
 import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
-import { colors, fontSize, radius, size, space } from "../tokens.stylex";
+import { colors, fontSize, size, space } from "../tokens.stylex";
+import { surfaceStyles } from "./card";
 import { CheckIcon, CloseIcon } from "./icons";
 
 export type SignalTone = "pass" | "problem" | "warning" | "neutral";
 
 export function SignalList({ children }: { children: ReactNode }) {
-  return <dl {...stylex.props(styles.list)}>{children}</dl>;
+  return <dl {...stylex.props(surfaceStyles("inset"), styles.list)}>{children}</dl>;
 }
 
 export interface SignalRowProps {
@@ -73,8 +74,6 @@ const styles = stylex.create({
     margin: 0,
     paddingBlock: space.s1,
     paddingInline: space.s3,
-    borderRadius: radius.control,
-    backgroundColor: colors.bgInset,
     fontSize: fontSize.ui,
   },
   row: {

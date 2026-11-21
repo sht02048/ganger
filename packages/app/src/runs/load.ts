@@ -119,6 +119,7 @@ export function loadRunsPage(
       pr === null || pr === undefined || takenOver.has(run.id)
         ? null
         : prSignalsViewOf(run, records);
+    const readAt = signals?.checkedAt ?? pr?.checkedAt.toISOString() ?? "";
     const base = {
       id: run.id,
       ticketKey: run.ticket.key,
@@ -137,8 +138,9 @@ export function loadRunsPage(
               url: pr.url,
               ci: toCiView(pr.ci),
               signals,
-              signalsReadAgoMs:
-                signals === null ? null : now.getTime() - Date.parse(signals.checkedAt),
+              checkedAt: readAt,
+              checkedAgoMs: now.getTime() - Date.parse(readAt),
+              closedOnHost: pr.signals?.open === false,
             },
       attention: false,
     };

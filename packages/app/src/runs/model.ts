@@ -52,7 +52,9 @@ interface RunViewBase {
     url: string;
     ci: CiView;
     signals: PrSignalsView | null;
-    signalsReadAgoMs: number | null;
+    checkedAt: string;
+    checkedAgoMs: number;
+    closedOnHost: boolean;
   } | null;
   attention: boolean;
 }

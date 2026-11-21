@@ -188,8 +188,6 @@ function PrSection({ run }: { run: RunView }) {
   const { ago } = useTime();
   const pr = run.pullRequest;
   const state = panelPrState(run);
-  const signals = pr?.signals ?? null;
-  const readAgoMs = pr?.signalsReadAgoMs ?? null;
   const unreadText =
     run.state === "ended" && state === "unknown"
       ? t(`prUnread.${run.prReadError ?? "other"}`)
@@ -201,9 +199,7 @@ function PrSection({ run }: { run: RunView }) {
       {...(state === null || (pr === null && state !== "unknown")
         ? {}
         : { detail: s(`state.${state}`) })}
-      {...(signals === null || readAgoMs === null
-        ? {}
-        : { meta: s("readAt", { time: ago(signals.checkedAt, readAgoMs) }) })}
+      {...(pr === null ? {} : { meta: s("readAt", { time: ago(pr.checkedAt, pr.checkedAgoMs) }) })}
     >
       {unreadText !== null ? (
         <Text variant="ui" as="p">
@@ -214,7 +210,10 @@ function PrSection({ run }: { run: RunView }) {
           {s("none")}
         </Text>
       ) : (
-        <PrSignals pr={pr} showMergeRows={state !== "merged" && state !== "closed"} />
+        <PrSignals
+          pr={pr}
+          showMergeRows={state !== "merged" && state !== "closed" && pr.closedOnHost === false}
+        />
       )}
     </PanelSection>
   );
