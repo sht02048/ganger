@@ -445,6 +445,112 @@ describe("일을 잃지 않는 워크트리 정리 (0145 R7)", () => {
     expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
   });
 
+  describe("머지된 PR의 head와 워크트리 HEAD (R8)", () => {
+    const PR_HEAD = "abc123";
+    const unpushedAt = (headCommit: string) => ({
+      uncommittedChanges: false,
+      unpushedCommits: true,
+      headCommit,
+    });
+
+    it("런이 끝날 때 이미 squash 머지됐고 HEAD가 PR head면 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+      expect(recordsOf(run).worktreeKept).toBeNull();
+    });
+
+    it("런이 끝난 뒤 squash 머지되고 HEAD가 PR head면 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      await settlePullRequest(run, "merged");
+      h.advance(PR_POLL_INTERVAL_MS);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+      expect(recordsOf(run).worktreeKept).toBeNull();
+    });
+
+    it("머지 뒤 더 커밋해 HEAD가 PR head와 다르면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt("def456"));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("HEAD가 PR head와 같아도 커밋하지 않은 변경이 있으면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), {
+        ...unpushedAt(PR_HEAD),
+        uncommittedChanges: true,
+      });
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("uncommitted-changes");
+    });
+
+    it("PR이 머지되지 않고 닫혔으면 HEAD가 같아도 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      await settlePullRequest(run, "closed");
+      h.advance(PR_POLL_INTERVAL_MS);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("머지됐지만 기록에 head 커밋이 없으면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      expect(recordsOf(run).pullRequest?.signals ?? null).toBeNull();
+      updateRunRecords(h.db, run.id, { laterPrState: { state: "merged", at: h.now } });
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("일반 머지로 원격에 없는 커밋이 없으면 HEAD와 상관없이 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), {
+        uncommittedChanges: false,
+        unpushedCommits: false,
+        headCommit: "def456",
+      });
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+    });
+
+    it("이미 push하지 않은 커밋으로 남긴 런은 다시 판정하지 않는다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt("def456"));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+  });
+
   it("Succeeded인데 PR이 없으면 확인하지 않고 운영자가 보게 남긴다 (R7-2)", async () => {
     const { run, runnerId, worker } = await startOne();
     const check = vi.spyOn(h.runner(runnerId), "checkWorktreeWork");

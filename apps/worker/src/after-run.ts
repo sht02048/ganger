@@ -453,7 +453,9 @@ async function unsavedWorkIn(
     const work = await context.adapters.runner(stored).checkWorktreeWork(run.worktree);
     if (work.kind === "gone") return null;
     if (work.uncommittedChanges) return "uncommitted-changes";
-    if (work.unpushedCommits) return "unpushed-commits";
+    if (work.unpushedCommits && work.headCommit !== mergedPullRequestHead(context, run)) {
+      return "unpushed-commits";
+    }
     return null;
   } catch (error) {
     if (runnerErrorDetail(error)?.kind === "unreachable") {
@@ -463,6 +465,16 @@ async function unsavedWorkIn(
     context.logger.warn("run.worktree_check_failed", { runId: run.id, error });
     return "check-failed";
   }
+}
+
+function mergedPullRequestHead(context: TickContext, run: StartedEndedRun): string | null {
+  const found = getRunWithRecords(context.db, run.id);
+  if (found === null || found.run.state !== "ended") return null;
+  const { prState } = found.run;
+  const { laterPrState, pullRequest } = found.records;
+  if (prState !== "merged" && laterPrState?.state !== "merged") return null;
+  const signals = pullRequest?.signals;
+  return signals === undefined || signals === null || signals.open ? null : signals.headCommit;
 }
 
 async function removeWorktree(
