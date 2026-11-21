@@ -166,7 +166,7 @@ function useRunReason(run: RunView): string {
     case "ended": {
       const reason = t(`reason.${run.summary}`);
       const openWithFailedCi =
-        currentPrState(run) === "open" && run.pullRequest !== null && isCiFailed(run.pullRequest);
+        currentPrState(run) === "open" && run.pullRequest?.signals?.ciFailed === true;
       return openWithFailedCi ? t("reasonWithCiFailed", { reason }) : reason;
     }
   }
@@ -214,7 +214,7 @@ function PrSection({ run }: { run: RunView }) {
           {s("none")}
         </Text>
       ) : (
-        <PrSignals pr={pr} showMergeRows={signals !== null || state === "open"} />
+        <PrSignals pr={pr} showMergeRows={state !== "merged" && state !== "closed"} />
       )}
     </PanelSection>
   );
