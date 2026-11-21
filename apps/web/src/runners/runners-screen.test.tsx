@@ -486,7 +486,7 @@ describe("Runners 고른 러너 패널", () => {
       }),
     );
     const text = textOf(html);
-    expect(text).toContain("ACME-12 시계 adapter 합치기 4분째");
+    expect(text).toContain("ACME-12 시계 adapter 합치기 4 min");
     expect(text).toContain(`ACME-16 승인 정책 기본값 ${domain.attention.question}`);
     expect(html).toContain('data-status="question"');
     expect(html).toContain('href="/runs/b?ws=ws"');

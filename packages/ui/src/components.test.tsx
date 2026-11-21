@@ -73,6 +73,7 @@ import {
   UsageMeter,
   PanelRows,
   PanelHeader,
+  PanelListRow,
   PanelSection,
   SignalList,
   SignalRow,
@@ -1126,13 +1127,19 @@ describe("새 컴포넌트(티켓 0073)", () => {
     expect(html).not.toContain("내용");
   });
 
+  it("PanelListRow 는 href 를 주면 행 전체가 링크다", () => {
+    const html = renderToString(<PanelListRow href="/runs/1" ticketKey="ACME-1" title="제목" />);
+    expect(html).toMatch(/<li[^>]*><a href="\/runs\/1"/);
+    expect(html).not.toContain("<button");
+  });
+
   it("PanelSection 은 count 와 info 를 제목 옆에, meta 를 오른쪽에 둔다", () => {
     const html = renderToString(
       <PanelSection title="자리" count="2/3" info={<i>도움말</i>} meta="3분 전">
         본문
       </PanelSection>,
     );
-    expect(html).toMatch(/<h3[^>]*>자리<\/h3><span[^>]*>2\/3<\/span><i>도움말<\/i><\/div><span/);
+    expect(html).toMatch(/<h3[^>]*>자리<\/h3><span[^>]*>2\/3<\/span><i>도움말<\/i><\/span><span/);
   });
 
   it("CapacityCells 는 자리 하나를 칸 하나로 그리고 칸 묶음을 이름 하나로 읽는다", () => {

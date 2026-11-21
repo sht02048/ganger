@@ -15,12 +15,12 @@ import {
   InfoTip,
   MascotMessage,
   PageHeader,
-  PanelRows,
+  PanelList,
+  PanelListRow,
   PanelSection,
   ResponsiveColumns,
   ResponsiveColumnsHead,
   ProblemCallout,
-  Row,
   RowTitle,
   ScreenLayout,
   SplitView,
@@ -604,7 +604,11 @@ function CapacityRuns({ runner }: { runner: RunnerView }) {
   const tRunners = useTranslations("runners");
   const used = runner.occupying.length;
   return (
-    <PanelSection title={t("capacity")} count={capacityText(used, runner.capacity)}>
+    <PanelSection
+      titleRole="subheading"
+      title={t("capacity")}
+      count={capacityText(used, runner.capacity)}
+    >
       <CapacityTrack
         used={used}
         total={runner.capacity}
@@ -613,13 +617,11 @@ function CapacityRuns({ runner }: { runner: RunnerView }) {
       {used === 0 ? (
         <Text variant="ui">{t("noRuns")}</Text>
       ) : (
-        <PanelRows ordered>
+        <PanelList>
           {runner.occupying.map((run) => (
-            <li key={run.id}>
-              <OccupyingRunRow run={run} />
-            </li>
+            <OccupyingRunRow key={run.id} run={run} />
           ))}
-        </PanelRows>
+        </PanelList>
       )}
       {runner.queued.length === 0 ? null : (
         <Text variant="meta" as="p" numeric>
@@ -643,30 +645,20 @@ function OccupyingRunRow({ run }: { run: OccupyingRun }) {
   const status = occupyingStatus(run);
   const isTodo = run.state === "waiting-for-input" || run.state === "disconnected";
   return (
-    <Row
+    <PanelListRow
       href={runHref(run.workspace.id, run.id)}
-      leading={<StatusDot status={status}>{statusName(status)}</StatusDot>}
+      marker={
+        isTodo ? (
+          <StatusDot status={status} />
+        ) : (
+          <StatusDot status={status}>{statusName(status)}</StatusDot>
+        )
+      }
+      {...(run.ticketTitle === null
+        ? { title: run.ticketKey }
+        : { ticketKey: run.ticketKey, title: run.ticketTitle })}
       trailing={isTodo ? statusName(status) : elapsed(run.executionMs)}
-    >
-      <RunLabel ticketKey={run.ticketKey} text={run.ticketTitle} />
-    </Row>
-  );
-}
-
-function RunLabel({ ticketKey, text }: { ticketKey: string; text: string | null }) {
-  return (
-    <span {...stylex.props(styles.runLabel)}>
-      <span {...stylex.props(styles.runKey)}>
-        <Text variant="meta" numeric>
-          {ticketKey}
-        </Text>
-      </span>
-      {text === null ? null : (
-        <Text variant="ui" tone="strong" truncate>
-          {text}
-        </Text>
-      )}
-    </span>
+    />
   );
 }
 
@@ -676,7 +668,7 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
   const prerequisiteName = usePrerequisiteName();
   if (!runner.online) {
     return (
-      <PanelSection title={t("checksTitle")}>
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
         <CheckResultList>
           <CheckResultRow state="broken" stateLabel={t("check.broken")} name={t("unreachable")} />
         </CheckResultList>
@@ -686,7 +678,7 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
   const checks = runner.checks;
   if (checks === null || checks.length === 0) {
     return (
-      <PanelSection title={t("checksTitle")}>
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
         <Text variant="ui">{t("noChecks")}</Text>
       </PanelSection>
     );
@@ -753,7 +745,7 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
   });
   if (passed === ordered.length) {
     return (
-      <PanelSection title={t("checksTitle")}>
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
         <ExpandableRow
           leading={<CheckResultIcon state="ok" />}
           summary={t("checksAllPassed", { count: ordered.length })}
@@ -765,6 +757,7 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
   }
   return (
     <PanelSection
+      titleRole="subheading"
       title={t("checksTitle")}
       count={t("checksCount", { passed, total: ordered.length })}
     >
@@ -782,16 +775,21 @@ function LeftWorktrees({ runner }: { runner: RunnerView }) {
   const t = useTranslations("runners.panel");
   if (runner.leftWorktrees.length === 0) return null;
   return (
-    <PanelSection title={t("leftWorktrees")} count={runner.leftWorktrees.length}>
-      <PanelRows>
+    <PanelSection
+      titleRole="subheading"
+      title={t("leftWorktrees")}
+      count={runner.leftWorktrees.length}
+    >
+      <PanelList>
         {runner.leftWorktrees.map((run) => (
-          <li key={run.id}>
-            <Row href={runHref(run.workspace.id, run.id)}>
-              <RunLabel ticketKey={run.ticketKey} text={t(`worktree.${run.worktree}`)} />
-            </Row>
-          </li>
+          <PanelListRow
+            key={run.id}
+            href={runHref(run.workspace.id, run.id)}
+            ticketKey={run.ticketKey}
+            title={t(`worktree.${run.worktree}`)}
+          />
         ))}
-      </PanelRows>
+      </PanelList>
     </PanelSection>
   );
 }
@@ -830,6 +828,7 @@ function ProviderUsage({ runner }: { runner: RunnerView }) {
   const usage = runner.usage;
   return (
     <PanelSection
+      titleRole="subheading"
       title={t("title")}
       info={<InfoTip label={t("privacyLabel")} content={t("privacy")} />}
       {...(usage === null ? {} : { meta: t("readAgo", { time: ago(usage.readAt, usage.agoMs) }) })}
@@ -987,7 +986,6 @@ const styles = stylex.create({
   statusLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   statusTime: { flexGrow: 1, flexBasis: 0, minWidth: 0 },
   fixBody: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
-  runKey: { flexShrink: 0 },
   wrap: { minWidth: 0, overflowWrap: "anywhere" },
   guardFrame: { display: "contents" },
   nameLine: {
@@ -1017,6 +1015,5 @@ const styles = stylex.create({
   },
   windowGrid: { alignItems: "center" },
   labelGridRest: { gridColumn: "2 / -1", minWidth: 0 },
-  runLabel: { display: "flex", alignItems: "baseline", gap: space.s2, minWidth: 0 },
   provider: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
 });

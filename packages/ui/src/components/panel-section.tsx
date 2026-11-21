@@ -74,6 +74,7 @@ export interface PanelListRowProps {
   done?: boolean;
   trailing?: ReactNode;
   onClick?: () => void;
+  href?: string;
 }
 
 export function PanelListRow({
@@ -83,6 +84,7 @@ export function PanelListRow({
   done,
   trailing,
   onClick,
+  href,
 }: PanelListRowProps) {
   const content = (
     <>
@@ -108,7 +110,14 @@ export function PanelListRow({
   );
   return (
     <li {...stylex.props(styles.item)}>
-      {onClick === undefined ? (
+      {href !== undefined ? (
+        <a
+          href={href}
+          {...stylex.props(styles.row, styles.rowButton, styles.rowLink, focusStyles.ringInset)}
+        >
+          {content}
+        </a>
+      ) : onClick === undefined ? (
         <div {...stylex.props(styles.row)}>{content}</div>
       ) : (
         <button
@@ -197,6 +206,7 @@ const styles = stylex.create({
     },
     cursor: "pointer",
   },
+  rowLink: { textDecorationLine: "none" },
   marker: {
     display: "inline-flex",
     flexShrink: 0,
