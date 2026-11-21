@@ -95,7 +95,7 @@ describe("Stats 화면(0072)", () => {
     expect(tiles(render(seeded()))).toEqual([
       "성공률 56% 앞 14일보다 44%p 내렸어요",
       "PR 병합 3 이 기간에 끝난 런 중 PR이 병합된 런 수예요",
-      "리드 타임 중앙값 22분 느린 10%는 2시간 1분 넘게 걸렸어요",
+      "리드 타임 중앙값 22 min 느린 10%는 2 hr 1 min 넘게 걸렸어요",
       "끝난 런 9",
     ]);
   });
@@ -186,8 +186,8 @@ describe("Stats 화면(0072)", () => {
       "러너 트래커 프로젝트 에이전트",
     );
     expect(breakdownRows(html)).toEqual([
-      ["runner-a", "5", "80%", "22분", ""],
-      ["runner-b", "4", "25%", "18분", ""],
+      ["runner-a", "5", "80%", "22 min", ""],
+      ["runner-b", "4", "25%", "18 min", ""],
     ]);
     expect(breakdownRows(render(seeded(), { dimension: "agent" })).map((r) => r[0])).toEqual([
       "Claude Code",
@@ -291,7 +291,7 @@ describe("Stats 화면(0072)", () => {
 
     it("나눠 보기 끝난 런은 Canceled 를 세고 성공률은 Canceled 를 빼고 낸다", () => {
       const rows = breakdownRows(render(page(), { dimension: "agent" }));
-      expect(rows.find((r) => r[0] === "gemini")).toEqual(["gemini", "2", "0%", "11분", ""]);
+      expect(rows.find((r) => r[0] === "gemini")).toEqual(["gemini", "2", "0%", "11 min", ""]);
     });
   });
 });

@@ -1018,7 +1018,7 @@ describe("러너 확인", () => {
     );
     const check = later.install.runners[0]?.check;
     expect(check).toMatchObject({ status: "done", completedAgoMs: 25 * 60_000 - 5000 });
-    expect(textOf(renderRunnerCheck(later))).toContain("24분 전 확인");
+    expect(textOf(renderRunnerCheck(later))).toContain("24 min ago 확인");
   });
 
   it("GitHub 인증이 깨진 결과는 실패와 해결 방법을 보인다", async () => {

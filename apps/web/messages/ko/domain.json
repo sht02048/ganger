@@ -67,15 +67,15 @@
     }
   },
   "duration": {
-    "seconds": "{seconds}초",
-    "minutes": "{minutes}분",
-    "hours": "{hours}시간",
-    "hoursMinutes": "{hours}시간 {minutes}분"
+    "underMinute": "<1 min",
+    "minutes": "{minutes} min",
+    "hours": "{hours} hr",
+    "hoursMinutes": "{hours} hr {minutes} min",
+    "days": "{days, plural, =1 {# day} other {# days}}"
   },
   "time": {
-    "justNow": "방금",
-    "ago": "{duration} 전",
-    "elapsed": "{duration}째",
+    "justNow": "Just now",
+    "ago": "{duration} ago",
     "date": "{month}월 {day}일",
     "dayShort": "{month}/{day}"
   },
@@ -129,8 +129,7 @@
       "timeout": "시간 초과: GitHub 응답이 늦었어요. 잠시 뒤 다시 확인해요.",
       "other": "기타: 이유를 보고 러너의 저장소 클론과 remote 설정을 확인해요."
     },
-    "checking": "확인하는 중이에요 · {duration}째",
-    "elapsed": "{duration}째"
+    "checking": "확인하는 중이에요 · {duration}"
   },
   "runControlFailure": {
     "runner-unreachable": "러너에 닿지 않아요. 러너가 켜져 있는지 확인해 주세요.",

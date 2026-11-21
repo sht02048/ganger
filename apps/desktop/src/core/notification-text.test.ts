@@ -47,7 +47,7 @@ describe("알림 문구", () => {
   it("다시 알림, 묶음, 놓친 일 문구", () => {
     expect(
       notificationText({ kind: "event", record: record("question"), reminder: true }).body,
-    ).toBe("ACME-1 에이전트가 10분째 답을 기다려요.");
+    ).toBe("ACME-1 에이전트가 10 min 답을 기다려요.");
     expect(notificationText({ kind: "bundle", count: 5 })).toEqual({
       title: "To do",
       body: "처리할 일 5개가 생겼어요.",

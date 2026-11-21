@@ -200,7 +200,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(rows(queued)).toHaveLength(page.queued.length);
     expect(pillsOf(queued)).toEqual([]);
     expect(text(row(queued, "ACME-14"))).toContain(homeJson.card.queuedAnyOffline);
-    expect(text(row(queued, "ACME-14"))).toMatch(/째$/);
+    expect(text(row(queued, "ACME-14"))).toMatch(/(<1 min|\d+ (min|hr|days?))$/);
   });
 
   it("Running 칸은 꼬리표 카드(Question·Permission·Disconnected)를 맨 위에, 그 아래 Running 런을 둔다", () => {
@@ -224,7 +224,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     const running = section(render(withInput(seededPage(), question)), "Running");
     const card = row(running, "ACME-11");
     expect(text(card)).toContain(question.body);
-    expect(text(card)).toContain("25분째");
+    expect(text(card)).toContain("25 min");
     expect(actionsOf(card)).toEqual([{ variant: "secondary", label: homeJson.card.answer }]);
     expect(card).not.toContain('type="radio"');
   });
@@ -246,7 +246,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       ),
     });
     expect(text(row(section(html, "Running"), "ACME-12"))).toContain(
-      "runner-a에 7분째 닿지 않아요",
+      "runner-a에 7 min 닿지 않아요",
     );
   });
 
@@ -261,7 +261,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     const succeeded = row(done, "ACME-7");
     expect(succeeded).not.toContain("data-tag=");
     expect(text(succeeded)).toContain("Succeeded · PR #7");
-    expect(text(succeeded)).toContain("1시간 전");
+    expect(text(succeeded)).toContain("1 hr ago");
   });
 
   it("처리할 일 없이 끝난 카드는 소제목 아래에 꼬리표 없이 상태 이름과 함께 모은다", () => {
@@ -577,7 +577,7 @@ describe("Runners", () => {
 
     expect([...html.matchAll(/<section aria-labelledby/g)]).toHaveLength(1);
     expect(html).toMatch(/<h3[^>]*>러너 1대에 문제가 있어요<\/h3>/);
-    expect(text(html)).toContain("Offline이에요: runner-b(2시간째)");
+    expect(text(html)).toContain("Offline이에요: runner-b(2 hr)");
     expect(html).toMatch(
       /<a href="\/runners" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
     );
@@ -827,10 +827,10 @@ describe("Runners 공급자 사용량(0086)", () => {
     const runners = section(html, "Runners");
     expect(text(runners)).toContain("러너 1대에 문제가 있어요");
     expect(text(runners)).toContain(
-      "Claude 5시간 한도에 닿았어요: runner-c · 1시간 12분 뒤 한도가 풀리면 다시 런을 받아요",
+      "Claude 5시간 한도에 닿았어요: runner-c · 1 hr 12 min 뒤 한도가 풀리면 다시 런을 받아요",
     );
     expect(text(html)).toContain(
-      "한도에 닿은 러너 1대는 1시간 12분 뒤 한도가 풀리면 다시 런을 받아요.",
+      "한도에 닿은 러너 1대는 1 hr 12 min 뒤 한도가 풀리면 다시 런을 받아요.",
     );
   });
 
@@ -863,7 +863,7 @@ describe("Dashboard 멈추기·재개(0118)", () => {
     expect(pillsOf(paused)).toEqual([{ status: "paused", label: domain.runState.paused }]);
     expect(buttonsOf(paused).map((button) => button.label)).toContain(homeJson.card.resume);
     expect(paused).not.toContain(homeJson.card.menu.replace("{key}", "ACME-10"));
-    expect(text(paused)).toContain("20분째");
+    expect(text(paused)).toContain("20 min");
     expect(text(paused)).toContain(domain.pauseSource.operator);
   });
 

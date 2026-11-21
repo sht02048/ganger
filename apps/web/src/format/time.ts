@@ -18,9 +18,9 @@ export function useTime(): TimeFormat {
   const format = useFormatter();
 
   const duration = (ms: number): string => {
-    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
-    if (totalSeconds < 60) return t("duration.seconds", { seconds: totalSeconds });
-    const totalMinutes = Math.floor(totalSeconds / 60);
+    if (ms >= DAY_MS) return t("duration.days", { days: Math.floor(ms / DAY_MS) });
+    const totalMinutes = Math.max(0, Math.floor(ms / MINUTE_MS));
+    if (totalMinutes === 0) return t("duration.underMinute");
     if (totalMinutes < 60) return t("duration.minutes", { minutes: totalMinutes });
     const hours = Math.floor(totalMinutes / 60);
     const minutes = totalMinutes % 60;
@@ -36,7 +36,7 @@ export function useTime(): TimeFormat {
 
   return {
     duration,
-    elapsed: (ms) => t("time.elapsed", { duration: duration(ms) }),
+    elapsed: duration,
     ago: (at, agoMs) => {
       if (agoMs < MINUTE_MS) return t("time.justNow");
       if (agoMs < HOUR_MS)

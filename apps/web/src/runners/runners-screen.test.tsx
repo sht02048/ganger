@@ -135,14 +135,14 @@ describe("Runners 목록", () => {
     expect(textOf(a)).toContain("4/10");
     expect(textOf(a)).toContain(`Runner Issue runner-a ${runnersJson.row.assignmentBlocked}`);
     const b = rows.find((r) => r.name === "runner-b")?.html ?? "";
-    expect(textOf(b)).toContain("오케스트레이터가 이 러너에 2시간째 닿지 않아요.");
+    expect(textOf(b)).toContain("오케스트레이터가 이 러너에 2 hr 닿지 않아요.");
   });
 
   it("Offline 이 된 시각을 모르는 러너는 경과 없이 닿지 않는다고만 보인다(티켓 0064)", () => {
     const page: RunnersPage = { runners: [runner({ id: "down", online: false })] };
     const down = rowsOf(render(page)).find((r) => r.name === "down")?.html ?? "";
     expect(textOf(down)).toContain(runnersJson.row.offline);
-    expect(textOf(down)).not.toContain("째");
+    expect(textOf(down)).not.toMatch(/<1 min|\d+ (min|hr|days?)/);
   });
 
   it("꽉 찬 러너는 자리를 기다리는 런 수를, 빈자리가 있으면 빈자리 수를 한 문장으로 보인다", () => {
@@ -303,7 +303,7 @@ describe("Runners 고른 러너 패널", () => {
       }),
     );
     expect(pillsOf(html)[0]).toEqual({ status: "online", label: domain.runnerState.online });
-    expect(textOf(html)).toContain("2시간 전 확인했어요");
+    expect(textOf(html)).toContain("2 hr ago 확인했어요");
     expect(html).toMatch(/<h2[^>]*>build-1<\/h2>/);
     expect(html).toMatch(/<p[^>]*>dev@runner.example.com<\/p>/);
   });
@@ -549,7 +549,7 @@ describe("공급자 사용량(0086)", () => {
     const html = panelHtml(render(seededWithUsage(), "runner-a"));
     const text = textOf(html);
     expect(text).toContain(panel.usage.title);
-    expect(text).toContain("3분 전 읽었어요");
+    expect(text).toContain("3 min ago 읽었어요");
     expect(text).toMatch(/5시간 100% \S+에 초기화돼요 · 한도에 닿았어요/);
     expect(text).toContain("주간 72% Fable 주간 9%");
     expect(text).toContain("Fable 주간");
@@ -657,7 +657,7 @@ describe("Runners 다시 그리기(0092)", () => {
       reading: { kind: "read", providers: [] },
     });
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    expect(a).toMatch(new RegExp(`>${panel.usage.title}</h3><span[^>]*>3분 전 읽었어요</span>`));
+    expect(a).toMatch(new RegExp(`>${panel.usage.title}</h3><span[^>]*>3 min ago 읽었어요</span>`));
     expect(a).toMatch(new RegExp(`>${panel.checksTitle}</h3><span[^>]*>1/2 통과</span>`));
   });
 

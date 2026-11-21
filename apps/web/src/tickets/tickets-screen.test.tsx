@@ -333,7 +333,7 @@ describe("Tickets 화면", () => {
     const panel = panelText(html);
     expect(panel).toContain("ACME-3 · Web · Todo");
     expect(aside).toContain('aria-label="마지막 런"');
-    expect(panel).toMatch(/Running runner-a · \d+시간 \d+분째/);
+    expect(panel).toMatch(/Running runner-a · \d+ hr \d+ min/);
     expect(panel).toContain("Mapping github:acme/web · claude");
   });
 
@@ -465,6 +465,6 @@ describe("수동 할당 폼", () => {
       />,
       ticketsMessages,
     );
-    expect(text(html)).toContain("runner-a · Claude 한도에 닿았어요. 1시간 8분 뒤 풀려요");
+    expect(text(html)).toContain("runner-a · Claude 한도에 닿았어요. 1 hr 8 min 뒤 풀려요");
   });
 });

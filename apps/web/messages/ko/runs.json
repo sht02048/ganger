@@ -59,7 +59,7 @@
     "noRuns": "런이 생기면 여기에 요약이 보여요.",
     "subtitle": "{project} · {branch}",
     "subtitleWithKey": "{key} · {where}",
-    "waitingFor": "{duration}째 기다리는 중",
+    "waitingFor": "{duration} 기다리는 중",
     "endedAfter": "{duration} 만에 끝났어요",
     "state": "상태",
     "summary": "요약 결과",
@@ -86,7 +86,7 @@
       "disconnectedPaused": "멈춰 둔 런인데 러너에 5분 넘게 닿지 않았어요. 다시 닿으면 멈춘 채로 돌아와요. 최대 실행 시간은 멈춰 있어요."
     },
     "noRunsWithConditions": "조건에 맞는 런이 생기면 여기에 요약이 보여요.",
-    "pausedFor": "{duration}째 멈춰 있어요",
+    "pausedFor": "{duration} 멈춰 있어요",
     "prUnread": {
       "no-access": "PR 정보를 읽지 못했어요. GitHub 토큰이 이 저장소를 볼 수 없어요. 토큰을 고치면 worker가 다시 읽어요.",
       "other": "PR 정보를 읽지 못했어요. worker가 간격을 늘려 가며 다시 읽어요."

@@ -378,14 +378,14 @@ describe("서버 렌더", () => {
 
   it("TimeSlot 은 시간 글을 같은 폭 칸에 두고, dateTime 을 주면 time 요소다(티켓 0091)", () => {
     const classOf = (html: string) => /class="([^"]*)"/.exec(html)?.[1] ?? "";
-    const short = renderToString(<TimeSlot>42초째</TimeSlot>);
-    const long = renderToString(<TimeSlot>1시간 3분째</TimeSlot>);
+    const short = renderToString(<TimeSlot>{"<1 min"}</TimeSlot>);
+    const long = renderToString(<TimeSlot>1 hr 3 min</TimeSlot>);
     expect(short).toMatch(/^<span data-slot="time"/);
     expect(classOf(short)).toBe(classOf(long));
     const time = renderToString(<TimeSlot dateTime="2026-11-17T09:00:00.000Z">11월 17일</TimeSlot>);
     expect(time).toMatch(/^<time dateTime="2026-11-17T09:00:00.000Z" data-slot="time"/);
     expect(classOf(time)).toBe(classOf(short));
-    expect(renderToString(<TimeSlot>123시간 45분째</TimeSlot>)).toContain(">123시간 45분째<");
+    expect(renderToString(<TimeSlot>12345 days</TimeSlot>)).toContain(">12345 days<");
   });
 
   it("RowActionSlot 은 버튼이 없어도 같은 폭 칸을 남긴다(티켓 0091)", () => {
@@ -605,7 +605,7 @@ describe("서버 렌더", () => {
         title="ACME-1"
         detail="질문"
         meta="runner-a"
-        time="12분째"
+        time="12 min"
         action={<Button>답하기</Button>}
         selected
         onOpen={noop}
@@ -615,7 +615,7 @@ describe("서버 렌더", () => {
     const open = html.slice(html.indexOf("<button"), html.indexOf("</button>") + 9);
     expect(open).toContain("Question");
     expect(open).toContain("ACME-1");
-    expect(open).toContain("12분째");
+    expect(open).toContain("12 min");
     expect(open).not.toContain("답하기");
     expect(html.indexOf("답하기")).toBeGreaterThan(html.indexOf("</button>"));
     const named = /aria-labelledby="([^"]+)" aria-describedby="([^"]+)"/.exec(html);
@@ -647,7 +647,7 @@ describe("서버 렌더", () => {
         stuck
         meta="선행 티켓이 취소됐어요"
         metaTone="problem"
-        time="2시간째"
+        time="2 hr"
         onOpen={noop}
       />,
     );
@@ -671,7 +671,7 @@ describe("서버 렌더", () => {
       <KanbanCard
         title="ACME-1"
         meta="runner-a"
-        time="24분째"
+        time="24 min"
         menu={
           <Menu variant="icon" label="ACME-1 런 메뉴" trigger={<MoreIcon />}>
             <MenuItem value="pause">멈추기</MenuItem>
