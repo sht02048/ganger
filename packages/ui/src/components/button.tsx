@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Button as SdkButton } from "@ui-sdk/react/button";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import { cx, type StyleArg } from "../cx";
-import { colors, fontWeight, motion, radius, size, space } from "../tokens.stylex";
+import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
@@ -23,9 +23,17 @@ export interface ButtonProps {
   "aria-disabled"?: boolean;
   ref?: Ref<HTMLButtonElement>;
   busy?: { active: boolean; label: ReactNode };
+  compact?: boolean;
 }
 
-export function Button({ variant = "secondary", children, onClick, busy, ...props }: ButtonProps) {
+export function Button({
+  variant = "secondary",
+  children,
+  onClick,
+  busy,
+  compact,
+  ...props
+}: ButtonProps) {
   const busyNow = busy?.active === true;
   const disabled = props["aria-disabled"] === true || busyNow;
   const busyProps =
@@ -39,7 +47,9 @@ export function Button({ variant = "secondary", children, onClick, busy, ...prop
       {...busyProps}
       data-variant={variant}
       {...(handleClick === undefined ? {} : { onClick: handleClick })}
-      className={(s) => cx(...buttonStyles(variant, s.disabled || disabled))}
+      className={(s) =>
+        cx(...buttonStyles(variant, s.disabled || disabled), compact === true && styles.compact)
+      }
     >
       {busy === undefined ? children : <BusyLabels busy={busy}>{children}</BusyLabels>}
     </SdkButton>
@@ -82,6 +92,7 @@ export function buttonStyles(variant: ButtonVariant, disabled = false): Readonly
 }
 
 const styles = stylex.create({
+  compact: { height: size.controlCompact, paddingInline: space.s2, fontSize: fontSize.small },
   labels: { display: "grid" },
   label: { gridArea: "1 / 1" },
   labelHidden: { visibility: "hidden" },

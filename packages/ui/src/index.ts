@@ -263,8 +263,10 @@ export {
   type ToasterProps,
 } from "./components/toast";
 export {
+  ExternalIconLink,
   InfoTip,
   Tooltip,
+  type ExternalIconLinkProps,
   type InfoTipProps,
   type TooltipAction,
   type TooltipProps,
@@ -292,7 +294,14 @@ export {
 } from "./components/settings-layout";
 export { UsageBar, usageText, type UsageBarProps, type UsageTone } from "./components/usage-bar";
 export { UsageMeter, type UsageMeterProps } from "./components/usage-meter";
-export { PanelRows, PanelSection, type PanelSectionProps } from "./components/panel-section";
+export {
+  PanelList,
+  PanelListRow,
+  PanelRows,
+  PanelSection,
+  type PanelListRowProps,
+  type PanelSectionProps,
+} from "./components/panel-section";
 export {
   ResponsiveColumns,
   ResponsiveColumnsHead,

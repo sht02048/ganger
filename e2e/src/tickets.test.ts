@@ -13,12 +13,16 @@ import {
   toTicketKey,
   toTrackerStateId,
 } from "@ganger/core";
+import type { RunId, TicketKey } from "@ganger/core";
 import { FakeTracker } from "@ganger/core/testing";
 import {
   SecretBox,
+  assignRun,
+  changeRunState,
   listRuns,
   migrate,
   openDatabase,
+  recordRunRelations,
   recordRunnerCheck,
   replaceMapping,
   saveAutoAssignLabel,
@@ -338,7 +342,98 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await dialog.waitFor({ state: "hidden" });
     await expect.poll(focused).toBe(tickets.panel.openRun);
   });
+
+  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행과 모두 보기는 Runs로 간다(0164)", async () => {
+    const waiter = toTicketKey("ACME-900");
+    const blockerKey = toTicketKey("ACME-901");
+    const manyRuns = toTicketKey("ACME-902");
+    const waiting = assignQueued(waiter);
+    recordRunRelations(
+      db,
+      waiting,
+      {
+        priority: "high",
+        blockers: [
+          {
+            key: blockerKey,
+            title: "Ticket number 901",
+            state: { id: toTrackerStateId("todo"), name: "Todo", category: "unstarted" },
+          },
+        ],
+        inCycle: new Set(),
+      },
+      new Date(),
+    );
+    const minuteOf = (minute: number) => new Date(Date.UTC(2026, 10, 17) + minute * 60_000);
+    let newest = assignQueued(manyRuns, minuteOf(0));
+    for (let i = 1; i < 6; i += 1) {
+      endCanceled(newest, minuteOf(i));
+      newest = assignQueued(manyRuns, minuteOf(i));
+    }
+    endCanceled(newest, minuteOf(6));
+
+    const panel = page.getByRole("region", { name: tickets.panel.label });
+    await page.goto(ticketUrl(waiter));
+    await hydrated(page);
+    await panel
+      .getByRole("group", { name: tickets.panel.blockers })
+      .getByRole("button", { name: /ACME-901/ })
+      .click();
+    await panel.getByRole("heading", { name: "Ticket number 901", exact: true }).waitFor();
+    await expect.poll(focused).toBe("Ticket number 901");
+    expect(new URL(page.url()).searchParams.get("sel")).toContain("ACME-901");
+    await panel
+      .getByRole("group", { name: tickets.panel.waiting })
+      .getByRole("button", { name: /ACME-900.*Queued/ })
+      .waitFor();
+
+    await page.goto(ticketUrl(manyRuns));
+    await hydrated(page);
+    const runs = panel.getByRole("region", { name: tickets.panel.runs, exact: true });
+    await expect.poll(() => runs.getByRole("listitem").count()).toBe(5);
+    await runs
+      .getByRole("button", { name: /Canceled/ })
+      .first()
+      .click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    expect(new URL(page.url()).searchParams.get("sel")).toBe(newest);
+
+    await page.goto(ticketUrl(manyRuns));
+    await hydrated(page);
+    await runs.getByRole("button", { name: tickets.panel.runsAll }).click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    expect(new URL(page.url()).searchParams.get("project")).toContain(trackerProject);
+  });
 });
+
+function ticketUrl(key: string): string {
+  const sel = encodeURIComponent(JSON.stringify(JSON.stringify([connection, key])));
+  return `/tickets?ws=${workspaceId}&sel=${sel}`;
+}
+
+function assignQueued(key: TicketKey, now?: Date): RunId {
+  const assigned = assignRun(db, {
+    ticket: { connection, key },
+    trackerProject,
+    runnerProject,
+    agent,
+    runnerId,
+    ...(now === undefined ? {} : { now }),
+  });
+  if (!assigned.ok) throw new Error(`assign ${key} failed: ${assigned.reason}`);
+  return assigned.run.id;
+}
+
+function endCanceled(id: RunId, now: Date): void {
+  const ended = changeRunState(
+    db,
+    id,
+    { to: "ended", agentResult: "canceled", prState: "none" },
+    now,
+  );
+  if (!ended.ok) throw new Error(`end ${id} failed`);
+}
+
 function holdNextServerCall(target: Page): {
   arrived: Promise<void>;
   release: () => Promise<void>;

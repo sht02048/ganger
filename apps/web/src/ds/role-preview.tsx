@@ -5,11 +5,15 @@ import {
   CapacityBar,
   CapacityCells,
   Card,
+  ExternalIconLink,
   GangerMark,
   GroupHeader,
+  InfoTip,
   Mascot,
   MASCOT_MOODS,
   MascotMessage,
+  PanelList,
+  PanelListRow,
   PanelRows,
   PanelSection,
   ResponsiveColumns,
@@ -277,6 +281,38 @@ export function RoleSections() {
                   </li>
                 </PanelRows>
               </PanelSection>
+              <PanelSection
+                title={t("usage.listTitle")}
+                titleRole="subheading"
+                count={2}
+                info={<InfoTip label={t("usage.listInfoLabel")} content={t("usage.listInfo")} />}
+                meta={
+                  <span {...stylex.props(styles.listActions)}>
+                    <Button compact>{t("usage.listAction")}</Button>
+                    <ExternalIconLink
+                      href="https://example.com/acme/ACME-12"
+                      label={t("usage.listOpen")}
+                    />
+                  </span>
+                }
+              >
+                <PanelList>
+                  <PanelListRow
+                    marker={<StatusDot status="running" />}
+                    ticketKey="ACME-12"
+                    title={t("usage.listRow")}
+                    trailing={statusName("running")}
+                    onClick={() => {}}
+                  />
+                  <PanelListRow
+                    marker={<StatusDot status="succeeded" />}
+                    ticketKey="ACME-9"
+                    title={t("usage.listRowDone")}
+                    trailing={statusName("succeeded")}
+                    done
+                  />
+                </PanelList>
+              </PanelSection>
               <ResponsiveColumnsHead
                 lead={t("usage.columnsLead")}
                 columns={[{ width: "200px", content: t("usage.columnsUsage") }]}
@@ -418,6 +454,7 @@ export function RoleSections() {
 }
 
 const styles = stylex.create({
+  listActions: { display: "inline-flex", alignItems: "center", gap: space.s2 },
   demo: {
     display: "flex",
     flexDirection: "column",

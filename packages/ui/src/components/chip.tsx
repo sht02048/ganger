@@ -8,15 +8,17 @@ export interface ChipProps {
   children: ReactNode;
   strong?: boolean;
   tone?: "accent";
+  wrapText?: boolean;
 }
 
-export function Chip({ children, strong, tone }: ChipProps) {
+export function Chip({ children, strong, tone, wrapText }: ChipProps) {
   return (
     <span
       {...stylex.props(
         styles.chip,
         strong === true && styles.strong,
         tone === "accent" && styles.accent,
+        wrapText === true && styles.wrapText,
       )}
     >
       {children}
@@ -51,4 +53,5 @@ const styles = stylex.create({
   },
   strong: { color: colors.textPrimary },
   accent: { backgroundColor: colors.accentSoft, color: colors.accentText },
+  wrapText: { flexShrink: 1, minWidth: 0, maxWidth: "100%", overflowWrap: "anywhere" },
 });

@@ -8,6 +8,11 @@ import {
   CheckTick,
   RadioGroup,
   Chip,
+  ExternalIconLink,
+  PanelList,
+  PanelListRow,
+  PanelSection,
+  StatusDot,
   CodeBlock,
   ScrollRegion,
   DataTable,
@@ -139,6 +144,62 @@ describe("칩·링크·코드(티켓 0074)", () => {
     expect(html).toMatch(/^<button[^>]*aria-label="러너 조건 지우기"[^>]*data-variant="secondary"/);
     expect(html).toContain(">러너: a<svg");
     expect(renderToString(<Chip strong>필수</Chip>)).toMatch(/^<span class="[^"]+">필수<\/span>$/);
+  });
+
+  it("Chip wrapText 는 긴 글의 줄바꿈 모양을 더한다(0164)", () => {
+    const plain = /class="([^"]+)"/.exec(renderToString(<Chip>a</Chip>))?.[1];
+    const wrapped = /class="([^"]+)"/.exec(renderToString(<Chip wrapText>a</Chip>))?.[1];
+    expect(wrapped).not.toBe(plain);
+  });
+
+  it("StatusDot 은 이름을 주지 않으면 화면 읽기 글 없이 점만 그린다(0164)", () => {
+    expect(renderToString(<StatusDot status="running" />)).not.toContain("Running");
+    expect(renderToString(<StatusDot status="running">Running</StatusDot>)).toContain("Running");
+  });
+
+  it("PanelListRow 는 onClick 이 있으면 버튼, 없으면 글 행이고 끝난 제목은 모양이 다르다(0164)", () => {
+    const clickable = renderToString(
+      <PanelList>
+        <PanelListRow ticketKey="ACME-1" title="제목" trailing="Done" onClick={noop} />
+      </PanelList>,
+    );
+    expect(clickable).toMatch(/^<ul[^>]*><li[^>]*><button type="button"/);
+    expect(clickable).toContain('title="제목"');
+    const still = renderToString(<PanelListRow title="제목" />);
+    expect(still).not.toContain("<button");
+    const done = renderToString(<PanelListRow title="제목" done />);
+    const titleClass = (html: string) => /title="제목" class="([^"]+)"/.exec(html)?.[1];
+    expect(titleClass(done)).not.toBe(titleClass(still));
+  });
+
+  it("PanelListRow 의 글 trailing 은 말줄임돼도 전체 값을 title 로 남긴다(0164)", () => {
+    const html = renderToString(<PanelListRow title="제목" trailing="아주 긴 트래커 상태 이름" />);
+    expect(html).toContain('title="아주 긴 트래커 상태 이름"');
+  });
+
+  it("PanelSection 은 개수와 도움말을 제목 옆에 두고, 주지 않으면 제목만 그린다(0164)", () => {
+    const html = renderToString(
+      <PanelSection title="런" count={3} info={<i>도움말</i>} titleRole="subheading">
+        본문
+      </PanelSection>,
+    );
+    expect(html).toMatch(/런<\/h3><span[^>]*>3<\/span><i>도움말<\/i>/);
+    expect(renderToString(<PanelSection title="런">본문</PanelSection>)).not.toContain("<i>");
+  });
+
+  it("ExternalIconLink 는 이름을 가진 새 탭 링크다(0164)", () => {
+    const html = renderToString(<ExternalIconLink href="https://example.com/a" label="열기" />);
+    expect(html).toMatch(/^<a /);
+    expect(html).toContain('aria-label="열기"');
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('rel="noreferrer"');
+  });
+
+  it("Button compact 는 기본 버튼과 다른 크기를 입는다(0164)", () => {
+    const classOf = (html: string) => /class="([^"]+)"/.exec(html)?.[1];
+    expect(classOf(renderToString(<Button compact>a</Button>))).not.toBe(
+      classOf(renderToString(<Button>a</Button>)),
+    );
   });
 
   it("RadioGroup 에 labelledBy 를 주면 그 제목을 이름으로 가진 radiogroup 이고, 주지 않으면 그대로다", () => {

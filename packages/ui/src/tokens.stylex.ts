@@ -161,6 +161,8 @@ export const size = stylex.defineVars({
   panelWidth: "384px",
   editorListWidth: "320px",
   control: "32px",
+  controlCompact: "28px",
+  panelListRow: "40px",
   input: "36px",
   rowMinHeight: "52px",
   tableHeadHeight: "30px",
