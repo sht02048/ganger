@@ -46,6 +46,7 @@ export interface KanbanCardProps {
   detail?: ReactNode;
   detailTone?: "problem";
   blockers?: ReactNode;
+  prChips?: ReactNode;
   stuck?: boolean;
   meta?: ReactNode;
   metaTone?: "problem";
@@ -65,6 +66,7 @@ export function KanbanCard({
   detail,
   detailTone,
   blockers,
+  prChips,
   stuck = false,
   meta,
   metaTone,
@@ -80,14 +82,15 @@ export function KanbanCard({
   const nameId = titleId ?? `${ownId}title`;
   const tagId = `${ownId}tag`;
   const detailId = `${ownId}detail`;
-  const blockersId = `${ownId}blockers`;
+  const chipsId = `${ownId}chips`;
   const footId = `${ownId}foot`;
   const hasFoot = meta !== undefined || time !== undefined || action !== undefined;
+  const hasChips = blockers !== undefined || prChips !== undefined;
   const keyed = ticketKey !== undefined;
   const described = [
     tag === undefined ? null : tagId,
     detail === undefined ? null : detailId,
-    blockers === undefined ? null : blockersId,
+    hasChips ? chipsId : null,
     hasFoot ? footId : null,
   ].filter((id) => id !== null);
   return (
@@ -167,7 +170,12 @@ export function KanbanCard({
               {detail}
             </span>
           )}
-          {blockers === undefined ? null : <span id={blockersId}>{blockers}</span>}
+          {hasChips ? (
+            <span id={chipsId} {...stylex.props(styles.chipRow)}>
+              {blockers}
+              {prChips}
+            </span>
+          ) : null}
           {hasFoot ? (
             <span
               id={footId}
@@ -323,6 +331,7 @@ const styles = stylex.create({
     WebkitLineClamp: 2,
   },
   statusGroup: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
+  chipRow: { display: "flex", flexWrap: "wrap", gap: space.px6, minWidth: 0 },
   footKeyed: { paddingTop: 0 },
   metaOneLine: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" },
   openWithAction: {

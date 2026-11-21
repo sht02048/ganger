@@ -14,10 +14,12 @@ import {
   listRunPlacements,
   listRunners,
   listRunsWithRecords,
+  listTakenOverRunIds,
   listWorkspaces,
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
+import { prSignalsViewOf } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -56,6 +58,7 @@ export function loadHomePage(
   const placements = listRunPlacements(db);
   const queueReasons = loadQueueReasons(db, now);
   const cancelling = new Set<string>(listPendingCancelRequests(db).map((r) => r.runId));
+  const takenOver = listTakenOverRunIds(db);
 
   const queuedReason = (id: RunId): QueuedReason =>
     describeQueuedReason(
@@ -101,7 +104,13 @@ export function loadHomePage(
       waitMs: durations.waitMs ?? 0,
       executionMs: withoutPauses(durations.executionMs, records, now),
       pullRequest:
-        pr === null || !isWebUrl(pr.url) ? null : { displayId: pr.displayId, url: pr.url },
+        pr === null || !isWebUrl(pr.url)
+          ? null
+          : {
+              displayId: pr.displayId,
+              url: pr.url,
+              signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+            },
       cancelling: cancelling.has(run.id),
       control:
         run.state === "running" || run.state === "paused" ? runControlOf(db, run, now) : null,
@@ -143,6 +152,7 @@ export function loadHomePage(
           state: run.state,
           agentResult: run.agentResult,
           prState: run.prState,
+          prReadError: records.prReadError,
           summary: summarizeRunOutcome(run).outcome,
           endedAt: run.endedAt.toISOString(),
           endedAgoMs: Math.max(0, now.getTime() - run.endedAt.getTime()),

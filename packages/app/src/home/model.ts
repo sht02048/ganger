@@ -2,11 +2,13 @@ import type { UsageWindowKind } from "@ganger/core";
 import type {
   AgentResult,
   PauseSource,
+  PrReadError,
   PrState,
   RunId,
   SummaryOutcome,
   TicketKey,
 } from "@ganger/core";
+import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { RunnerIssueCause, WorkspaceChoice, WorkspaceSummary } from "../shell/model.js";
@@ -43,7 +45,7 @@ interface HomeRunBase {
   agent: string;
   waitMs: number;
   executionMs: number | null;
-  pullRequest: { displayId: string; url: string } | null;
+  pullRequest: { displayId: string; url: string; signals: PrSignalsView | null } | null;
   cancelling: boolean;
   control: RunControlView | null;
 }
@@ -65,10 +67,28 @@ export type HomeRun =
       state: "ended";
       agentResult: AgentResult;
       prState: PrState;
+      prReadError: PrReadError | null;
       summary: SummaryOutcome;
       endedAt: string;
       endedAgoMs: number;
     });
+
+export const PR_CHIPS_VISIBLE = 2;
+
+export type PrProblem =
+  | { kind: "ci-failed" }
+  | { kind: "conflict" }
+  | { kind: "behind"; commits: number };
+
+export function prProblemsOf(signals: PrSignalsView | null): PrProblem[] {
+  if (signals === null) return [];
+  const behindBy = signals.behindBy ?? 0;
+  return [
+    ...(signals.ciFailed ? [{ kind: "ci-failed" as const }] : []),
+    ...(signals.conflict === true ? [{ kind: "conflict" as const }] : []),
+    ...(behindBy > 0 ? [{ kind: "behind" as const, commits: behindBy }] : []),
+  ];
+}
 
 export interface DashboardUsageLine {
   provider: string;
