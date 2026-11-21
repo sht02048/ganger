@@ -142,7 +142,7 @@ describe("Runners 목록", () => {
     const page: RunnersPage = { runners: [runner({ id: "down", online: false })] };
     const down = rowsOf(render(page)).find((r) => r.name === "down")?.html ?? "";
     expect(textOf(down)).toContain(runnersJson.row.offline);
-    expect(textOf(down)).not.toContain("째");
+    expect(textOf(down)).not.toMatch(/<1 min|\d+ (min|hr|days?)/);
   });
 
   it("꽉 찬 러너는 자리를 기다리는 런 수를, 빈자리가 있으면 빈자리 수를 한 문장으로 보인다", () => {
