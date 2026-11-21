@@ -24,7 +24,7 @@ export function PrChip({ kind, children }: PrChipProps) {
       {...stylex.props(
         textStyles("meta"),
         styles.chip,
-        kind === "behind" ? styles.warning : styles.problem,
+        kind === "behind" ? styles.neutral : styles.problem,
       )}
     >
       <svg
@@ -51,7 +51,7 @@ export interface PrChipMoreProps {
 
 export function PrChipMore({ children, hiddenLabel }: PrChipMoreProps) {
   return (
-    <span data-pr-chip="more" {...stylex.props(textStyles("meta"), styles.chip, styles.more)}>
+    <span data-pr-chip="more" {...stylex.props(textStyles("meta"), styles.chip, styles.neutral)}>
       <span aria-hidden="true">{children}</span>
       <VisuallyHidden>{hiddenLabel}</VisuallyHidden>
     </span>
@@ -72,6 +72,5 @@ const styles = stylex.create({
   },
   icon: { flexShrink: 0 },
   problem: { backgroundColor: colors.problemSoft, color: colors.problem },
-  warning: { backgroundColor: colors.accentSoft, color: colors.accentText },
-  more: { backgroundColor: colors.bgControl, color: colors.textSecondary },
+  neutral: { backgroundColor: colors.bgControl, color: colors.textSecondary },
 });

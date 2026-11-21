@@ -894,8 +894,11 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
     expect(text(card)).toContain(homeJson.card.prChip.ciFailed);
   });
 
-  it("통과·충돌 없음·최신이면 칩을 만들지 않는다", () => {
-    const page = withSignals(questionPage(), "ACME-11", openPr({ conflict: null, behindBy: null }));
+  it.each([
+    ["충돌 없음·최신", { conflict: false, behindBy: 0 }],
+    ["아직 모름", { conflict: null, behindBy: null }],
+  ])("CI 통과에 %s이면 칩을 만들지 않는다", (_name, over) => {
+    const page = withSignals(questionPage(), "ACME-11", openPr(over));
     expect(chipsOf(row(render(page), "ACME-11"))).toEqual([]);
   });
 
