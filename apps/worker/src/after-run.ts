@@ -24,6 +24,7 @@ import {
   prReadDue,
   pullRequestRecord,
   readRunPrState,
+  rememberConfirmedMerge,
   rememberPrReadFailure,
   runLogContext,
   runnerErrorDetail,
@@ -65,6 +66,7 @@ async function afterRun(
       markInProgress(context, run, records),
     );
     await attempt(context, run, "run.pr_poll_failed", () => pollActivePullRequest(context, run));
+    await attempt(context, run, "run.tracker_update_failed", () => markMerged(context, run));
     return;
   }
   await attempt(context, run, "run.result_comment_failed", () =>
@@ -77,6 +79,7 @@ async function afterRun(
   } else {
     context.prPolledAt.delete(run.id);
   }
+  await attempt(context, run, "run.tracker_update_failed", () => markMerged(context, run));
 }
 
 async function attempt(
@@ -117,6 +120,41 @@ async function markInProgress(
       markTrackerChanged(context.db, run.ticket.connection);
     }),
   );
+}
+
+async function markMerged(context: TickContext, run: StoredRun): Promise<void> {
+  if (!context.unmarkedMerges.has(run.id)) return;
+  const records = getRunWithRecords(context.db, run.id)?.records;
+  const stateId =
+    getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
+      ?.mergedStateId ?? null;
+  if (
+    records === undefined ||
+    records.mergedStateSetAt !== null ||
+    stateId === null ||
+    context.ticketsGone.has(run.id)
+  ) {
+    context.unmarkedMerges.delete(run.id);
+    return;
+  }
+  const tracker = trackerFor(context, run);
+  if (tracker === null) return;
+  try {
+    await tracker.setState(run.ticket.key, stateId);
+  } catch (error) {
+    if (!isTicketGone(error)) throw error;
+    forgetGoneTicket(context, run);
+    context.unmarkedMerges.delete(run.id);
+    return;
+  }
+  const recorded = tryWrite(context, run.id, () =>
+    inTransaction(context.db, () => {
+      updateRunRecords(context.db, run.id, { mergedStateSetAt: context.now() });
+      markTrackerChanged(context.db, run.ticket.connection);
+      return true;
+    }),
+  );
+  if (recorded === true) context.unmarkedMerges.delete(run.id);
 }
 
 async function commentResult(
@@ -215,6 +253,7 @@ function forgetGoneTicket(context: TickContext, run: StoredRun): void {
 async function pollActivePullRequest(context: TickContext, run: ActiveRun): Promise<void> {
   if (!pollDue(context, run)) return;
   const decision = await decideRunPrState(context, run);
+  rememberConfirmedMerge(context, run.id, decision.prState);
   if (decision.pr === null) return;
   recordPullRequest(context, run, decision.pr);
 }
@@ -378,7 +417,9 @@ async function recordSettledPullRequest(
   const recorded = tryWrite(context, run.id, () =>
     updateRunRecords(context.db, run.id, { laterPrState: { state, at: context.now() } }),
   );
-  return recorded === true;
+  if (recorded !== true) return false;
+  rememberConfirmedMerge(context, run.id, state);
+  return true;
 }
 
 function nextRunStartedAt(context: TickContext, run: StartedEndedRun): Date | null {

@@ -192,6 +192,128 @@ describe("트래커 갱신", () => {
   });
 });
 
+describe("PR 머지 때 티켓 상태 바꾸기", () => {
+  const mergedState = toTrackerStateId("done");
+
+  function chooseMergedState(stateId: typeof mergedState | null = mergedState): void {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: null,
+      mergedStateId: stateId,
+    });
+  }
+
+  it("머지를 확인하면 한 번 바꾸고 다음 바퀴에는 다시 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+    expect(recordsOf(run).mergedStateSetAt).toEqual(h.now);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toHaveLength(1);
+  });
+
+  it("런이 끝난 뒤 열린 PR이 머지되면 그때 바꾼다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "open");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    await settlePullRequest(run, "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("런이 끝나기 전에 PR이 머지돼도 확인한 때 바꾼다", async () => {
+    chooseMergedState();
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("PR이 머지 없이 닫히면 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "open");
+    report(run, runnerId);
+    await worker.tick();
+    await settlePullRequest(run, "closed");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+
+  it("PR이 없으면 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    report(run, runnerId);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("바꾸지 않음이면 머지돼도 바꾸지 않는다", async () => {
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+
+  it("상태를 나중에 골라도 이미 머지된 지난 런의 티켓은 바꾸지 않는다", async () => {
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    chooseMergedState();
+    await worker.tick();
+    await h.worker().tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("트래커 호출이 실패하면 다음 바퀴에 다시 하고 워크트리 정리는 막지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    const worktree = worktreeOf(run);
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    const spy = vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new Error("network"));
+    await worker.tick();
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+    expect(recordsOf(run).worktreeRemovedAt).toEqual(h.now);
+    expect(await h.runner(runnerId).worktreeExists(worktree)).toBe(false);
+    await worker.tick();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(recordsOf(run).mergedStateSetAt).toEqual(h.now);
+  });
+
+  it("티켓이 트래커에서 사라졌으면 기록 없이 더 시도하지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    const spy = vi
+      .spyOn(h.tracker, "setState")
+      .mockRejectedValue(new AdapterError({ kind: "not-found" }));
+    await worker.tick();
+    await worker.tick();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+});
+
 describe("워크트리 정리", () => {
   it("바로 지움인 런(Merged)은 끝난 바퀴에 워크트리를 지우고 지운 시각을 기록한다", async () => {
     const { run, runnerId, worker } = await startOne();

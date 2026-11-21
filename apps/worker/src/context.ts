@@ -51,6 +51,7 @@ export interface TickContext {
   agentCheckedAt: Map<RunId, number>;
   unrecordedComments: Map<RunId, { id: CommentId; at: Date }>;
   ticketsGone: Set<RunId>;
+  unmarkedMerges: Set<RunId>;
   autoAssign: AutoAssignState;
   blockerRefresh: BlockerRefreshState;
 }
@@ -188,9 +189,19 @@ export type PrRead =
   | { kind: "read"; decision: PrStateDecision }
   | { kind: "failed"; error: PrReadError };
 
+export function rememberConfirmedMerge(
+  context: TickContext,
+  runId: RunId,
+  prState: PrStateDecision["prState"],
+): void {
+  if (prState === "merged") context.unmarkedMerges.add(runId);
+}
+
 export async function readRunPrState(context: TickContext, run: StartedStoredRun): Promise<PrRead> {
   try {
-    return { kind: "read", decision: await decideRunPrState(context, run) };
+    const decision = await decideRunPrState(context, run);
+    rememberConfirmedMerge(context, run.id, decision.prState);
+    return { kind: "read", decision };
   } catch (error) {
     const reason = prReadErrorOf(error);
     context.logger.warn("run.pr_read_failed", { runId: run.id, reason, error });

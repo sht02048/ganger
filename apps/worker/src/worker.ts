@@ -156,6 +156,7 @@ export function createWorker(options: WorkerOptions): Worker {
     agentCheckedAt: new Map(),
     unrecordedComments: new Map(),
     ticketsGone: new Set(),
+    unmarkedMerges: new Set(),
     autoAssign: createAutoAssignState(),
     blockerRefresh: createBlockerRefreshState(),
   };
