@@ -61,7 +61,7 @@ export function agedHomePage(page: HomePage, by: number): HomePage {
     attention: page.attention.map((item) => ({ ...item, run: ageRun(item.run, by) })),
     running: page.running.map((run) => ageRun(run, by)),
     queued: page.queued.map((run) => ageRun(run, by)),
-    endedToday: page.endedToday.map((run) => ageRun(run, by)),
+    endedRecently: page.endedRecently.map((run) => ageRun(run, by)),
     doneToday: { ...page.doneToday, recent: page.doneToday.recent.map((run) => ageDone(run, by)) },
     runners: { list: page.runners.list.map((runner) => ageRunner(runner, by)) },
   };

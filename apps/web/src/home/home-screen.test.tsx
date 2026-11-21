@@ -184,9 +184,9 @@ describe("Dashboard 한 줄 머리(ADR 0010 8번, 0113 갱신)", () => {
 });
 
 describe("Dashboard 칸반(티켓 0100)", () => {
-  it("Queued·Running·Done today 칸과 Runners 열이 이 순서이고 칸 제목은 h2 다", () => {
+  it("Queued·Running·Done 칸과 Runners 열이 이 순서이고 칸 제목은 h2 다", () => {
     const html = render(seededPage());
-    const names = ["Queued", "Running", "Done today", "Runners"];
+    const names = ["Queued", "Running", "Done", "Runners"];
     const order = names.map((name) => html.indexOf(`<section aria-label="${name}"`));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect(order).toEqual(order.toSorted((a, b) => a - b));
@@ -250,9 +250,9 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     );
   });
 
-  it("Done today 칸은 꼬리표 카드(Failed)를 앞 4장만 보이고 N개 더 보기를 둔다. Succeeded 런은 PR 이 열려 있어도 꼬리표가 없다 (0145)", () => {
+  it("Done 칸은 꼬리표 카드(Failed)를 앞 4장만 보이고 N개 더 보기를 둔다. Succeeded 런은 PR 이 열려 있어도 꼬리표가 없다 (0145)", () => {
     const page = seededPage();
-    const done = section(render(page), "Done today");
+    const done = section(render(page), "Done");
     const tagged = tagsOf(done).filter((tag) => tag !== null);
     expect(tagged).toEqual(["failed", "failed", "failed", "failed"]);
     expect(DONE_TODO_VISIBLE).toBe(4);
@@ -265,7 +265,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
   });
 
   it("처리할 일 없이 끝난 카드는 소제목 아래에 꼬리표 없이 상태 이름과 함께 모은다", () => {
-    const done = section(render(seededPage()), "Done today");
+    const done = section(render(seededPage()), "Done");
     const subheading = done.indexOf(homeJson.board.settled);
     expect(subheading).toBeGreaterThan(0);
     const merged = row(done, "ACME-1");
@@ -278,7 +278,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
   it("처리할 일 없이 끝난 카드가 3장을 넘으면 3장만 보이고 Runs 링크를 둔다", () => {
     const page = seededPage();
-    const merged = page.endedToday.find((run) => run.ticketKey === "ACME-1");
+    const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
     if (merged === undefined) throw new Error("no ACME-1");
     const extra = [1, 2, 3, 4].map((n) => ({
       ...merged,
@@ -286,12 +286,42 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       ticketKey: toTicketKey(`ACME-${40 + n}`),
     }));
     const done = section(
-      render({ ...page, endedToday: [...page.endedToday, ...extra] }),
-      "Done today",
+      render({ ...page, endedRecently: [...page.endedRecently, ...extra] }),
+      "Done",
     );
     const settled = done.slice(done.indexOf(homeJson.board.settled));
     expect(rows(settled)).toHaveLength(SETTLED_VISIBLE);
     expect(settled).toMatch(/<a href="\/runs\?ws=ws-commerce"[^>]*>Runs에서 모두 보기<\/a>/);
+  });
+
+  it("Done 칸 머리 개수는 보이는 카드 수 제한과 상관없이 칸에 든 런 전체다 (0163)", () => {
+    const page = seededPage();
+    const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
+    if (merged === undefined) throw new Error("no ACME-1");
+    const extra = [1, 2, 3, 4].map((n) => ({
+      ...merged,
+      id: toRunId(`run-count-${n}`),
+      ticketKey: toTicketKey(`ACME-${80 + n}`),
+    }));
+    const done = section(
+      render({ ...page, endedRecently: [...page.endedRecently, ...extra] }),
+      "Done",
+    );
+    expect(done).toMatch(/<\/h2><span[^>]*>11<\/span>/);
+  });
+
+  it("7일보다 오래된 꼬리표 카드는 Done 칸에 남지만 머리 개수에 들지 않는다 (0163)", () => {
+    const page = seededPage();
+    const done = section(
+      render({
+        ...page,
+        endedRecently: page.endedRecently.filter((run) => run.ticketKey !== "ACME-6"),
+      }),
+      "Done",
+    );
+    expect(done).toMatch(/<\/h2><span[^>]*>6<\/span>/);
+    expect(row(done, "ACME-6")).toContain("data-tag=");
+    expect(section(render(page), "Done")).toMatch(/<\/h2><span[^>]*>7<\/span>/);
   });
 
   it("Queued·Running 칸은 6장이 넘으면 앞 6장과 N개 더 보기를 보인다", () => {
@@ -310,10 +340,10 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
   it("빈 칸은 칸마다 한 줄로 알린다", () => {
     const page = seededPage();
-    const html = render({ ...page, attention: [], queued: [], running: [], endedToday: [] });
+    const html = render({ ...page, attention: [], queued: [], running: [], endedRecently: [] });
     expect(text(section(html, "Queued"))).toContain(homeJson.columnEmpty.queued);
     expect(text(section(html, "Running"))).toContain(homeJson.columnEmpty.running);
-    expect(text(section(html, "Done today"))).toContain(homeJson.columnEmpty.done);
+    expect(text(section(html, "Done"))).toContain(homeJson.columnEmpty.done);
   });
 
   it("처리할 일만 보기는 꼬리표 카드만 남기고, 꼬리표 카드가 없는 칸은 처리할 일이 없다고 한다", () => {
@@ -456,11 +486,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 describe("모든 Workspace 보기(0066)", () => {
   it("칸과 Runners 열을 모두 보이고 카드에 Workspace 이름을 붙인다", () => {
     const html = render(seededPage("all"));
-    for (const name of ["Queued", "Running", "Done today", "Runners"])
+    for (const name of ["Queued", "Running", "Done", "Runners"])
       expect(section(html, name)).not.toBe("");
-    expect(text(row(section(html, "Done today"), "ACME-6"))).toContain("Acme Commerce");
+    expect(text(row(section(html, "Done"), "ACME-6"))).toContain("Acme Commerce");
     expect(text(row(section(html, "Running"), "ACME-10"))).toContain("Acme Commerce");
-    expect(text(row(section(html, "Done today"), "ACME-1"))).toContain("Acme Commerce");
+    expect(text(row(section(html, "Done"), "ACME-1"))).toContain("Acme Commerce");
   });
 });
 

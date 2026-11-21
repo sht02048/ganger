@@ -23,12 +23,12 @@
   "column": {
     "queued": "Queued",
     "running": "Running",
-    "done": "Done today"
+    "done": "Done"
   },
   "columnEmpty": {
     "queued": "Queued 런이 없어요",
     "running": "Running 런이 없어요",
-    "done": "오늘 끝난 런이 없어요",
+    "done": "최근 7일 동안 끝난 런이 없어요",
     "todo": "처리할 일이 없어요"
   },
   "board": {
@@ -90,7 +90,7 @@
       "ended": "{ago} 끝났어요",
       "paused": "{elapsed} 멈춰 있어요"
     },
-    "running": "에이전트가 일하고 있어요. 끝나면 Done today로 옮겨요.",
+    "running": "에이전트가 일하고 있어요. 끝나면 Done으로 옮겨요.",
     "inputUnknown": "무엇을 기다리는지 아직 읽지 못했어요",
     "disconnected": "워크트리는 그대로 두었어요. 러너에 다시 닿으면 실제 상태를 확인해 이어 가요.",
     "openPr": "PR {pr} 보기",

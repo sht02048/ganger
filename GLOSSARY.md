@@ -200,7 +200,7 @@ _Avoid_: Aborted, Stopped, 취소(상태 이름으로. 취소 버튼과 "취소 
 ### To do
 
 **To do**:
-운영자가 손을 대야 끝나는 런의 목록. Dashboard에서는 따로 칸을 두지 않고 칸반 카드 위 꼬리표로 보인다(Question·Permission·Human Check·Disconnected는 Running 칸, Failed는 Done today 칸 맨 위, 티켓 0100). Human Check는 Running 칸 맨 위에 "확인해 주세요"로 따로 묶는다(티켓 0148). 종류는 Question, Permission, Human Check, Failed, Disconnected다. Succeeded는 PR이 열려 있거나 없어도 올리지 않는다(티켓 0145). 러너 문제(Runner Issue)는 넣지 않는다. 종류 이름은 화면에서도 영어 용어 그대로 쓰고, 왜 손대야 하는지는 설명 문장(한국어)으로 쓴다(ADR 0010). 꼬리표는 종류 이름(상태 이름 글자)을 그대로 쓰는 알약이다. Dashboard 머리의 요약 문장은 종류를 하는 일로 모아 말한다(확인할 일, 답할 질문, 멈춘 런). 이 말은 종류를 모아 부르는 화면 문장이라 종류 이름을 대신하지 않는다(ADR 0010 0100 갱신). 티켓마다 최신 런만 보인다. Canceled는 올리지 않는다. Failed는 운영자 결정 목록(Q14~Q21)에는 없었지만 지금처럼 To do에 올린다(스펙 7번, Q82.9). 문장 안에서 To do를 한국어로 말할 때는 처리할 일로 쓴다(아래 Tickets 필터).
+운영자가 손을 대야 끝나는 런의 목록. Dashboard에서는 따로 칸을 두지 않고 칸반 카드 위 꼬리표로 보인다(Question·Permission·Human Check·Disconnected는 Running 칸, Failed는 Done 칸 맨 위, 티켓 0100·0163). Human Check는 Running 칸 맨 위에 "확인해 주세요"로 따로 묶는다(티켓 0148). 종류는 Question, Permission, Human Check, Failed, Disconnected다. Succeeded는 PR이 열려 있거나 없어도 올리지 않는다(티켓 0145). 러너 문제(Runner Issue)는 넣지 않는다. 종류 이름은 화면에서도 영어 용어 그대로 쓰고, 왜 손대야 하는지는 설명 문장(한국어)으로 쓴다(ADR 0010). 꼬리표는 종류 이름(상태 이름 글자)을 그대로 쓰는 알약이다. Dashboard 머리의 요약 문장은 종류를 하는 일로 모아 말한다(확인할 일, 답할 질문, 멈춘 런). 이 말은 종류를 모아 부르는 화면 문장이라 종류 이름을 대신하지 않는다(ADR 0010 0100 갱신). 티켓마다 최신 런만 보인다. Canceled는 올리지 않는다. Failed는 운영자 결정 목록(Q14~Q21)에는 없었지만 지금처럼 To do에 올린다(스펙 7번, Q82.9). 문장 안에서 To do를 한국어로 말할 때는 처리할 일로 쓴다(아래 Tickets 필터).
 _Avoid_: 손댈 일(티켓 0059 전의 이름이다), Attention, Inbox, 할 일
 
 **Question**:
