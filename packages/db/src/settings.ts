@@ -608,11 +608,16 @@ export interface StoredWorkspaceTrackerProject {
   projectId: TrackerProjectId;
   name: string;
   inProgressStateId: TrackerStateId | null;
+  mergedStateId: TrackerStateId | null;
 }
+
+export type WorkspaceTrackerProjectInput = Omit<StoredWorkspaceTrackerProject, "mergedStateId"> & {
+  mergedStateId?: TrackerStateId | null;
+};
 
 export function saveWorkspaceTrackerProject(
   db: Database,
-  input: StoredWorkspaceTrackerProject,
+  input: WorkspaceTrackerProjectInput,
 ): boolean {
   return inTransaction(db, () => {
     const before = getWorkspaceTrackerProject(db, input.connection, input.projectId);
@@ -621,7 +626,8 @@ export function saveWorkspaceTrackerProject(
     const unchanged =
       before !== null &&
       before.name === input.name &&
-      before.inProgressStateId === input.inProgressStateId;
+      before.inProgressStateId === input.inProgressStateId &&
+      (input.mergedStateId === undefined || before.mergedStateId === input.mergedStateId);
     if (!unchanged)
       recordSettingsChange(db, { targetId: input.projectId, workspaceId: input.workspaceId });
     if (before === null) markTrackerChanged(db, input.connection);
@@ -629,10 +635,7 @@ export function saveWorkspaceTrackerProject(
   });
 }
 
-function upsertWorkspaceTrackerProject(
-  db: Database,
-  input: StoredWorkspaceTrackerProject,
-): boolean {
+function upsertWorkspaceTrackerProject(db: Database, input: WorkspaceTrackerProjectInput): boolean {
   const result = db
     .insert(workspaceTrackerProjects)
     .values({
@@ -641,13 +644,18 @@ function upsertWorkspaceTrackerProject(
       workspaceId: input.workspaceId,
       name: input.name,
       inProgressStateId: input.inProgressStateId,
+      mergedStateId: input.mergedStateId ?? null,
     })
     .onConflictDoUpdate({
       target: [
         workspaceTrackerProjects.trackerConnectionId,
         workspaceTrackerProjects.trackerProjectId,
       ],
-      set: { name: input.name, inProgressStateId: input.inProgressStateId },
+      set: {
+        name: input.name,
+        inProgressStateId: input.inProgressStateId,
+        ...(input.mergedStateId === undefined ? {} : { mergedStateId: input.mergedStateId }),
+      },
       setWhere: sql`${workspaceTrackerProjects.workspaceId} = excluded.workspace_id`,
     })
     .run();
@@ -666,6 +674,7 @@ export function getWorkspaceTrackerProject(
       projectId: workspaceTrackerProjects.trackerProjectId,
       name: workspaceTrackerProjects.name,
       inProgressStateId: workspaceTrackerProjects.inProgressStateId,
+      mergedStateId: workspaceTrackerProjects.mergedStateId,
     })
     .from(workspaceTrackerProjects)
     .where(
@@ -689,6 +698,7 @@ export function listWorkspaceTrackerProjects(
       projectId: workspaceTrackerProjects.trackerProjectId,
       name: workspaceTrackerProjects.name,
       inProgressStateId: workspaceTrackerProjects.inProgressStateId,
+      mergedStateId: workspaceTrackerProjects.mergedStateId,
     })
     .from(workspaceTrackerProjects)
     .where(
