@@ -223,6 +223,7 @@ export interface FakeRunnerRun {
 }
 
 export const FAKE_AGENT_PROTOCOL = "## Fake protocol\n\n- ask the operator with ask.";
+const FAKE_WORKTREE_HEAD = "fake-worktree-head";
 
 export class FakeRunner implements Runner {
   readonly kind: RunnerKind;
@@ -231,7 +232,7 @@ export class FakeRunner implements Runner {
   readonly removed: WorktreeRef[] = [];
   readonly worktreeWork = new Map<
     WorktreeRef,
-    { uncommittedChanges: boolean; unpushedCommits: boolean } | "check-fails"
+    { uncommittedChanges: boolean; unpushedCommits: boolean; headCommit?: string } | "check-fails"
   >();
   readonly startCalls: StartRunInput[] = [];
   readonly prepareCalls: PrepareContinuationInput[] = [];
@@ -676,6 +677,7 @@ export class FakeRunner implements Runner {
         kind: "checked",
         uncommittedChanges: work?.uncommittedChanges ?? false,
         unpushedCommits: work?.unpushedCommits ?? false,
+        headCommit: work?.headCommit ?? FAKE_WORKTREE_HEAD,
       };
     });
   }

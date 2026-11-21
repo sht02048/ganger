@@ -317,7 +317,7 @@ export type RunProgress =
 
 export type WorktreeWork =
   | { kind: "gone" }
-  | { kind: "checked"; uncommittedChanges: boolean; unpushedCommits: boolean };
+  | { kind: "checked"; uncommittedChanges: boolean; unpushedCommits: boolean; headCommit: string };
 
 export type AgentSendResult =
   | { kind: "delivered" }

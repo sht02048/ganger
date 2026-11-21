@@ -14,12 +14,20 @@ export function unpushedCommitsArgv(path: string): string[] {
   return ["git", "-C", path, "rev-list", "--count", "HEAD", "--not", "--remotes"];
 }
 
+export function headCommitArgv(path: string): string[] {
+  return ["git", "-C", path, "rev-parse", "--verify", "HEAD"];
+}
+
 const statusSchema = z.string().transform((text) => text.trim() !== "");
 const countSchema = z
   .string()
   .trim()
   .regex(/^\d+$/)
   .transform((text) => Number(text));
+const commitSchema = z
+  .string()
+  .trim()
+  .regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
 
 export function hasUncommittedChanges(result: RemoteResult): boolean {
   return parseGitOutput(result, statusSchema, "git status");
@@ -27,6 +35,10 @@ export function hasUncommittedChanges(result: RemoteResult): boolean {
 
 export function hasUnpushedCommits(result: RemoteResult): boolean {
   return parseGitOutput(result, countSchema, "git rev-list") > 0;
+}
+
+export function parseHeadCommit(result: RemoteResult): string {
+  return parseGitOutput(result, commitSchema, "git rev-parse");
 }
 
 interface WorktreeTarget {

@@ -269,6 +269,7 @@ describe("PR 번호로 조회", () => {
       state: "merged",
       mergedAt: new Date("2026-11-17T13:16:55Z"),
       headBranch: "factory/ENG-131-2",
+      headCommit: "4".repeat(40),
     });
     expect(sent[0]?.graphql?.variables).toEqual({ owner: "acme", repo: "app", number: 16 });
   });

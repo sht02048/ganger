@@ -76,6 +76,8 @@ import {
   worktreePruneArgv,
   uncommittedChangesArgv,
   unpushedCommitsArgv,
+  headCommitArgv,
+  parseHeadCommit,
 } from "./worktree-work.js";
 import {
   SETUP_SSH_GRACE_MS,
@@ -1216,7 +1218,8 @@ export class OrcaRunner implements Runner {
     const path = shown.result.worktree.path;
     const uncommittedChanges = hasUncommittedChanges(await this.run(uncommittedChangesArgv(path)));
     const unpushedCommits = hasUnpushedCommits(await this.run(unpushedCommitsArgv(path)));
-    return { kind: "checked", uncommittedChanges, unpushedCommits };
+    const headCommit = parseHeadCommit(await this.run(headCommitArgv(path)));
+    return { kind: "checked", uncommittedChanges, unpushedCommits, headCommit };
   }
 
   async removeWorktree(worktree: WorktreeRef): Promise<void> {
