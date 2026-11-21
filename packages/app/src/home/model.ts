@@ -155,10 +155,11 @@ export interface HomePage {
   queued: HomeRun[];
   runners: RunnersSummary;
   doneToday: DoneToday;
-  endedToday: HomeRun[];
+  endedRecently: HomeRun[];
 }
 
 export const DONE_TODAY_LIMIT = 5;
+export const DONE_COLUMN_DAYS = 7;
 
 export const TODO_GROUPS = ["check", "answer", "stopped"] as const;
 
@@ -213,7 +214,7 @@ export function partitionHome(input: {
   runs: ReadonlyArray<{ ticket: string; run: HomeRun }>;
   runners: RunnersSummary;
   doneToday: ReadonlyArray<DoneRun>;
-  endedToday: ReadonlyArray<HomeRun>;
+  endedRecently: ReadonlyArray<HomeRun>;
 }): HomePage {
   const { workspace } = input;
   if (workspace.kind === "none")
@@ -224,7 +225,7 @@ export function partitionHome(input: {
       queued: [],
       runners: noRunners,
       doneToday: nothingDone,
-      endedToday: [],
+      endedRecently: [],
     };
 
   const latestByTicket = new Map<string, string>();
@@ -251,7 +252,7 @@ export function partitionHome(input: {
       recent: done.slice(0, DONE_TODAY_LIMIT),
       total: done.length,
     },
-    endedToday: input.endedToday.toSorted((a, b) => endedTime(b) - endedTime(a)),
+    endedRecently: input.endedRecently.toSorted((a, b) => endedTime(b) - endedTime(a)),
   };
 }
 
@@ -306,7 +307,7 @@ export function dashboardBoard(page: HomePage): DashboardBoard {
       todo: todo
         .filter((run) => run.state === "ended")
         .toSorted((a, b) => groupRank(a) - groupRank(b)),
-      rest: page.endedToday.filter((run) => !tagged.has(run.id)),
+      rest: page.endedRecently.filter((run) => !tagged.has(run.id)),
     },
   };
 }

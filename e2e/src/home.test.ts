@@ -422,7 +422,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
       const layout = await page.evaluate(() => {
         const rect = (name: string) =>
           document.querySelector(`section[aria-label="${name}"]`)?.getBoundingClientRect();
-        const done = rect("Done today");
+        const done = rect("Done");
         const runners = rect("Runners");
         return {
           page: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -482,7 +482,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
     );
   });
 
-  it("Done today 꼬리표 카드는 4장만 보이고 더 보기를 누르면 펼치고 처음 숨었던 카드로 포커스를 옮긴다", async () => {
+  it("Done 꼬리표 카드는 4장만 보이고 더 보기를 누르면 펼치고 처음 숨었던 카드로 포커스를 옮긴다", async () => {
     await openHome(page);
     const done = page.getByRole("region", { name: home.column.done });
     expect(await done.locator("li[data-tag]").count()).toBe(4);

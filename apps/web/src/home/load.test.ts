@@ -53,14 +53,16 @@ function addEndedRun(
     agentResult: "timed-out" | "canceled" | "reported-success";
     prState?: "open" | "unknown";
     prReadError?: "no-access";
+    endedAt?: Date;
   },
 ): RunId {
+  const endedAt = input.endedAt ?? minutes(90);
   const result = assignRun(db, {
     ticket: { connection, key: toTicketKey(input.key) },
     trackerProject: toTrackerProjectId(input.trackerProject),
     runnerProject: toRunnerProjectId("github:acme/web"),
     agent: toAgentId("claude"),
-    now: minutes(60),
+    now: new Date(endedAt.getTime() - 30 * 60_000),
   });
   if (!result.ok) throw new Error(result.reason);
   const { id } = result.run;
@@ -70,7 +72,7 @@ function addEndedRun(
     agentRef: toAgentRef(`agent-${input.key}`),
   };
   for (const change of [
-    changeRunState(db, id, { to: "running", started }, minutes(61)),
+    changeRunState(db, id, { to: "running", started }, new Date(endedAt.getTime() - 29 * 60_000)),
     changeRunState(
       db,
       id,
@@ -82,7 +84,7 @@ function addEndedRun(
             prReadError: input.prReadError ?? "other",
           }
         : { to: "ended", agentResult: input.agentResult, prState: "open" },
-      minutes(90),
+      endedAt,
     ),
   ]) {
     if (!change.ok) throw new Error(JSON.stringify(change));
@@ -372,7 +374,7 @@ describe("loadHomePage", () => {
     expect(page.queued).toEqual([]);
   });
 
-  it("Done today 는 운영자 시간대의 오늘 끝난 런을 새 것부터 5개까지 담고 전체 수를 센다(티켓 0060)", () => {
+  it("doneToday 는 운영자 시간대의 오늘 끝난 런을 새 것부터 5개까지 담고 전체 수를 센다(티켓 0060)", () => {
     const { db } = seedDatabase();
     const { doneToday } = loadHomePage(db, "ws-commerce", now, "UTC");
     expect(doneToday.recent.map((run) => run.ticketKey)).toEqual([
@@ -399,10 +401,10 @@ describe("loadHomePage", () => {
     expect(loadHomePage(db, "all", now, "UTC").doneToday.total).toBeGreaterThanOrEqual(8);
   });
 
-  it("endedToday 는 운영자 시간대의 오늘 끝난 런을 모두 새 것부터 HomeRun 으로 담는다(티켓 0100)", () => {
+  it("endedRecently 는 끝난 런을 모두 새 것부터 HomeRun 으로 담는다(티켓 0100·0163)", () => {
     const { db } = seedDatabase();
     const page = loadHomePage(db, "ws-commerce", now, "UTC");
-    expect(keys(page.endedToday)).toEqual([
+    expect(keys(page.endedRecently)).toEqual([
       "ACME-7",
       "ACME-6",
       "ACME-5",
@@ -411,23 +413,89 @@ describe("loadHomePage", () => {
       "ACME-2",
       "ACME-1",
     ]);
-    expect(page.endedToday.every((run) => run.state === "ended")).toBe(true);
-    const ended = page.endedToday.map((run) =>
+    expect(page.endedRecently.every((run) => run.state === "ended")).toBe(true);
+    const ended = page.endedRecently.map((run) =>
       run.state === "ended" ? Date.parse(run.endedAt) : 0,
     );
     expect(ended).toEqual(ended.toSorted((a, b) => b - a));
-    expect(loadHomePage(db, "ws-commerce", now, "Pacific/Kiritimati").endedToday).toEqual([]);
+  });
+
+  describe("Done 칸은 운영자 시간대로 오늘과 앞선 6일에 끝난 런을 담는다(티켓 0163)", () => {
+    const at = new Date("2030-03-20T03:00:00.000Z");
+    const daysBefore = (days: number) => new Date(at.getTime() - days * 24 * 60 * 60_000);
+    const added = (runs: ReadonlyArray<HomeRun>) =>
+      keys(runs).filter((key) => key.startsWith("DONE-"));
+    const addSucceeded = (db: Database, key: string, endedAt: Date) =>
+      addEndedRun(db, {
+        key,
+        trackerProject: "tp-web",
+        agentResult: "reported-success",
+        endedAt,
+      });
+
+    it("오늘과 6일 전은 넣고 7일 전은 넣지 않으며 칸 개수도 그만큼이다", () => {
+      const { db } = seedDatabase();
+      addSucceeded(db, "DONE-TODAY", daysBefore(0));
+      addSucceeded(db, "DONE-SIX", daysBefore(6));
+      addSucceeded(db, "DONE-SEVEN", daysBefore(7));
+      const page = loadHomePage(db, "ws-commerce", at, "UTC");
+      expect(added(page.endedRecently)).toEqual(["DONE-TODAY", "DONE-SIX"]);
+      const board = dashboardBoard(page);
+      expect(keys(board.done.rest)).toEqual(["DONE-TODAY", "DONE-SIX"]);
+    });
+
+    it("첫 날의 시작은 운영자 시간대의 자정이다", () => {
+      const { db } = seedDatabase();
+      addSucceeded(db, "DONE-AFTER", new Date("2030-03-13T15:00:00.000Z"));
+      addSucceeded(db, "DONE-BEFORE", new Date("2030-03-13T14:59:59.999Z"));
+      expect(added(loadHomePage(db, "ws-commerce", at, "Asia/Seoul").endedRecently)).toEqual([
+        "DONE-AFTER",
+      ]);
+      expect(added(loadHomePage(db, "ws-commerce", at, "UTC").endedRecently)).toEqual([]);
+    });
+
+    it("서머타임이 낀 주에도 7개 날짜를 센다", () => {
+      const { db } = seedDatabase();
+      const afterChange = new Date("2030-03-15T12:00:00.000Z");
+      addSucceeded(db, "DONE-FIRST", new Date("2030-03-09T05:00:00.000Z"));
+      addSucceeded(db, "DONE-EARLIER", new Date("2030-03-09T04:59:59.999Z"));
+      expect(
+        added(loadHomePage(db, "ws-commerce", afterChange, "America/New_York").endedRecently),
+      ).toEqual(["DONE-FIRST"]);
+    });
+
+    it("7일보다 오래된 To do 꼬리표 런은 칸 맨 위에 남고 7일 목록에는 들지 않는다", () => {
+      const { db } = seedDatabase();
+      addEndedRun(db, {
+        key: "DONE-OLD-FAILED",
+        trackerProject: "tp-web",
+        agentResult: "timed-out",
+        endedAt: daysBefore(30),
+      });
+      const page = loadHomePage(db, "ws-commerce", at, "UTC");
+      expect(added(dashboardBoard(page).done.todo)).toEqual(["DONE-OLD-FAILED"]);
+      expect(added(page.endedRecently)).toEqual([]);
+    });
+
+    it("MCP 가 읽는 doneToday 는 오늘 끝난 런만 담는다", () => {
+      const { db } = seedDatabase();
+      addSucceeded(db, "DONE-TODAY", daysBefore(0));
+      addSucceeded(db, "DONE-YESTERDAY", daysBefore(1));
+      const { doneToday } = loadHomePage(db, "ws-commerce", at, "UTC");
+      expect(doneToday.recent.map((run) => run.ticketKey)).toEqual(["DONE-TODAY"]);
+      expect(doneToday.total).toBe(1);
+    });
   });
 
   it("런마다 Tickets 가 고르는 티켓 ID 를 담는다(티켓 0100)", () => {
     const { db } = seedDatabase();
     const page = loadHomePage(db, "ws-commerce", now, "UTC");
-    const runs = [...page.queued, ...page.running, ...page.endedToday];
+    const runs = [...page.queued, ...page.running, ...page.endedRecently];
     expect(runs.length).toBeGreaterThan(3);
     for (const run of runs) expect(run.ticketId).toBe(ticketId(connection, run.ticketKey));
   });
 
-  it("보드는 To do 런을 Running·Done today 칸의 꼬리표 카드로 나누고 나머지 오늘 끝난 런과 겹치지 않는다(티켓 0100)", () => {
+  it("보드는 To do 런을 Running·Done 칸의 꼬리표 카드로 나누고 나머지 끝난 런과 겹치지 않는다(티켓 0100)", () => {
     const { db } = seedDatabase();
     const page = loadHomePage(db, "ws-commerce", now, "UTC");
     const board = dashboardBoard(page);
