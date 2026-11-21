@@ -453,7 +453,7 @@ describe("Tickets 상세 패널(0164)", () => {
     expect(titleClass("끝난 티켓")).not.toBe(titleClass("진행 티켓"));
   });
 
-  it("기다리는 티켓의 상태를 알면 상태 이름을, 모르면 빈 칸을 둔다", async () => {
+  it("기다리는 티켓은 목록의 지금 제목과 상태를 쓰고, 목록에 없으면 저장된 제목에 상태 칸을 비운다", async () => {
     const page = await loaded();
     const ticket = {
       ...ticketOf(page, "ACME-6"),
@@ -464,7 +464,8 @@ describe("Tickets 상세 패널(0164)", () => {
     };
     const shown = text(relations(page, ticket, { status: "idle" }));
     expect(shown).toContain("이 티켓을 기다리는 티켓 2");
-    expect(shown).toContain("ACME-4 아는 티켓 Queued");
+    expect(shown).toContain("ACME-4 ACME-4 제목 Queued");
+    expect(shown).not.toContain("아는 티켓");
     expect(shown).toMatch(/OTHER-1 모르는 티켓 *$/);
   });
 

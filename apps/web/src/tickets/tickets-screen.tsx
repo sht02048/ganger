@@ -702,7 +702,7 @@ export function TicketRelations({
                 <PanelListRow
                   key={waiter.key}
                   ticketKey={waiter.key}
-                  title={waiter.title ?? found?.title ?? ""}
+                  title={found?.title ?? waiter.title ?? ""}
                   {...(status === null
                     ? {}
                     : {
@@ -907,7 +907,7 @@ function TicketPanel({
     <DetailPanel>
       <div {...stylex.props(styles.panelHead)}>
         <div {...stylex.props(styles.panelMeta)}>
-          <Text variant="meta" numeric>
+          <Text variant="meta" numeric wrap="anywhere">
             {`${ticket.key} · ${ticket.trackerProject.name}`}
           </Text>
           {ticket.url === null ? null : (
