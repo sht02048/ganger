@@ -15,6 +15,7 @@ import type { DashboardView } from "./home-screen";
 import { loadHomePage } from "@ganger/app/home/load";
 import { homeMessages } from "./messages";
 import type { HomePage, HomeRun, InputWait } from "@ganger/app/home/model";
+import type { PrSignalsView } from "@ganger/app/pr-signals-view";
 
 const reject = () => Promise.reject(new Error("unused"));
 
@@ -840,6 +841,155 @@ describe("Runners 공급자 사용량(0086)", () => {
       runners: { list: [{ ...base, id: "r-a", name: "runner-a", usage: null }] },
     });
     expect(text(html)).not.toContain("한도");
+  });
+});
+
+describe("Dashboard 카드의 PR 칩(0167)", () => {
+  const openPr = (over: Partial<PrSignalsView>): PrSignalsView => ({
+    ciFailed: false,
+    checkTotal: 4,
+    failedCount: 0,
+    failedChecks: [],
+    checksTruncated: false,
+    conflict: false,
+    behindBy: 0,
+    checkedAt: now.toISOString(),
+    ...over,
+  });
+
+  const withSignals = (page: HomePage, key: string, signals: PrSignalsView): HomePage => {
+    const patch = (run: HomeRun): HomeRun =>
+      run.ticketKey === key
+        ? {
+            ...run,
+            pullRequest: {
+              displayId: "#42",
+              url: "https://code.example.com/acme/web/pull/420",
+              signals,
+            },
+          }
+        : run;
+    return {
+      ...page,
+      attention: page.attention.map((item) => ({ ...item, run: patch(item.run) })),
+      running: page.running.map(patch),
+      queued: page.queued.map(patch),
+      endedRecently: page.endedRecently.map(patch),
+    };
+  };
+
+  const chipsOf = (card: string) =>
+    [...card.matchAll(/data-pr-chip="([^"]+)"/g)].map((match) => match[1]);
+
+  const questionPage = () => withInput(seededPage(), question);
+
+  it("PR이 없는 카드에는 칩이 없다", () => {
+    expect(chipsOf(row(render(questionPage()), "ACME-11"))).toEqual([]);
+  });
+
+  it("Open PR의 CI 실패는 칩 하나로 보인다", () => {
+    const page = withSignals(questionPage(), "ACME-11", openPr({ ciFailed: true }));
+    const card = row(render(page), "ACME-11");
+    expect(chipsOf(card)).toEqual(["ci-failed"]);
+    expect(text(card)).toContain(homeJson.card.prChip.ciFailed);
+  });
+
+  it("통과·충돌 없음·최신이면 칩을 만들지 않는다", () => {
+    const page = withSignals(questionPage(), "ACME-11", openPr({ conflict: null, behindBy: null }));
+    expect(chipsOf(row(render(page), "ACME-11"))).toEqual([]);
+  });
+
+  it("문제가 셋이면 급한 순서로 둘을 보이고 나머지는 +1 로 묶는다", () => {
+    const page = withSignals(
+      questionPage(),
+      "ACME-11",
+      openPr({ ciFailed: true, conflict: true, behindBy: 4 }),
+    );
+    const card = row(render(page), "ACME-11");
+    expect(chipsOf(card)).toEqual(["ci-failed", "conflict", "more"]);
+    expect(text(card)).toContain("+1");
+  });
+
+  it("선행 티켓 칩이 먼저, PR 칩이 뒤에 온다", () => {
+    const page = seededPage();
+    const first = page.queued[0];
+    if (first === undefined) throw new Error("no queued run");
+    const blocked: HomePage = {
+      ...page,
+      queued: page.queued.map((run) =>
+        run.id === first.id && run.state === "queued"
+          ? {
+              ...run,
+              queuedReason: {
+                kind: "blockers-waiting" as const,
+                blockers: [
+                  {
+                    key: "ACME-90",
+                    title: "앞 티켓",
+                    stateName: "In Progress",
+                    stateCategory: "started",
+                  },
+                ],
+              },
+            }
+          : run,
+      ),
+    };
+    const card = row(
+      render(withSignals(blocked, first.ticketKey, openPr({ ciFailed: true }))),
+      first.ticketKey,
+    );
+    expect(card.indexOf("data-blocker-state")).toBeGreaterThan(-1);
+    expect(card.indexOf("data-blocker-state")).toBeLessThan(card.indexOf("data-pr-chip"));
+  });
+
+  it("Question 카드에서 칩은 질문 문장 아래, 바닥 줄 위에 있다", () => {
+    const page = withSignals(questionPage(), "ACME-11", openPr({ ciFailed: true }));
+    const card = row(render(page), "ACME-11");
+    const chip = card.indexOf("data-pr-chip");
+    expect(card.indexOf(question.body)).toBeLessThan(chip);
+    const runnerName = runOf(page, "ACME-11").runner?.name;
+    if (runnerName === undefined) throw new Error("no runner");
+    expect(chip).toBeLessThan(card.indexOf(runnerName));
+  });
+
+  it("칩 글은 카드 버튼의 설명에 들어가고, +N 은 묶인 문제를 읽어 준다", () => {
+    const page = withSignals(
+      questionPage(),
+      "ACME-11",
+      openPr({ ciFailed: true, conflict: true, behindBy: 4 }),
+    );
+    const card = row(render(page), "ACME-11");
+    const described = /aria-describedby="([^"]+)"/.exec(card)?.[1]?.split(" ") ?? [];
+    const chipsId = described.find((id) => {
+      const start = card.indexOf(`<span id="${id}"`);
+      return start >= 0 && balanced(card, start, "span").includes("data-pr-chip");
+    });
+    if (chipsId === undefined) throw new Error("칩 줄이 설명에 없다");
+    const chips = text(balanced(card, card.indexOf(`<span id="${chipsId}"`), "span"));
+    expect(chips).toContain(homeJson.card.prChip.ciFailed);
+    expect(chips).toContain(homeJson.card.prChip.conflict);
+    expect(chips).toContain(homeJson.card.prChip.behind.replace("{count}", "4"));
+  });
+
+  it.each([
+    ["처리할 일 없이 끝난 카드", "reported-success"],
+    ["Failed 카드", "timed-out"],
+  ] as const)("PR을 못 읽은 %s는 칩 없이 바닥 줄에 쓴다", (_name, agentResult) => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("seed");
+    expect(
+      changeRunState(
+        db,
+        id,
+        { to: "ended", agentResult, prState: "unknown", prReadError: "other" },
+        minutes(110),
+      ).ok,
+    ).toBe(true);
+    const card = row(render(loadHomePage(db, "ws-commerce", now, "UTC")), "ACME-10");
+    expect(chipsOf(card)).toEqual([]);
+    expect(text(card)).toContain(homeJson.card.prUnread);
   });
 });
 

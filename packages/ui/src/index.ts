@@ -181,6 +181,13 @@ export {
   type BlockerChipProps,
   type BlockerChipState,
 } from "./components/blocker-chip";
+export {
+  PrChip,
+  PrChipMore,
+  type PrChipKind,
+  type PrChipMoreProps,
+  type PrChipProps,
+} from "./components/pr-chip";
 export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
 export {
   PILL_STATUSES,

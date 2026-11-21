@@ -2,6 +2,7 @@ import {
   toAgentId,
   toAgentRef,
   toPermissionRequestId,
+  toPullRequestId,
   toQuestionId,
   toRunnerId,
   toRunnerProjectId,
@@ -522,6 +523,72 @@ describe("loadHomePage", () => {
       (item) => item.run.ticketKey === "ACME-11",
     )?.run;
     expect(run).toMatchObject({ state: "waiting-for-input", waitingMs: 25 * 60_000 });
+  });
+});
+
+describe("loadHomePage PR 신호(0167)", () => {
+  const endedView = (db: Database, key: string) => {
+    const run = loadHomePage(db, "ws-commerce", now, "UTC").endedRecently.find(
+      (candidate) => candidate.ticketKey === key,
+    );
+    if (run?.state !== "ended") throw new Error(`no ended ${key}`);
+    return run;
+  };
+
+  const recordOpenPr = (db: Database, id: RunId) =>
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("pr-41"),
+        displayId: "#41",
+        url: "https://code.example.com/acme/web/pull/41",
+        ci: "failure",
+        checkedAt: minutes(95),
+        signals: {
+          open: true,
+          headCommit: "abc",
+          ciFailed: true,
+          checkTotal: 4,
+          failedCount: 1,
+          failedChecks: ["lint"],
+          checksTruncated: false,
+          conflict: true,
+          behindBy: 3,
+        },
+      },
+    });
+
+  it("Open PR의 신호를 담고, 머지되면 지난 신호를 남기지 않는다", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-41",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-41").pullRequest?.signals).toMatchObject({
+      ciFailed: true,
+      conflict: true,
+      behindBy: 3,
+    });
+
+    updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
+    expect(endedView(db, "ACME-41").pullRequest?.signals).toBeNull();
+  });
+
+  it("PR을 못 읽은 런은 읽기 오류를 담고 신호는 비운다", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-42",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "unknown",
+      prReadError: "no-access",
+    });
+    recordOpenPr(db, id);
+    const run = endedView(db, "ACME-42");
+    expect(run.prReadError).toBe("no-access");
+    expect(run.pullRequest?.signals).toBeNull();
   });
 });
 

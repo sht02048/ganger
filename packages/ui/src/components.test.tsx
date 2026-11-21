@@ -34,6 +34,8 @@ import {
   BlockerChips,
   KanbanCard,
   KanbanCards,
+  PrChip,
+  PrChipMore,
   KanbanColumn,
   KanbanSubheading,
   Popover,
@@ -664,6 +666,44 @@ describe("서버 렌더", () => {
     const calm = renderToString(<KanbanCard ticketKey="ACME-15" title="알림 묶기" onOpen={noop} />);
     const classOfButton = (rendered: string) => /<button[^>]*class="([^"]*)"/.exec(rendered)?.[1];
     expect(classOfButton(html)).not.toBe(classOfButton(calm));
+  });
+
+  it("KanbanCard prChips 는 선행 칩 뒤, 바닥 줄 위에 두고 설명에 들어간다(티켓 0167)", () => {
+    const html = renderToString(
+      <KanbanCard
+        ticketKey="ACME-15"
+        title="알림 묶기"
+        detail="기본값을 거절로 둘까요?"
+        blockers={
+          <BlockerChips>
+            <BlockerChip state="active" ticketKey="ACME-9" stateName="In Progress" />
+          </BlockerChips>
+        }
+        prChips={
+          <>
+            <PrChip kind="ci-failed">CI 실패</PrChip>
+            <PrChip kind="behind">3커밋 뒤</PrChip>
+            <PrChipMore hiddenLabel="충돌">+1</PrChipMore>
+          </>
+        }
+        meta="runner-a"
+        onOpen={noop}
+      />,
+    );
+    const order = ["기본값을", "data-blocker-state", 'data-pr-chip="ci-failed"', "runner-a"].map(
+      (part) => html.indexOf(part),
+    );
+    expect(order).toEqual(order.toSorted((a, b) => a - b));
+    expect(order).not.toContain(-1);
+    expect(/aria-describedby="([^"]+)"/.exec(html)?.[1]?.split(" ")).toHaveLength(3);
+    expect(html).toMatch(/<span aria-hidden="true">\+1<\/span>/);
+    expect(html).toContain("충돌");
+
+    const onlyPr = renderToString(
+      <KanbanCard title="ACME-2" prChips={<PrChip kind="conflict">충돌</PrChip>} onOpen={noop} />,
+    );
+    const describedId = /aria-describedby="([^"]+)"/.exec(onlyPr)?.[1] ?? "";
+    expect(onlyPr).toContain(`id="${describedId}"`);
   });
 
   it("KanbanCard 의 menu 는 카드 버튼 밖에 두고, 아이콘 메뉴 단추는 label 을 이름으로 가진다(티켓 0118)", () => {

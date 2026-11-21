@@ -1,12 +1,23 @@
-import { Button, KanbanCard, Menu, MenuItem, MoreIcon, StatusPill, Text } from "@ganger/ui";
+import {
+  Button,
+  KanbanCard,
+  Menu,
+  MenuItem,
+  MoreIcon,
+  PrChip,
+  PrChipMore,
+  StatusPill,
+  Text,
+} from "@ganger/ui";
 import type { PillStatus } from "@ganger/ui";
 import type { RunControl, RunId } from "@ganger/core";
 import { useId, useState } from "react";
 import type { ReactNode, Ref } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
-import type { HomeRun } from "@ganger/app/home/model";
-import { todoTagOf } from "@ganger/app/home/model";
+import type { HomeRun, PrProblem } from "@ganger/app/home/model";
+import { PR_CHIPS_VISIBLE, prProblemsOf, todoTagOf } from "@ganger/app/home/model";
+import type { PrSignalsView } from "@ganger/app/pr-signals-view";
 import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlView } from "@ganger/app/run-control-view";
 import { questionSummary } from "@ganger/app/question";
@@ -74,6 +85,7 @@ export function RunCard({
     rejected,
   });
   const statusName = useRunText().statusName;
+  const prChips = usePrChips(run.pullRequest?.signals ?? null);
   return (
     <KanbanCard
       {...(tag === null
@@ -95,10 +107,42 @@ export function RunCard({
       }
       titleId={titleId}
       {...parts}
+      {...(prChips === null ? {} : { prChips })}
       selected={selected}
       openRef={openRef}
       onOpen={() => onOpen("summary")}
     />
+  );
+}
+
+function usePrChips(signals: PrSignalsView | null): ReactNode {
+  const t = useTranslations("home.card.prChip");
+  const problems = prProblemsOf(signals);
+  if (problems.length === 0) return null;
+  const label = (problem: PrProblem): string => {
+    switch (problem.kind) {
+      case "ci-failed":
+        return t("ciFailed");
+      case "conflict":
+        return t("conflict");
+      case "behind":
+        return t("behind", { count: problem.commits });
+    }
+  };
+  const rest = problems.slice(PR_CHIPS_VISIBLE);
+  return (
+    <>
+      {problems.slice(0, PR_CHIPS_VISIBLE).map((problem) => (
+        <PrChip key={problem.kind} kind={problem.kind}>
+          {label(problem)}
+        </PrChip>
+      ))}
+      {rest.length === 0 ? null : (
+        <PrChipMore hiddenLabel={rest.map(label).join(", ")}>
+          {t("more", { count: rest.length })}
+        </PrChipMore>
+      )}
+    </>
   );
 }
 
@@ -254,9 +298,14 @@ function useCardParts(
     case "ended": {
       const time = ago(run.endedAt, run.endedAgoMs);
       const pr = run.pullRequest;
-      const prLine = pr === null ? null : t("pullRequest", { pr: pr.displayId });
+      const prUnread = run.prReadError === null ? null : t("prUnread");
+      const prLine = prUnread ?? (pr === null ? null : t("pullRequest", { pr: pr.displayId }));
       if (tagged && run.summary === "failed")
-        return { detail: text.agentResult(run), meta: runner, time };
+        return {
+          detail: text.agentResult(run),
+          meta: prUnread === null ? runner : `${runner} · ${prUnread}`,
+          time,
+        };
       return {
         meta: [text.statusName(run.summary), prLine, all ? run.workspace.name : null]
           .filter((part) => part !== null)

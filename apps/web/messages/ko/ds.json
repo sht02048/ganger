@@ -530,6 +530,10 @@
       "blockerDoneState": "Done",
       "blockerCanceled": "ACME-13",
       "blockerCanceledState": "취소",
+      "prCiFailed": "CI 실패",
+      "prConflict": "충돌",
+      "prBehind": "3커밋 뒤",
+      "prMore": "+1",
       "menuLabel": "ACME-10 런 메뉴",
       "pause": "멈추기",
       "subheading": "처리할 일 없이 끝났어요"

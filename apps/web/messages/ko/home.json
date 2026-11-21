@@ -60,6 +60,13 @@
     "inputUnknown": "무엇을 기다리는지 아직 읽지 못했어요",
     "permission": "{command}",
     "pullRequest": "PR {pr}",
+    "prUnread": "PR 못 읽음",
+    "prChip": {
+      "ciFailed": "CI 실패",
+      "conflict": "충돌",
+      "behind": "{count}커밋 뒤",
+      "more": "+{count}"
+    },
     "unreachableFor": "{runner}에 {duration} 닿지 않아요",
     "unreachable": "{runner}에 닿지 않아요",
     "noRunner": "러너 없음",
