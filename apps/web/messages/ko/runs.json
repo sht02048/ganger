@@ -75,6 +75,7 @@
         "success": "통과",
         "failure": "실패",
         "failedOf": "{total}개 중 {failed}개 실패",
+        "failedOfAtLeast": "{total}개 중 {failed}개 이상 실패",
         "pending": "도는 중",
         "none": "없음",
         "unavailable": "볼 수 없어요",

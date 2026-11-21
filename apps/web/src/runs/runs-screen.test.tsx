@@ -24,7 +24,7 @@ import {
 import { loadHomePage } from "@ganger/app/home/load";
 import { loadRunsPage } from "@ganger/app/runs/load";
 import { runsMessages } from "./messages";
-import type { RunFilter, RunsPage } from "@ganger/app/runs/model";
+import type { RunFilter, RunsPage, RunView } from "@ganger/app/runs/model";
 import { RunsScreen } from "./runs-screen";
 
 const noop = () => {};
@@ -774,6 +774,44 @@ describe("Runs 화면", () => {
       expect(tones(html)).toEqual(["pass"]);
       expect(text).not.toContain(section.conflict);
       expect(text).not.toContain("확인이 필요해요");
+    });
+
+    function withPullRequest(change: Partial<NonNullable<RunView["pullRequest"]>>) {
+      const { db, id } = endWithPr("open");
+      const page = loadRunsPage(db, undefined, now);
+      const changed: RunsPage = {
+        ...page,
+        runs: page.runs.map((run) =>
+          run.id === id && run.pullRequest !== null
+            ? { ...run, pullRequest: { ...run.pullRequest, ...change } }
+            : run,
+        ),
+      };
+      return render(changed, { selectedId: id });
+    }
+
+    it("신호가 없는 Open PR 도 CI 실패 문장을 붙이고 충돌·base 는 모름으로 둔다", () => {
+      const html = withPullRequest({ signals: null, signalsReadAgoMs: null, ci: "failure" });
+      const text = panelText(html);
+      expect(text).toContain("PR의 CI가 실패해서 확인이 필요해요.");
+      expect(text).toContain(section.conflictValue.unknown);
+      expect(tones(html)).toEqual(["problem", "neutral", "neutral"]);
+    });
+
+    it("검사 목록이 잘렸으면 실패 수를 '이상'으로 말한다", () => {
+      const html = withPullRequest({
+        signals: {
+          ciFailed: true,
+          checkTotal: 150,
+          failedCount: 2,
+          failedChecks: ["lint"],
+          checksTruncated: true,
+          conflict: false,
+          behindBy: 0,
+          checkedAt: minutes(111).toISOString(),
+        },
+      });
+      expect(panelText(html)).toContain("150개 중 2개 이상 실패");
     });
 
     it("자세히 보기는 주 버튼, PR 은 새 탭으로 여는 보조 버튼이다", () => {

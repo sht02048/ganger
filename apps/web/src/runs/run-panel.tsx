@@ -166,10 +166,14 @@ function useRunReason(run: RunView): string {
     case "ended": {
       const reason = t(`reason.${run.summary}`);
       const openWithFailedCi =
-        currentPrState(run) === "open" && run.pullRequest?.signals?.ciFailed === true;
+        currentPrState(run) === "open" && run.pullRequest !== null && isCiFailed(run.pullRequest);
       return openWithFailedCi ? t("reasonWithCiFailed", { reason }) : reason;
     }
   }
+}
+
+function isCiFailed(pr: RunPullRequest): boolean {
+  return pr.signals === null ? pr.ci === "failure" : pr.signals.ciFailed;
 }
 
 function panelPrState(run: RunView): PanelPrState | null {
@@ -194,7 +198,9 @@ function PrSection({ run }: { run: RunView }) {
   return (
     <PanelSection
       title={pr === null ? s("title") : s("titleWithId", { pr: pr.displayId })}
-      {...(state === null ? {} : { detail: s(`state.${state}`) })}
+      {...(state === null || (pr === null && state !== "unknown")
+        ? {}
+        : { detail: s(`state.${state}`) })}
       {...(signals === null || readAgoMs === null
         ? {}
         : { meta: s("readAt", { time: ago(signals.checkedAt, readAgoMs) }) })}
@@ -208,16 +214,17 @@ function PrSection({ run }: { run: RunView }) {
           {s("none")}
         </Text>
       ) : (
-        <PrSignals pr={pr} />
+        <PrSignals pr={pr} showMergeRows={signals !== null || state === "open"} />
       )}
     </PanelSection>
   );
 }
 
-function PrSignals({ pr }: { pr: RunPullRequest }) {
+function PrSignals({ pr, showMergeRows }: { pr: RunPullRequest; showMergeRows: boolean }) {
   const s = useTranslations("runs.panel.prSection");
-  const signals = pr.signals;
-  const ciFailed = signals === null ? pr.ci === "failure" : signals.ciFailed;
+  const conflict = pr.signals?.conflict ?? null;
+  const behindBy = pr.signals?.behindBy ?? null;
+  const ciFailed = isCiFailed(pr);
   return (
     <SignalList>
       <SignalRow
@@ -235,22 +242,22 @@ function PrSignals({ pr }: { pr: RunPullRequest }) {
       >
         {useCiText(pr, ciFailed)}
       </SignalRow>
-      {signals === null ? null : (
+      {!showMergeRows ? null : (
         <>
-          <SignalRow label={s("conflict")} tone={conflictTone(signals.conflict)}>
+          <SignalRow label={s("conflict")} tone={conflictTone(conflict)}>
             {s(
-              signals.conflict === null
+              conflict === null
                 ? "conflictValue.unknown"
-                : signals.conflict
+                : conflict
                   ? "conflictValue.some"
                   : "conflictValue.none",
             )}
           </SignalRow>
-          <SignalRow label={s("base")} tone={baseTone(signals.behindBy)}>
-            {signals.behindBy === null
+          <SignalRow label={s("base")} tone={baseTone(behindBy)}>
+            {behindBy === null
               ? s("baseValue.unknown")
-              : signals.behindBy > 0
-                ? s("baseValue.behind", { count: signals.behindBy })
+              : behindBy > 0
+                ? s("baseValue.behind", { count: behindBy })
                 : s("baseValue.upToDate")}
           </SignalRow>
         </>
@@ -264,7 +271,11 @@ function useCiText(pr: RunPullRequest, ciFailed: boolean): string {
   if (!ciFailed) return s(pr.ci);
   const total = pr.signals?.checkTotal ?? null;
   const failed = pr.signals?.failedCount ?? 0;
-  return total !== null && failed > 0 ? s("failedOf", { total, failed }) : s("failure");
+  if (total === null || failed === 0) return s("failure");
+  return s(pr.signals?.checksTruncated === true ? "failedOfAtLeast" : "failedOf", {
+    total,
+    failed,
+  });
 }
 
 function ciTone(pr: RunPullRequest, ciFailed: boolean): SignalTone {
