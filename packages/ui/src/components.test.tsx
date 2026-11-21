@@ -1097,6 +1097,8 @@ describe("새 컴포넌트(티켓 0073)", () => {
       return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
     });
     expect(new Set(paths).size).toBe(tones.length);
+  });
+
   it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {
     const html = renderToString(<CapacityTrack used={2} total={3} label="3자리 중 2자리 사용" />);
     expect(html).toContain('role="img" aria-label="3자리 중 2자리 사용"');
