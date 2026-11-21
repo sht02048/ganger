@@ -283,7 +283,11 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.done")}
-                count={todoOnly ? board.done.todo.length : page.endedRecently.length}
+                count={
+                  todoOnly
+                    ? board.done.todo.length
+                    : board.done.todo.length + board.done.rest.length
+                }
               >
                 <CardList
                   runs={board.done.todo}
