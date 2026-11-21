@@ -422,15 +422,16 @@ describe("다시 들어간 화면(브라우저, 0126)", () => {
 describe("시간 글자(브라우저, 0126)", () => {
   it("다시 읽지 않아도 카드의 지난 시간이 흐른다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: "blocked" });
-    assign(toTicketKey("ACME-60"));
+    const oneTickBeforeNextMinute = new Date(Date.now() - (60_000 - TIME_TEXT_TICK_MS));
+    assign(toTicketKey("ACME-60"), oneTickBeforeNextMinute);
     await openDashboard(page);
     const queued = card(page.getByRole("region", { name: home.column.queued }), "ACME-60");
-    const before = await queued.innerText();
+    expect(await queued.innerText()).toContain("<1 min");
     serverCalls.length = 0;
 
     await expect
       .poll(() => queued.innerText(), { timeout: TIME_TEXT_TICK_MS * 2 })
-      .not.toBe(before);
+      .toMatch(/(^|\s)1 min$/);
 
     expect(serverCalls).toEqual([]);
   });
@@ -593,13 +594,14 @@ function ok(result: { ok: true } | { ok: false; error: unknown }): void {
   if (!result.ok) throw new Error(`state change failed: ${JSON.stringify(result.error)}`);
 }
 
-function assign(key: TicketKey): RunId {
+function assign(key: TicketKey, now: Date = new Date()): RunId {
   const assigned = assignRun(db, {
     ticket: { connection, key },
     trackerProject,
     runnerProject,
     agent,
     runnerId,
+    now,
   });
   if (!assigned.ok) throw new Error(`assign ${key} failed: ${assigned.reason}`);
   runIds.set(key, assigned.run.id);
