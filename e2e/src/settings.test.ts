@@ -517,7 +517,9 @@ describe("Runners 의 러너 고치기(브라우저, 0119)", () => {
     await page.getByText(settings.runners.capacityInvalid).waitFor();
     await page.keyboard.press("Escape");
     await capacity.waitFor({ state: "detached" });
-    await expect.poll(focused).toBe(runners.panel.edit);
+    await expect
+      .poll(() => page.locator(":focus").getAttribute("aria-label"))
+      .toBe(runners.panel.editLabel.replace("{name}", "runner-a"));
 
     await page.getByRole("button", { name: runners.panel.edit }).click();
     await page.getByRole("textbox", { name: settings.runners.capacity, exact: true }).fill("4");
