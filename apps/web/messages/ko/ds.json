@@ -417,8 +417,6 @@
       "note": "Chip은 짧은 표시예요. 지울 수 있는 조건은 RemovableChip으로 두고, 지우기 이름을 함께 줘요.",
       "required": "필수",
       "optional": "선택",
-      "leading": "In Progress",
-      "leadingLabel": "진행 중",
       "runner": "러너: runner-a",
       "days": "기간: 최근 7일",
       "remove": "{condition} 조건 지우기",

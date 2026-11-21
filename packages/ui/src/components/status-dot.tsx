@@ -9,14 +9,16 @@ export function statusDotStyles(status: PillStatus) {
 
 export interface StatusDotProps {
   status: PillStatus;
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 export function StatusDot({ status, children }: StatusDotProps) {
   return (
     <span data-status={status} data-tone={statusTone(status)} {...stylex.props(styles.frame)}>
       <span aria-hidden="true" {...stylex.props(statusDotStyles(status))} />
-      <span {...stylex.props(styles.screenReaderOnly)}>{children}</span>
+      {children === undefined ? null : (
+        <span {...stylex.props(styles.screenReaderOnly)}>{children}</span>
+      )}
     </span>
   );
 }

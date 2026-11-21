@@ -64,7 +64,7 @@
     "prState": "PR {state}",
     "next": {
       "unassigned": "할당하면 Mapping이 정한 저장소와 에이전트로 처리해요.",
-      "unassignedBlocked": "할당하면 {key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 기다렸다가 시작해요.",
+      "unassignedBlocked": "할당하면 {key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요.",
       "no-mapping": "이 트래커 프로젝트에 Mapping이 없어 할당할 수 없어요. Settings에서 Mapping을 만들면 할당할 수 있어요.",
       "queued": "러너에 자리가 나기를 기다려요. 시작하면 진행 중으로 바뀌어요.",
       "running": "에이전트가 작업하고 있어요. 끝나면 결과가 여기에 보여요.",

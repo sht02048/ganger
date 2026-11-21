@@ -22,7 +22,7 @@ import {
   RowTitle,
   SegmentedTabs,
   SplitView,
-  statusDotStyles,
+  StatusDot,
   StatusPill,
   Table,
   TableCell,
@@ -706,9 +706,7 @@ export function TicketRelations({
                   {...(status === null
                     ? {}
                     : {
-                        marker: (
-                          <span aria-hidden="true" {...stylex.props(statusDotStyles(status))} />
-                        ),
+                        marker: <StatusDot status={status} />,
                         trailing: statusName(status),
                       })}
                   {...pick(waiter.key)}
@@ -744,7 +742,7 @@ function TicketRuns({
           return (
             <PanelListRow
               key={run.id}
-              marker={<span aria-hidden="true" {...stylex.props(statusDotStyles(status))} />}
+              marker={<StatusDot status={status} />}
               title={`${statusName(status)} · ${run.runnerName ?? t("noRunnerName")}`}
               trailing={<RunTime run={run} />}
               onClick={() => onOpenRun(run.id)}
@@ -920,16 +918,7 @@ function TicketPanel({
           {ticket.title}
         </Text>
         <div {...stylex.props(styles.chips)}>
-          <Chip
-            leading={
-              <span
-                aria-hidden="true"
-                {...stylex.props(blockerDotStyles(blockerChipState(ticket.trackerState.category)))}
-              />
-            }
-          >
-            {ticket.trackerState.name}
-          </Chip>
+          <Chip>{ticket.trackerState.name}</Chip>
           {ticket.priority === "none" ? null : (
             <Chip>{tTickets(`priority.${ticket.priority}`)}</Chip>
           )}
@@ -944,7 +933,9 @@ function TicketPanel({
               <>
                 <LastRunStatus run={run} />
                 <span {...stylex.props(styles.lastRunRunner)}>
-                  <Text variant="meta">{run.runnerName ?? t("noRunnerName")}</Text>
+                  <Text variant="meta" wrap="anywhere">
+                    {run.runnerName ?? t("noRunnerName")}
+                  </Text>
                   {run.state === "ended" ? <RunPullRequest run={run} /> : null}
                 </span>
                 <RunTime run={run} />

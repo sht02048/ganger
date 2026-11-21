@@ -12,6 +12,7 @@ import {
   PanelList,
   PanelListRow,
   PanelSection,
+  StatusDot,
   CodeBlock,
   ScrollRegion,
   DataTable,
@@ -145,12 +146,15 @@ describe("칩·링크·코드(티켓 0074)", () => {
     expect(renderToString(<Chip strong>필수</Chip>)).toMatch(/^<span class="[^"]+">필수<\/span>$/);
   });
 
-  it("Chip 은 앞 표시를 글 앞에 두고, 긴 글은 줄을 바꿀 수 있다(0164)", () => {
-    const html = renderToString(<Chip leading={<i>점</i>}>Todo</Chip>);
-    expect(html).toMatch(/<i>점<\/i>Todo<\/span>$/);
+  it("Chip wrapText 는 긴 글의 줄바꿈 모양을 더한다(0164)", () => {
     const plain = /class="([^"]+)"/.exec(renderToString(<Chip>a</Chip>))?.[1];
     const wrapped = /class="([^"]+)"/.exec(renderToString(<Chip wrapText>a</Chip>))?.[1];
     expect(wrapped).not.toBe(plain);
+  });
+
+  it("StatusDot 은 이름을 주지 않으면 화면 읽기 글 없이 점만 그린다(0164)", () => {
+    expect(renderToString(<StatusDot status="running" />)).not.toContain("Running");
+    expect(renderToString(<StatusDot status="running">Running</StatusDot>)).toContain("Running");
   });
 
   it("PanelListRow 는 onClick 이 있으면 버튼, 없으면 글 행이고 끝난 제목은 모양이 다르다(0164)", () => {

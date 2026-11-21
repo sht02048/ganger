@@ -63,7 +63,6 @@ import {
   RailNavList,
   RailStatic,
   RemovableChip,
-  StatusDot,
   ScreenLayout,
   Section,
   StackedBarChart,
@@ -251,9 +250,6 @@ export function BlockSections() {
             <span {...stylex.props(styles.row)}>
               <Chip strong>{t("chips.required")}</Chip>
               <Chip>{t("chips.optional")}</Chip>
-              <Chip leading={<StatusDot status="running">{t("chips.leadingLabel")}</StatusDot>}>
-                {t("chips.leading")}
-              </Chip>
               <Chip tone="accent">{t("chips.you")}</Chip>
               <Chip tone="accent">
                 <VisuallyHidden>{t("chips.youLabel")}</VisuallyHidden>
