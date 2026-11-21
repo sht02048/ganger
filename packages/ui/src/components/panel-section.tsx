@@ -87,7 +87,12 @@ export function PanelListRow({
         {title}
       </span>
       {trailing === undefined ? null : (
-        <span {...stylex.props(textStyles("meta"), styles.trailing)}>{trailing}</span>
+        <span
+          {...(typeof trailing === "string" ? { title: trailing } : {})}
+          {...stylex.props(textStyles("meta"), styles.trailing)}
+        >
+          {trailing}
+        </span>
       )}
     </>
   );
@@ -199,5 +204,12 @@ const styles = stylex.create({
     whiteSpace: "nowrap",
   },
   rowTitleDone: { color: colors.textTertiary, textDecorationLine: "line-through" },
-  trailing: { flexShrink: 0, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" },
+  trailing: {
+    flexShrink: 0,
+    maxWidth: "45%",
+    overflow: "hidden",
+    fontVariantNumeric: "tabular-nums",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
 });

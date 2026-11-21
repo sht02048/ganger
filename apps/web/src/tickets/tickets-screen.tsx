@@ -918,7 +918,7 @@ function TicketPanel({
           {ticket.title}
         </Text>
         <div {...stylex.props(styles.chips)}>
-          <Chip>{ticket.trackerState.name}</Chip>
+          <Chip wrapText>{ticket.trackerState.name}</Chip>
           {ticket.priority === "none" ? null : (
             <Chip>{tTickets(`priority.${ticket.priority}`)}</Chip>
           )}

@@ -298,14 +298,14 @@ export function RoleSections() {
               >
                 <PanelList>
                   <PanelListRow
-                    marker={<StatusDot status="running">{statusName("running")}</StatusDot>}
+                    marker={<StatusDot status="running" />}
                     ticketKey="ACME-12"
                     title={t("usage.listRow")}
                     trailing={statusName("running")}
                     onClick={() => {}}
                   />
                   <PanelListRow
-                    marker={<StatusDot status="succeeded">{statusName("succeeded")}</StatusDot>}
+                    marker={<StatusDot status="succeeded" />}
                     ticketKey="ACME-9"
                     title={t("usage.listRowDone")}
                     trailing={statusName("succeeded")}

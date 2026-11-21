@@ -172,6 +172,11 @@ describe("칩·링크·코드(티켓 0074)", () => {
     expect(titleClass(done)).not.toBe(titleClass(still));
   });
 
+  it("PanelListRow 의 글 trailing 은 말줄임돼도 전체 값을 title 로 남긴다(0164)", () => {
+    const html = renderToString(<PanelListRow title="제목" trailing="아주 긴 트래커 상태 이름" />);
+    expect(html).toContain('title="아주 긴 트래커 상태 이름"');
+  });
+
   it("PanelSection 은 개수와 도움말을 제목 옆에 두고, 주지 않으면 제목만 그린다(0164)", () => {
     const html = renderToString(
       <PanelSection title="런" count={3} info={<i>도움말</i>} titleRole="subheading">
