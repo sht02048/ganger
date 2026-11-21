@@ -22,6 +22,8 @@ import {
   Row,
   Section,
   SegmentedTabs,
+  SignalList,
+  SignalRow,
   StatTile,
   StatusDot,
   StatusPill,
@@ -271,6 +273,26 @@ export function RoleSections() {
                   tone="problem"
                 />
               </span>
+              <PanelSection
+                title={t("signals.title")}
+                detail={t("signals.detail")}
+                meta={t("signals.meta")}
+              >
+                <SignalList>
+                  <SignalRow label={t("signals.ci")} tone="problem">
+                    {t("signals.ciValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.conflict")} tone="pass">
+                    {t("signals.conflictValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.base")} tone="warning">
+                    {t("signals.baseValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.unknown")} tone="neutral">
+                    {t("signals.unknownValue")}
+                  </SignalRow>
+                </SignalList>
+              </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>
                 <PanelRows>

@@ -6,6 +6,7 @@ import { colors, fontSize, fontWeight, radius, size, space } from "../tokens.sty
 
 export interface PanelSectionProps {
   title: ReactNode;
+  detail?: ReactNode;
   meta?: ReactNode;
   count?: number;
   info?: ReactNode;
@@ -13,7 +14,15 @@ export interface PanelSectionProps {
   children: ReactNode;
 }
 
-export function PanelSection({ title, meta, count, info, titleRole, children }: PanelSectionProps) {
+export function PanelSection({
+  title,
+  detail,
+  meta,
+  count,
+  info,
+  titleRole,
+  children,
+}: PanelSectionProps) {
   const titleId = useId();
   const heading = (
     <h3
@@ -26,11 +35,12 @@ export function PanelSection({ title, meta, count, info, titleRole, children }: 
   return (
     <section aria-labelledby={titleId} {...stylex.props(styles.section)}>
       <div {...stylex.props(styles.head)}>
-        {count === undefined && info === undefined ? (
+        {count === undefined && info === undefined && detail === undefined ? (
           heading
         ) : (
           <span {...stylex.props(styles.titleGroup)}>
             {heading}
+            {detail === undefined ? null : <span {...stylex.props(styles.meta)}>{detail}</span>}
             {count === undefined ? null : <span {...stylex.props(styles.meta)}>{count}</span>}
             {info}
           </span>

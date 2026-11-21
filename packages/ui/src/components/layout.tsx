@@ -153,17 +153,21 @@ export function DetailPanel({ children }: { children: ReactNode }) {
 }
 
 export interface PanelHeaderProps {
+  eyebrow?: ReactNode;
   status?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
   reason?: ReactNode;
 }
 
-export function PanelHeader({ status, title, subtitle, reason }: PanelHeaderProps) {
+export function PanelHeader({ eyebrow, status, title, subtitle, reason }: PanelHeaderProps) {
+  const statusLine =
+    status === undefined ? null : <div {...stylex.props(styles.panelState)}>{status}</div>;
   return (
     <div {...stylex.props(styles.panelHead)}>
-      {status === undefined ? null : <div {...stylex.props(styles.panelState)}>{status}</div>}
+      {eyebrow === undefined ? statusLine : <p {...stylex.props(styles.panelSub)}>{eyebrow}</p>}
       <h2 {...stylex.props(styles.panelTitle)}>{title}</h2>
+      {eyebrow === undefined ? null : statusLine}
       {subtitle === undefined ? null : <p {...stylex.props(styles.panelSub)}>{subtitle}</p>}
       {reason === undefined ? null : <p {...stylex.props(styles.panelReason)}>{reason}</p>}
     </div>
@@ -336,6 +340,7 @@ const styles = stylex.create({
   panelHead: { display: "flex", flexDirection: "column", gap: space.s2 },
   panelState: {
     display: "flex",
+    flexWrap: "wrap",
     alignItems: "center",
     gap: space.s2,
     fontSize: fontSize.ui,

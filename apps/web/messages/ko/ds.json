@@ -330,6 +330,19 @@
     "note": "쓰는 칸과 전체 칸이에요. 문제 있는 러너는 빨간 막대예요.",
     "label": "작업 칸"
   },
+  "signals": {
+    "title": "PR #12",
+    "detail": "Open",
+    "meta": "5분 전 읽음",
+    "ci": "CI",
+    "ciValue": "7개 중 2개 실패",
+    "conflict": "충돌",
+    "conflictValue": "없음",
+    "base": "base",
+    "baseValue": "3커밋 뒤",
+    "unknown": "상태",
+    "unknownValue": "모름"
+  },
   "usage": {
     "note": "공급자 사용량 창의 쓴 비율이에요. 90% 이상이면 빨간 막대예요.",
     "label": "사용량",
