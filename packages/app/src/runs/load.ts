@@ -1,4 +1,4 @@
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
 import {
   AGENT_RESULTS,
   PR_STATES,
@@ -115,6 +115,10 @@ export function loadRunsPage(
       now,
     });
     const pr = records.pullRequest;
+    const signals =
+      pr === null || pr === undefined || takenOver.has(run.id)
+        ? null
+        : prSignalsViewOf(run, records);
     const base = {
       id: run.id,
       ticketKey: run.ticket.key,
@@ -131,7 +135,10 @@ export function loadRunsPage(
           : {
               displayId: pr.displayId,
               url: pr.url,
-              signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+              ci: toCiView(pr.ci),
+              signals,
+              signalsReadAgoMs:
+                signals === null ? null : now.getTime() - Date.parse(signals.checkedAt),
             },
       attention: false,
     };

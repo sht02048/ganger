@@ -122,6 +122,21 @@ describe("Runs 화면(브라우저, 0056)", () => {
     expect(await page.evaluate(() => "runsDocumentMarker" in globalThis)).toBe(true);
   });
 
+  it("'자세히 보기'를 수정키로 누르면 지금 화면은 그대로 두고 새 탭으로 연다(0166)", async (context) => {
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await openRuns(page);
+    await page.getByRole("option", { name: runningKey }).click();
+    const listUrl = page.url();
+    const opened = page.context().waitForEvent("page");
+    await page
+      .getByRole("link", { name: runsJson.panel.openDetail })
+      .click({ modifiers: ["ControlOrMeta"] });
+    const tab = await opened;
+    await tab.waitForURL(/\/runs\/[^/?]+/);
+    await tab.close();
+    expect(page.url()).toBe(listUrl);
+  });
+
   it("끝난 런은 최근 50개만 보이고, '더 보기'를 누르면 더 읽고 포커스를 잃지 않는다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 900 });
     await openRuns(page);

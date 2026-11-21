@@ -1,4 +1,6 @@
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
+
+export { toCiView };
 import {
   acceptsAgentMessage,
   isAgentMessageFailure,
@@ -6,7 +8,7 @@ import {
   summarizeRunOutcome,
   toRunId,
 } from "@ganger/core";
-import type { CiState, RunId, WorktreeDisposition } from "@ganger/core";
+import type { RunId, WorktreeDisposition } from "@ganger/core";
 import {
   getLogTailRequest,
   getRun,
@@ -43,7 +45,6 @@ import type { QueuedReason } from "../runs/model.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import type {
   AgentMessageDelivery,
-  CiView,
   ContinueOffer,
   KeptWorktree,
   KeptWorktreeReason,
@@ -468,11 +469,6 @@ function otherRunsOf(db: Database, run: StoredRun): OtherRun[] {
           }
         : { id: other.id, assignedAt, state: other.state };
     });
-}
-
-export function toCiView(ci: CiState): CiView {
-  const known: ReadonlyArray<CiView> = ["success", "failure", "pending", "none", "unavailable"];
-  return known.find((value) => value === ci) ?? "unknown";
 }
 
 function isWebUrl(value: string): boolean {

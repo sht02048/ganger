@@ -3,12 +3,9 @@ import {
   Actions,
   Button,
   Card,
-  DefinitionItem,
-  DefinitionList,
   DetailPanel,
   MotionList,
   PageHeader,
-  PanelHeader,
   RowTitle,
   ScreenLayout,
   SplitView,
@@ -24,18 +21,18 @@ import {
   TableRows,
   Tabs,
   Text,
-  linkStyles,
   NoticeLayout,
   RemovableChip,
   SegmentedTabs,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
-import { useAgentName, useQueuedReasonText } from "../labels";
+import { useAgentName } from "../labels";
 import { runStatus, useStatusName } from "../status";
+import { RunPanel } from "./run-panel";
 import type { WorkspaceSummary } from "@ganger/app/shell/model";
 import {
   ENDED_RUNS_PAGE_SIZE,
@@ -491,144 +488,6 @@ function useRunResultText(run: RunView): string {
   return parts.join(t("metaSeparator"));
 }
 
-function RunPanel({
-  run,
-  detailHref,
-  onOpenDetail,
-}: {
-  run: RunView;
-  detailHref: string;
-  onOpenDetail: () => void;
-}) {
-  const agentName = useAgentName();
-  const t = useTranslations("runs.panel");
-  const domain = useTranslations("domain");
-  const { duration, elapsed } = useTime();
-  const queuedReasonText = useQueuedReasonText();
-  const statusName = useStatusName();
-  const status = runStatus(run);
-
-  let when: string;
-  let reason: string;
-  switch (run.state) {
-    case "queued":
-      when = t("waitingFor", { duration: duration(run.waitMs) });
-      reason = queuedReasonText(run.queuedReason);
-      break;
-    case "running":
-    case "waiting-for-input":
-      when = elapsed(run.executionMs ?? 0);
-      reason = t(`reason.${run.state}`);
-      break;
-    case "disconnected":
-      when = elapsed(run.executionMs ?? 0);
-      reason = t(run.paused ? "reason.disconnectedPaused" : "reason.disconnected");
-      break;
-    case "paused":
-      when = run.pausedMs === null ? "" : t("pausedFor", { duration: duration(run.pausedMs) });
-      reason = t("reason.paused");
-      break;
-    case "ended":
-      when = t("endedAfter", { duration: duration(run.executionMs ?? 0) });
-      reason =
-        run.prReadError === null
-          ? t(`reason.${run.summary}`)
-          : t("reasonWithPrUnread", {
-              reason: t(`reason.${run.summary}`),
-              prUnread: t(`prUnread.${run.prReadError}`),
-            });
-      break;
-  }
-  if (run.state !== "ended" && run.cancelling) reason = t("cancellingReason");
-
-  const ended = run.state === "ended" ? run : null;
-  const pr = run.pullRequest;
-  const where =
-    run.branch === null
-      ? run.trackerProject
-      : t("subtitle", { project: run.trackerProject, branch: run.branch });
-  return (
-    <DetailPanel>
-      <PanelHeader
-        status={
-          <>
-            <StatusPill status={status}>{statusName(status)}</StatusPill>
-            {run.state !== "ended" && run.cancelling ? (
-              <Text variant="meta">{t("cancelling")}</Text>
-            ) : null}
-            <Text variant="meta">{when}</Text>
-          </>
-        }
-        title={run.ticketTitle ?? run.ticketKey}
-        subtitle={
-          run.ticketTitle === null ? where : t("subtitleWithKey", { key: run.ticketKey, where })
-        }
-        reason={reason}
-      />
-      <Actions>
-        <a
-          href={detailHref}
-          onClick={(event) => {
-            if (!isPlainClick(event)) return;
-            event.preventDefault();
-            onOpenDetail();
-          }}
-          {...stylex.props(linkStyles())}
-        >
-          {t("openDetail")}
-        </a>
-        {pr === null ? null : (
-          <a href={pr.url} target="_blank" rel="noreferrer" {...stylex.props(linkStyles())}>
-            {t("openPr", { pr: pr.displayId })}
-          </a>
-        )}
-      </Actions>
-      <DefinitionList>
-        <DefinitionItem label={t("state")}>{domain(`runState.${run.state}`)}</DefinitionItem>
-        <DefinitionItem label={t("summary")} empty={ended === null}>
-          {ended === null ? (
-            t("notEnded")
-          ) : (
-            <StatusPill status={ended.summary}>{statusName(ended.summary)}</StatusPill>
-          )}
-        </DefinitionItem>
-        <DefinitionItem label={t("agentResult")} empty={ended === null}>
-          {ended === null ? t("notEnded") : domain(`agentResult.${ended.agentResult}`)}
-        </DefinitionItem>
-        <DefinitionItem label={t("prState")} empty={ended === null}>
-          {ended === null ? t("notEnded") : domain(`prState.${currentPrState(ended)}`)}
-        </DefinitionItem>
-        <DefinitionItem label={t("runner")} empty={run.runner === null}>
-          {run.runner === null ? (
-            t("noRunner")
-          ) : (
-            <span {...stylex.props(styles.inline)}>
-              {run.runner.name}
-              {run.runner.online ? null : (
-                <StatusPill status="offline">{statusName("offline")}</StatusPill>
-              )}
-            </span>
-          )}
-        </DefinitionItem>
-        <DefinitionItem label={t("agent")}>{agentName(run.agent)}</DefinitionItem>
-        <DefinitionItem label={t("pr")} empty={pr === null}>
-          {pr === null ? (
-            t("none")
-          ) : (
-            <a href={pr.url} target="_blank" rel="noreferrer" {...stylex.props(linkStyles())}>
-              {pr.displayId}
-            </a>
-          )}
-        </DefinitionItem>
-      </DefinitionList>
-    </DetailPanel>
-  );
-}
-
-function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
-  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
-}
-
 const styles = stylex.create({
   stack: { display: "flex", flexDirection: "column", gap: space.s4 },
   listColumn: { minWidth: 0 },
@@ -640,7 +499,6 @@ const styles = stylex.create({
     marginBottom: space.s4,
   },
   conditions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
-  inline: { display: "inline-flex", alignItems: "center", gap: space.s2 },
   more: {
     display: "flex",
     flexWrap: "wrap",

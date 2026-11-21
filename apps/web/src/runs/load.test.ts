@@ -118,6 +118,8 @@ describe("loadRunsPage", () => {
     expect(ended?.pullRequest).toEqual({
       displayId: "#2",
       url: "https://example.com/acme/web/pull/2",
+      ci: "success",
+      signalsReadAgoMs: null,
       signals: null,
     });
     expect(ended?.trackerProject).toBe("Web");
