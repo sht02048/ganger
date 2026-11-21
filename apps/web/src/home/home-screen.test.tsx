@@ -310,6 +310,20 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(done).toMatch(/<\/h2><span[^>]*>11<\/span>/);
   });
 
+  it("7일보다 오래된 꼬리표 카드는 Done 칸에 남지만 머리 개수에 들지 않는다 (0163)", () => {
+    const page = seededPage();
+    const done = section(
+      render({
+        ...page,
+        endedRecently: page.endedRecently.filter((run) => run.ticketKey !== "ACME-2"),
+      }),
+      "Done",
+    );
+    expect(done).toMatch(/<\/h2><span[^>]*>6<\/span>/);
+    expect(section(render(page), "Done")).toMatch(/<\/h2><span[^>]*>7<\/span>/);
+    expect(renderView(page, "todo")).toContain("ACME-2");
+  });
+
   it("Queued·Running 칸은 6장이 넘으면 앞 6장과 N개 더 보기를 보인다", () => {
     const page = seededPage();
     const base = page.queued[0];

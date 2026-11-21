@@ -433,7 +433,7 @@ describe("loadHomePage", () => {
         endedAt,
       });
 
-    it("오늘과 6일 전은 넣고 7일 전은 넣지 않으며 칸 개수도 그만큼이다", () => {
+    it("오늘과 6일 전은 넣고 7일 전은 넣지 않는다", () => {
       const { db } = seedDatabase();
       addSucceeded(db, "DONE-TODAY", daysBefore(0));
       addSucceeded(db, "DONE-SIX", daysBefore(6));

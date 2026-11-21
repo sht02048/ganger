@@ -21,9 +21,9 @@ Dashboard의 Done today 칸은 오늘(운영자 시간대) 끝난 런만 보여�
 
 ## 할 일
 
-- [ ] `packages/app/src/home/` 의 Done 칸 데이터를 최근 7일로 넓힌다.
-- [ ] 칸 이름·문구를 `apps/web/messages/ko/home.json`에서 바꾼다.
-- [ ] ADR 0010(2·4·10번과 0100 갱신의 "Done today")에 갱신을 적고, ADR 0007·`packages/ui/DESIGN.md`·GLOSSARY의 "Done today"를 맞춘다.
+- [x] `packages/app/src/home/` 의 Done 칸 데이터를 최근 7일로 넓힌다.
+- [x] 칸 이름·문구를 `apps/web/messages/ko/home.json`에서 바꾼다.
+- [x] ADR 0010(2·4·10번과 0100 갱신의 "Done today")에 갱신을 적고, ADR 0007·`packages/ui/DESIGN.md`·GLOSSARY의 "Done today"를 맞춘다.
 
 ## 완료 조건
 
