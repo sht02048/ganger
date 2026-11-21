@@ -38,6 +38,7 @@ import {
 } from "@ganger/ui";
 import type { CheckResultState, PillStatus } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
+import type { PrerequisiteFailureKind } from "@ganger/core";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
@@ -393,9 +394,10 @@ function RunnerPanel({
         ) : null}
       </div>
       {needsFix ? <FixCard runner={runner} target={target} recheck={recheck} /> : null}
+      {needsFix ? <CheckList runner={runner} target={target} /> : null}
       <CapacityRuns runner={runner} />
       <ProviderUsage runner={runner} />
-      <CheckList runner={runner} target={target} />
+      {needsFix ? null : <CheckList runner={runner} target={target} />}
       <LeftWorktrees runner={runner} />
     </DetailPanel>
   );
@@ -568,25 +570,31 @@ function FixCard({
   }
   const push = summarizePushChecks(runner.checks ?? []);
   const name = isPushCheck(target) ? tPush("name") : prerequisiteName(target);
+  const blockedProjects = projectList.format(runner.pushBlockedProjects);
   return (
     <ProblemCallout title={t("fix.brokenTitle", { name })} actions={actions}>
-      <span {...stylex.props(styles.fixBody)}>
+      <div {...stylex.props(styles.fixBody)}>
         <Text variant="body">
           {runner.assignmentBlocked
             ? t("fix.assignmentBlocked.body")
-            : t("fix.pushImpact", { projects: projectList.format(runner.pushBlockedProjects) })}
+            : t("fix.pushImpact", { projects: blockedProjects })}
         </Text>
+        {runner.assignmentBlocked && runner.pushBlockedProjects.length > 0 ? (
+          <Text variant="body">{t("fix.pushAlsoBlocked", { projects: blockedProjects })}</Text>
+        ) : null}
         {target.hint === null ? null : (
           <Text variant="meta" as="span" mono wrap="anywhere">
             {target.hint}
           </Text>
         )}
-        {push.failedKinds.map((kind) => (
-          <Text key={kind} variant="ui" as="p">
-            {tPush.rich(`fix.${kind}`, { code })}
-          </Text>
-        ))}
-      </span>
+        {isPushCheck(target)
+          ? push.failedKinds.map((kind) => (
+              <Text key={kind} variant="ui" as="p">
+                {tPush.rich(`fix.${kind}`, { code })}
+              </Text>
+            ))
+          : null}
+      </div>
     </ProblemCallout>
   );
 }
@@ -685,12 +693,28 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
   }
   const ordered = orderedChecks(checks);
   const passed = ordered.filter((check) => check.satisfied === true).length;
+  const fixesInRows = target !== null && !isPushCheck(target);
+  const shownFixKinds = new Set<PrerequisiteFailureKind>();
+  const firstRowOfKind = (kind: PrerequisiteFailureKind) => {
+    if (shownFixKinds.has(kind)) return null;
+    shownFixKinds.add(kind);
+    return kind;
+  };
+  const code = (chunks: ReactNode) => (
+    <Text variant="meta" as="span" mono wrap="anywhere">
+      {chunks}
+    </Text>
+  );
   const rows = ordered.map((check) => {
     const state = checkState(check);
     const push = prerequisiteKind(check.id);
     const failureKind = check.failure?.kind ?? (state === "broken" ? "other" : null);
     const showsHint = state === "broken" && check.hint !== null && check.id !== target?.id;
     const rawReason = push.kind === "github-push" ? (check.failure?.reason ?? null) : null;
+    const fixKind =
+      fixesInRows && push.kind === "github-push" && state === "broken"
+        ? firstRowOfKind(failureKind ?? "other")
+        : null;
     return (
       <CheckResultRow
         key={check.id}
@@ -705,15 +729,25 @@ function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheck
           ? { reason: tPush(`failure.${failureKind}`) }
           : {})}
       >
-        {showsHint ? (
-          <Text variant="meta" mono>
-            {check.hint}
-          </Text>
-        ) : rawReason === null || state === "ok" ? undefined : (
-          <Text variant="meta" mono wrap="anywhere">
-            {rawReason}
-          </Text>
-        )}
+        {showsHint || rawReason !== null || fixKind !== null ? (
+          <>
+            {showsHint ? (
+              <Text variant="meta" mono>
+                {check.hint}
+              </Text>
+            ) : null}
+            {rawReason === null || state === "ok" ? null : (
+              <Text variant="meta" mono wrap="anywhere">
+                {rawReason}
+              </Text>
+            )}
+            {fixKind === null ? null : (
+              <Text variant="meta" as="p">
+                {tPush.rich(`fix.${fixKind}`, { code })}
+              </Text>
+            )}
+          </>
+        ) : undefined}
       </CheckResultRow>
     );
   });

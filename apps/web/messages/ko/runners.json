@@ -40,6 +40,7 @@
     "fix": {
       "brokenTitle": "{name} 항목이 깨졌어요",
       "pushImpact": "{projects} 티켓은 이 러너에 맡기지 않아요. 다른 저장소 티켓은 그대로 맡겨요.",
+      "pushAlsoBlocked": "이 항목을 고쳐도 {projects} 티켓은 push를 고칠 때까지 맡기지 않아요.",
       "offline": {
         "title": "오케스트레이터가 이 러너에 닿지 않아요",
         "body": "다시 닿을 때까지 이 러너에서 런을 시작하지 않아요.",

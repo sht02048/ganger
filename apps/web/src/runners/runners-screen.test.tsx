@@ -322,6 +322,46 @@ describe("Runners 고른 러너 패널", () => {
     expect(a.match(recheckButtons)).toHaveLength(1);
   });
 
+  it("할당을 막은 원인이 push 가 아니면 카드는 그 항목의 안내와 push 영향을 보이고 push 해결법은 그 줄로 옮긴다(0165)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r",
+            assignmentBlocked: true,
+            pushBlockedProjects: ["acme/web"],
+            checks: [
+              {
+                id: "orca-service",
+                name: "Orca service",
+                project: null,
+                satisfied: false,
+                blocksAssignment: true,
+                hint: "orca serve service install",
+                failure: null,
+              },
+              {
+                id: "github-push:github:acme/web",
+                name: "GitHub push access: acme/web",
+                project: "acme/web",
+                satisfied: false,
+                blocksAssignment: false,
+                hint: null,
+                failure: { kind: "auth", reason: null },
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const card = html.slice(html.search(callout), html.indexOf(`>${panel.checksTitle}</h3>`));
+    expect(textOf(card)).toContain("Orca 상시 서비스 항목이 깨졌어요");
+    expect(textOf(card)).toContain("orca serve service install");
+    expect(textOf(card)).toContain("이 항목을 고쳐도 acme/web 티켓은 push를 고칠 때까지");
+    expect(card).not.toContain("gh auth setup-git");
+    expect(html.match(/>gh auth setup-git</g)).toHaveLength(1);
+  });
+
   it("push 와 상관없는 항목만 깨진 Online 러너는 카드 없이 그 줄에 안내를 두고 머리에 다시 확인을 둔다(0165)", () => {
     const html = panelHtml(
       render({
@@ -772,7 +812,20 @@ describe("Runners 다시 그리기(0092)", () => {
     expect(problemClass).not.toBe(okClass);
   });
 
-  it("패널은 머리 → 고칠 일 카드 → 자리 → 사용량 → 확인 항목 순서다", () => {
+  it("Online 러너의 패널은 머리 → 자리 → 사용량 → 확인 항목 순서다(0165)", () => {
+    const { db } = seedDatabase();
+    failSomePushes(db, []);
+    const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
+    const order = [
+      `>${panel.capacity}</h3>`,
+      `>${panel.usage.title}</h3>`,
+      `>${panel.checksTitle}</h3>`,
+    ].map((needle) => a.indexOf(needle));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((x, y) => x - y));
+  });
+
+  it("고칠 일이 있는 패널은 머리 → 고칠 일 카드 → 확인 항목 → 자리 → 사용량 순서다(0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
@@ -780,9 +833,9 @@ describe("Runners 다시 그리기(0092)", () => {
     const order = [
       at("<h2"),
       at("GitHub push 항목이 깨졌어요"),
+      at(`>${panel.checksTitle}</h3>`),
       at(`>${panel.capacity}</h3>`),
       at(`>${panel.usage.title}</h3>`),
-      at(`>${panel.checksTitle}</h3>`),
     ];
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((x, y) => x - y));
