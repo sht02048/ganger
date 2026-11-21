@@ -468,7 +468,7 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
     recordWebhookAccepted(f.context.db, id, at(3));
     const text = textOf(renderDetail(await loadSettingsPage(f.context, workspace, now), id));
     expect(text).toContain(settings.webhook.status.receiving);
-    expect(text).toContain(`${settings.webhook.lastReceived} 3분 전`);
+    expect(text).toContain(`${settings.webhook.lastReceived} 3 min ago`);
   });
 
   it("서명이 맞지 않으면 받지 못한 수와 처음 실패 시각, secret 다시 넣기를 보인다", async () => {
@@ -482,7 +482,7 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
     expect(text).toContain("Linear가 보낸 webhook 4개를 받지 못했어요");
     expect(text).toContain("08:18부터 서명이 맞지 않아요");
     expect(text).toContain(settings.webhook.rejected.reenter);
-    expect(text).toContain(`${settings.webhook.lastReceived} 2시간 전`);
+    expect(text).toContain(`${settings.webhook.lastReceived} 2 hr ago`);
   });
 
   it("켜졌는데 닿을 주소가 없으면 정하라고 알린다", async () => {
@@ -509,7 +509,7 @@ describe("Settings 연결 줄의 webhook 상태(0130)", () => {
     let page = await loadSettingsPage(f.context, workspace, now);
     let text = textOf(renderSettings(page));
     expect(text).toContain("1분마다 읽어요 · webhook 켜기");
-    expect(text).toContain("webhook으로 바로 받아요 · 마지막으로 받은 때 3분 전");
+    expect(text).toContain("webhook으로 바로 받아요 · 마지막으로 받은 때 3 min ago");
     expect(sectionProblems(page, 0).has("connections")).toBe(true);
 
     recordWebhookBadSignature(f.context.db, receiving, at(18));
