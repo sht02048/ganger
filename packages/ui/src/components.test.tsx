@@ -1025,7 +1025,7 @@ describe("새 컴포넌트(티켓 0073)", () => {
         x
       </PanelSection>,
     );
-    expect(html).toMatch(/>PR #1<\/h3><span[^>]*>Open<\/span><\/div><span[^>]*>방금<\/span>/);
+    expect(html).toMatch(/>PR #1<\/h3><span[^>]*>Open<\/span><\/span><span[^>]*>방금<\/span>/);
   });
 
   it("PanelHeader 에 eyebrow 를 주면 첫 줄이 그 글이고 상태는 제목 아래로 온다", () => {
