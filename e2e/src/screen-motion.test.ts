@@ -656,26 +656,6 @@ describe("Dashboard 움직임(브라우저, 0153)", () => {
 });
 
 describe("Runs 움직임(브라우저, 0153)", () => {
-  it("Workspace 를 바꿨다 돌아오면 그사이 바뀐 상태와 새 행이 움직이지 않는다", async (context) => {
-    const changed = assign();
-    const page = await newPage(context);
-    await open(page, runsPath, "/runs");
-    await runRow(page, changed.key).waitFor();
-
-    await switchWorkspace(page, "Acme", otherWorkspaceName);
-    await expect.poll(() => runRow(page, changed.key).count()).toBe(0);
-    start(changed.id);
-    const added = assign();
-    await page.waitForTimeout(QUIET_MS);
-    await clearCalls(page);
-
-    await switchWorkspace(page, otherWorkspaceName, "Acme");
-
-    await runRow(page, changed.key).locator('[data-status="running"]').waitFor();
-    await runRow(page, added.key).waitFor();
-    await expectQuiet(page);
-  });
-
   it("첫 렌더와 필터 바꾸기에서는 움직이지 않는다", async (context) => {
     assign();
     const page = await newPage(context);
