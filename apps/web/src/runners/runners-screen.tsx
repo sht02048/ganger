@@ -38,7 +38,7 @@ import {
 } from "@ganger/ui";
 import type { CheckResultState, PillStatus } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
-import { breakpoints, fonts, size, space } from "@ganger/ui/tokens.stylex";
+import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "use-intl";
@@ -546,7 +546,11 @@ function FixCard({
   const tPush = useTranslations("domain.pushCheck");
   const prerequisiteName = usePrerequisiteName();
   const projectList = new Intl.ListFormat(useLocale(), { type: "conjunction", style: "short" });
-  const code = (chunks: ReactNode) => <code {...stylex.props(styles.code)}>{chunks}</code>;
+  const code = (chunks: ReactNode) => (
+    <Text variant="meta" as="span" mono wrap="anywhere">
+      {chunks}
+    </Text>
+  );
   const actions = <RecheckButton recheck={recheck} variant="primary" />;
   if (target === null) {
     const cause = runner.online ? "assignmentBlocked" : "offline";
@@ -572,7 +576,11 @@ function FixCard({
             ? t("fix.assignmentBlocked.body")
             : t("fix.pushImpact", { projects: projectList.format(runner.pushBlockedProjects) })}
         </Text>
-        {target.hint === null ? null : <code {...stylex.props(styles.code)}>{target.hint}</code>}
+        {target.hint === null ? null : (
+          <Text variant="meta" as="span" mono wrap="anywhere">
+            {target.hint}
+          </Text>
+        )}
         {push.failedKinds.map((kind) => (
           <Text key={kind} variant="ui" as="p">
             {tPush.rich(`fix.${kind}`, { code })}
@@ -976,6 +984,5 @@ const styles = stylex.create({
   windowGrid: { alignItems: "center" },
   labelGridRest: { gridColumn: "2 / -1", minWidth: 0 },
   runLabel: { display: "flex", alignItems: "baseline", gap: space.s2, minWidth: 0 },
-  code: { fontFamily: fonts.mono, overflowWrap: "anywhere" },
   provider: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
 });

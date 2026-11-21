@@ -3,6 +3,7 @@ import { Button as SdkButton } from "@ui-sdk/react/button";
 import { useId, useState, type ReactNode } from "react";
 import { cx } from "../cx";
 import { colors, fontSize, fontWeight, radius, space } from "../tokens.stylex";
+import { surfaceStyles } from "./card";
 import { focusStyles } from "./focus";
 import { CheckIcon, ChevronDownIcon, CloseIcon, UnknownIcon } from "./icons";
 import { VisuallyHidden } from "./visually-hidden";
@@ -18,7 +19,7 @@ export function CheckResultIcon({ state }: { state: CheckResultState }) {
 }
 
 export function CheckResultList({ children }: { children: ReactNode }) {
-  return <ul {...stylex.props(styles.list)}>{children}</ul>;
+  return <ul {...stylex.props(surfaceStyles("card"), styles.list)}>{children}</ul>;
 }
 
 export interface CheckResultRowProps {
@@ -83,10 +84,7 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: space.px2,
     margin: 0,
-    paddingBlock: space.s1,
-    paddingInline: 0,
-    borderRadius: radius.control,
-    backgroundColor: colors.bgCard,
+    padding: space.s1,
     listStyle: "none",
     minWidth: 0,
   },
@@ -96,8 +94,7 @@ const styles = stylex.create({
     alignItems: "baseline",
     columnGap: space.s2,
     rowGap: space.s1,
-    paddingBlock: space.s2,
-    paddingInline: space.s3,
+    padding: space.s2,
     fontSize: fontSize.ui,
     minWidth: 0,
   },
