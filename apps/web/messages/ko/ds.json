@@ -297,7 +297,7 @@
     "sectionTitle": "In progress",
     "runningTime": "25 min",
     "waitingTime": "3 min",
-    "queuedTime": "방금"
+    "queuedTime": "<1 min"
   },
   "sections": {
     "note": "제목 역할로 구역의 무게를 골라요. 오른쪽에 링크를 둘 수 있어요.",
