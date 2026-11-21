@@ -15,6 +15,9 @@ import {
   CAPACITY_CELLS_MAX,
   CapacityBar,
   CapacityCells,
+  CapacityTrack,
+  CheckResultRow,
+  ExpandableRow,
   Card,
   Checkbox,
   DefinitionItem,
@@ -70,6 +73,7 @@ import {
   UsageMeter,
   PanelRows,
   PanelHeader,
+  PanelListRow,
   PanelSection,
   SignalList,
   SignalRow,
@@ -1093,6 +1097,51 @@ describe("새 컴포넌트(티켓 0073)", () => {
       return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
     });
     expect(new Set(paths).size).toBe(tones.length);
+  });
+
+  it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {
+    const html = renderToString(<CapacityTrack used={2} total={3} label="3자리 중 2자리 사용" />);
+    expect(html).toContain('role="img" aria-label="3자리 중 2자리 사용"');
+    expect(html.match(/data-cell="used"/g)).toHaveLength(2);
+    expect(html.match(/data-cell="free"/g)).toHaveLength(1);
+    expect(renderToString(<CapacityTrack used={0} total={0} label="x" />)).toBe("");
+    expect(renderToString(<CapacityTrack used={1} total={33} label="x" />)).toBe("");
+  });
+
+  it("CheckResultRow 는 상태를 아이콘 모양과 화면 읽기 글로 함께 보인다", () => {
+    const shape = (state: "ok" | "broken" | "unknown") =>
+      /<path d="([^"]+)"/.exec(
+        renderToString(<CheckResultRow state={state} stateLabel="상태" name="항목" />),
+      )?.[1];
+    expect(new Set([shape("ok"), shape("broken"), shape("unknown")]).size).toBe(3);
+    const html = renderToString(
+      <CheckResultRow state="broken" stateLabel="깨졌어요" name="GitHub push" reason="인증 실패" />,
+    );
+    expect(html).toContain('data-check="broken"');
+    expect(html).toContain("깨졌어요");
+    expect(html).toContain("인증 실패");
+  });
+
+  it("ExpandableRow 는 처음에 접혀 있고 내용을 그리지 않는다", () => {
+    const html = renderToString(<ExpandableRow summary="4개 모두 통과">내용</ExpandableRow>);
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"/);
+    expect(html).toContain("4개 모두 통과");
+    expect(html).not.toContain("내용");
+  });
+
+  it("PanelListRow 는 href 를 주면 행 전체가 링크다", () => {
+    const html = renderToString(<PanelListRow href="/runs/1" ticketKey="ACME-1" title="제목" />);
+    expect(html).toMatch(/<li[^>]*><a href="\/runs\/1"/);
+    expect(html).not.toContain("<button");
+  });
+
+  it("PanelSection 은 count 와 info 를 제목 옆에, meta 를 오른쪽에 둔다", () => {
+    const html = renderToString(
+      <PanelSection title="자리" count="2/3" info={<i>도움말</i>} meta="3분 전">
+        본문
+      </PanelSection>,
+    );
+    expect(html).toMatch(/<h3[^>]*>자리<\/h3><span[^>]*>2\/3<\/span><i>도움말<\/i><\/span><span/);
   });
 
   it("CapacityCells 는 자리 하나를 칸 하나로 그리고 칸 묶음을 이름 하나로 읽는다", () => {

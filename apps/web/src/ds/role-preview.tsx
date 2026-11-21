@@ -4,6 +4,13 @@ import {
   Button,
   CapacityBar,
   CapacityCells,
+  CapacityTrack,
+  CheckResultIcon,
+  CheckResultList,
+  CheckResultRow,
+  EditIcon,
+  ExpandableRow,
+  UnknownIcon,
   Card,
   ExternalIconLink,
   GangerMark,
@@ -385,6 +392,51 @@ export function RoleSections() {
                 ))}
               </Section>
             </div>
+          </Demo>
+          <Demo>
+            <div {...stylex.props(styles.usageMeter)}>
+              <CapacityTrack
+                used={2}
+                total={3}
+                label={t("capacityCells.label", { used: 2, total: 3 })}
+              />
+            </div>
+            <div {...stylex.props(styles.usageMeter)}>
+              <CheckResultList>
+                <CheckResultRow
+                  state="broken"
+                  stateLabel={t("checkResult.broken")}
+                  name={t("checkResult.push")}
+                  reason={t("checkResult.reason")}
+                />
+                <CheckResultRow
+                  state="unknown"
+                  stateLabel={t("checkResult.unknown")}
+                  name={t("checkResult.service")}
+                />
+                <CheckResultRow
+                  state="ok"
+                  stateLabel={t("checkResult.ok")}
+                  name={t("checkResult.agent")}
+                />
+              </CheckResultList>
+            </div>
+            <div {...stylex.props(styles.usageMeter)}>
+              <ExpandableRow
+                leading={<CheckResultIcon state="ok" />}
+                summary={t("checkResult.allPassed")}
+              >
+                <CheckResultList>
+                  <CheckResultRow
+                    state="ok"
+                    stateLabel={t("checkResult.ok")}
+                    name={t("checkResult.agent")}
+                  />
+                </CheckResultList>
+              </ExpandableRow>
+            </div>
+            <EditIcon />
+            <UnknownIcon />
           </Demo>
         </Section>
       </div>

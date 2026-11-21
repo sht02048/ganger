@@ -15,7 +15,7 @@ import {
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import { runnersMessages } from "./messages";
 import { failedChecksFirst, problemRunnersFirst } from "@ganger/app/runners/model";
-import type { RunnerView, RunnersPage } from "@ganger/app/runners/model";
+import type { OccupyingRun, RunnerView, RunnersPage } from "@ganger/app/runners/model";
 import { addRunnerHref, RunnersScreen } from "./runners-screen";
 import type { RunnerActions } from "./runners-screen";
 
@@ -92,6 +92,19 @@ function runner(overrides: Partial<RunnerView> & { id: string }): RunnerView {
 }
 
 const callout = /<section aria-labelledby="[^"]*"[^>]*><div[^>]*><span aria-hidden="true"/;
+const recheckButtons = new RegExp(`<button(?:(?!</button>)[^])*>${panel.recheck}<`, "g");
+
+function occupyingRun(overrides: Partial<OccupyingRun> & { id: string }): OccupyingRun {
+  return {
+    ticketKey: "ACME-1",
+    ticketTitle: null,
+    workspace: { id: "ws", name: "Acme" },
+    state: "running",
+    waitingFor: null,
+    executionMs: 4 * 60_000,
+    ...overrides,
+  };
+}
 
 describe("Runners 목록", () => {
   it("문제 있는 러너(Offline·Runner Issue)를 Online 러너보다 위에 두고 그 안의 순서는 지킨다", () => {
@@ -150,8 +163,10 @@ describe("Runners 목록", () => {
       {
         id: "r1",
         ticketKey: "ACME-1",
+        ticketTitle: null,
         workspace: { id: "ws", name: "Acme" },
         state: "running" as const,
+        waitingFor: null,
         executionMs: 1000,
       },
     ];
@@ -193,11 +208,12 @@ describe("Runners 목록", () => {
     );
   });
 
-  it("노란 주 버튼은 러너 추가 하나이고 같은 화면의 러너 등록 패널을 연다(ADR 0010 6번, 0095)", () => {
+  it("노란 주 버튼은 머리의 러너 추가와 패널 고칠 일 카드의 다시 확인뿐이다(ADR 0010 6번, 0095, 0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     const html = render(loadRunnersPage(db, now));
-    expect(variantsOf(html).filter((v) => v === "primary")).toHaveLength(1);
+    expect(variantsOf(html).filter((v) => v === "primary")).toHaveLength(2);
+    expect(variantsOf(panelHtml(html)).filter((v) => v === "primary")).toHaveLength(1);
     expect(html).toContain(`<a href="/runners?sel=new" data-variant="primary"`);
   });
 
@@ -272,21 +288,126 @@ describe("Runners 고른 러너 패널", () => {
     expect(textOf(offline)).toContain(panel.fix.offline.title);
     expect(offline).toMatch(/<ol[^>]*><li[^]*?1<\/span>[^]*?2<\/span>[^]*?3<\/span>/);
     expect(textOf(offline)).toContain(panel.fix.offline.steps["1"]);
-    expect(offline).toMatch(new RegExp(`data-variant="secondary"[^>]*>${panel.recheck}</button>`));
+    expect(variantsOf(offline).filter((v) => v === "primary")).toHaveLength(1);
+    expect(offline.match(recheckButtons)).toHaveLength(1);
 
     const online = panelHtml(render(page, "runner-a"));
     expect(online).not.toMatch(callout);
-    expect(online.match(new RegExp(`>${panel.recheck}</button>`, "g"))).toHaveLength(1);
+    expect(online.match(recheckButtons)).toHaveLength(1);
+    expect(variantsOf(online)).not.toContain("primary");
   });
 
-  it("러너 전체 항목이 깨져 할당에서 빠진 러너의 해결 상자는 확인 항목을 보라고 안내한다", () => {
+  it("확인 항목이 깨져 할당에서 빠진 러너의 고칠 일 카드는 깨진 항목·영향·고치는 법과 다시 확인 하나를 둔다(0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
     expect(a).toMatch(callout);
-    expect(textOf(a)).toContain(panel.fix.assignmentBlocked.title);
-    expect(textOf(a)).toContain(panel.fix.assignmentBlocked.steps["1"]);
-    expect(a.match(new RegExp(`>${panel.recheck}</button>`, "g"))).toHaveLength(1);
+    const text = textOf(a);
+    expect(text).toContain("GitHub push 항목이 깨졌어요");
+    expect(text).toContain(panel.fix.assignmentBlocked.body);
+    expect(text).toContain(domain.pushCheck.fix.other);
+    expect(a.match(recheckButtons)).toHaveLength(1);
+    expect(variantsOf(a).filter((v) => v === "primary")).toHaveLength(1);
+  });
+
+  it("상태가 Online 이어도 push 가 깨진 저장소가 있으면 알약은 Online 이고 고칠 일 카드에 그 저장소를 보인다(0165)", () => {
+    const { db } = seedDatabase();
+    failSomePushes(db, [
+      { name: "web", satisfied: false, failure: { kind: "auth", reason: null } },
+    ]);
+    const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
+    expect(pillsOf(a)[0]).toEqual({ status: "online", label: domain.runnerState.online });
+    expect(a).toMatch(callout);
+    expect(textOf(a)).toContain("acme/web 티켓은 이 러너에 맡기지 않아요.");
+    expect(a.match(recheckButtons)).toHaveLength(1);
+  });
+
+  it("할당을 막은 원인이 push 가 아니면 카드는 그 항목의 안내와 push 영향을 보이고 push 해결법은 그 줄로 옮긴다(0165)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r",
+            assignmentBlocked: true,
+            pushBlockedProjects: ["acme/web"],
+            checks: [
+              {
+                id: "orca-service",
+                name: "Orca service",
+                project: null,
+                satisfied: false,
+                blocksAssignment: true,
+                hint: "orca serve service install",
+                failure: null,
+              },
+              {
+                id: "github-push:github:acme/web",
+                name: "GitHub push access: acme/web",
+                project: "acme/web",
+                satisfied: false,
+                blocksAssignment: false,
+                hint: null,
+                failure: { kind: "auth", reason: null },
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    const card = html.slice(html.search(callout), html.indexOf(`>${panel.checksTitle}</h3>`));
+    expect(textOf(card)).toContain("Orca 상시 서비스 항목이 깨졌어요");
+    expect(textOf(card)).toContain("orca serve service install");
+    expect(textOf(card)).toContain("이 항목을 고쳐도 acme/web 티켓은 push를 고칠 때까지");
+    expect(card).not.toContain("gh auth setup-git");
+    expect(html.match(/>gh auth setup-git</g)).toHaveLength(1);
+  });
+
+  it("push 와 상관없는 항목만 깨진 Online 러너는 카드 없이 그 줄에 안내를 두고 머리에 다시 확인을 둔다(0165)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r",
+            checks: [
+              {
+                id: "orca-service",
+                name: "Orca service",
+                project: null,
+                satisfied: false,
+                blocksAssignment: false,
+                hint: "orca serve service install",
+                failure: null,
+              },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(html).not.toMatch(callout);
+    expect(textOf(html)).toContain("orca serve service install");
+    expect(html.match(recheckButtons)).toHaveLength(1);
+  });
+
+  it("고치기는 러너 이름이 든 아이콘 버튼이고 머리 줄 순서는 이름, 알약·시각·다시 확인이다(0165)", () => {
+    const { db } = seedDatabase();
+    const html = panelHtml(
+      renderWithMessages(
+        <RunnersScreen
+          page={loadRunnersPage(db, now)}
+          selectedId="runner-a"
+          ws={undefined}
+          onSelect={() => undefined}
+          actions={noActions}
+          renderEdit={() => <p>edit-form</p>}
+        />,
+        runnersMessages,
+      ),
+    );
+    expect(html).toMatch(
+      /<button(?=[^>]*aria-label="runner-a 러너 고치기")(?=[^>]*aria-expanded="false")/,
+    );
+    expect(html).toMatch(/aria-label="runner-a 러너 고치기"[^]*?<svg/);
+    expect(html.indexOf("<h2")).toBeLessThan(html.indexOf('data-status="online"'));
   });
 
   it("상태 알약·확인 시각, 제목 이름과 주소를 패널 머리에 둔다", () => {
@@ -303,23 +424,21 @@ describe("Runners 고른 러너 패널", () => {
       }),
     );
     expect(pillsOf(html)[0]).toEqual({ status: "online", label: domain.runnerState.online });
-    expect(textOf(html)).toContain("2 hr ago 확인했어요");
+    expect(textOf(html)).toContain("2 hr ago 확인");
     expect(html).toMatch(/<h2[^>]*>build-1<\/h2>/);
     expect(html).toMatch(/<p[^>]*>dev@runner.example.com<\/p>/);
   });
 
-  it("지금 하는 런 블록은 n/capacity 와 쓰는 런·기다리는 런을 Run 상세 링크로 보인다", () => {
+  it("자리는 n/capacity 와 칸 막대, 한 줄 런 행(상태 점·번호·제목·시간)을 Run 상세 링크로 보인다(0165)", () => {
     const { db, ids } = seedDatabase();
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
     expect(textOf(a)).toContain(`${panel.capacity} 4/10`);
-    expect(a).toMatch(
-      /<h3[^>]*>자리<\/h3><span[^>]*><span role="img" aria-label="10자리 중 4자리 사용"/,
-    );
-    const statuses = pillsOf(a).map((p) => p.status);
-    expect(statuses).toContain("running");
-    expect(statuses).toContain("disconnected");
-    expect(statuses).toContain("queued");
-    expect(textOf(a)).toContain("ACME-12 Acme Commerce");
+    expect(a).toMatch(/role="img" aria-label="10자리 중 4자리 사용"/);
+    expect(a.match(/data-cell="used"/g)).toHaveLength(4);
+    expect(a.match(/data-cell="free"/g)).toHaveLength(6);
+    expect(a).toContain('data-status="running"');
+    expect(a).toContain('data-status="disconnected"');
+    expect(textOf(a)).toContain("이 러너를 기다리는 Queued 런");
     const id = ids.get("LAB-1") ?? "";
     expect(a).toMatch(
       new RegExp(
@@ -329,22 +448,75 @@ describe("Runners 고른 러너 패널", () => {
     expect(textOf(panelHtml(render(loadRunnersPage(db, now), "runner-b")))).toContain(panel.noRuns);
   });
 
-  it("확인 항목은 통과 수/전체를 제목에 두고 깨진 항목을 먼저 보인다", () => {
+  it.each([
+    { capacity: 2, used: 0, cells: 2 },
+    { capacity: 3, used: 2, cells: 3 },
+    { capacity: 0, used: 1, cells: 0 },
+  ])(
+    "자리 $used/$capacity 는 칸 $cells 개를 그린다(0 이면 막대 없이 숫자만)",
+    ({ capacity, used, cells }) => {
+      const occupying = Array.from({ length: used }, (_, index) =>
+        occupyingRun({ id: `o${index}` }),
+      );
+      const html = panelHtml(render({ runners: [runner({ id: "r", capacity, occupying })] }));
+      expect(html.match(/data-cell="(used|free)"/g) ?? []).toHaveLength(cells);
+      expect(textOf(html)).toContain(`${panel.capacity} ${used}/${capacity}`);
+    },
+  );
+
+  it("런 행 오른쪽은 일하는 런이면 시간, To do 면 종류 이름이고 제목은 번호 옆에 둔다(0165)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r",
+            capacity: 3,
+            occupying: [
+              occupyingRun({ id: "a", ticketKey: "ACME-12", ticketTitle: "시계 adapter 합치기" }),
+              occupyingRun({
+                id: "b",
+                ticketKey: "ACME-16",
+                ticketTitle: "승인 정책 기본값",
+                state: "waiting-for-input",
+                waitingFor: "question",
+              }),
+            ],
+          }),
+        ],
+      }),
+    );
+    const text = textOf(html);
+    expect(text).toContain("ACME-12 시계 adapter 합치기 4 min");
+    expect(text).toContain(`ACME-16 승인 정책 기본값 ${domain.attention.question}`);
+    expect(html).toContain('data-status="question"');
+    expect(html).toContain('href="/runs/b?ws=ws"');
+  });
+
+  it("이 러너를 기다리는 Queued 런은 개수와 번호 한 줄로 보인다(0165)", () => {
+    const queued = ["ACME-14", "ACME-15"].map((ticketKey) => ({
+      id: ticketKey,
+      ticketKey,
+      workspace: { id: "ws", name: "Acme" },
+      waitMs: 1000,
+    }));
+    const text = textOf(panelHtml(render({ runners: [runner({ id: "r", queued })] })));
+    expect(text).toContain("이 러너를 기다리는 Queued 런 2 · ACME-14, ACME-15");
+  });
+
+  it("확인 항목은 통과 수/전체를 제목 옆에 두고 깨진 항목을 맨 위에, 줄마다 모양이 다른 아이콘을 둔다(0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    expect(textOf(a)).toContain(`${panel.checksTitle} 1/2 통과`);
+    expect(textOf(a)).toContain(`${panel.checksTitle} 2/3`);
     const states = [...a.matchAll(/data-check="([^"]+)"/g)].map((m) => m[1]);
-    expect(states).toEqual(["broken", "ok"]);
-    expect(textOf(a)).toMatch(
-      new RegExp(`${panel.check.broken} GitHub push · 2개 중 1개 통과 github:acme/web 기타`),
-    );
+    expect(states).toEqual(["broken", "ok", "ok"]);
+    expect(a).toContain('data-check-icon="broken"');
+    expect(a).toContain('data-check-icon="ok"');
     expect(textOf(a)).toContain(`${panel.check.ok} Orca service`);
     expect(textOf(a)).not.toContain("GitHub push access");
-    expect(a).not.toContain('data-status="online" data-tone');
   });
 
-  it("GitHub push는 한 줄로 묶고 실패한 저장소와 이유, 같은 해결 안내는 한 번만 보인다 (0096)", () => {
+  it("GitHub push는 저장소마다 한 줄이고 깨진 줄 오른쪽에 이유, 같은 해결 안내는 카드에 한 번만 보인다(0165)", () => {
     const { db } = seedDatabase();
     failSomePushes(db, [
       {
@@ -359,16 +531,16 @@ describe("Runners 고른 러너 패널", () => {
     const a = panelHtml(html);
     const pushCheck = domain.pushCheck;
     const text = textOf(a);
-    expect(text).toContain(`${panel.checksTitle} 1/2 통과`);
-    expect(text).toContain(`${panel.check.broken} GitHub push · 4개 중 1개 통과`);
-    expect(text).toContain(
-      `acme/web ${pushCheck.failure.auth} · Permission to acme/web.git denied to someone.`,
-    );
-    expect(text).toContain(`acme/api ${pushCheck.failure.auth}`);
-    expect(text).toContain(`acme/lab 확인하지 못했어요 · ${pushCheck.failure.timeout}`);
+    expect(text).toContain(`GitHub push · acme/web ${pushCheck.failure.auth}`);
+    expect(text).toContain("Permission to acme/web.git denied to someone.");
+    expect(text).toContain(`GitHub push · acme/api ${pushCheck.failure.auth}`);
+    expect(text).toContain(`GitHub push · acme/lab ${pushCheck.failure.timeout}`);
     expect(a.match(/>gh auth setup-git</g)).toHaveLength(1);
-    expect(text).toContain(pushCheck.scope);
-    expect(a).not.toMatch(callout);
+    expect([...a.matchAll(/data-check="([^"]+)"/g)].map((m) => m[1]).slice(0, 3)).toEqual([
+      "broken",
+      "broken",
+      "unknown",
+    ]);
 
     const row = rowsOf(html).find((r) => r.name === "runner-a");
     expect(pillsOf(row?.html ?? "")).toEqual([
@@ -379,13 +551,14 @@ describe("Runners 고른 러너 패널", () => {
     );
   });
 
-  it("모든 저장소가 push를 통과하면 한 줄로 모두 통과라고 보인다 (0096)", () => {
+  it("모두 통과하면 N개 모두 통과 한 줄로 접고 펼침 버튼을 둔다(0165)", () => {
     const { db } = seedDatabase();
     failSomePushes(db, []);
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    expect(textOf(a)).toContain(`${panel.check.ok} GitHub push · 저장소 4개 모두 통과`);
-    expect([...a.matchAll(/data-check="([^"]+)"/g)].map((m) => m[1])).toEqual(["ok", "ok"]);
-    expect(a).not.toContain("data-push=");
+    expect(a).toMatch(/<button[^>]*aria-expanded="false"[^>]*>(?:(?!<\/button>)[^])*모두 통과/);
+    expect(textOf(a)).toMatch(/\d+개 모두 통과/);
+    expect(a).not.toContain("data-check=");
+    expect(a).not.toMatch(callout);
   });
 
   it("확인하지 못한 항목은 그렇다고 글로 보인다", () => {
@@ -409,7 +582,8 @@ describe("Runners 고른 러너 패널", () => {
         ],
       }),
     );
-    expect(textOf(html)).toContain(`${panel.checksTitle} 0/1 통과`);
+    expect(textOf(html)).toContain(`${panel.checksTitle} 0/1`);
+    expect(html).toContain('data-check-icon="unknown"');
     expect(html).toMatch(new RegExp(`data-check="unknown"[^]*?${panel.check.unknown}`));
   });
 
@@ -433,7 +607,7 @@ describe("Runners 고른 러너 패널", () => {
       ],
     });
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    expect(textOf(a)).toContain(`${panel.checksTitle} 0/1 통과`);
+    expect(textOf(a)).toContain(`${panel.checksTitle} 0/1`);
     expect(textOf(a)).toContain("Orca 상시 서비스 orca serve service install");
     expect(a).not.toMatch(callout);
   });
@@ -442,12 +616,17 @@ describe("Runners 고른 러너 패널", () => {
     const { db } = seedDatabase();
     const b = panelHtml(render(loadRunnersPage(db, now), "runner-b"));
     expect(textOf(b)).toContain(`${panel.checksTitle} ${panel.check.broken} ${panel.unreachable}`);
+    expect(b).toMatch(callout);
+    expect(textOf(b)).toContain(panel.fix.offline.title);
+    expect(b.match(recheckButtons)).toHaveLength(1);
   });
 
   it("확인 항목을 아직 읽지 않은 러너는 그렇다고 보인다", () => {
     const { db } = seedDatabase();
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
     expect(textOf(a)).toContain(`${panel.checksTitle} ${panel.noChecks}`);
+    expect(textOf(a)).not.toContain(panel.checksAllPassed.replace("{count}", ""));
+    expect(a.match(recheckButtons)).toHaveLength(1);
   });
 
   it("남은 워크트리와 그 까닭을 보인다", () => {
@@ -463,7 +642,7 @@ describe("Runners 고른 러너 패널", () => {
     addUnreachedCanceledRun(db, "ACME-22");
     const text = textOf(panelHtml(render(loadRunnersPage(db, now), "runner-b")));
     expect(text).toContain("남은 워크트리 1");
-    expect(text).toContain(`ACME-22 Acme Commerce · ${panel.worktree["operator-decides"]}`);
+    expect(text).toContain(`ACME-22 ${panel.worktree["operator-decides"]}`);
   });
 
   it("확인 항목 정렬은 깨짐, 모름, 통과 순이다", () => {
@@ -549,7 +728,7 @@ describe("공급자 사용량(0086)", () => {
     const html = panelHtml(render(seededWithUsage(), "runner-a"));
     const text = textOf(html);
     expect(text).toContain(panel.usage.title);
-    expect(text).toContain("3 min ago 읽었어요");
+    expect(text).toContain("3 min ago 읽음");
     expect(text).toMatch(/5시간 100% \S+에 초기화돼요 · 한도에 닿았어요/);
     expect(text).toContain("주간 72% Fable 주간 9%");
     expect(text).toContain("Fable 주간");
@@ -558,7 +737,8 @@ describe("공급자 사용량(0086)", () => {
     expect(html).not.toContain("<details");
     expect(text).toContain("newbie");
     expect(text).toContain(panel.usage.error);
-    expect(text).toContain(panel.usage.privacy);
+    expect(html).toContain(`aria-label="${panel.usage.privacyLabel}"`);
+    expect(text).not.toContain(usage.highest);
   });
 
   it("읽지 못했거나 아직 읽지 않았으면 그렇게 말한다", () => {
@@ -632,23 +812,36 @@ describe("Runners 다시 그리기(0092)", () => {
     expect(problemClass).not.toBe(okClass);
   });
 
-  it("패널은 머리 → 문제 상자 → 자리 → 공급자 사용량 → 확인 항목 순서다", () => {
+  it("Online 러너의 패널은 머리 → 자리 → 사용량 → 확인 항목 순서다(0165)", () => {
+    const { db } = seedDatabase();
+    failSomePushes(db, []);
+    const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
+    const order = [
+      `>${panel.capacity}</h3>`,
+      `>${panel.usage.title}</h3>`,
+      `>${panel.checksTitle}</h3>`,
+    ].map((needle) => a.indexOf(needle));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((x, y) => x - y));
+  });
+
+  it("고칠 일이 있는 패널은 머리 → 고칠 일 카드 → 확인 항목 → 자리 → 사용량 순서다(0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
     const at = (needle: string) => a.indexOf(needle);
     const order = [
       at("<h2"),
-      at(panel.fix.assignmentBlocked.title),
+      at("GitHub push 항목이 깨졌어요"),
+      at(`>${panel.checksTitle}</h3>`),
       at(`>${panel.capacity}</h3>`),
       at(`>${panel.usage.title}</h3>`),
-      at(`>${panel.checksTitle}</h3>`),
     ];
     expect(order.every((i) => i >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((x, y) => x - y));
   });
 
-  it("공급자 사용량 머리 오른쪽에 읽은 시각, 확인 항목 머리 오른쪽에 통과 수를 둔다", () => {
+  it("사용량 머리 오른쪽에 읽은 시각, 제목 옆에 도움말을 둔다(0165)", () => {
     const { db } = seedDatabase();
     breakGitHubAuth(db);
     recordProviderUsage(db, {
@@ -657,18 +850,10 @@ describe("Runners 다시 그리기(0092)", () => {
       reading: { kind: "read", providers: [] },
     });
     const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    expect(a).toMatch(new RegExp(`>${panel.usage.title}</h3><span[^>]*>3 min ago 읽었어요</span>`));
-    expect(a).toMatch(new RegExp(`>${panel.checksTitle}</h3><span[^>]*>1/2 통과</span>`));
-  });
-
-  it("확인 항목은 통과한 것도 상태 낱말 칸을 채워 항목 이름이 한 줄로 맞는다", () => {
-    const { db } = seedDatabase();
-    breakGitHubAuth(db);
-    const a = panelHtml(render(loadRunnersPage(db, now), "runner-a"));
-    const words = [...a.matchAll(/data-check="[^"]+"[^>]*><span[^>]*>([^<]+)<\/span>/g)].map(
-      (m) => m[1],
+    expect(a).toMatch(
+      new RegExp(`>${panel.usage.title}</h3><button[^>]*aria-label="${panel.usage.privacyLabel}"`),
     );
-    expect(words).toEqual([panel.check.broken, panel.check.ok]);
+    expect(a).toMatch(/<span[^>]*>3 min ago 읽음<\/span>/);
   });
 
   it("로그인하지 않은 공급자만, 쓰지 않는 공급자만 있으면 그 문장 하나로 이름을 보인다", () => {
@@ -687,8 +872,8 @@ describe("Runners 다시 그리기(0092)", () => {
       });
       return textOf(panelHtml(render(loadRunnersPage(db, now), "runner-a")));
     };
-    expect(only("signed-out")).toContain("로그인하지 않았어요: Codex 및 Gemini 계정");
-    expect(only("unavailable")).toContain("쓰지 않아요: Codex 및 Gemini 계정");
+    expect(only("signed-out")).toContain("로그인하지 않았어요: Codex 및 Gemini");
+    expect(only("unavailable")).toContain("쓰지 않아요: Codex 및 Gemini");
     expect(only("unavailable")).not.toContain("로그인하지 않았어요");
   });
 

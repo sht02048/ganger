@@ -9,8 +9,10 @@ export interface RunWorkspace {
 export interface OccupyingRun {
   id: string;
   ticketKey: string;
+  ticketTitle: string | null;
   workspace: RunWorkspace;
   state: "running" | "waiting-for-input" | "paused" | "disconnected";
+  waitingFor: "question" | "permission" | "human-check" | null;
   executionMs: number;
 }
 

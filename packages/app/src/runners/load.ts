@@ -3,6 +3,7 @@ import type { UsageWindow } from "@ganger/core";
 import { listRunners, listRunsWithRecords, listWorkspaces, listTakenOverRunIds } from "@ganger/db";
 import type { Database, StoredProviderUsage, StoredRun } from "@ganger/db";
 import { z } from "zod";
+import { pendingInput } from "../home/load.js";
 import { prerequisiteHint, prerequisiteProject } from "../prerequisites.js";
 import type {
   LeftWorktree,
@@ -48,7 +49,10 @@ export function loadRunnersPage(db: Database, now: Date): RunnersPage {
       case "disconnected":
         push(occupying, run.runnerId, {
           ...base,
+          ticketTitle: run.ticketTitle,
           state: run.state,
+          waitingFor:
+            run.state === "waiting-for-input" ? (pendingInput(db, run.id)?.kind ?? null) : null,
           executionMs: now.getTime() - run.startedAt.getTime(),
         });
         break;

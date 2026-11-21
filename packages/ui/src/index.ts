@@ -33,7 +33,9 @@ export {
 export {
   CAPACITY_CELLS_MAX,
   CapacityCells,
+  CapacityTrack,
   showsCapacityCells,
+  showsCapacityTrack,
   type CapacityCellsProps,
 } from "./components/capacity-cells";
 export {
@@ -106,10 +108,21 @@ export {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  EditIcon,
   ExternalIcon,
   InfoIcon,
   MoreIcon,
+  UnknownIcon,
 } from "./components/icons";
+export {
+  CheckResultIcon,
+  CheckResultList,
+  CheckResultRow,
+  ExpandableRow,
+  type CheckResultRowProps,
+  type CheckResultState,
+  type ExpandableRowProps,
+} from "./components/check-result";
 export {
   WindowChrome,
   WindowDragFrame,
