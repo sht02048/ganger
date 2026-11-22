@@ -102,11 +102,13 @@ export function LiveScreens({
   fetcher,
   onRejected,
   onDisconnected,
+  onForgetLocal,
 }: {
   connection: { server: string; token: string };
   fetcher: FetchLike;
   onRejected: () => void;
   onDisconnected: () => void;
+  onForgetLocal: () => Promise<boolean>;
 }) {
   const { server, token } = connection;
   const client = useMemo(
@@ -131,6 +133,7 @@ export function LiveScreens({
   const [view, setView] = useState(INITIAL_DASHBOARD_VIEW);
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectFailed, setDisconnectFailed] = useState(false);
+  const [forgetFailed, setForgetFailed] = useState(false);
   const now = useClock(BAND_TICK_MS);
 
   useEffect(() => {
@@ -167,9 +170,10 @@ export function LiveScreens({
     }
     setDisconnectFailed(true);
   };
-  const forgetLocal = () => {
-    session.stop();
-    onDisconnected();
+  const forgetLocal = async () => {
+    setForgetFailed(false);
+    if (await onForgetLocal()) session.stop();
+    else setForgetFailed(true);
   };
 
   const message = bandText(state, view.workspaceId, now);
@@ -185,7 +189,8 @@ export function LiveScreens({
         disconnectFailed,
         disconnecting,
         onDisconnect: () => void disconnect(),
-        onForgetLocal: forgetLocal,
+        forgetFailed,
+        onForgetLocal: () => void forgetLocal(),
       }}
       onBack={() => setScreen("dashboard")}
     />
@@ -212,13 +217,20 @@ export function LiveScreens({
           onOpenSettings={() => setScreen("settings")}
           band={band}
           actionsDisabled={state.phase !== "live"}
-          {...(state.phase === "loading" ? {} : { onRetry: () => void session.refresh() })}
+          {...(state.phase === "loading" || state.phase === "live"
+            ? {}
+            : { onRetry: () => void session.refresh() })}
           actionNotice={{ title: t("common.liveActionTitle"), body: t("common.liveAction") }}
         />
       );
     case "runners":
       return (
-        <RunnersScreen band={band} runners={state.runners} onBack={() => setScreen("dashboard")} />
+        <RunnersScreen
+          band={band}
+          loading={state.phase === "loading"}
+          runners={state.runners}
+          onBack={() => setScreen("dashboard")}
+        />
       );
     case "settings":
       return settings;

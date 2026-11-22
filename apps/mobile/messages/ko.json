@@ -196,7 +196,8 @@
     "disconnectFailed": "연결을 끊지 못했어요. 서버 목록에는 이 기기가 남아요.",
     "forgetLocal": "이 기기에서만 지우기",
     "exitDemo": "데모 끝내기",
-    "connectionServerError": "서버가 요청을 처리하지 못했어요"
+    "connectionServerError": "서버가 요청을 처리하지 못했어요",
+    "forgetFailed": "이 기기에서 연결을 지우지 못했어요. 다시 해 주세요."
   },
   "names": {
     "agent": {
@@ -251,6 +252,7 @@
       "reasonUnreachable": "서버에 닿지 않아요",
       "reasonServerError": "서버가 요청을 처리하지 못했어요"
     },
-    "noWorkspaceData": "이 Workspace는 아직 받은 내용이 없어요."
+    "noWorkspaceData": "이 Workspace는 아직 받은 내용이 없어요.",
+    "saveFailed": "이 기기에 연결을 저장하지 못했어요. QR을 새로 띄워 다시 연결해 주세요."
   }
 }

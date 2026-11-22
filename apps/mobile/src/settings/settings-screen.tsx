@@ -52,6 +52,7 @@ export interface SettingsConnection {
   deviceName: string | null;
   disconnectFailed: boolean;
   disconnecting: boolean;
+  forgetFailed: boolean;
   onDisconnect: () => void;
   onForgetLocal: () => void;
 }
@@ -87,6 +88,11 @@ function ConnectionCard({ connection }: { connection: SettingsConnection }) {
             {t("settings.disconnectFailed")}
           </Text>
           <Button label={t("settings.forgetLocal")} onPress={connection.onForgetLocal} />
+          {connection.forgetFailed ? (
+            <Text variant="meta" tone="problem" accessibilityRole="alert">
+              {t("settings.forgetFailed")}
+            </Text>
+          ) : null}
         </>
       ) : null}
     </Card>

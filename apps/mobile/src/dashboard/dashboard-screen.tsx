@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -167,11 +167,18 @@ export function DashboardScreen({
   const board = useMemo(() => (dashboard === null ? null : buildBoard(dashboard)), [dashboard]);
   const column = view.column ?? (board === null ? "running" : firstColumn(board));
   const issues = dashboard?.summary.runnerIssues ?? 0;
+  const openingColumn =
+    view.column === null && dashboard !== null && board !== null && !hasNoRuns(dashboard)
+      ? firstColumn(board)
+      : null;
+  useEffect(() => {
+    if (openingColumn !== null) onViewChange({ ...view, column: openingColumn });
+  }, [openingColumn, onViewChange, view]);
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");
   const chooseWorkspace = (id: string) => {
-    onViewChange({ ...view, workspaceId: id });
+    onViewChange({ ...view, workspaceId: id, column: id === workspaceId ? view.column : null });
     setPicking(false);
   };
 

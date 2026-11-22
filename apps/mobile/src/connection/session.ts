@@ -5,7 +5,7 @@ import type { ChangeStreamHandlers } from "./change-stream";
 
 export const POLL_INTERVAL_MS = 15_000;
 export const STREAM_RETRY_MS = 60_000;
-export const STREAM_SILENCE_MS = 45_000;
+export const STREAM_SILENCE_MS = 35_000;
 export const CHANGE_DEBOUNCE_MS = 300;
 
 export type SessionPhase =

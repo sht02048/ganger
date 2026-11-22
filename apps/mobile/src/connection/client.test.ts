@@ -42,7 +42,7 @@ describe("v1 응답 가르기", () => {
   it("Host 403은 identity의 webAccess로 토큰 거절과 가른다", async () => {
     const blocked = routes({
       [V1_PATHS.runners]: () => new Response("Blocked", { status: 403 }),
-      [IDENTITY_PATH]: () => json({ webAccess: "host-not-allowed" }),
+      [IDENTITY_PATH]: () => json({ product: "ganger", webAccess: "host-not-allowed" }),
     });
     expect(await client(blocked).runners()).toEqual({
       ok: false,
@@ -53,9 +53,20 @@ describe("v1 응답 가르기", () => {
   it("identity가 허용이라고 답한 403은 Host 거절로 안내하지 않는다", async () => {
     const other = routes({
       [V1_PATHS.runners]: () => new Response("Blocked", { status: 403 }),
-      [IDENTITY_PATH]: () => json({ webAccess: "allowed" }),
+      [IDENTITY_PATH]: () => json({ product: "ganger", webAccess: "allowed" }),
     });
     expect(await client(other).runners()).toEqual({
+      ok: false,
+      failure: { kind: "server-error" },
+    });
+  });
+
+  it("Ganger가 아닌 identity 응답은 Host 거절로 안내하지 않는다", async () => {
+    const proxy = routes({
+      [V1_PATHS.runners]: () => new Response("Blocked", { status: 403 }),
+      [IDENTITY_PATH]: () => json({ ok: true }),
+    });
+    expect(await client(proxy).runners()).toEqual({
       ok: false,
       failure: { kind: "server-error" },
     });

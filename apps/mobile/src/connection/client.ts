@@ -41,6 +41,7 @@ export const REQUEST_TIMEOUT_MS = 10_000;
 export const IDENTITY_PATH = "/api/identity";
 
 const identitySchema = z.object({
+  product: z.literal("ganger"),
   webAccess: z.enum(["allowed", "host-not-allowed"]).catch("host-not-allowed"),
 });
 const metaEnvelopeSchema = z.object({ meta: v1MetaSchema });

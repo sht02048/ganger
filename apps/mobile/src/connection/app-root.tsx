@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AppScreens } from "../app-screens";
 import type { MessageKey } from "../i18n";
+import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { ConnectScreen } from "./connect-screen";
 import { LiveScreens } from "./live-screens";
@@ -11,7 +12,7 @@ type Route =
   | { kind: "loading" }
   | { kind: "connect"; notice: MessageKey | null }
   | { kind: "demo" }
-  | { kind: "live"; connection: { server: string; token: string }; persisted: boolean };
+  | { kind: "live"; connection: { server: string; token: string } };
 
 export function AppRoot({
   store,
@@ -30,7 +31,7 @@ export function AppRoot({
 
   useEffect(() => {
     if (devConnection !== null) {
-      setRoute({ kind: "live", connection: devConnection, persisted: false });
+      setRoute({ kind: "live", connection: devConnection });
       return;
     }
     let cancelled = false;
@@ -40,7 +41,7 @@ export function AppRoot({
         setRoute(
           stored === null
             ? { kind: "connect", notice: null }
-            : { kind: "live", connection: stored, persisted: true },
+            : { kind: "live", connection: stored },
         );
       },
       () => {
@@ -60,11 +61,24 @@ export function AppRoot({
     [store],
   );
 
-  const connected = (connection: StoredConnection) => {
-    store.save(connection).then(
-      () => setRoute({ kind: "live", connection, persisted: true }),
-      () => setRoute({ kind: "live", connection, persisted: false }),
-    );
+  const forgetLocal = useCallback(async () => {
+    try {
+      await store.clear();
+    } catch {
+      return false;
+    }
+    setRoute({ kind: "connect", notice: "connection.disconnected" });
+    return true;
+  }, [store]);
+
+  const connected = async (connection: StoredConnection) => {
+    try {
+      await store.save(connection);
+      setRoute({ kind: "live", connection });
+    } catch {
+      await createV1Client(fetcher, connection).disconnect();
+      setRoute({ kind: "connect", notice: "connection.saveFailed" });
+    }
   };
 
   switch (route.kind) {
@@ -77,7 +91,7 @@ export function AppRoot({
           deviceName={deviceName}
           notice={route.notice}
           allowPaste={allowPaste}
-          onConnected={connected}
+          onConnected={(connection) => void connected(connection)}
           onDemo={() => setRoute({ kind: "demo" })}
         />
       );
@@ -91,6 +105,7 @@ export function AppRoot({
           fetcher={fetcher}
           onRejected={() => leave("connection.revoked")}
           onDisconnected={() => leave("connection.disconnected")}
+          onForgetLocal={forgetLocal}
         />
       );
   }

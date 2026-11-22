@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { CONTRACT_VERSION, V1_PATHS, connectionQrText } from "@ganger/api";
+import type { V1Dashboard } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -22,9 +23,14 @@ const STORED: StoredConnection = { server: SERVER, token: "stored-token", device
 type Mode = "ok" | "offline" | "revoked" | "host-blocked" | "old-server";
 
 function fakeServer() {
-  const state: { mode: Mode; requests: Array<{ path: string; method: string }> } = {
+  const state: {
+    mode: Mode;
+    requests: Array<{ path: string; method: string }>;
+    dashboard: V1Dashboard;
+  } = {
     mode: "ok",
     requests: [],
+    dashboard: busySnapshot(NOW).dashboardFor("all"),
   };
   const ok = (data: unknown) => Response.json({ meta: META, data });
   const fetcher: FetchLike = (url, init) => {
@@ -33,7 +39,7 @@ function fakeServer() {
     state.requests.push({ path, method });
     if (state.mode === "offline") return Promise.reject(new TypeError("offline"));
     if (path === IDENTITY_PATH) {
-      return Promise.resolve(Response.json({ webAccess: "host-not-allowed" }));
+      return Promise.resolve(Response.json({ product: "ganger", webAccess: "host-not-allowed" }));
     }
     if (path === V1_PATHS.changeStream) return new Promise(() => undefined);
     if (state.mode === "host-blocked") {
@@ -53,7 +59,7 @@ function fakeServer() {
       case V1_PATHS.connect:
         return Promise.resolve(ok({ deviceId: "new", token: "new-token" }));
       case V1_PATHS.dashboard:
-        return Promise.resolve(ok(busySnapshot(NOW).dashboardFor("all")));
+        return Promise.resolve(ok(state.dashboard));
       case V1_PATHS.runners:
         return Promise.resolve(ok({ runners: busySnapshot(NOW).runners }));
       case V1_PATHS.workspaces:
@@ -73,18 +79,21 @@ function fakeServer() {
 
 function memoryStore(initial: StoredConnection | null) {
   let value = initial;
+  const failing = { save: false, clear: false };
   const store: ConnectionStore = {
     load: () => Promise.resolve(value),
     save: (next) => {
+      if (failing.save) return Promise.reject(new Error("keychain"));
       value = next;
       return Promise.resolve();
     },
     clear: () => {
+      if (failing.clear) return Promise.reject(new Error("keychain"));
       value = null;
       return Promise.resolve();
     },
   };
-  return { store, current: () => value };
+  return { store, failing, current: () => value };
 }
 
 const mounted: Array<() => void> = [];
@@ -177,6 +186,18 @@ describe("연결", () => {
     expect(host.textContent).toContain("ACME-138");
   });
 
+  it("토큰을 저장하지 못하면 방금 만든 기기를 지우고 다시 연결하라고 알린다", async () => {
+    const server = fakeServer();
+    const memory = memoryStore(null);
+    memory.failing.save = true;
+    const host = await mount(memory.store, server.fetcher);
+    await paste(connectionQrText({ server: SERVER, code: "code-1" }));
+    await press("붙여 넣은 내용으로 연결");
+    expect(server.state.requests).toContainEqual({ path: V1_PATHS.thisDevice, method: "DELETE" });
+    expect(host.textContent).toContain("이 기기에 연결을 저장하지 못했어요");
+    expect(host.textContent).not.toContain("ACME-138");
+  });
+
   it("Ganger QR이 아니면 요청을 보내지 않고 알린다", async () => {
     const server = fakeServer();
     const host = await mount(memoryStore(null).store, server.fetcher);
@@ -224,6 +245,20 @@ describe("연결 끊기와 거절", () => {
     expect(host.textContent).toContain("서버에 연결해요");
   });
 
+  it("이 기기에서 지우기가 실패하면 끊었다고 하지 않고 연결 화면으로 가지 않는다", async () => {
+    const server = fakeServer();
+    const memory = memoryStore(STORED);
+    const host = await mount(memory.store, server.fetcher);
+    await press("설정");
+    server.state.mode = "offline";
+    await press("이 기기 연결 끊기");
+    memory.failing.clear = true;
+    await press("이 기기에서만 지우기");
+    expect(memory.current()).toEqual(STORED);
+    expect(host.textContent).toContain("이 기기에서 연결을 지우지 못했어요");
+    expect(host.textContent).not.toContain("서버에 연결해요");
+  });
+
   it("기기를 지워 토큰이 거절되면 연결을 지우고 연결 화면으로 돌아간다", async () => {
     const server = fakeServer();
     const memory = memoryStore(STORED);
@@ -252,6 +287,24 @@ describe("연결 끊기와 거절", () => {
     expect(host.textContent).toContain(
       "서버 0.3.0은 이 앱과 맞지 않아요. 0.4.0 이상으로 올려 주세요.",
     );
+  });
+});
+
+describe("화면 갱신", () => {
+  it("새 데이터가 와도 처음 연 칸을 바꾸지 않는다", async () => {
+    const server = fakeServer();
+    const board = busySnapshot(NOW).dashboardFor("all");
+    const host = await mount(memoryStore(STORED).store, server.fetcher);
+    const selected = () =>
+      host.querySelector('[role="tab"][aria-selected="true"]')?.textContent ?? "";
+    expect(selected()).toContain("Running");
+    server.state.dashboard = {
+      ...board,
+      columns: { ...board.columns, running: { todo: [], rest: board.columns.running.rest } },
+    };
+    await advance(POLL_INTERVAL_MS);
+    expect(host.textContent).not.toContain("ACME-138");
+    expect(selected()).toContain("Running");
   });
 });
 

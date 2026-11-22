@@ -1,4 +1,4 @@
-import { parseConnectionQr } from "@ganger/api";
+import { deviceNameSchema, parseConnectionQr } from "@ganger/api";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -23,6 +23,11 @@ function failureMessage(failure: ConnectFailure): MessageKey {
     case "incompatible":
       return `connection.error.${failure.kind}`;
   }
+}
+
+export function usableDeviceName(name: string): string {
+  const parsed = deviceNameSchema.safeParse(name);
+  return parsed.success ? parsed.data : t("connection.defaultDeviceName");
 }
 
 export function ConnectScreen({
@@ -54,7 +59,7 @@ export function ConnectScreen({
       return;
     }
     setConnecting(true);
-    const reply = await connectToServer(fetcher, { ...qr, name: deviceName });
+    const reply = await connectToServer(fetcher, { ...qr, name: usableDeviceName(deviceName) });
     setConnecting(false);
     if (!reply.ok) {
       setError(failureMessage(reply.failure));
