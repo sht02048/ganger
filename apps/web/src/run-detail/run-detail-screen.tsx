@@ -24,10 +24,14 @@ import {
   focusStyles,
   linkStyles,
   NoticeLayout,
+  ProblemCallout,
+  SignalList,
+  SignalRow,
+  buttonStyles,
   showToast,
   textStyles,
 } from "@ganger/ui";
-import type { PillStatus } from "@ganger/ui";
+import type { PillStatus, SignalTone } from "@ganger/ui";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
@@ -45,12 +49,16 @@ import { BlockerRows } from "../blockers";
 import { useAgentName, useQueuedReasonText } from "../labels";
 import { runStatus, useStatusName } from "../status";
 import { canCancel } from "@ganger/app/run-detail/model";
+import { nextStepInputOfDetail, runNextStep } from "@ganger/app/run-next-step";
+import type { RunNextStep } from "@ganger/app/run-next-step";
+import { useRunNextStepText } from "../run-next-step";
 import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlOutcome, RunControlView } from "@ganger/app/run-control-view";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
-import type { RunControl } from "@ganger/core";
+import type { RunControl, RunnerId } from "@ganger/core";
 import type { HumanCheckDecision } from "@ganger/app/home/actions";
 import type {
+  CiView,
   ContinueOffer,
   LogTailView,
   PendingInput,
@@ -77,6 +85,7 @@ export interface RunDetailScreenProps extends RunDetailActions {
   page: RunDetailPage;
   runsHref: string;
   runHref: (runId: string) => string;
+  runnerHref: (runnerId: RunnerId) => string;
   logStalled?: boolean;
 }
 
@@ -108,10 +117,12 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
   const statusLine = useStatusLine();
   const statusName = useStatusName();
   const { status, when } = statusLine(run);
-  const pr = run.pullRequest;
-  const prInfo = usePrInfo()(run);
+  const nextStep = runNextStep(nextStepInputOfDetail(run));
   const cancelable = canCancel(run) && !run.cancelPending;
   const control = availableRunControl(run.status.state, run.cancelPending, run.control);
+  const resumeInBand = nextStep === "paused" && control === "resume";
+  const headControl = resumeInBand ? null : control;
+  const inputRef = useRef<HTMLDivElement>(null);
   const keptWorktree = run.status.state === "ended" ? run.status.keptWorktree : null;
   const removable = keptWorktree !== null && !keptWorktree.removing;
   const headRef = useRef<HTMLDivElement>(null);
@@ -152,6 +163,7 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
           subtitle={[
             ...(run.ticketTitle === null ? [] : [run.ticketKey]),
             run.trackerProject,
+            ...(run.runner === null ? [] : [run.runner.name]),
             ...(run.branch === null ? [] : [run.branch]),
           ].join(t("metaSeparator"))}
         />
@@ -162,7 +174,6 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
           <div {...stylex.props(styles.stateRow)}>
             <p {...stylex.props(styles.stateLine)}>
               <StatusPill status={status}>{statusName(status)}</StatusPill>
-              {prInfo === null ? null : <Text variant="meta">{prInfo}</Text>}
               <Text variant="meta">{when}</Text>
               <span {...stylex.props(failure !== null && styles.statusOwnLine)}>
                 <Text
@@ -176,21 +187,16 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
                 </Text>
               </span>
             </p>
-            {pr === null &&
-            !cancelable &&
-            control === null &&
+            {!cancelable &&
+            headControl === null &&
             !removable &&
             run.continueOffer === null ? null : (
               <Actions>
-                {pr === null ? null : (
-                  <a href={pr.url} target="_blank" rel="noreferrer" {...stylex.props(linkStyles())}>
-                    {t("openPr", { pr: pr.displayId })}
-                  </a>
-                )}
-                {control === null ? null : (
+                {headControl === null ? null : (
                   <ControlRun
-                    key={control}
-                    control={control}
+                    key={headControl}
+                    control={headControl}
+                    variant="secondary"
                     onControl={props.onControl}
                     focusAfter={() => focusFirst(cancelStatusRef, headRef)}
                   />
@@ -203,7 +209,7 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
                   />
                 ) : null}
                 {run.continueOffer === null ? null : run.continueOffer.agent !== "gone" ? (
-                  <Button variant="primary" aria-disabled aria-describedby={CONTINUE_BLOCKED_ID}>
+                  <Button aria-disabled aria-describedby={CONTINUE_BLOCKED_ID}>
                     {t("continue.trigger")}
                   </Button>
                 ) : (
@@ -230,10 +236,6 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
               </Actions>
             )}
           </div>
-          <Text variant="body">
-            <Reason run={run} />
-          </Text>
-          {blockerWait === null ? <NextAction run={run} /> : null}
           {run.continueOffer === null || run.continueOffer.agent === "gone" ? null : (
             <ContinueBlocked
               agent={run.continueOffer.agent}
@@ -244,6 +246,37 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
           )}
           <Continuation run={run} runHref={props.runHref} statusRef={continuationRef} />
         </div>
+
+        {nextStep === "none" ? (
+          <div {...stylex.props(styles.bandText)}>
+            <Text variant="body" as="p">
+              <Reason run={run} />
+            </Text>
+            {keptWorktree === null || keptWorktree.removing ? null : (
+              <Text variant="body" as="p">
+                {t(`keptWorktree.${keptWorktree.reason}`)}{" "}
+                {t(`keptWorktreeNext.${keptWorktree.reason}`)}
+              </Text>
+            )}
+          </div>
+        ) : (
+          <NextStepBand
+            run={run}
+            step={nextStep}
+            onGoToInput={() => focusInputField(inputRef)}
+            resume={
+              resumeInBand ? (
+                <ControlRun
+                  key="resume"
+                  control="resume"
+                  variant="primary"
+                  onControl={props.onControl}
+                  focusAfter={() => focusFirst(cancelStatusRef, headRef)}
+                />
+              ) : null
+            }
+          />
+        )}
 
         <div {...stylex.props(styles.columns)}>
           <div {...stylex.props(styles.column)}>
@@ -256,15 +289,17 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
               />
             )}
 
-            {run.status.state === "waiting-for-input" ? (
-              <InputBlock
-                input={run.status.input}
-                waitedMs={inputWaitedMs(run)}
-                onAnswer={props.onAnswer}
-                onHumanCheck={props.onHumanCheck}
-                onDeny={props.onDeny}
-                headRef={headRef}
-              />
+            {run.status.state === "waiting-for-input" && run.status.input.kind !== "unknown" ? (
+              <div ref={inputRef} tabIndex={-1} {...stylex.props(focusStyles.target)}>
+                <InputBlock
+                  input={run.status.input}
+                  waitedMs={inputWaitedMs(run)}
+                  onAnswer={props.onAnswer}
+                  onHumanCheck={props.onHumanCheck}
+                  onDeny={props.onDeny}
+                  headRef={headRef}
+                />
+              </div>
             ) : null}
 
             {run.status.state === "paused" && run.status.lastOutput !== null ? (
@@ -280,13 +315,6 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
               </Block>
             ) : null}
 
-            <AgentMessageForm
-              key={run.id}
-              view={run.agentMessage}
-              hint={agentMessageHint(run)}
-              onSend={props.onSendAgentMessage}
-            />
-
             {run.startError === null ? null : (
               <Block title={t("startError.title")}>
                 <Text variant="body">{t("startError.body")}</Text>
@@ -294,23 +322,20 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
               </Block>
             )}
 
-            {run.status.state === "ended" ? (
-              <Block title={t("report.title")}>
-                {run.report === null ? (
-                  <Text variant="meta">{t("report.none")}</Text>
-                ) : (
-                  <CodeBlock>{run.report}</CodeBlock>
-                )}
-              </Block>
-            ) : null}
+            <PrSection run={run} />
 
-            {run.brief === null ? null : <SentBrief brief={run.brief} />}
+            <Timeline runId={run.id} events={run.timeline} now={run.now} report={run.report} />
 
-            <Timeline runId={run.id} events={run.timeline} now={run.now} />
+            <AgentMessageForm
+              key={run.id}
+              view={run.agentMessage}
+              hint={agentMessageHint(run)}
+              onSend={props.onSendAgentMessage}
+            />
           </div>
 
           <div {...stylex.props(styles.column)}>
-            <Properties run={run} />
+            <Properties run={run} runnerHref={props.runnerHref} />
             <LogTail
               log={run.log}
               now={run.now}
@@ -360,7 +385,7 @@ function Block({
 function SentBrief({ brief }: { brief: string }) {
   const t = useTranslations("run.brief");
   return (
-    <Disclosure summary={t("title")}>
+    <Disclosure flat summary={t("title")}>
       <Text variant="meta" as="p">
         {t("body")}
       </Text>
@@ -379,6 +404,13 @@ function focusFirst(...targets: ReadonlyArray<RefObject<HTMLElement | null>>): v
       return;
     }
   }
+}
+
+function focusInputField(container: RefObject<HTMLElement | null>): void {
+  const field = container.current?.querySelector<HTMLElement>(
+    "textarea:not([disabled]), input:not([disabled])",
+  );
+  (field ?? container.current)?.focus();
 }
 
 function ActionFailed() {
@@ -439,51 +471,229 @@ function inputKey(
   }
 }
 
-function NextAction({ run }: { run: RunDetail }) {
-  const t = useTranslations("run");
-  const { status } = run;
-  let next: string;
-  switch (status.state) {
-    case "queued":
-    case "running":
-    case "paused":
+function isProblemStep(step: Exclude<RunNextStep, "none">): boolean {
+  switch (step) {
+    case "pr-ci-failed":
+    case "pr-conflict":
     case "disconnected":
-      next = t(`next.${status.state}`);
-      break;
-    case "waiting-for-input":
-      next = t(`next.${inputKey(status.input)}`);
-      break;
-    case "ended":
-      next = t(`next.${status.summary}`);
-      break;
+    case "blockers-stuck":
+    case "kept-worktree":
+    case "failed":
+      return true;
+    case "question":
+    case "permission":
+    case "human-check":
+    case "waiting-input":
+    case "paused":
+      return false;
   }
-  const kept = status.state === "ended" ? status.keptWorktree : null;
-  const prReadError = status.state === "ended" ? status.prReadError : null;
-  return (
+}
+
+function NextStepBand({
+  run,
+  step,
+  onGoToInput,
+  resume,
+}: {
+  run: RunDetail;
+  step: Exclude<RunNextStep, "none">;
+  onGoToInput: () => void;
+  resume: ReactNode;
+}) {
+  const t = useTranslations("run");
+  const prText = useTranslations("run.pr");
+  const nextStepText = useRunNextStepText()(step);
+  if (nextStepText === null) return null;
+  const pr = run.pullRequest;
+  const signals = pr?.signals ?? null;
+  const kept =
+    run.status.state === "ended" && run.status.keptWorktree?.removing === false
+      ? run.status.keptWorktree
+      : null;
+  const title =
+    step === "kept-worktree" && kept !== null
+      ? t(`keptWorktree.${kept.reason}`)
+      : nextStepText.body;
+  const stepDetail: ReactNode =
+    step === "pr-ci-failed" ? (
+      signals === null || signals.checkTotal === null ? null : (
+        <Text variant="body" as="p">
+          {checksText(signals, signals.checkTotal, prText)}
+        </Text>
+      )
+    ) : step === "pr-conflict" ? null : step === "kept-worktree" && kept !== null ? (
+      <Text variant="body" as="p">
+        {t(`keptWorktreeNext.${kept.reason}`)}
+      </Text>
+    ) : (
+      <Text variant="body" as="p">
+        <Reason run={run} />
+      </Text>
+    );
+  const details = (
     <>
-      {kept !== null ? (
-        <p {...stylex.props(styles.flat)}>
-          <Text variant="title" tone="problem">
-            {t(`keptWorktree.${kept.reason}`)}
-          </Text>{" "}
-          <Text variant="body" as="span">
-            {t(`keptWorktreeNext.${kept.reason}`)}
-          </Text>
-        </p>
-      ) : (
-        <Text variant="body">{next}</Text>
-      )}
-      {prReadError === null ? null : (
-        <p {...stylex.props(styles.flat)}>
-          <Text variant="title" tone="problem">
-            {t("prUnread.title")}
-          </Text>{" "}
-          <Text variant="body" as="span">
-            {t(`prUnread.${prReadError}`)}
-          </Text>
-        </p>
+      {stepDetail}
+      {kept === null || step === "kept-worktree" ? null : (
+        <Text variant="body" as="p">
+          {t(`keptWorktree.${kept.reason}`)} {t(`keptWorktreeNext.${kept.reason}`)}
+        </Text>
       )}
     </>
+  );
+  const action = bandAction(step, nextStepText.action, pr?.url ?? null, onGoToInput, resume);
+  if (isProblemStep(step)) {
+    return (
+      <ProblemCallout title={title} {...(action === null ? {} : { actions: action })}>
+        {stepDetail === null && (kept === null || step === "kept-worktree") ? undefined : details}
+      </ProblemCallout>
+    );
+  }
+  return (
+    <Card label={title}>
+      <div {...stylex.props(styles.band)}>
+        <div {...stylex.props(styles.bandText)}>
+          <Text variant="title" as="p">
+            {title}
+          </Text>
+          {details}
+        </div>
+        {action}
+      </div>
+    </Card>
+  );
+}
+
+function bandAction(
+  step: Exclude<RunNextStep, "none">,
+  label: string | null,
+  prUrl: string | null,
+  onGoToInput: () => void,
+  resume: ReactNode,
+): ReactNode {
+  if (step === "paused") return resume;
+  if (label === null) return null;
+  if (step === "question" || step === "human-check") {
+    return <Button onClick={onGoToInput}>{label}</Button>;
+  }
+  if (prUrl === null) return null;
+  return (
+    <a
+      href={step === "pr-ci-failed" ? prChecksUrl(prUrl) : prUrl}
+      target="_blank"
+      rel="noreferrer"
+      data-variant="primary"
+      {...stylex.props(...buttonStyles("primary"))}
+    >
+      {label}
+    </a>
+  );
+}
+
+function prChecksUrl(url: string): string {
+  return `${url.replace(/\/+$/, "")}/checks`;
+}
+
+function ciTone(ci: CiView, ciFailed: boolean): SignalTone {
+  if (ciFailed) return "problem";
+  return ci === "success" ? "pass" : "neutral";
+}
+
+function PrSection({ run }: { run: RunDetail }) {
+  const t = useTranslations("run.pr");
+  const root = useTranslations("run");
+  const domain = useTranslations("domain");
+  const ci = useTranslations("run.ci");
+  const laterPr = useTranslations("run.laterPr");
+  const { ago, stamp } = useTime();
+  const pr = run.pullRequest;
+  const ended = run.status.state === "ended" ? run.status : null;
+  const state = ended === null ? null : (ended.laterPrState?.state ?? ended.prState);
+  if (pr === null && (state === null || state === "none")) return null;
+  const signals = pr?.signals ?? null;
+  const ciFailed =
+    pr !== null && !run.prHandedOver && (signals === null ? pr.ci === "failure" : signals.ciFailed);
+  const title = pr === null ? t("title") : t("titleWithId", { pr: pr.displayId });
+  const stateText =
+    run.prHandedOver && pr !== null
+      ? root("prHandedOver", { pr: pr.displayId })
+      : state !== null && state !== "none"
+        ? domain(`prState.${state}`)
+        : signals !== null
+          ? domain("prState.open")
+          : null;
+  const later = ended?.laterPrState ?? null;
+  return (
+    <Card label={title}>
+      <div {...stylex.props(styles.prHead)}>
+        <Text variant="subheading" as="h2">
+          {title}
+        </Text>
+        {stateText === null ? null : <Text variant="ui">{stateText}</Text>}
+        <span {...stylex.props(styles.prHeadEnd)}>
+          {signals === null ? null : (
+            <Text variant="meta">{t("readAt", { time: stamp(signals.checkedAt, run.now) })}</Text>
+          )}
+          {pr === null ? null : (
+            <TextLink href={pr.url} external>
+              {t("open")}
+            </TextLink>
+          )}
+        </span>
+      </div>
+      {later === null ? null : (
+        <Text variant="meta" as="p">
+          {t("later", {
+            state: laterPr(later.state),
+            time: ago(later.at, Date.parse(run.now) - Date.parse(later.at)),
+          })}
+        </Text>
+      )}
+      {ended?.prReadError == null ? null : (
+        <p {...stylex.props(styles.flat)}>
+          <Text variant="title" tone="problem">
+            {root("prUnread.title")}
+          </Text>{" "}
+          <Text variant="body" as="span">
+            {root(`prUnread.${ended.prReadError}`)}
+          </Text>
+        </p>
+      )}
+      {pr === null ? null : (
+        <SignalList>
+          <SignalRow
+            label={t("ci")}
+            tone={ciTone(pr.ci, ciFailed)}
+            {...(ciFailed
+              ? {
+                  action: (
+                    <TextLink href={prChecksUrl(pr.url)} external>
+                      {t("checksLink")}
+                    </TextLink>
+                  ),
+                }
+              : {})}
+          >
+            {signals === null || signals.checkTotal === null
+              ? ci(ciFailed ? "failure" : pr.ci)
+              : ciFailed
+                ? checksText(signals, signals.checkTotal, t)
+                : [ci(pr.ci), checksText(signals, signals.checkTotal, t)].join(
+                    root("metaSeparator"),
+                  )}
+          </SignalRow>
+          {signals === null || signals.conflict === null ? null : (
+            <SignalRow label={t("conflict")} tone={signals.conflict ? "problem" : "pass"}>
+              {signals.conflict ? t("hasConflict") : t("noConflict")}
+            </SignalRow>
+          )}
+          {signals === null || signals.behindBy === null ? null : (
+            <SignalRow label={t("base")} tone={signals.behindBy > 0 ? "warning" : "pass"}>
+              {signals.behindBy > 0 ? t("behindBy", { count: signals.behindBy }) : t("upToDate")}
+            </SignalRow>
+          )}
+        </SignalList>
+      )}
+    </Card>
   );
 }
 
@@ -945,7 +1155,7 @@ function ContinueRun({
   return (
     <Dialog
       trigger={t("trigger")}
-      triggerVariant="primary"
+      triggerVariant="secondary"
       title={t("title")}
       open={open}
       onOpenChange={(next) => {
@@ -1006,10 +1216,12 @@ function ActionFailedText({ text }: { text: string }) {
 
 function ControlRun({
   control,
+  variant,
   onControl,
   focusAfter,
 }: {
   control: RunControl;
+  variant: "primary" | "secondary";
   onControl: RunDetailActions["onControl"];
   focusAfter: () => void;
 }) {
@@ -1019,7 +1231,7 @@ function ControlRun({
   return (
     <>
       <Button
-        variant={control === "resume" ? "primary" : "secondary"}
+        variant={variant}
         aria-disabled={state === "sending"}
         aria-busy={state === "sending"}
         onClick={() => {
@@ -1069,12 +1281,15 @@ function Timeline({
   runId,
   events,
   now,
+  report,
 }: {
   runId: string;
   events: ReadonlyArray<TimelineEvent>;
   now: string;
+  report: string | null;
 }) {
   const t = useTranslations("run.timeline");
+  const reportText = useTranslations("run.report");
   const domain = useTranslations("domain");
   const laterPr = useTranslations("run.laterPr");
   const { stamp } = useTime();
@@ -1155,6 +1370,13 @@ function Timeline({
                     <Text variant="meta" wrap="pre">
                       {detail}
                     </Text>
+                  )}
+                  {event.kind !== "ended" ? null : report === null ? (
+                    <Text variant="meta">{reportText("none")}</Text>
+                  ) : (
+                    <CodeBlock scroll label={reportText("label")}>
+                      {report}
+                    </CodeBlock>
                   )}
                 </span>
               </Row>
@@ -1261,7 +1483,7 @@ function LogLines({ lines }: { lines: ReadonlyArray<string> }) {
 function checksText(
   signals: PrSignalsView,
   total: number,
-  t: ReturnType<typeof useTranslations<"run.props">>,
+  t: ReturnType<typeof useTranslations<"run.pr">>,
 ): string {
   const names = signals.failedChecks.join(", ");
   if (signals.failedCount > 0) {
@@ -1274,16 +1496,18 @@ function checksText(
   return signals.ciFailed ? t("someChecksFailed", { total }) : t("checks", { total });
 }
 
-function Properties({ run }: { run: RunDetail }) {
+function Properties({
+  run,
+  runnerHref,
+}: {
+  run: RunDetail;
+  runnerHref: (runnerId: RunnerId) => string;
+}) {
   const agentName = useAgentName();
   const t = useTranslations("run.props");
-  const domain = useTranslations("domain");
-  const ci = useTranslations("run.ci");
-  const laterPr = useTranslations("run.laterPr");
-  const { duration, ago, stamp } = useTime();
-  const time = (at: string): string => ago(at, Date.parse(run.now) - Date.parse(at));
-  const ended = run.status.state === "ended" ? run.status : null;
-  const pr = run.pullRequest;
+  const root = useTranslations("run");
+  const { duration } = useTime();
+  const separator = root("metaSeparator");
 
   return (
     <Card label={t("label")}>
@@ -1293,106 +1517,20 @@ function Properties({ run }: { run: RunDetail }) {
             t("noRunner")
           ) : (
             <span {...stylex.props(styles.inline)}>
-              {run.runner.name}
+              <TextLink href={runnerHref(run.runner.id)}>{run.runner.name}</TextLink>
               {run.runner.online ? null : <Text variant="meta">{t("runnerOffline")}</Text>}
             </span>
           )}
         </DefinitionItem>
-        <DefinitionItem label={t("agent")}>{agentName(run.agent)}</DefinitionItem>
-        <DefinitionItem label={t("model")} empty={run.model === null}>
-          {run.model ?? t("defaultModel")}
+        <DefinitionItem label={t("agentModel")}>
+          {[agentName(run.agent), run.model ?? t("defaultModel")].join(separator)}
         </DefinitionItem>
-        <DefinitionItem label={t("workspace")}>
-          <span {...stylex.props(styles.inline)}>
-            {run.workspace.name}
-            <Text variant="meta">{run.trackerProject}</Text>
-          </span>
+        <DefinitionItem label={t("waitedExecuted")}>
+          {[
+            duration(run.waitMs),
+            run.executionMs === null ? t("notStarted") : duration(run.executionMs),
+          ].join(separator)}
         </DefinitionItem>
-        <DefinitionItem label={t("pr")} empty={pr === null}>
-          {pr === null ? (
-            t("none")
-          ) : (
-            <a href={pr.url} target="_blank" rel="noreferrer" {...stylex.props(linkStyles())}>
-              {pr.displayId}
-            </a>
-          )}
-        </DefinitionItem>
-        {pr === null ? null : (
-          <DefinitionItem label={t("ci")}>
-            <span {...stylex.props(styles.inline)}>
-              {ci(pr.ci)}
-              {pr.signals === null || pr.signals.checkTotal === null ? null : (
-                <Text variant="meta" tone={pr.signals.ciFailed ? "problem" : "muted"}>
-                  {checksText(pr.signals, pr.signals.checkTotal, t)}
-                </Text>
-              )}
-            </span>
-          </DefinitionItem>
-        )}
-        {pr?.signals == null || pr.signals.conflict === null ? null : (
-          <DefinitionItem label={t("conflict")}>
-            {pr.signals.conflict ? (
-              <Text variant="ui" tone="problem">
-                {t("hasConflict")}
-              </Text>
-            ) : (
-              t("noConflict")
-            )}
-          </DefinitionItem>
-        )}
-        {pr?.signals == null || pr.signals.behindBy === null ? null : (
-          <DefinitionItem label={t("behind")}>
-            {pr.signals.behindBy > 0
-              ? t("behindBy", { count: pr.signals.behindBy })
-              : t("upToDate")}
-          </DefinitionItem>
-        )}
-        {pr?.signals == null ? null : (
-          <DefinitionItem label={t("prReadAt")}>
-            {stamp(pr.signals.checkedAt, run.now)}
-          </DefinitionItem>
-        )}
-        {ended === null ? null : (
-          <>
-            <DefinitionItem label={t("agentResult")}>
-              {domain(`agentResult.${ended.agentResult}`)}
-            </DefinitionItem>
-            <DefinitionItem label={t("prState")}>
-              {ended.prReadError === null ? (
-                domain(`prState.${ended.prState}`)
-              ) : (
-                <span {...stylex.props(styles.inline)}>
-                  {domain(`prState.${ended.prState}`)}
-                  <Text variant="meta" tone="problem">
-                    {t(`prUnreadReason.${ended.prReadError}`)}
-                  </Text>
-                </span>
-              )}
-            </DefinitionItem>
-            {ended.laterPrState === null ? null : (
-              <DefinitionItem label={t("laterPrState")}>
-                {t("laterPr", {
-                  state: laterPr(ended.laterPrState.state),
-                  time: time(ended.laterPrState.at),
-                })}
-              </DefinitionItem>
-            )}
-          </>
-        )}
-        <DefinitionItem label={t("started")} empty={run.startedAt === null}>
-          {run.startedAt === null ? t("notStarted") : stamp(run.startedAt, run.now)}
-        </DefinitionItem>
-        <DefinitionItem label={t("waited")}>{duration(run.waitMs)}</DefinitionItem>
-        {run.executionMs === null ? null : (
-          <DefinitionItem label={t("executed")}>{duration(run.executionMs)}</DefinitionItem>
-        )}
-        {run.branch === null ? null : (
-          <DefinitionItem label={t("branch")}>
-            <Text variant="ui" tone="strong" mono>
-              {run.branch}
-            </Text>
-          </DefinitionItem>
-        )}
         {run.worktree === null ? null : (
           <DefinitionItem label={t("worktree")}>
             <Text variant="ui" tone="strong" mono>
@@ -1401,6 +1539,7 @@ function Properties({ run }: { run: RunDetail }) {
           </DefinitionItem>
         )}
       </DefinitionList>
+      {run.brief === null ? null : <SentBrief brief={run.brief} />}
     </Card>
   );
 }
@@ -1430,37 +1569,30 @@ function OtherRuns({ run, runHref }: { run: RunDetail; runHref: (runId: string) 
   );
 }
 
-function usePrInfo(): (run: RunDetail) => string | null {
-  const t = useTranslations("run");
-  const domain = useTranslations("domain");
-  return (run) => {
-    if (run.status.state !== "ended") return null;
-    const state = run.status.laterPrState?.state ?? run.status.prState;
-    if (state === "none") return null;
-    if (run.prHandedOver && run.pullRequest !== null) {
-      return t("prHandedOver", { pr: run.pullRequest.displayId });
-    }
-    const stateName = domain(`prState.${state}`);
-    return run.pullRequest === null
-      ? t("prStateInfo", { state: stateName })
-      : t("prInfo", { pr: run.pullRequest.displayId, state: stateName });
-  };
-}
-
 function useStatusLine(): (run: RunDetail) => { status: PillStatus; when: string } {
   const t = useTranslations("run.when");
-  const { duration, elapsed } = useTime();
+  const root = useTranslations("run");
+  const domain = useTranslations("domain");
+  const { ago, duration, elapsed } = useTime();
   return (run) => {
     const { status } = run;
     switch (status.state) {
-      case "ended":
+      case "ended": {
+        const endedAt = run.endedAt ?? run.now;
+        const timing =
+          run.startedAt === null
+            ? [t("endedBeforeStart", { duration: duration(run.waitMs) })]
+            : [
+                t("endedAgo", { time: ago(endedAt, Date.parse(run.now) - Date.parse(endedAt)) }),
+                t("took", { duration: duration(run.executionMs ?? 0) }),
+              ];
         return {
           status: runStatus(status),
-          when:
-            run.startedAt === null
-              ? t("endedBeforeStart", { duration: duration(run.waitMs) })
-              : t("endedAfter", { duration: duration(run.executionMs ?? 0) }),
+          when: [...timing, domain(`agentResult.${status.agentResult}`)].join(
+            root("metaSeparator"),
+          ),
         };
+      }
       case "queued":
         return {
           status: runStatus(status),
@@ -1522,6 +1654,22 @@ const styles = stylex.create({
     margin: 0,
   },
   statusOwnLine: { flexBasis: "100%" },
+  band: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s4,
+  },
+  bandText: { display: "flex", flexDirection: "column", gap: space.s1, minWidth: 0, flexShrink: 1 },
+  prHead: { display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: space.s3 },
+  prHeadEnd: {
+    display: "inline-flex",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    gap: space.s3,
+    marginInlineStart: "auto",
+  },
   columns: {
     display: "grid",
     gridTemplateColumns: {

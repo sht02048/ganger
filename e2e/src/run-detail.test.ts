@@ -44,6 +44,7 @@ import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } from "vitest";
+import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
 import question from "../../apps/web/messages/ko/question.json" with { type: "json" };
 import run from "../../apps/web/messages/ko/run.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
@@ -129,6 +130,17 @@ beforeEach(async (context) => {
 });
 
 describe("Run 상세 보내기 뒤 포커스와 안내(브라우저, 0051)", () => {
+  it("처리할 일 띠의 답하기를 누르면 포커스가 답하기 칸으로 간다(0174)", async () => {
+    await open(questionRun);
+    await page
+      .getByRole("button", { name: domain.runNextStep.action.question, exact: true })
+      .press("Enter");
+
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.tagName))
+      .toMatch(/^(TEXTAREA|INPUT)$/);
+  });
+
   it("질문에 키보드로 답하면 포커스가 body 가 아니고 결과 문장이 role=status 안에 있다", async () => {
     await open(questionRun);
     const card = page.getByRole("region", { name: run.question.title });
