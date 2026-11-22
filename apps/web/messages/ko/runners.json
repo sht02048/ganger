@@ -69,7 +69,6 @@
       "silent": "2분이 지나도 결과가 오지 않았어요. worker가 돌고 있는지 확인하고 다시 확인해 주세요."
     },
     "capacity": "자리",
-    "noRuns": "지금 하는 런이 없어요.",
     "queuedWaiting": "이 러너를 기다리는 Queued 런 {count} · {keys}",
     "checksTitle": "확인 항목",
     "checksCount": "{passed}/{total}",
@@ -104,6 +103,7 @@
     },
     "edit": "고치기",
     "editLabel": "{name} 러너 고치기",
-    "unsavedBlocked": "고친 값을 저장하지 않았어요. 저장하거나 닫아 주세요. 버리고 옮기려면 한 번 더 누르면 돼요."
+    "unsavedBlocked": "고친 값을 저장하지 않았어요. 저장하거나 닫아 주세요. 버리고 옮기려면 한 번 더 누르면 돼요.",
+    "viewRuns": "Runs에서 보기"
   }
 }

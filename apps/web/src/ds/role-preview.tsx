@@ -384,6 +384,7 @@ export function RoleSections() {
                         total={sample.total}
                         label={t("capacityCells.label", { used: sample.used, total: sample.total })}
                         tone={sample.status === "online" ? "progress" : "problem"}
+                        overflow="meter"
                       />
                     }
                   >

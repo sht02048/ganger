@@ -1,12 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
 import {
   Actions,
+  Card,
   DefinitionItem,
   DefinitionList,
-  DetailPanel,
   ExternalIcon,
-  PanelHeader,
   PanelSection,
+  Sheet,
   SignalList,
   SignalRow,
   StatusPill,
@@ -16,8 +16,11 @@ import {
 } from "@ganger/ui";
 import type { SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
+import { useRef } from "react";
 import type { MouseEvent } from "react";
 import { useTranslations } from "use-intl";
+import { prProblemOf, runWord } from "@ganger/app/runs/board";
+import type { BoardRun, RunWord } from "@ganger/app/runs/board";
 import { currentPrState } from "@ganger/app/runs/model";
 import type { RunView } from "@ganger/app/runs/model";
 import { useTime } from "../format/time";
@@ -27,55 +30,115 @@ import { runStatus, useStatusName } from "../status";
 type RunPullRequest = NonNullable<RunView["pullRequest"]>;
 type PanelPrState = "open" | "merged" | "closed" | "unknown";
 
-export function RunPanel({
+export function RunSheet({
+  run,
+  returnFocus,
+  detailHref,
+  onOpenDetail,
+  onClose,
+}: {
+  run: BoardRun | null;
+  returnFocus: () => HTMLElement | null;
+  detailHref: string;
+  onOpenDetail: () => void;
+  onClose: () => void;
+}) {
+  const t = useTranslations("runs.panel");
+  const statusName = useStatusName();
+  const last = useRef<{ run: BoardRun; detailHref: string } | null>(null);
+  if (run !== null) last.current = { run, detailHref };
+  const shown = last.current;
+  if (shown === null) return null;
+  const status = runStatus(shown.run);
+  return (
+    <Sheet
+      open={run !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+      status={<StatusPill status={status}>{statusName(status)}</StatusPill>}
+      title={shown.run.ticketTitle ?? shown.run.ticketKey}
+      subtitle={t("where", { key: shown.run.ticketKey, project: shown.run.trackerProject })}
+      closeLabel={t("close")}
+      finalFocus={returnFocus}
+    >
+      <RunPanelBody run={shown.run} detailHref={shown.detailHref} onOpenDetail={onOpenDetail} />
+    </Sheet>
+  );
+}
+
+export function RunPanelBody({
   run,
   detailHref,
   onOpenDetail,
 }: {
-  run: RunView;
+  run: BoardRun;
   detailHref: string;
   onOpenDetail: () => void;
 }) {
   const agentName = useAgentName();
   const t = useTranslations("runs.panel");
   const domain = useTranslations("domain");
-  const statusName = useStatusName();
-  const status = runStatus(run);
   const when = useRunWhen(run);
   const reason = useRunReason(run);
   const pr = run.pullRequest;
   const cancelling = run.state !== "ended" && run.cancelling;
+  const word = runWord(run);
+  const needsAction = TODO_WORDS.has(word);
+  const ciFailed = pr !== null && prProblemOf(run) === "ci-failed";
 
   return (
-    <DetailPanel>
-      <PanelHeader
-        eyebrow={
-          <Text variant="meta" numeric wrap="anywhere">
-            {t("where", { key: run.ticketKey, project: run.trackerProject })}
-            {run.branch === null ? null : (
-              <>
-                {t("whereSeparator")}
-                <Text variant="meta" mono>
-                  {run.branch}
-                </Text>
-              </>
-            )}
-          </Text>
-        }
-        status={
-          <>
-            <StatusPill status={status}>{statusName(status)}</StatusPill>
-            {cancelling ? <Text variant="meta">{t("cancelling")}</Text> : null}
-            {when === "" ? null : (
-              <Text variant="meta" numeric>
-                {when}
-              </Text>
-            )}
-          </>
-        }
-        title={run.ticketTitle ?? run.ticketKey}
-        reason={reason}
-      />
+    <div {...stylex.props(styles.body)}>
+      {cancelling || when !== "" ? (
+        <Text variant="meta" numeric>
+          {cancelling ? `${t("cancelling")} ` : null}
+          {when}
+        </Text>
+      ) : null}
+      {needsAction ? (
+        <Card padding="compact" label={t("todoTitle")}>
+          <div {...stylex.props(styles.todo)}>
+            <Text variant="title">{t("todoTitle")}</Text>
+            <Text variant="body">{reason}</Text>
+            <Actions>
+              {ciFailed ? (
+                <a
+                  href={prChecksUrl(pr.url)}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-variant="secondary"
+                  {...stylex.props(...buttonStyles("secondary"))}
+                >
+                  {t("prSection.failedChecks")}
+                  <ExternalIcon />
+                </a>
+              ) : null}
+              {word === "failed" || word === "needs-review" ? (
+                <a
+                  href={detailHref}
+                  data-variant="secondary"
+                  {...stylex.props(...buttonStyles("secondary"))}
+                >
+                  {t("continue")}
+                </a>
+              ) : null}
+            </Actions>
+          </div>
+        </Card>
+      ) : (
+        <Text variant="body">{reason}</Text>
+      )}
+      <PrSection run={run} />
+      <PanelSection title={t("runInfo")}>
+        <DefinitionList>
+          <DefinitionItem label={t("agent")}>{agentName(run.agent)}</DefinitionItem>
+          {run.state === "ended" ? (
+            <DefinitionItem label={t("agentResult")}>
+              {domain(`agentResult.${run.agentResult}`)}
+            </DefinitionItem>
+          ) : null}
+        </DefinitionList>
+      </PanelSection>
       <Actions>
         <a
           href={detailHref}
@@ -102,32 +165,18 @@ export function RunPanel({
           </a>
         )}
       </Actions>
-      <PrSection run={run} />
-      <PanelSection title={t("runInfo")}>
-        <DefinitionList>
-          <DefinitionItem label={t("runner")} empty={run.runner === null}>
-            {run.runner === null ? (
-              t("noRunner")
-            ) : (
-              <span {...stylex.props(styles.inline)}>
-                {run.runner.name}
-                {run.runner.online ? null : (
-                  <StatusPill status="offline">{statusName("offline")}</StatusPill>
-                )}
-              </span>
-            )}
-          </DefinitionItem>
-          <DefinitionItem label={t("agent")}>{agentName(run.agent)}</DefinitionItem>
-          {run.state === "ended" ? (
-            <DefinitionItem label={t("agentResult")}>
-              {domain(`agentResult.${run.agentResult}`)}
-            </DefinitionItem>
-          ) : null}
-        </DefinitionList>
-      </PanelSection>
-    </DetailPanel>
+    </div>
   );
 }
+
+const TODO_WORDS: ReadonlySet<RunWord> = new Set([
+  "question",
+  "permission",
+  "human-check",
+  "disconnected",
+  "failed",
+  "needs-review",
+]);
 
 function useRunWhen(run: RunView): string {
   const t = useTranslations("runs.panel");
@@ -301,5 +350,6 @@ function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
 }
 
 const styles = stylex.create({
-  inline: { display: "inline-flex", alignItems: "center", gap: space.s2 },
+  body: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
+  todo: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
 });

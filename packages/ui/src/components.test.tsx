@@ -1206,6 +1206,19 @@ describe("새 컴포넌트(티켓 0073)", () => {
     expect(none).toMatch(/>0\/0</);
   });
 
+  it('CapacityCells 는 overflow="meter" 면 8자리까지 칸, 넘으면 막대와 숫자로 보인다(0173)', () => {
+    const atMax = renderToString(<CapacityCells used={8} total={8} label="x" overflow="meter" />);
+    expect(atMax).toContain('data-cells="shown"');
+    expect(atMax).not.toContain("data-capacity-meter");
+    const over = renderToString(<CapacityCells used={9} total={12} label="x" overflow="meter" />);
+    expect(over).toContain('data-cells="meter"');
+    expect(over).toContain("data-capacity-meter");
+    expect(over).not.toContain("data-cell=");
+    expect(over).toMatch(/aria-hidden="true"[^>]*>9\/12</);
+    const none = renderToString(<CapacityCells used={0} total={0} label="x" overflow="meter" />);
+    expect(none).toContain('data-cells="number-only"');
+  });
+
   it("CapacityCells 는 쓰는 자리가 capacity 보다 많아도 칸은 capacity 만큼 채우고 숫자는 그대로 보인다", () => {
     const html = renderToString(<CapacityCells used={3} total={2} label="x" />);
     expect([...html.matchAll(/data-cell="(used|free)"/g)].map((m) => m[1])).toEqual([

@@ -2,15 +2,20 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Actions,
   Button,
+  CapacityCells,
   Card,
-  DetailPanel,
   MotionList,
+  NoticeLayout,
   PageHeader,
+  PanelList,
+  PanelListRow,
+  RemovableChip,
   RowTitle,
   ScreenLayout,
-  SplitView,
-  StatusPill,
-  Tab,
+  Section,
+  SegmentedTabs,
+  Select,
+  StatusDot,
   Table,
   TableCell,
   TableEmpty,
@@ -19,80 +24,76 @@ import {
   TableHeader,
   TableRow,
   TableRows,
-  Tabs,
   Text,
-  NoticeLayout,
-  RemovableChip,
-  SegmentedTabs,
 } from "@ganger/ui";
-import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useRef } from "react";
-import type { ReactNode } from "react";
+import type { PillStatus } from "@ganger/ui";
+import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
+import { useEffect, useRef, useState } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { useAgentName } from "../labels";
-import { runStatus, useStatusName } from "../status";
-import { RunPanel } from "./run-panel";
+import { RunSheet } from "./run-panel";
 import type { WorkspaceSummary } from "@ganger/app/shell/model";
 import {
-  ENDED_RUNS_PAGE_SIZE,
-  RUN_GROUP_FILTERS,
-  RUN_STATUS_FILTERS,
-  currentPrState,
-  elapsedMs,
-  isGroupFilter,
-  matchesFilter,
-  needsAttention,
-} from "@ganger/app/runs/model";
-import type { ConditionKey } from "@ganger/app/runs/conditions";
+  ENDED_PERIOD_CHOICES,
+  RUNNER_CARD_VISIBLE_RUNS,
+  WAITING_CARD_VISIBLE_RUNS,
+  foldRuns,
+  prProblemOf,
+  runWord,
+  runnerCards,
+  situationParts,
+  waitingRuns,
+} from "@ganger/app/runs/board";
 import type {
-  RunCondition,
-  RunFilter,
-  RunFilterKey,
-  RunGroupFilter,
-  RunView,
-  RunsPage,
-} from "@ganger/app/runs/model";
+  BoardRun,
+  EndedView,
+  RunBoardDays,
+  RunWord,
+  RunnerCard,
+  RunsBoardPage,
+  SituationPart,
+} from "@ganger/app/runs/board";
+import type { ConditionKey } from "@ganger/app/runs/conditions";
+import { currentPrState, elapsedMs } from "@ganger/app/runs/model";
+import type { RunCondition } from "@ganger/app/runs/model";
 
-const titleColumn = `minmax(0, ${size.runTitleMaxColumn})`;
+export type ClearableCondition = ConditionKey | "f";
+
+const ALL_RUNNERS = "all";
+
 const flexibleTitleColumn = "minmax(0, 1fr)";
-const resultColumn = `minmax(${size.runResultColumn}, 1fr)`;
 const columns = [
   size.ticketKeyColumn,
-  titleColumn,
+  flexibleTitleColumn,
   size.runRunnerColumn,
-  resultColumn,
-  size.runStatusColumn,
+  size.runResultColumn,
   size.timeColumn,
 ].join(" ");
 const foldedColumns = {
-  first: [
-    size.ticketKeyColumn,
-    flexibleTitleColumn,
-    size.runRunnerColumn,
-    size.runStatusColumn,
-    size.timeColumn,
-  ].join(" "),
-  second: [size.ticketKeyColumn, flexibleTitleColumn, size.runStatusColumn, size.timeColumn].join(
+  first: [size.ticketKeyColumn, flexibleTitleColumn, size.runResultColumn, size.timeColumn].join(
     " ",
   ),
-  third: [flexibleTitleColumn, size.runStatusColumn, size.timeColumn].join(" "),
+  second: [flexibleTitleColumn, size.runResultColumn, size.timeColumn].join(" "),
 };
 const narrowColumns = "minmax(0, 1fr)";
 
 export interface RunsScreenProps {
-  page: RunsPage;
+  page: RunsBoardPage;
   drawKey?: string;
   workspaces: ReadonlyArray<WorkspaceSummary>;
-  filter: RunFilter;
-  endedLimit?: number;
   selectedId: string | undefined;
-  onFilterChange: (filter: RunFilter) => void;
-  onSelect: (runId: string) => void;
+  outsideRun?: BoardRun | null;
+  runnerId?: string | undefined;
+  onSelect: (runId: string | undefined) => void;
   onOpen: (runId: string) => void;
   onPickWorkspace: (workspaceId: string) => void;
+  onEndedViewChange?: (view: EndedView) => void;
+  onPeriodChange?: (days: RunBoardDays) => void;
+  onRunnerChange?: (runnerId: string | undefined) => void;
   onShowMoreEnded?: () => void;
-  onClearConditions?: (keys: ReadonlyArray<ConditionKey>) => void;
+  onClearConditions?: (keys: ReadonlyArray<ClearableCondition>) => void;
   runHref: (runId: string) => string;
 }
 
@@ -110,7 +111,7 @@ export function RunsScreen(props: RunsScreenProps) {
         />
       );
     case "one":
-      return <RunsList {...props} />;
+      return <RunsBoard {...props} />;
   }
 }
 
@@ -150,191 +151,389 @@ function AllWorkspaces({
   );
 }
 
-function RunsList({
-  page,
-  drawKey = "",
-  filter,
-  endedLimit,
-  selectedId,
-  onFilterChange,
-  onSelect,
-  onOpen,
-  onShowMoreEnded,
-  onClearConditions,
-  runHref,
-}: RunsScreenProps) {
+function useSituationText(): (part: SituationPart) => string {
+  const t = useTranslations("runs.situation");
+  return (part) => {
+    switch (part.key) {
+      case "runningAndWaiting":
+        return t("runningAndWaiting", { running: part.running, waiting: part.waiting });
+      case "none":
+        return t("none");
+      case "disconnected":
+      case "running":
+      case "waiting":
+      case "queued":
+        return t(part.key, { count: part.count });
+    }
+  };
+}
+
+function RunsBoard(props: RunsScreenProps) {
+  const { page, selectedId, outsideRun, runnerId, onOpen, onClearConditions, runHref } = props;
   const t = useTranslations("runs");
-  const statusName = useStatusName();
-  const visible = page.runs.filter((run) => matchesFilter(run, filter));
-  const selected = visible.find((run) => run.id === selectedId) ?? visible[0];
-  const attention = page.runs.filter(needsAttention).length;
-  const countOf = (key: RunFilter) => page.runs.filter((run) => matchesFilter(run, key)).length;
-  const showMoreButton = useRef<HTMLButtonElement>(null);
-  const endedStatus = useRef<HTMLParagraphElement>(null);
-  const focusAfterMore = useRef(false);
+  const opener = useRef<HTMLElement | null>(null);
+  const onSelect = (id: string | undefined) => {
+    if (id !== undefined && document.activeElement instanceof HTMLElement)
+      opener.current = document.activeElement;
+    props.onSelect(id);
+  };
+  const situationText = useSituationText();
   const filterBar = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLDivElement>(null);
   const focusAfterClear = useRef(false);
-  const filtered = page.conditions.length > 0;
-  const workspaceId = page.workspace.kind === "one" ? page.workspace.workspace.id : "";
-  const listKey = JSON.stringify([workspaceId, filter, page.conditions, endedLimit ?? null]);
+  const cards = runnerCards(page.runners, page.active, page.conditions, runnerId);
+  const queue = waitingRuns(page.active);
+  const selected =
+    [...page.active, ...page.ended].find((run) => run.id === selectedId) ??
+    (outsideRun?.id === selectedId ? (outsideRun ?? undefined) : undefined);
+
   useEffect(() => {
-    if (focusAfterMore.current) {
-      focusAfterMore.current = false;
-      (showMoreButton.current ?? endedStatus.current)?.focus();
-    }
-    if (focusAfterClear.current) {
-      focusAfterClear.current = false;
-      const bar = filterBar.current;
-      (
-        bar?.querySelector<HTMLElement>("[data-condition] button") ??
-        bar?.querySelector<HTMLElement>("[role='tab'][aria-selected='true']")
-      )?.focus();
-    }
+    if (!focusAfterClear.current) return;
+    focusAfterClear.current = false;
+    (
+      filterBar.current?.querySelector<HTMLElement>("[data-condition] button") ?? heading.current
+    )?.focus();
   }, [page]);
 
+  const hasChips = page.conditions.length > 0 || page.failedOnly;
   return (
     <ScreenLayout
       header={
         <PageHeader
           title={t("title")}
-          subtitle={t(page.moreEnded ? "subtitleRecent" : "subtitle", {
-            total: page.runs.length,
-            attention,
-          })}
+          subtitle={situationParts(page.active).map(situationText).join(" ")}
         />
       }
     >
-      <SplitView
-        fill={false}
-        list={
-          <div {...stylex.props(styles.listColumn)}>
-            <div ref={filterBar} {...stylex.props(styles.filterBar)}>
-              <SegmentedTabs<RunGroupFilter>
-                value={isGroupFilter(filter) ? filter : null}
-                onValueChange={onFilterChange}
-                label={t("filter.groupLabel")}
-                items={RUN_GROUP_FILTERS.map((key) => ({
-                  value: key,
-                  label: t(`filter.${key}`),
-                  count: countOf(key),
-                  attention: key === "attention",
-                }))}
-              />
-              <Tabs<RunFilterKey>
-                value={isGroupFilter(filter) ? null : filter}
-                onValueChange={onFilterChange}
-                label={t("filter.statusLabel")}
-                variant="chips"
-              >
-                {RUN_STATUS_FILTERS.map((key) => (
-                  <Tab key={key} value={key} count={countOf(key)}>
-                    {statusName(key)}
-                  </Tab>
-                ))}
-              </Tabs>
-              {page.conditions.length === 0 ? null : (
-                <ConditionChips
-                  conditions={page.conditions}
-                  onClear={(keys) => {
-                    focusAfterClear.current = true;
-                    onClearConditions?.(keys);
-                  }}
-                />
+      <div ref={heading} tabIndex={-1} {...stylex.props(styles.board)}>
+        {hasChips ? (
+          <div ref={filterBar}>
+            <ConditionChips
+              conditions={page.conditions}
+              failedOnly={page.failedOnly}
+              onClear={(keys) => {
+                focusAfterClear.current = true;
+                onClearConditions?.(keys);
+              }}
+            />
+          </div>
+        ) : null}
+        <Section title={t("now.title")} titleRole="heading">
+          <div {...stylex.props(styles.nowGrid)}>
+            <div data-runner-cards {...stylex.props(styles.cards)}>
+              {cards.length === 0 ? (
+                <Text variant="meta">{t("now.noRunners")}</Text>
+              ) : (
+                cards.map((card) => (
+                  <RunnerRunsCard key={card.id} card={card} onSelect={onSelect} />
+                ))
               )}
             </div>
-            <Card padding="compact" label={t("listLabel")}>
-              <Table columns={columns} foldedColumns={foldedColumns} narrowColumns={narrowColumns}>
-                <TableHead>
-                  <TableHeader hideWhen="stacked">{t("columns.key")}</TableHeader>
-                  <TableHeader>{t("columns.title")}</TableHeader>
-                  <TableHeader hideWhen="second">{t("columns.runner")}</TableHeader>
-                  <TableHeader hideWhen="first">{t("columns.result")}</TableHeader>
-                  <TableHeader>{t("columns.status")}</TableHeader>
-                  <TableHeader align="end">{t("columns.time")}</TableHeader>
-                </TableHead>
-                {visible.length === 0 ? (
-                  <TableEmpty>
-                    {page.runs.length > 0
-                      ? t("empty")
-                      : filtered
-                        ? t("noRunsWithConditions")
-                        : t("noRuns")}
-                  </TableEmpty>
-                ) : null}
-                <TableRows
-                  label={t("listLabel")}
-                  value={selected?.id ?? null}
-                  onValueChange={onSelect}
-                  motionItems
-                >
-                  <MotionList
-                    key={drawKey}
-                    items={visible}
-                    getKey={(run) => run.id}
-                    itemGap="row"
-                    resetKey={listKey}
-                  >
-                    {(run, { leaving }) => (
-                      <RunRow run={run} leaving={leaving} onOpen={() => onOpen(run.id)} />
-                    )}
-                  </MotionList>
-                </TableRows>
-              </Table>
-            </Card>
-            {page.moreEnded || page.recentEnded > ENDED_RUNS_PAGE_SIZE ? (
-              <div {...stylex.props(styles.more)}>
-                <Text variant="meta" as="p" ref={endedStatus} role="status" tabIndex={-1}>
-                  {page.moreEnded
-                    ? t("ended.partial", { count: page.recentEnded })
-                    : t("ended.all", { count: page.recentEnded })}
-                </Text>
-                {page.moreEnded && onShowMoreEnded !== undefined ? (
-                  <Button
-                    ref={showMoreButton}
-                    onClick={() => {
-                      focusAfterMore.current = true;
-                      onShowMoreEnded();
-                    }}
-                  >
-                    {t("ended.showMore")}
-                  </Button>
-                ) : null}
-              </div>
-            ) : null}
+            <div data-waiting-card {...stylex.props(styles.queue)}>
+              <Card padding="compact" surface="inset" label={t("now.queueTitle")}>
+                <div {...stylex.props(styles.cardBody)}>
+                  <span {...stylex.props(styles.cardHead)}>
+                    <Text variant="title">{t("now.queueTitle")}</Text>
+                    <Text variant="meta" numeric>
+                      {queue.length}
+                    </Text>
+                  </span>
+                  {queue.length === 0 ? (
+                    <Text variant="meta">{t("now.queueEmpty")}</Text>
+                  ) : (
+                    <FoldedRuns
+                      runs={queue}
+                      limit={WAITING_CARD_VISIBLE_RUNS}
+                      onSelect={onSelect}
+                      trailing="wait"
+                    />
+                  )}
+                </div>
+              </Card>
+            </div>
           </div>
+        </Section>
+        <EndedSection {...props} onSelect={onSelect} />
+      </div>
+      <RunSheet
+        run={selected ?? null}
+        returnFocus={() =>
+          opener.current?.isConnected === true ? opener.current : heading.current
         }
-        panel={
-          <section aria-label={t("panel.label")}>
-            {selected === undefined ? (
-              <DetailPanel>
-                <Text variant="meta">
-                  {page.runs.length > 0
-                    ? t("panel.empty")
-                    : filtered
-                      ? t("panel.noRunsWithConditions")
-                      : t("panel.noRuns")}
-                </Text>
-              </DetailPanel>
-            ) : (
-              <RunPanel
-                run={selected}
-                detailHref={runHref(selected.id)}
-                onOpenDetail={() => onOpen(selected.id)}
-              />
-            )}
-          </section>
-        }
+        detailHref={selected === undefined ? "" : runHref(selected.id)}
+        onOpenDetail={() => {
+          if (selected !== undefined) onOpen(selected.id);
+        }}
+        onClose={() => onSelect(undefined)}
       />
     </ScreenLayout>
   );
 }
 
+function RunnerRunsCard({
+  card,
+  onSelect,
+}: {
+  card: RunnerCard;
+  onSelect: (runId: string) => void;
+}) {
+  const t = useTranslations("runs.now");
+  return (
+    <div data-runner-card={card.id} data-dimmed={card.dimmed ? "" : undefined}>
+      <Card padding="compact" label={t("runnerLabel", { name: card.name })}>
+        <div {...stylex.props(styles.cardBody)}>
+          <span {...stylex.props(styles.cardHead)}>
+            <Text variant="title" truncate {...(card.dimmed ? { tone: "muted" as const } : {})}>
+              {card.name}
+            </Text>
+            {card.online ? (
+              <CapacityCells
+                used={card.used}
+                total={card.capacity}
+                overflow="meter"
+                label={t("seats", { used: card.used, total: card.capacity })}
+              />
+            ) : (
+              <Text variant="meta">{t("offline")}</Text>
+            )}
+          </span>
+          {card.runs.length === 0 ? (
+            card.online ? (
+              <Text variant="meta">{t("noRuns")}</Text>
+            ) : null
+          ) : (
+            <FoldedRuns
+              runs={card.runs}
+              limit={RUNNER_CARD_VISIBLE_RUNS}
+              onSelect={onSelect}
+              trailing="word"
+            />
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function FoldedRuns({
+  runs,
+  limit,
+  onSelect,
+  trailing,
+}: {
+  runs: ReadonlyArray<BoardRun>;
+  limit: number;
+  onSelect: (runId: string) => void;
+  trailing: "word" | "wait";
+}) {
+  const t = useTranslations("runs.now");
+  const word = useRunWordText();
+  const { duration, elapsed } = useTime();
+  const [expanded, setExpanded] = useState(false);
+  const list = useRef<HTMLDivElement>(null);
+  const focusAfterExpand = useRef(false);
+  const { shown, hidden } = foldRuns(runs, limit, expanded);
+  useEffect(() => {
+    if (!focusAfterExpand.current) return;
+    focusAfterExpand.current = false;
+    list.current?.querySelectorAll<HTMLElement>("button")[limit]?.focus();
+  }, [expanded, limit]);
+  return (
+    <div ref={list} {...stylex.props(styles.runLines)}>
+      <PanelList>
+        {shown.map((run) => (
+          <PanelListRow
+            key={run.id}
+            marker={<StatusDot status={dotStatus(runWord(run))} />}
+            {...(run.ticketTitle === null
+              ? { title: run.ticketKey }
+              : { ticketKey: run.ticketKey, title: run.ticketTitle })}
+            trailing={
+              trailing === "wait"
+                ? duration(run.waitMs)
+                : run.state === "running"
+                  ? elapsed(elapsedMs(run))
+                  : word(runWord(run))
+            }
+            onClick={() => onSelect(run.id)}
+          />
+        ))}
+      </PanelList>
+      {hidden === 0 ? null : (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            focusAfterExpand.current = true;
+            setExpanded(true);
+          }}
+        >
+          {t("showMore", { count: hidden })}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function dotStatus(word: RunWord): PillStatus {
+  switch (word) {
+    case "done":
+      return "succeeded";
+    case "needs-review":
+      return "failed";
+    case "running":
+    case "question":
+    case "permission":
+    case "human-check":
+    case "paused":
+    case "disconnected":
+    case "queued":
+    case "failed":
+    case "canceled":
+      return word;
+  }
+}
+
+function useRunWordText(): (word: RunWord) => string {
+  const t = useTranslations("runs.word");
+  return (word) => t(word);
+}
+
+function EndedSection({
+  page,
+  drawKey = "",
+  selectedId,
+  runnerId,
+  onSelect,
+  onEndedViewChange,
+  onPeriodChange,
+  onRunnerChange,
+  onShowMoreEnded,
+}: RunsScreenProps) {
+  const t = useTranslations("runs.endedRuns");
+  const more = useRef<HTMLDivElement>(null);
+  const filtered = page.conditions.some((condition) => condition.key !== "days") || page.failedOnly;
+  const canLoadMore = page.moreEnded && onShowMoreEnded !== undefined;
+  const loadMore = useRef(onShowMoreEnded);
+  loadMore.current = onShowMoreEnded;
+  const shownCount = page.ended.length;
+  useEffect(() => {
+    if (!canLoadMore || more.current === null || typeof IntersectionObserver === "undefined")
+      return;
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      observer.disconnect();
+      loadMore.current?.();
+    });
+    observer.observe(more.current);
+    return () => observer.disconnect();
+  }, [canLoadMore, shownCount]);
+  const openRow = (event: MouseEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof Element)) return;
+    const marker = event.target.closest('[role="option"]')?.querySelector("[data-run-row]");
+    const id = marker?.getAttribute("data-run-row");
+    if (id !== null && id !== undefined) onSelect(id);
+  };
+  const periodIsChoice = ENDED_PERIOD_CHOICES.some((days) => days === page.days);
+  const runnerValue = runnerId === undefined ? ALL_RUNNERS : runnerId === "" ? null : runnerId;
+  return (
+    <Section title={t("title")} titleRole="heading" count={page.endedCounts.all}>
+      <div {...stylex.props(styles.endedTools)}>
+        {page.failedOnly || page.endedCounts.review === 0 ? null : (
+          <SegmentedTabs<EndedView>
+            value={page.endedView}
+            onValueChange={(view) => onEndedViewChange?.(view)}
+            label={t("viewLabel")}
+            items={[
+              {
+                value: "review",
+                label: t("review"),
+                count: page.endedCounts.review,
+                attention: true,
+              },
+              { value: "all", label: t("all"), count: page.endedCounts.all },
+            ]}
+          />
+        )}
+        <span {...stylex.props(styles.menus)}>
+          <Select
+            aria-label={t("periodLabel")}
+            value={periodIsChoice ? String(page.days) : null}
+            placeholder={t("periodOther", { days: page.days })}
+            options={ENDED_PERIOD_CHOICES.map((days) => ({
+              value: String(days),
+              label: t("period", { days }),
+            }))}
+            onValueChange={(value) => {
+              const days = ENDED_PERIOD_CHOICES.find((choice) => String(choice) === value);
+              if (days !== undefined) onPeriodChange?.(days);
+            }}
+          />
+          <Select
+            aria-label={t("runnerLabel")}
+            value={runnerValue}
+            placeholder={t("noRunner")}
+            options={[
+              { value: ALL_RUNNERS, label: t("allRunners") },
+              ...page.runners.map((runner) => ({ value: runner.id, label: runner.name })),
+            ]}
+            onValueChange={(value) => onRunnerChange?.(value === ALL_RUNNERS ? undefined : value)}
+          />
+        </span>
+      </div>
+      <Card padding="compact" label={t("listLabel")}>
+        <div onClick={openRow}>
+          <Table columns={columns} foldedColumns={foldedColumns} narrowColumns={narrowColumns}>
+            <TableHead>
+              <TableHeader hideWhen="second">{t("columns.key")}</TableHeader>
+              <TableHeader>{t("columns.title")}</TableHeader>
+              <TableHeader hideWhen="first">{t("columns.runner")}</TableHeader>
+              <TableHeader>{t("columns.state")}</TableHeader>
+              <TableHeader align="end">{t("columns.time")}</TableHeader>
+            </TableHead>
+            {page.ended.length === 0 ? (
+              <TableEmpty>{filtered ? t("emptyWithConditions") : t("empty")}</TableEmpty>
+            ) : null}
+            <TableRows
+              label={t("listLabel")}
+              value={page.ended.some((run) => run.id === selectedId) ? (selectedId ?? null) : null}
+              onValueChange={() => {}}
+              motionItems
+            >
+              <MotionList
+                key={drawKey}
+                items={page.ended}
+                getKey={(run) => run.id}
+                itemGap="row"
+                resetKey={JSON.stringify([page.endedView, page.days, page.conditions])}
+              >
+                {(run, { leaving }) => (
+                  <EndedRow run={run} leaving={leaving} onOpen={() => onSelect(run.id)} />
+                )}
+              </MotionList>
+            </TableRows>
+          </Table>
+        </div>
+      </Card>
+      {page.moreEnded ? (
+        <div ref={more} {...stylex.props(styles.more)}>
+          <Text variant="meta" as="p" role="status">
+            {t("loaded", { count: page.ended.length })}
+          </Text>
+          {canLoadMore ? <Button onClick={onShowMoreEnded}>{t("loadMore")}</Button> : null}
+        </div>
+      ) : null}
+    </Section>
+  );
+}
+
 function ConditionChips({
   conditions,
+  failedOnly,
   onClear,
 }: {
   conditions: ReadonlyArray<RunCondition>;
-  onClear: (keys: ReadonlyArray<ConditionKey>) => void;
+  failedOnly: boolean;
+  onClear: (keys: ReadonlyArray<ClearableCondition>) => void;
 }) {
   const t = useTranslations("runs.conditions");
   const agentName = useAgentName();
@@ -350,20 +549,24 @@ function ConditionChips({
         return t("days", { days: condition.days });
     }
   };
+  const chips: Array<{ key: ClearableCondition; text: string }> = [
+    ...conditions.map((condition) => ({ key: condition.key, text: text(condition) })),
+    ...(failedOnly ? [{ key: "f" as const, text: t("failed") }] : []),
+  ];
   return (
     <div role="group" aria-label={t("label")} {...stylex.props(styles.conditions)}>
-      {conditions.map((condition) => (
-        <span key={condition.key} data-condition={condition.key}>
+      {chips.map((chip) => (
+        <span key={chip.key} data-condition={chip.key}>
           <RemovableChip
-            removeLabel={t("remove", { condition: text(condition) })}
-            onRemove={() => onClear([condition.key])}
+            removeLabel={t("remove", { condition: chip.text })}
+            onRemove={() => onClear([chip.key])}
           >
-            {text(condition)}
+            {chip.text}
           </RemovableChip>
         </span>
       ))}
-      {conditions.length > 1 ? (
-        <Button variant="ghost" onClick={() => onClear(conditions.map((c) => c.key))}>
+      {chips.length > 1 ? (
+        <Button variant="ghost" onClick={() => onClear(chips.map((chip) => chip.key))}>
           {t("clearAll")}
         </Button>
       ) : null}
@@ -371,22 +574,31 @@ function ConditionChips({
   );
 }
 
-function RunRow({ run, leaving, onOpen }: { run: RunView; leaving: boolean; onOpen: () => void }) {
+function EndedRow({
+  run,
+  leaving,
+  onOpen,
+}: {
+  run: BoardRun;
+  leaving: boolean;
+  onOpen: () => void;
+}) {
   const t = useTranslations("runs");
-  const { ago, elapsed } = useTime();
-  const statusName = useStatusName();
-  const status = runStatus(run);
-  const runner = run.runner?.name ?? (run.state === "ended" ? t("noRunnerEnded") : t("noRunner"));
-  const result = useRunResultText(run);
-
+  const { ago } = useTime();
+  const word = runWord(run);
+  const reason = useEndedReason(run);
+  const wordText = reason === null ? t(`word.${word}`) : `${t(`word.${word}`)} · ${reason}`;
+  const runner = run.runner?.name ?? t("endedRuns.noRunner");
   return (
     <TableRow value={run.id} label={ticketName(run)} onOpen={onOpen} disabled={leaving}>
-      <TableCell hideWhen="stacked">
-        {run.ticketTitle === null ? null : (
-          <Text variant="meta" numeric>
-            {run.ticketKey}
-          </Text>
-        )}
+      <TableCell hideWhen="second">
+        <span data-run-row={run.id}>
+          {run.ticketTitle === null ? null : (
+            <Text variant="meta" numeric>
+              {run.ticketKey}
+            </Text>
+          )}
+        </span>
       </TableCell>
       <TableCell>
         <span {...stylex.props(styles.rowText)}>
@@ -396,108 +608,96 @@ function RunRow({ run, leaving, onOpen }: { run: RunView; leaving: boolean; onOp
             <RowTitle fullText={run.ticketTitle}>{run.ticketTitle}</RowTitle>
           )}
           <TableFoldedOnly when="first" block>
-            <Text variant="meta">
-              {run.ticketTitle === null ? null : (
-                <TableFoldedOnly when="stacked">
-                  <Text variant="meta" numeric>
-                    {run.ticketKey}
-                  </Text>
-                  {t("metaSeparator")}
-                </TableFoldedOnly>
-              )}
-              <TableFoldedOnly when="second">
-                {runner}
-                {t("metaSeparator")}
-              </TableFoldedOnly>
-              {result}
-            </Text>
+            <Text variant="meta">{runner}</Text>
           </TableFoldedOnly>
-          <PrMarks run={run} />
         </span>
       </TableCell>
-      <TableCell hideWhen="second">
+      <TableCell hideWhen="first">
         <Text variant="meta">{runner}</Text>
       </TableCell>
-      <TableCell hideWhen="first">
-        <Text variant="meta">{result}</Text>
-      </TableCell>
       <TableCell>
-        <StatusPill status={status} changeMotion>
-          {statusName(status)}
-        </StatusPill>
+        <Text
+          variant="meta"
+          {...(word === "failed" || word === "needs-review" ? { tone: "problem" as const } : {})}
+        >
+          {wordText}
+        </Text>
       </TableCell>
       <TableCell align="end" numeric>
-        {run.state === "ended"
-          ? ago(run.endedAt, run.endedAgoMs)
-          : run.state === "paused"
-            ? t("pausedFor", { elapsed: elapsed(elapsedMs(run)) })
-            : elapsed(elapsedMs(run))}
+        {run.state === "ended" ? ago(run.endedAt, run.endedAgoMs) : null}
       </TableCell>
     </TableRow>
   );
 }
 
-function PrMarks({ run }: { run: RunView }) {
-  const t = useTranslations("runs");
-  const signals = run.pullRequest?.signals ?? null;
-  if (signals === null) return null;
-  const behindBy = signals.behindBy ?? 0;
-  if (!signals.ciFailed && signals.conflict !== true && behindBy === 0) return null;
-  return (
-    <span data-pr-marks {...stylex.props(styles.prMarks)}>
-      {signals.ciFailed ? (
-        <Text variant="meta" tone="problem">
-          {t("prMarks.ciFailed")}
-        </Text>
-      ) : null}
-      {signals.conflict === true ? (
-        <Text variant="meta" tone="problem">
-          {t("prMarks.conflict")}
-        </Text>
-      ) : null}
-      {behindBy > 0 ? <Text variant="meta">{t("prMarks.behind", { count: behindBy })}</Text> : null}
-    </span>
-  );
+function useEndedReason(run: BoardRun): string | null {
+  const t = useTranslations("runs.reason");
+  const problem = prProblemOf(run);
+  if (problem !== null) return t(problem);
+  return run.state === "ended" && currentPrState(run) === "merged" ? t("merged") : null;
 }
 
-function useRunResultText(run: RunView): string {
-  const t = useTranslations("runs");
-  const domain = useTranslations("domain");
-  const agentName = useAgentName();
-  const parts: string[] = [];
-  if (run.state === "ended") {
-    parts.push(domain(`agentResult.${run.agentResult}`));
-    if (run.prState === "unknown")
-      parts.push(
-        run.pullRequest === null
-          ? t("prUnread")
-          : t("prUnreadWithPr", { pr: run.pullRequest.displayId }),
-      );
-    else if (run.pullRequest !== null)
-      parts.push(
-        t("prWithState", {
-          pr: run.pullRequest.displayId,
-          state: domain(`prState.${currentPrState(run)}`),
-        }),
-      );
-    else if (currentPrState(run) !== "none") parts.push(domain(`prState.${currentPrState(run)}`));
-  } else {
-    parts.push(agentName(run.agent));
-    if (run.cancelling) parts.push(t("cancelling"));
-  }
-  return parts.join(t("metaSeparator"));
+function ticketName(run: BoardRun): string {
+  return run.ticketTitle === null ? run.ticketKey : `${run.ticketKey} ${run.ticketTitle}`;
 }
 
 const styles = stylex.create({
   stack: { display: "flex", flexDirection: "column", gap: space.s4 },
-  listColumn: { minWidth: 0 },
-  filterBar: {
+  board: {
     display: "flex",
     flexDirection: "column",
-    alignItems: "flex-start",
-    gap: space.s3,
-    marginBottom: space.s4,
+    gap: space.s6,
+    minWidth: 0,
+    containerType: "inline-size",
+    outline: "none",
   },
+  nowGrid: {
+    display: "grid",
+    gridTemplateColumns: {
+      default: `minmax(0, 1fr) ${size.dashboardSideWidth}`,
+      [breakpoints.kanbanStacked]: "minmax(0, 1fr)",
+    },
+    alignItems: "start",
+    gap: space.s4,
+  },
+  cards: {
+    order: 1,
+    display: "grid",
+    gridTemplateColumns: {
+      default: `repeat(auto-fill, minmax(${size.todoTextMinWidth}, 1fr))`,
+      [breakpoints.kanbanStacked]: "minmax(0, 1fr)",
+    },
+    alignItems: "start",
+    gap: space.s3,
+    minWidth: 0,
+  },
+  queue: {
+    order: { default: 2, [breakpoints.kanbanStacked]: 0 },
+    minWidth: 0,
+  },
+  cardBody: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
+  cardHead: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s2,
+    minWidth: 0,
+  },
+  runLines: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "stretch",
+    gap: space.s1,
+    minWidth: 0,
+  },
+  endedTools: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s3,
+  },
+  menus: { display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   conditions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   more: {
     display: "flex",
@@ -505,12 +705,6 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: space.s3,
-    marginTop: space.s4,
   },
   rowText: { display: "flex", flexDirection: "column", gap: space.px2, minWidth: 0 },
-  prMarks: { display: "flex", flexWrap: "wrap", columnGap: space.s2, minWidth: 0 },
 });
-
-function ticketName(run: RunView): string {
-  return run.ticketTitle === null ? run.ticketKey : `${run.ticketKey} ${run.ticketTitle}`;
-}

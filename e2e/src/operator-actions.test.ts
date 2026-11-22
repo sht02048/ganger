@@ -41,11 +41,9 @@ import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } from "vitest";
-import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
 import home from "../../apps/web/messages/ko/home.json" with { type: "json" };
 import question from "../../apps/web/messages/ko/question.json" with { type: "json" };
 import run from "../../apps/web/messages/ko/run.json" with { type: "json" };
-import runs from "../../apps/web/messages/ko/runs.json" with { type: "json" };
 import shell from "../../apps/web/messages/ko/shell.json" with { type: "json" };
 import tickets from "../../apps/web/messages/ko/tickets.json" with { type: "json" };
 import {
@@ -186,10 +184,7 @@ describe("운영자 핵심 동작(브라우저)", () => {
 
     await page.goto(`/runs?ws=${workspaceId}`);
     await hydrated(page);
-    const row = page
-      .getByRole("listbox", { name: runs.listLabel })
-      .getByRole("option", { name: key });
-    await row.getByText(domain.runState.queued, { exact: true }).waitFor();
+    await page.locator("[data-waiting-card]").getByRole("button", { name: key }).waitFor();
   });
 });
 

@@ -176,8 +176,7 @@ describe("Runs·Run 상세를 Query로(브라우저, 0125)", () => {
   it("worker와 같은 함수로 런 상태를 바꾸면 열린 Runs와 Run 상세가 3초 안에 바뀐다", async (context) => {
     const runsPage = await newPage(context);
     await open(runsPage, "/runs", runsListQueryKey);
-    const row = runsPage.page.getByRole("option").filter({ hasText: watchedTicket });
-    await expect.poll(() => row.innerText()).toContain(domain.runState.queued);
+    await runLine(runsPage.page, "[data-waiting-card]", watchedTicket).waitFor();
 
     const detail = await newPage(context);
     await open(detail, `/runs/${watchedRun}`, runDetailQueryKey(watchedRun));
@@ -187,9 +186,9 @@ describe("Runs·Run 상세를 Query로(브라우저, 0125)", () => {
     const changedAt = Date.now();
     start(watchedRun, "wt-watched");
 
-    await expect
-      .poll(() => row.innerText(), { timeout: VISIBLE_WITHIN_MS })
-      .toContain(domain.runState.running);
+    await runLine(runsPage.page, "[data-runner-cards]", watchedTicket).waitFor({
+      timeout: VISIBLE_WITHIN_MS,
+    });
     await expect
       .poll(() => state.innerText(), { timeout: VISIBLE_WITHIN_MS })
       .toContain(domain.runState.running);
@@ -199,15 +198,15 @@ describe("Runs·Run 상세를 Query로(브라우저, 0125)", () => {
   it("변경 기록 통로 없이도 다시 들어간 Runs는 뒤에서 새로 읽어 그사이 바뀐 상태를 그린다", async (context) => {
     const runsPage = await newPage(context, { stream: "blocked" });
     await open(runsPage, "/runs", runsListQueryKey);
-    const row = runsPage.page.getByRole("option").filter({ hasText: revisitedTicket });
-    await expect.poll(() => row.innerText()).toContain(domain.runState.queued);
+    await runLine(runsPage.page, "[data-waiting-card]", revisitedTicket).waitFor();
 
     await navigateByRail(runsPage.page, "dashboard", "first");
     await runsPage.page.mouse.move(0, 0);
     start(revisitedRun, "wt-revisited");
     await navigateByRail(runsPage.page, "runs", "again");
 
-    await expect.poll(() => row.innerText()).toContain(domain.runState.running);
+    await runLine(runsPage.page, "[data-runner-cards]", revisitedTicket).waitFor();
+    expect(await runLine(runsPage.page, "[data-runner-cards]", revisitedTicket).count()).toBe(1);
   });
 
   it("변경 기록 통로가 끊기면 열린 Run 상세를 30초마다 다시 읽는다(가짜 시계)", async (context) => {
@@ -406,4 +405,8 @@ function start(id: RunId, worktree: string): void {
 
 function ok(result: { ok: true } | { ok: false; error: unknown }): void {
   if (!result.ok) throw new Error(`state change failed: ${JSON.stringify(result.error)}`);
+}
+
+function runLine(page: Page, area: string, ticket: string) {
+  return page.locator(area).getByRole("button").filter({ hasText: ticket });
 }
