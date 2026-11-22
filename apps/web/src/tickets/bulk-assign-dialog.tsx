@@ -35,10 +35,15 @@ export interface BulkAssignDialogProps {
 function useBlockerHints(
   targets: ReadonlyArray<TicketView>,
   onReadBlockers: BulkAssignDialogProps["onReadBlockers"],
+  open: boolean,
 ): ReadonlyMap<string, BlockerWaitHint> {
   const [hints, setHints] = useState<ReadonlyMap<string, BlockerWaitHint>>(new Map());
   const firstTargets = useRef(targets);
   const readBlockers = useRef(onReadBlockers);
+  const dialogOpen = useRef(open);
+  useEffect(() => {
+    dialogOpen.current = open;
+  }, [open]);
   useEffect(() => {
     let stopped = false;
     const queue = [...firstTargets.current];
@@ -46,7 +51,7 @@ function useBlockerHints(
       for (let ticket = queue.shift(); ticket !== undefined; ticket = queue.shift()) {
         const id = ticket.id;
         const result = await readBlockers.current(ticket).catch(() => null);
-        if (stopped) return;
+        if (stopped || !dialogOpen.current) return;
         if (result === null || !result.ok) continue;
         const hint = blockerWaitHint(result.blockers);
         if (hint !== null) setHints((current) => new Map(current).set(id, hint));
@@ -75,7 +80,7 @@ export function BulkAssignDialog({
   const t = useTranslations("tickets.bulkAssign");
   const tResult = useTranslations("tickets.bulkAssign.result");
   const targets = useMemo(() => blockerReadTargets(group.children), [group.children]);
-  const hints = useBlockerHints(targets, onReadBlockers);
+  const hints = useBlockerHints(targets, onReadBlockers, open);
   const choices = useMemo(() => bulkChoices(group.children, hints), [group.children, hints]);
   const [selected, setSelected] = useState<ReadonlySet<string>>(
     () =>

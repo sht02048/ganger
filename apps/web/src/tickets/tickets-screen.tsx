@@ -251,7 +251,9 @@ function TicketsList({
   };
   const bulkFinalFocus = (): HTMLElement | null => {
     const title = parentTitleRef.current;
-    if (bulkAssigned.current && title !== null) return title;
+    if (bulkAssigned.current) {
+      return title?.dataset["groupId"] === bulkTarget?.group.id ? title : null;
+    }
     const opener = bulkOpener.current;
     return opener?.isConnected === true ? opener : title;
   };
@@ -534,7 +536,10 @@ function TicketsList({
           open={bulkOpen}
           onOpenChange={(next) => {
             setBulkOpen(next);
-            if (!next && bulkAssigned.current) onAssigned(bulkTarget.group.id);
+            if (!next && bulkAssigned.current) {
+              setRelationPickedId(bulkTarget.group.id);
+              onAssigned(bulkTarget.group.id);
+            }
           }}
           onAssignMany={onAssignMany}
           onReadBlockers={onReadBlockers}
@@ -932,7 +937,7 @@ function ParentIssuePanel({
     .join(" · ");
   return (
     <DetailPanel>
-      <div ref={titleRef} tabIndex={-1}>
+      <div ref={titleRef} tabIndex={-1} data-group-id={group.id}>
         <PanelHeader
           eyebrow={meta}
           status={
