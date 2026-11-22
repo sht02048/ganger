@@ -105,7 +105,7 @@ function ProviderWindows({ usage }: { usage: V1ProviderUsage }) {
     return <Text variant="small">{t("runners.usageError", { provider: name })}</Text>;
   }
   if (usage.windows.length === 0) {
-    return <Text variant="small">{`${name} · ${t("runners.usageNoWindows")}`}</Text>;
+    return <Text variant="small">{t("runners.usageNoWindows", { provider: name })}</Text>;
   }
   return (
     <>

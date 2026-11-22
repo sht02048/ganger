@@ -145,10 +145,34 @@ describe("연결 상태", () => {
     const state = w.session.getState();
     expect(state.phase).toBe("stale");
     expect(state.fetchedAt).toBe(fetchedAt);
-    expect(state.dashboards.get("all")).toBe(dashboard);
+    expect(state.dashboards.get("all")?.data).toBe(dashboard);
+    expect(state.dashboards.get("all")?.fetchedAt).toBe(fetchedAt);
     w.fail(null);
     await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
     expect(w.session.getState().phase).toBe("live");
+  });
+
+  it("Workspace마다 받은 때를 따로 둔다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    const firstAt = w.session.getState().dashboards.get("all")?.fetchedAt;
+    w.session.setWorkspace("ws-b");
+    await settle();
+    await vi.advanceTimersByTimeAsync(30 * 60_000);
+    const state = w.session.getState();
+    expect(state.dashboards.get("all")?.fetchedAt).toBe(firstAt);
+    expect(state.dashboards.get("ws-b")?.fetchedAt).toBe(state.fetchedAt);
+    expect(state.fetchedAt).toBeGreaterThan(firstAt ?? Number.POSITIVE_INFINITY);
+  });
+
+  it("서버 오류와 닿지 않음을 가른다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.fail({ kind: "server-error" });
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(w.session.getState()).toMatchObject({ phase: "stale", staleReason: "server-error" });
   });
 
   it("토큰이 거절되면 멈추고 알린다", async () => {

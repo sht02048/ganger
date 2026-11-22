@@ -13,18 +13,31 @@ import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { LiveSession } from "./session";
-import type { SessionPhase, SessionState } from "./session";
+import type { SessionState } from "./session";
 import { MINIMUM_SERVER_VERSION } from "./version";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const BAND_TICK_MS = 30_000;
 
-export function staleBandText(fetchedAt: number, now: number): string {
+function staleReasonText(reason: SessionState["staleReason"]): string {
+  return reason === "server-error"
+    ? t("connection.band.reasonServerError")
+    : t("connection.band.reasonUnreachable");
+}
+
+export function staleBandText(
+  fetchedAt: number,
+  now: number,
+  staleReason: SessionState["staleReason"],
+): string {
+  const reason = staleReasonText(staleReason);
   const ago = Math.max(0, now - fetchedAt);
-  if (ago < MINUTE_MS) return t("connection.band.staleJustNow");
-  if (ago < HOUR_MS) return t("connection.band.stale", { minutes: Math.floor(ago / MINUTE_MS) });
-  return t("connection.band.staleHours", { hours: Math.floor(ago / HOUR_MS) });
+  if (ago < MINUTE_MS) return t("connection.band.staleJustNow", { reason });
+  if (ago < HOUR_MS) {
+    return t("connection.band.stale", { reason, minutes: Math.floor(ago / MINUTE_MS) });
+  }
+  return t("connection.band.staleHours", { reason, hours: Math.floor(ago / HOUR_MS) });
 }
 
 function incompatibleText(serverVersion: string | null): string {
@@ -36,12 +49,14 @@ function incompatibleText(serverVersion: string | null): string {
       });
 }
 
-function bandText(state: SessionState, now: number): string | null {
+function bandText(state: SessionState, workspaceId: string, now: number): string | null {
   switch (state.phase) {
-    case "stale":
-      return state.fetchedAt === null
-        ? t("connection.error.unreachable")
-        : staleBandText(state.fetchedAt, now);
+    case "stale": {
+      const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
+      return fetchedAt === undefined
+        ? staleReasonText(state.staleReason)
+        : staleBandText(fetchedAt, now, state.staleReason);
+    }
     case "host-blocked":
       return t("connection.band.hostBlocked");
     case "incompatible":
@@ -53,12 +68,14 @@ function bandText(state: SessionState, now: number): string | null {
   }
 }
 
-function statusText(phase: SessionPhase): string {
+function statusText({ phase, staleReason }: SessionState): string {
   switch (phase) {
     case "live":
       return t("settings.connectionLive");
     case "stale":
-      return t("settings.connectionStale");
+      return staleReason === "server-error"
+        ? t("settings.connectionServerError")
+        : t("settings.connectionStale");
     case "host-blocked":
       return t("settings.connectionHostBlocked");
     case "incompatible":
@@ -133,7 +150,7 @@ export function LiveScreens({
     () => ({
       workspaces: state.workspaces,
       runners: state.runners,
-      dashboardFor: (workspaceId) => state.dashboards.get(workspaceId) ?? null,
+      dashboardFor: (workspaceId) => state.dashboards.get(workspaceId)?.data ?? null,
     }),
     [state.workspaces, state.runners, state.dashboards],
   );
@@ -155,14 +172,14 @@ export function LiveScreens({
     onDisconnected();
   };
 
-  const message = bandText(state, now);
+  const message = bandText(state, view.workspaceId, now);
   const band = message === null ? null : <NoticeBand message={message} />;
   const settings = (
     <SettingsScreen
       band={band}
       connection={{
         server,
-        status: statusText(state.phase),
+        status: statusText(state),
         serverVersion: state.serverVersion,
         deviceName: state.device?.name ?? null,
         disconnectFailed,
@@ -195,6 +212,7 @@ export function LiveScreens({
           onOpenSettings={() => setScreen("settings")}
           band={band}
           actionsDisabled={state.phase !== "live"}
+          {...(state.phase === "loading" ? {} : { onRetry: () => void session.refresh() })}
           actionNotice={{ title: t("common.liveActionTitle"), body: t("common.liveAction") }}
         />
       );

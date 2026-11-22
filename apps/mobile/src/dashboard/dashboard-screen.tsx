@@ -148,6 +148,7 @@ export function DashboardScreen({
   band = null,
   actionsDisabled = false,
   actionNotice = { title: t("settings.serverDemo"), body: t("common.demoAction") },
+  onRetry,
 }: {
   snapshot: MobileSnapshot;
   view: DashboardView;
@@ -157,6 +158,7 @@ export function DashboardScreen({
   band?: ReactNode;
   actionsDisabled?: boolean;
   actionNotice?: { title: string; body: string };
+  onRetry?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
@@ -204,9 +206,16 @@ export function DashboardScreen({
             {t("dashboard.title")}
           </Text>
           <Text variant="meta" tone="secondary">
-            {dashboard === null ? t("common.loading") : dashboardSummary(dashboard)}
+            {dashboard !== null
+              ? dashboardSummary(dashboard)
+              : onRetry === undefined
+                ? t("common.loading")
+                : t("connection.noWorkspaceData")}
           </Text>
         </View>
+        {dashboard === null && onRetry !== undefined ? (
+          <Button label={t("common.retry")} onPress={onRetry} />
+        ) : null}
         {dashboard === null || board === null ? null : hasNoRuns(dashboard) ? (
           <View style={styles.empty}>
             <RestingMascot />

@@ -159,7 +159,7 @@
       "fableWeekly": "Fable 주간",
       "monthly": "월간"
     },
-    "usageNoWindows": "읽은 사용량이 없어요",
+    "usageNoWindows": "{provider} · 읽은 사용량이 없어요",
     "usageError": "{provider} 사용량을 읽지 못했어요",
     "usageSignedOut": "로그인하지 않았어요: {providers}",
     "usageUnavailable": "쓰지 않아요: {providers}",
@@ -193,9 +193,10 @@
     "connectionLoading": "확인하는 중이에요",
     "serverVersion": "서버 버전",
     "deviceName": "이 기기 이름",
-    "disconnectFailed": "서버에 닿지 않아 연결을 끊지 못했어요. 서버 목록에는 이 기기가 남아요.",
+    "disconnectFailed": "연결을 끊지 못했어요. 서버 목록에는 이 기기가 남아요.",
     "forgetLocal": "이 기기에서만 지우기",
-    "exitDemo": "데모 끝내기"
+    "exitDemo": "데모 끝내기",
+    "connectionServerError": "서버가 요청을 처리하지 못했어요"
   },
   "names": {
     "agent": {
@@ -241,12 +242,15 @@
       "incompatible": "이 앱과 맞지 않는 서버예요. 서버를 최신 버전으로 올려 주세요."
     },
     "band": {
-      "staleJustNow": "서버에 닿지 않아요 · 방금 전 기준",
-      "stale": "서버에 닿지 않아요 · {minutes}분 전 기준",
-      "staleHours": "서버에 닿지 않아요 · {hours}시간 전 기준",
+      "staleJustNow": "{reason} · 방금 전 기준",
+      "stale": "{reason} · {minutes}분 전 기준",
+      "staleHours": "{reason} · {hours}시간 전 기준",
       "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소를 고쳐 주세요. 연결은 그대로 뒀어요.",
       "incompatible": "이 앱과 맞지 않는 서버예요. 서버를 최신 버전으로 올려 주세요.",
-      "incompatibleVersion": "서버 {version}은 이 앱과 맞지 않아요. {minimum} 이상으로 올려 주세요."
-    }
+      "incompatibleVersion": "서버 {version}은 이 앱과 맞지 않아요. {minimum} 이상으로 올려 주세요.",
+      "reasonUnreachable": "서버에 닿지 않아요",
+      "reasonServerError": "서버가 요청을 처리하지 못했어요"
+    },
+    "noWorkspaceData": "이 Workspace는 아직 받은 내용이 없어요."
   }
 }

@@ -256,6 +256,21 @@ describe("연결 끊기와 거절", () => {
 });
 
 describe("서버에 닿지 않을 때(M31)", () => {
+  it("다른 Workspace로 가면 그 Workspace가 받은 때를 띠에 쓰고, 받은 적 없으면 그렇게 말한다", async () => {
+    const server = fakeServer();
+    const host = await mount(memoryStore(STORED).store, server.fetcher);
+    await advance(10 * 60_000);
+    server.state.mode = "offline";
+    await advance(POLL_INTERVAL_MS);
+    await press("Workspace 고르기, 모든 Workspace");
+    await press("Payments");
+    expect(host.textContent).toContain("이 Workspace는 아직 받은 내용이 없어요.");
+    expect(byLabel("다시 시도")).not.toBeNull();
+    expect(host.querySelector('[data-testid="notice-band"]')?.textContent).toBe(
+      "서버에 닿지 않아요",
+    );
+  });
+
   it("n분 전 기준 띠를 보이고 행동 버튼을 끄며 쓰기를 쌓지 않는다", async () => {
     const server = fakeServer();
     const host = await mount(memoryStore(STORED).store, server.fetcher);

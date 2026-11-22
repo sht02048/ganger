@@ -1,7 +1,7 @@
 import { CONTRACT_VERSION, V1_PATHS } from "@ganger/api";
 import { describe, expect, it, vi } from "vitest";
 
-import { IDENTITY_PATH, connectToServer, createV1Client } from "./client";
+import { IDENTITY_PATH, REQUEST_TIMEOUT_MS, connectToServer, createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { MINIMUM_SERVER_VERSION, isServerVersionSupported } from "./version";
 
@@ -67,6 +67,21 @@ describe("v1 응답 가르기", () => {
       ok: false,
       failure: { kind: "unreachable" },
     });
+  });
+
+  it("응답 없이 걸린 요청은 제한 시간 뒤 닿지 않음으로 읽는다", async () => {
+    vi.useFakeTimers();
+    try {
+      const hanging: FetchLike = (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        });
+      const reply = client(hanging).runners();
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+      expect(await reply).toEqual({ ok: false, failure: { kind: "unreachable" } });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("최소 버전보다 낮은 서버를 맞지 않는 서버로 읽는다", async () => {

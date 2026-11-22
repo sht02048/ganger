@@ -16,10 +16,16 @@ export type SessionPhase =
   | "incompatible"
   | "rejected";
 
+export interface DashboardEntry {
+  data: V1Dashboard;
+  fetchedAt: number;
+}
+
 export interface SessionState {
   phase: SessionPhase;
   transport: "stream" | "polling";
-  dashboards: ReadonlyMap<string, V1Dashboard>;
+  dashboards: ReadonlyMap<string, DashboardEntry>;
+  staleReason: "unreachable" | "server-error";
   workspaces: V1Workspaces["workspaces"];
   runners: V1Runner[];
   device: V1ThisDevice | null;
@@ -75,6 +81,7 @@ export class LiveSession {
     phase: "loading",
     transport: "polling",
     dashboards: new Map(),
+    staleReason: "unreachable",
     workspaces: [],
     runners: [],
     device: null,
@@ -164,7 +171,8 @@ export class LiveSession {
       return;
     }
     const dashboards = new Map(this.#state.dashboards);
-    dashboards.set(workspaceId, dashboard.data);
+    const fetchedAt = now();
+    dashboards.set(workspaceId, { data: dashboard.data, fetchedAt });
     this.#setState({
       ...this.#state,
       phase: "live",
@@ -173,7 +181,7 @@ export class LiveSession {
       runners: runners.data.runners,
       device: device.data,
       serverVersion: dashboard.serverVersion,
-      fetchedAt: now(),
+      fetchedAt,
     });
     if (this.#state.transport === "stream") this.#stopPolling();
   }
@@ -182,7 +190,11 @@ export class LiveSession {
     const phase = phaseOf(failure);
     const serverVersion =
       failure.kind === "incompatible" ? failure.serverVersion : this.#state.serverVersion;
-    this.#setState({ ...this.#state, phase, serverVersion });
+    const staleReason =
+      failure.kind === "server-error" || failure.kind === "unreachable"
+        ? failure.kind
+        : this.#state.staleReason;
+    this.#setState({ ...this.#state, phase, serverVersion, staleReason });
     if (phase === "rejected") {
       this.stop();
       this.#deps.onRejected();
