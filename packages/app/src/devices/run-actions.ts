@@ -143,6 +143,7 @@ export function toV1RunDetail(run: RunDetail): V1RunDetail {
     state: run.status.state,
     nextStep: runNextStep(nextStepInputOfDetail(run)),
     cancelling: run.cancelPending,
+    pausedSince: run.status.state === "paused" ? run.status.pausedSince : null,
     summary: summaryOf(run),
     pullRequest:
       run.pullRequest === null

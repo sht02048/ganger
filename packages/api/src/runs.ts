@@ -104,6 +104,7 @@ export const runDetailSchema = z.object({
   state: z.enum(["queued", "running", "paused", "waiting-for-input", "disconnected", "ended"]),
   nextStep: z.enum(V1_NEXT_STEPS),
   cancelling: z.boolean(),
+  pausedSince: z.iso.datetime().nullable(),
   summary: z.object({
     outcome: z.enum(["succeeded", "failed", "canceled"]).nullable(),
     agentResult: z

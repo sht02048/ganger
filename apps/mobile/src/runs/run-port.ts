@@ -80,6 +80,12 @@ function readFailure<Value>(failure: V1RunFailure): RunRead<Value> {
     : { kind: "unavailable" };
 }
 
+function writeFailure(failure: V1RunFailure): RunWriteOutcome {
+  if (failure.kind === "refused") return { kind: "refused", reason: failure.reason };
+  if (failure.kind === "invalid-request") return { kind: "failed", cause: "invalid-request" };
+  return { kind: "failed", cause: failure.kind === "unreachable" ? "unreachable" : "other" };
+}
+
 export interface RunPortSession {
   refresh(): Promise<void>;
   noteFailure(failure: V1Failure): void;
@@ -106,7 +112,16 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
     },
     write: async (run, write) => {
       const slot = slotOf(run.id, write);
-      const requestId = ids.idFor(slot, JSON.stringify(write));
+      let content = JSON.stringify(write);
+      if (write.action === "resume") {
+        const current = await client.runDetail(run.id);
+        if (!current.ok) {
+          note(current.failure);
+          return writeFailure(current.failure);
+        }
+        content = JSON.stringify([write, current.data.pausedSince]);
+      }
+      const requestId = ids.idFor(slot, content);
       const reply = await client.runAction(run.id, requestOf(write, requestId));
       if (reply.ok) {
         ids.forget(slot);
@@ -115,16 +130,9 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
       }
       const { failure } = reply;
       note(failure);
-      if (failure.kind === "refused") {
-        ids.forget(slot);
-        void session.refresh();
-        return { kind: "refused", reason: failure.reason };
-      }
-      if (failure.kind === "invalid-request") {
-        ids.forget(slot);
-        return { kind: "failed", cause: "invalid-request" };
-      }
-      return { kind: "failed", cause: failure.kind === "unreachable" ? "unreachable" : "other" };
+      if (failure.kind === "refused" || failure.kind === "invalid-request") ids.forget(slot);
+      if (failure.kind === "refused") void session.refresh();
+      return writeFailure(failure);
     },
   };
 }
@@ -175,6 +183,7 @@ export function demoRunDetail(run: DashboardRun): V1RunDetail {
     state: run.state,
     nextStep: demoNextStep(run),
     cancelling: run.cancelling,
+    pausedSince: null,
     summary: {
       outcome: ended?.summary ?? null,
       agentResult: ended?.agentResult ?? null,

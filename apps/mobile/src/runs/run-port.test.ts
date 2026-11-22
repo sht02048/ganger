@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { V1Failure, V1RunResult, V1RunsClient } from "../connection/client";
 import type { DashboardRun } from "../dashboard/model";
 import { REQUEST_ID_RETRY_WINDOW_MS, RunRequestIds } from "./request-ids";
-import { createLiveRunPort } from "./run-port";
+import { createLiveRunPort, demoRunDetail } from "./run-port";
 
 const run: DashboardRun = {
   id: "run-1",
@@ -26,12 +26,17 @@ const run: DashboardRun = {
 type ActionReply = V1RunResult<{ accepted: true }>;
 const sent: ActionReply = { ok: true, data: { accepted: true }, serverVersion: "0.4.0" };
 
-function world(replies: ActionReply[]) {
+function world(replies: ActionReply[], pause: { since: string | null } = { since: null }) {
   const runAction = vi.fn<V1RunsClient["runAction"]>(() =>
     Promise.resolve(replies.shift() ?? sent),
   );
   const client: V1RunsClient = {
-    runDetail: () => Promise.resolve({ ok: false, failure: { kind: "unreachable" } }),
+    runDetail: () =>
+      Promise.resolve({
+        ok: true,
+        data: { ...demoRunDetail(run), pausedSince: pause.since },
+        serverVersion: "0.4.0",
+      }),
     ticketLink: () => Promise.resolve({ ok: false, failure: { kind: "unreachable" } }),
     runAction,
   };
@@ -88,6 +93,18 @@ describe("앱의 쓰기 요청", () => {
     const w = world([]);
     expect(await w.port.ticketLink(run)).toEqual({ kind: "unavailable" });
     expect(w.session.noteFailure).not.toHaveBeenCalled();
+  });
+
+  it("재개는 같은 멈춤 안에서만 ID를 다시 쓰고, 다시 멈춘 런에는 새 ID를 쓴다", async () => {
+    const pause = { since: "2026-11-23T00:00:00.000Z" };
+    const lost: ActionReply = { ok: false, failure: { kind: "unreachable" } };
+    const w = world([lost, lost, sent], pause);
+    await w.port.write(run, { action: "resume" });
+    await w.port.write(run, { action: "resume" });
+    expect(w.idOf(1)).toBe(w.idOf(0));
+    pause.since = "2026-11-23T00:00:30.000Z";
+    await w.port.write(run, { action: "resume" });
+    expect(w.idOf(2)).not.toBe(w.idOf(0));
   });
 
   it("토큰이 거절되면 세션에 알린다", async () => {
