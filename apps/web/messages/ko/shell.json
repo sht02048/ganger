@@ -5,7 +5,32 @@
   "workspace": {
     "switch": "Workspace 바꾸기, 지금 {workspace}",
     "all": "전체",
-    "none": "Workspace 없음"
+    "none": "Workspace 없음",
+    "new": "새 Workspace",
+    "create": {
+      "title": "새 Workspace",
+      "name": "Workspace 이름",
+      "namePlaceholder": "예: Acme Commerce",
+      "projects": "넣을 트래커 프로젝트",
+      "projectsHint": "하나 이상 골라요. 한 트래커 프로젝트는 Workspace 하나에만 넣을 수 있어요.",
+      "inOther": "{workspace}에 있어요",
+      "allTaken": "모든 트래커 프로젝트가 다른 Workspace에 있어요. <link>Settings</link>에서 빼면 넣을 수 있어요.",
+      "noConnections": "트래커 연결이 없어요. <link>Settings</link>에서 먼저 추가해 주세요.",
+      "loading": "트래커 프로젝트를 읽는 중이에요",
+      "loadFailed": "트래커 프로젝트를 읽지 못했어요. 다시 읽어 주세요.",
+      "retry": "다시 읽기",
+      "groupFailed": "이 연결의 프로젝트를 읽지 못했어요. Settings에서 연결을 확인해 주세요.",
+      "groupEmpty": "이 연결에 트래커 프로젝트가 없어요.",
+      "close": "닫기",
+      "submit": "만들기",
+      "creating": "만드는 중",
+      "created": "{name} Workspace를 만들었어요",
+      "error": {
+        "not-found": "트래커 연결을 찾지 못했어요. Settings에서 연결을 확인해 주세요.",
+        "taken": "고른 프로젝트가 방금 다른 Workspace에 들어갔어요. 다시 골라 주세요.",
+        "failed": "만들지 못했어요. 서버가 켜져 있는지 확인하고 다시 해 주세요."
+      }
+    }
   },
   "navigationPending": "화면을 여는 중이에요",
   "screenError": {

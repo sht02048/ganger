@@ -32,6 +32,7 @@ import {
   MenuRadio,
   MenuRadioOption,
   MenuSeparator,
+  PlusIcon,
   PanelBlock,
   PanelFooter,
   PanelHeader,
@@ -440,9 +441,17 @@ export function ComponentSections() {
                 <MenuRadio value={workspace} onValueChange={setWorkspace}>
                   <MenuRadioOption value="commerce">{t("menu.commerce")}</MenuRadioOption>
                   <MenuRadioOption value="labs">{t("menu.labs")}</MenuRadioOption>
-                  <MenuSeparator />
+                  <MenuSeparator strong />
                   <MenuRadioOption value="all">{t("menu.all")}</MenuRadioOption>
                 </MenuRadio>
+                <MenuSeparator strong />
+                <MenuItem
+                  value="new"
+                  onSelect={() => showToast(t("menu.picked", { action: t("menu.newWorkspace") }))}
+                >
+                  <PlusIcon />
+                  {t("menu.newWorkspace")}
+                </MenuItem>
               </Menu>
             </div>
             <div {...stylex.props(styles.narrow)}>

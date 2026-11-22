@@ -80,8 +80,7 @@ export type SettingsLinkTarget =
   | { kind: "connection"; connectionId: string }
   | { kind: "runners" }
   | { kind: "mcp" }
-  | { kind: "settings"; rowId?: string }
-  | { kind: "createWorkspace" };
+  | { kind: "settings"; rowId?: string };
 
 export type RenderSettingsLink = (
   target: SettingsLinkTarget,
@@ -103,8 +102,6 @@ export function settingsHref(target: SettingsLinkTarget, ws: string | undefined)
       return `/settings/mcp${search}`;
     case "settings":
       return `/settings${search}${target.rowId === undefined ? "" : `#${encodeURIComponent(target.rowId)}`}`;
-    case "createWorkspace":
-      return `/onboarding?${new URLSearchParams({ step: "4", from: "settings", ...(ws === undefined ? {} : { ws }) }).toString()}`;
   }
 }
 
@@ -161,6 +158,7 @@ export interface SettingsScreenProps {
   workspaceView: WorkspaceView;
   ws: string | undefined;
   actions: SettingsActions;
+  onCreateWorkspace: (focusBack: HTMLElement | null) => void;
   renderLink?: RenderSettingsLink;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
   logs?: ReactNode;
@@ -172,6 +170,7 @@ export function SettingsScreen({
   workspaceView,
   ws,
   actions,
+  onCreateWorkspace,
   renderLink = plainSettingsLink(ws),
   renderGuard,
   logs,
@@ -196,7 +195,7 @@ export function SettingsScreen({
         >
           <SettingsSection id="workspace" title={t("sections.workspace")}>
             {workspace === null ? (
-              <NoWorkspace view={workspaceView} renderLink={renderLink} />
+              <NoWorkspace view={workspaceView} onCreate={onCreateWorkspace} />
             ) : (
               <WorkspaceRows workspace={workspace} actions={actions} />
             )}
@@ -272,12 +271,12 @@ export function sectionProblems(
   return problems;
 }
 
-function NoWorkspace({
+export function NoWorkspace({
   view,
-  renderLink,
+  onCreate,
 }: {
   view: WorkspaceView;
-  renderLink: RenderSettingsLink;
+  onCreate: (focusBack: HTMLElement | null) => void;
 }) {
   const t = useTranslations("settings.workspace");
   return (
@@ -285,12 +284,9 @@ function NoWorkspace({
       <SettingsRow
         label={view === "all" ? t("all") : t("none")}
         control={
-          view === "all"
-            ? undefined
-            : renderLink(
-                { kind: "createWorkspace" },
-                { ...stylex.props(linkStyles("action")), children: t("create") },
-              )
+          view === "all" ? undefined : (
+            <Button onClick={(event) => onCreate(event.currentTarget)}>{t("create")}</Button>
+          )
         }
       />
     </SettingsGroup>

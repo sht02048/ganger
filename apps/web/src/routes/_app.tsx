@@ -9,6 +9,7 @@ import { z } from "zod";
 import { ChangeEventsSubscription } from "../change-events/subscription";
 import { InAppLinks } from "../navigation/in-app-links";
 import { AppShell } from "../shell/app-shell";
+import { CreateWorkspaceProvider } from "../shell/create-workspace";
 import { shellQuery, useShell } from "../shell/shell-query";
 import { resolveWorkspace } from "@ganger/app/shell/model";
 
@@ -25,17 +26,19 @@ function AppLayout() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const navigate = useNavigate();
   return (
-    <AppShell
-      shell={shell}
-      workspace={resolveWorkspace(shell.workspaces, ws)}
-      pathname={pathname}
-      onWorkspaceChange={(next) => {
-        void navigate({ to: ".", search: { ws: next } });
-      }}
-    >
-      <ChangeEventsSubscription />
-      <InAppLinks />
-      <Outlet />
-    </AppShell>
+    <CreateWorkspaceProvider>
+      <AppShell
+        shell={shell}
+        workspace={resolveWorkspace(shell.workspaces, ws)}
+        pathname={pathname}
+        onWorkspaceChange={(next) => {
+          void navigate({ to: ".", search: { ws: next } });
+        }}
+      >
+        <ChangeEventsSubscription />
+        <InAppLinks />
+        <Outlet />
+      </AppShell>
+    </CreateWorkspaceProvider>
   );
 }

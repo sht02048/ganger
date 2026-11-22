@@ -194,6 +194,7 @@ function render(page: SettingsPage, runnerIssues = 0): string {
       workspaceView={page.workspace === null ? "all" : "one"}
       ws={page.workspace?.general.id}
       actions={noopActions}
+      onCreateWorkspace={() => {}}
     />,
     settingsMessages,
   );
@@ -699,12 +700,6 @@ describe("Settings 돌아가기 자리(0181)", () => {
 
   it("줄을 정하지 않으면 해시 없이 Settings 로 간다", () => {
     expect(settingsHref({ kind: "settings" }, undefined)).toBe("/settings");
-  });
-
-  it("Workspace 만들기는 Settings 에서 왔다는 표시와 Workspace 를 넘긴다", () => {
-    expect(settingsHref({ kind: "createWorkspace" }, "ws-a")).toBe(
-      "/onboarding?step=4&from=settings&ws=ws-a",
-    );
   });
 });
 
@@ -1379,14 +1374,14 @@ describe("Settings 화면", () => {
         workspaceView="none"
         ws={undefined}
         actions={noopActions}
+        onCreateWorkspace={() => {}}
       />,
       settingsMessages,
     );
     const workspace = sectionOf(none, "workspace");
     expect(textOf(workspace)).toContain("아직 Workspace가 없어요");
-    expect(workspace).toMatch(
-      /href="\/onboarding\?step=4&amp;from=settings[^"]*"[^>]*>Workspace 만들기</,
-    );
+    expect(workspace).toMatch(/<button[^>]*>Workspace 만들기</);
+    expect(workspace).not.toContain("/onboarding");
     expect(none).not.toContain('name="maxRunMinutes"');
     expect(none).not.toContain('<section id="projects"');
     expect(none).not.toContain('href="#projects"');

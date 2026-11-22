@@ -17,6 +17,7 @@ import {
 } from "../../settings/settings-query";
 import { routerSettingsLink } from "../../settings/settings-link";
 import { useSettingsActions, useSettingsQueryRefresh } from "../../settings/use-settings-actions";
+import { useOpenCreateWorkspace } from "../../shell/create-workspace";
 import { useShell } from "../../shell/shell-query";
 import { ScreenError } from "../../shell/screen-error";
 
@@ -48,6 +49,7 @@ function SettingsRoute() {
   const actions = useSettingsActions(useSettingsQueryRefresh());
   const { data: logView } = useSuspenseQuery(logSettingsQuery);
   const logActions = useLogActions();
+  const openCreateWorkspace = useOpenCreateWorkspace();
   return (
     <ScreenMessages messages={settingsMessages}>
       <SettingsScreen
@@ -56,6 +58,7 @@ function SettingsRoute() {
         workspaceView={resolveWorkspace(shell.workspaces, ws).kind}
         ws={ws}
         actions={actions}
+        onCreateWorkspace={openCreateWorkspace}
         renderLink={routerSettingsLink}
         renderGuard={(guard) => <NavigationGuard {...guard} />}
         logs={<LogSection view={logView} actions={logActions} />}

@@ -234,6 +234,7 @@
     "commerce": "Acme Commerce",
     "labs": "Acme Labs",
     "all": "전체",
+    "newWorkspace": "새 Workspace",
     "actionsTrigger": "런 작업",
     "retry": "새 런 시작",
     "cancel": "런 멈추기",

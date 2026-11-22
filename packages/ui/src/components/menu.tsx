@@ -9,7 +9,7 @@ import {
   MenuSeparator as SdkMenuSeparator,
   MenuTrigger,
 } from "@ui-sdk/react/menu";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import { cx } from "../cx";
 import { colors, fontWeight, motion, radius, size, space } from "../tokens.stylex";
 import { CheckIcon, ChevronDownIcon } from "./icons";
@@ -20,15 +20,24 @@ export interface MenuProps {
   label?: string;
   describedBy?: string;
   variant?: "default" | "rail" | "icon";
+  triggerRef?: Ref<HTMLButtonElement>;
   children: ReactNode;
 }
 
-export function Menu({ trigger, label, describedBy, variant = "default", children }: MenuProps) {
+export function Menu({
+  trigger,
+  label,
+  describedBy,
+  variant = "default",
+  triggerRef,
+  children,
+}: MenuProps) {
   const rail = variant === "rail";
   const icon = variant === "icon";
   return (
     <SdkMenu>
       <MenuTrigger
+        {...(triggerRef === undefined ? {} : { ref: triggerRef })}
         {...(label === undefined ? {} : { "aria-label": label })}
         {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
         className={(s) =>
@@ -131,8 +140,8 @@ export function MenuRadioOption({ value, children }: { value: string; children: 
   );
 }
 
-export function MenuSeparator() {
-  return <SdkMenuSeparator className={cx(styles.separator)} />;
+export function MenuSeparator({ strong = false }: { strong?: boolean }) {
+  return <SdkMenuSeparator className={cx(styles.separator, strong && styles.separatorStrong)} />;
 }
 
 const styles = stylex.create({
@@ -206,4 +215,5 @@ const styles = stylex.create({
     marginBlock: space.px2,
     backgroundColor: colors.borderSubtle,
   },
+  separatorStrong: { backgroundColor: colors.borderDefault },
 });
