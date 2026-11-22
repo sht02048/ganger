@@ -186,9 +186,18 @@ describe("Runs 화면(브라우저, 0056)", () => {
     await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
     await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(true);
 
+    await page.getByRole("button", { name: runsJson.panel.close }).click();
+    await dialog.waitFor({ state: "detached" });
+    await expect
+      .poll(() => runningLine(page).evaluate((line) => line === document.activeElement))
+      .toBe(true);
+
+    await runningLine(page).click();
+    await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(true);
     await page.reload();
     await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-    await page.getByRole("dialog").getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
+    await page.waitForLoadState("networkidle");
+    await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
 
     await page.getByRole("button", { name: runsJson.panel.close }).click();
     await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(false);
