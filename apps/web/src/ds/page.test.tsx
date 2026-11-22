@@ -32,6 +32,7 @@ describe("/ds 서버 렌더", () => {
       "form",
       "tooltip",
       "dialog",
+      "dependencyGraph",
       "toast",
       "surfaces",
       "statusDot",

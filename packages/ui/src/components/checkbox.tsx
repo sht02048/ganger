@@ -15,6 +15,40 @@ export interface CheckboxProps {
   value?: string;
 }
 
+export interface CheckboxControlProps {
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  disabled?: boolean | undefined;
+  name?: string | undefined;
+  value?: string | undefined;
+  describedBy?: string | undefined;
+}
+
+export function CheckboxControl({
+  checked,
+  onCheckedChange,
+  disabled,
+  name,
+  value,
+  describedBy,
+}: CheckboxControlProps) {
+  return (
+    <SdkCheckbox
+      checked={checked}
+      {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
+      onCheckedChange={(next) => onCheckedChange(next === true)}
+      {...(disabled === undefined ? {} : { disabled })}
+      {...(name === undefined ? {} : { name })}
+      {...(value === undefined ? {} : { value })}
+      className={(s) => cx(styles.box, s.checked && styles.checked, s.disabled && styles.disabled)}
+    >
+      <CheckboxIndicator className={cx(styles.indicator)}>
+        <CheckIcon />
+      </CheckboxIndicator>
+    </SdkCheckbox>
+  );
+}
+
 export function Checkbox({
   label,
   description,
@@ -29,21 +63,14 @@ export function Checkbox({
   return (
     <div {...stylex.props(styles.row, disabled === true && styles.rowDisabled)}>
       <label {...stylex.props(styles.label, disabled === true && styles.labelCursorDisabled)}>
-        <SdkCheckbox
+        <CheckboxControl
           checked={checked}
-          {...(hasDescription ? { "aria-describedby": descriptionId } : {})}
-          onCheckedChange={(next) => onCheckedChange(next === true)}
-          {...(disabled === undefined ? {} : { disabled })}
-          {...(name === undefined ? {} : { name })}
-          {...(value === undefined ? {} : { value })}
-          className={(s) =>
-            cx(styles.box, s.checked && styles.checked, s.disabled && styles.disabled)
-          }
-        >
-          <CheckboxIndicator className={cx(styles.indicator)}>
-            <CheckIcon />
-          </CheckboxIndicator>
-        </SdkCheckbox>
+          onCheckedChange={onCheckedChange}
+          disabled={disabled}
+          name={name}
+          value={value}
+          describedBy={hasDescription ? descriptionId : undefined}
+        />
         <span {...stylex.props(disabled === true ? styles.textDisabled : styles.text)}>
           {label}
         </span>

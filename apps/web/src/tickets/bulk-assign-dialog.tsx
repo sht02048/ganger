@@ -1,22 +1,37 @@
 import * as stylex from "@stylexjs/stylex";
-import { Button, Checkbox, Dialog, DialogClose, Text, VisuallyHidden, showToast } from "@ganger/ui";
+import {
+  Button,
+  DependencyGraph,
+  Dialog,
+  DialogClose,
+  Spinner,
+  Text,
+  VisuallyHidden,
+  showToast,
+} from "@ganger/ui";
+import type { DependencyGraphNode } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
 import type { BulkAssignInput, BulkAssignResult } from "@ganger/app/tickets/assign";
 import {
-  BLOCKER_UNREAD,
   blockerReadTargets,
-  blockerWaitHint,
   bulkAssignmentsFor,
   bulkChoices,
   selectedBulkIds,
 } from "@ganger/app/tickets/bulk-assign";
+import type { BlockerHint, BulkAssignItemResult } from "@ganger/app/tickets/bulk-assign";
+import {
+  blockerHintOfReading,
+  buildBulkGraph,
+  bulkGraphState,
+} from "@ganger/app/tickets/bulk-assign-graph";
 import type {
-  BlockerHint,
-  BulkAssignItemResult,
-  BulkChoice,
-} from "@ganger/app/tickets/bulk-assign";
+  BlockerReading,
+  BulkGraph,
+  BulkGraphTicket,
+  BulkNodeNote,
+} from "@ganger/app/tickets/bulk-assign-graph";
 import type { TicketGroup } from "@ganger/app/tickets/groups";
 import { ticketId } from "@ganger/app/tickets/merge";
 import type { TicketBlockersResult, TicketView } from "@ganger/app/tickets/model";
@@ -33,29 +48,28 @@ export interface BulkAssignDialogProps {
   finalFocus: () => HTMLElement | null;
 }
 
-async function readBlockerHint(
+async function readBlockers(
   read: BulkAssignDialogProps["onReadBlockers"],
   ticket: TicketView,
-): Promise<BlockerHint | null> {
+): Promise<BlockerReading> {
   try {
     const result = await read(ticket);
-    return result.ok ? blockerWaitHint(result.blockers) : BLOCKER_UNREAD;
+    return result.ok ? { kind: "read", blockers: result.blockers } : { kind: "unread" };
   } catch {
-    return BLOCKER_UNREAD;
+    return { kind: "unread" };
   }
 }
 
-function useBlockerHints(
+function useBlockerReadings(
   targets: ReadonlyArray<TicketView>,
   onReadBlockers: BulkAssignDialogProps["onReadBlockers"],
   open: boolean,
-): { hints: ReadonlyMap<string, BlockerHint>; reading: boolean } {
-  const [hints, setHints] = useState<ReadonlyMap<string, BlockerHint>>(new Map());
-  const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
+): { readings: ReadonlyMap<string, BlockerReading>; reading: boolean } {
+  const [readings, setReadings] = useState<ReadonlyMap<string, BlockerReading>>(new Map());
   const requested = useRef(new Set<string>());
   const queue = useRef<TicketView[]>([]);
   const readers = useRef(0);
-  const readBlockers = useRef(onReadBlockers);
+  const latestRead = useRef(onReadBlockers);
   const readsAllowed = useRef(false);
   useEffect(() => {
     readsAllowed.current = open;
@@ -74,10 +88,9 @@ function useBlockerHints(
         while (readsAllowed.current) {
           const ticket = queue.current.shift();
           if (ticket === undefined) return;
-          const hint = await readBlockerHint(readBlockers.current, ticket);
+          const result = await readBlockers(latestRead.current, ticket);
           if (!readsAllowed.current) return;
-          if (hint !== null) setHints((current) => new Map(current).set(ticket.id, hint));
-          setSettled((current) => new Set(current).add(ticket.id));
+          setReadings((current) => new Map(current).set(ticket.id, result));
         }
       } finally {
         readers.current -= 1;
@@ -88,7 +101,16 @@ function useBlockerHints(
       void readNext();
     }
   }, [targets]);
-  return { hints, reading: targets.some((ticket) => !settled.has(ticket.id)) };
+  return { readings, reading: targets.some((ticket) => !readings.has(ticket.id)) };
+}
+
+function hintsOf(readings: ReadonlyMap<string, BlockerReading>): ReadonlyMap<string, BlockerHint> {
+  const hints = new Map<string, BlockerHint>();
+  for (const [id, result] of readings) {
+    const hint = blockerHintOfReading(result);
+    if (hint !== null) hints.set(id, hint);
+  }
+  return hints;
 }
 
 type Outcome = { kind: "results"; results: BulkAssignItemResult[] } | { kind: "failed" } | null;
@@ -105,8 +127,13 @@ export function BulkAssignDialog({
   const t = useTranslations("tickets.bulkAssign");
   const tResult = useTranslations("tickets.bulkAssign.result");
   const targets = useMemo(() => blockerReadTargets(group.children), [group.children]);
-  const { hints, reading } = useBlockerHints(targets, onReadBlockers, open);
-  const choices = useMemo(() => bulkChoices(group.children, hints), [group.children, hints]);
+  const { readings, reading } = useBlockerReadings(targets, onReadBlockers, open);
+  const choices = useMemo(
+    () => bulkChoices(group.children, hintsOf(readings)),
+    [group.children, readings],
+  );
+  const graph = useMemo(() => buildBulkGraph(choices, readings), [choices, readings]);
+  const [assigned, setAssigned] = useState<ReadonlySet<string>>(new Set());
   const [firstSelected] = useState<ReadonlySet<string>>(
     () =>
       new Set(
@@ -134,6 +161,11 @@ export function BulkAssignDialog({
         setPending(false);
         const succeeded = results.filter((result) => result.ok);
         if (succeeded.length > 0) onAssigned();
+        setAssigned((current) => {
+          const next = new Set(current);
+          for (const result of succeeded) next.add(ticketId(result.connection, result.ticketKey));
+          return next;
+        });
         setOperatorChoices((current) => {
           const next = new Map(current);
           for (const result of succeeded)
@@ -161,6 +193,7 @@ export function BulkAssignDialog({
       description={t("description", { key: group.root.key, title: group.root.title })}
       open={open}
       scrollBody
+      wide
       finalFocus={finalFocus}
       onOpenChange={(next) => {
         if (!next && pending) return;
@@ -184,78 +217,131 @@ export function BulkAssignDialog({
         </>
       }
     >
-      <BulkChoiceList
-        choices={choices}
-        selected={selected}
-        disabled={pending}
-        onToggle={(id, checked) => {
-          setOperatorChoices((current) => new Map(current).set(id, checked));
-        }}
-      />
+      {reading ? (
+        <div role="status" {...stylex.props(styles.reading)}>
+          <Spinner />
+          <Text variant="ui" tone="muted">
+            {t("checkingBlockers")}
+          </Text>
+        </div>
+      ) : (
+        <BulkAssignGraph
+          graph={graph}
+          selected={selected}
+          assigned={assigned}
+          disabled={pending}
+          onToggle={(id, checked) => {
+            setOperatorChoices((current) => new Map(current).set(id, checked));
+          }}
+        />
+      )}
       <BulkAssignAnnouncement outcome={outcome} />
     </Dialog>
   );
 }
 
-export function BulkChoiceList({
-  choices,
+export function BulkAssignGraph({
+  graph,
   selected,
+  assigned,
   disabled,
   onToggle,
 }: {
-  choices: ReadonlyArray<BulkChoice>;
+  graph: BulkGraph;
   selected: ReadonlySet<string>;
+  assigned: ReadonlySet<string>;
   disabled: boolean;
   onToggle: (id: string, checked: boolean) => void;
 }) {
   const t = useTranslations("tickets.bulkAssign");
   const tHint = useTranslations("tickets.bulkAssign.hint");
-  const blockerHintOf = (hint: BlockerHint | null): string | null => {
-    if (hint === null) return null;
-    switch (hint.state) {
-      case "waiting":
-        return tHint("waiting", { key: hint.key, rest: hint.rest });
-      case "canceled":
-        return tHint("blocker-canceled", { key: hint.key, rest: hint.rest });
-      case "unread":
+  const tNote = useTranslations("tickets.bulkAssign.note");
+  const state = bulkGraphState(graph, selected, assigned);
+  const noteText = (note: BulkNodeNote): string => {
+    switch (note.kind) {
+      case "now":
+        return tNote("now");
+      case "after":
+        return tNote("after", { key: note.key, rest: note.rest });
+      case "held":
+        return tNote("held", { key: note.key, rest: note.rest });
+      case "cycle":
+        return tNote("cycle", { key: note.key, rest: note.rest });
+      case "blocker-canceled":
+        return tHint("blocker-canceled", { key: note.key, rest: note.rest });
+      case "blocker-unread":
         return tHint("blocker-unread");
     }
   };
-  const hintOf = (choice: BulkChoice): string | null => {
-    switch (choice.kind) {
-      case "ready":
-        return null;
-      case "waiting":
-      case "blocker-canceled":
-      case "blocker-unread":
-        return blockerHintOf(choice.waitingOn);
-      case "failed":
-      case "canceled": {
-        const blocker = blockerHintOf(choice.waitingOn);
-        const run = tHint(choice.kind);
-        return blocker === null ? run : tHint("runAndBlocker", { run, blocker });
-      }
-      case "succeeded":
-      case "done":
-      case "no-mapping":
-        return tHint(choice.kind);
-    }
+  const descriptionOf = (ticket: BulkGraphTicket): string => {
+    const note = noteText(state.noteOf(ticket));
+    const { kind } = ticket.choice;
+    if (kind !== "failed" && kind !== "canceled") return note;
+    return tHint("runAndBlocker", { run: tHint(kind), blocker: note });
   };
+  const columnLabel = (column: number): string => {
+    if (column === 0) return t("columnNow");
+    return column === 1 ? t("columnNext") : t("columnLater");
+  };
+  const nodes: DependencyGraphNode[] = [
+    ...graph.outside.map((blocker): DependencyGraphNode => ({
+      id: blocker.id,
+      column: blocker.column,
+      row: blocker.row,
+      ticketKey:
+        blocker.key === null
+          ? t("outsideUnreadKey")
+          : t("outsideKey", { key: blocker.key, state: blocker.stateName ?? "" }),
+      title: blocker.title ?? t("outsideUnreadTitle"),
+      tone: blocker.stuck ? "problem" : "default",
+    })),
+    ...graph.tickets.map((ticket): DependencyGraphNode => ({
+      id: ticket.id,
+      column: ticket.column,
+      row: ticket.row,
+      ticketKey: ticket.choice.ticket.key,
+      title: ticket.choice.ticket.title,
+      tone: state.blocked.has(ticket.id) ? "problem" : "default",
+      check: {
+        checked: selected.has(ticket.id),
+        disabled,
+        description: descriptionOf(ticket),
+        onCheckedChange: (checked) => onToggle(ticket.id, checked),
+      },
+    })),
+  ];
   return (
-    <div role="group" aria-label={t("listLabel")} {...stylex.props(styles.list)}>
-      {choices.map((choice) => {
-        const hint = hintOf(choice);
-        return (
-          <Checkbox
-            key={choice.ticket.id}
-            label={`${choice.ticket.key} ${choice.ticket.title}`}
-            checked={choice.selectable && selected.has(choice.ticket.id)}
-            disabled={disabled || !choice.selectable}
-            onCheckedChange={(checked) => onToggle(choice.ticket.id, checked)}
-            {...(hint === null ? {} : { description: hint })}
-          />
-        );
-      })}
+    <div {...stylex.props(styles.graph)}>
+      {nodes.length === 0 ? null : (
+        <DependencyGraph
+          label={t("listLabel")}
+          scrollLabel={t("scrollLabel")}
+          columns={Array.from({ length: graph.columnCount }, (_, column) => ({
+            number: column + 1,
+            label: columnLabel(column),
+          }))}
+          nodes={nodes}
+          edges={graph.links.map((link) => ({
+            from: link.from,
+            to: link.to,
+            tone: state.toneOf(link),
+          }))}
+          {...(graph.dividerRow === null ? {} : { dividerRow: graph.dividerRow })}
+        />
+      )}
+      {graph.cycles.map((keys) => (
+        <Text key={keys.join(",")} variant="ui" tone="problem" as="p">
+          {t("cycle", { keys: keys.join(", ") })}
+        </Text>
+      ))}
+      <Text variant="meta" as="p">
+        {t("legend")}
+      </Text>
+      {graph.unavailableCount === 0 ? null : (
+        <Text variant="meta" as="p">
+          {t("unavailable", { count: graph.unavailableCount })}
+        </Text>
+      )}
     </div>
   );
 }
@@ -304,6 +390,7 @@ export function BulkAssignAnnouncement({ outcome }: { outcome: Outcome }) {
 }
 
 const styles = stylex.create({
-  list: { display: "flex", flexDirection: "column", gap: space.px2 },
   outcome: { display: "flex", flexDirection: "column", gap: space.s1 },
+  graph: { display: "flex", flexDirection: "column", gap: space.s3 },
+  reading: { display: "flex", alignItems: "center", gap: space.s2, paddingBlock: space.s6 },
 });

@@ -25,6 +25,7 @@
     "tooltip": "Tooltip",
     "issueList": "IssueList",
     "dialog": "Dialog",
+    "dependencyGraph": "DependencyGraph",
     "toast": "Toast",
     "surfaces": "면 역할",
     "statusDot": "StatusDot",
@@ -288,6 +289,17 @@
     "iconAction": "닫기",
     "linkLabel": "Runners",
     "linkContent": "Runners, Runner Issue 1개"
+  },
+  "dependencyGraph": {
+    "note": "선행 관계를 상자와 화살표로 보여요. 앞 상자의 체크를 풀면 뒤 상자가 빨간 테두리로 바뀌어요.",
+    "label": "관계도 예시",
+    "first": "바로",
+    "second": "다음",
+    "firstTicket": "lane 예산 정하기",
+    "secondTicket": "tick 요청 보내기",
+    "outsideTicket": "큐 이름 바꾸기",
+    "firstNote": "바로 시작해요",
+    "secondNote": "ACME-11 뒤에 시작해요"
   },
   "dialog": {
     "note": "되돌릴 수 없는 행동을 확인할 때만 써요.",
