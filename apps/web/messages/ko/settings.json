@@ -10,6 +10,7 @@
     "projects": "프로젝트",
     "connections": "연결",
     "server": "이 서버",
+    "devices": "기기 연결",
     "logs": "서버 로그와 진단",
     "advanced": "고급"
   },
@@ -653,5 +654,31 @@
     "review": "공개하기 전에 파일을 직접 열어 확인해 주세요.",
     "made": "{name}을 만들었어요.",
     "makeFailed": "진단 묶음을 만들지 못했어요. 다시 해 주세요."
+  },
+  "devices": {
+    "connect": "다른 기기 연결",
+    "connectDetail": "Ganger 앱으로 QR을 읽으면 이 서버에 연결돼요.",
+    "showQr": "QR 띄우기",
+    "starting": "QR을 만드는 중…",
+    "startFailed": "QR을 만들지 못했어요. 다시 해 주세요.",
+    "needsHttps": "QR을 띄우려면 다른 기기에서 열 주소를 https로 정해 주세요.",
+    "goToAddress": "주소 정하러 가기",
+    "qrLabel": "기기 연결 QR",
+    "qrNote": "10분 동안 한 번만 쓸 수 있어요. 이 QR을 다른 사람에게 보여 주지 마세요.",
+    "expired": "QR을 쓸 수 있는 10분이 지났어요. 새 QR을 만들어 주세요.",
+    "renew": "새 QR 만들기",
+    "close": "닫기",
+    "connected": "{name} 기기를 연결했어요.",
+    "emptyLabel": "연결한 기기",
+    "empty": "아직 연결한 기기가 없어요.",
+    "deviceDetail": "연결 {connected} · 마지막 접속 {seen}",
+    "neverSeen": "없음",
+    "remove": "지우기",
+    "removeTrigger": "{name} 기기 지우기",
+    "removeTitle": "{name} 기기를 지울까요?",
+    "removeBody": "이 기기의 연결을 바로 끊어요. 다만 웹 화면에는 로그인이 없어서, 이 기기가 서버 주소에 닿는 네트워크에 있으면 브라우저로는 계속 열 수 있어요.",
+    "cancel": "취소",
+    "removed": "{name} 기기를 지웠어요.",
+    "removeFailed": "기기를 지우지 못했어요. 다시 해 주세요."
   }
 }

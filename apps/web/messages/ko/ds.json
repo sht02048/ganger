@@ -44,6 +44,7 @@
     "choices": "라디오·여러 줄 입력",
     "question": "에이전트 질문",
     "codeBlock": "코드 블록",
+    "qrCode": "QR 코드",
     "dataTable": "데이터 표",
     "outcomes": "결과 막대·차트",
     "steps": "단계",
@@ -516,6 +517,11 @@
       "send": "보내기",
       "sending": "보내는 중…",
       "failed": "답을 보내지 못했어요. 다시 보내 주세요."
+    },
+    "qrCode": {
+      "note": "기기 연결처럼 다른 기기가 읽을 값은 QrCode예요. 어두운 화면에서도 밝은 바탕을 유지해 카메라가 읽어요.",
+      "label": "예시 QR",
+      "value": "https://example.com"
     },
     "codeBlock": {
       "note": "명령·출력·로그는 CodeBlock이에요. 복사할 명령은 tone=\"command\", 긴 로그는 scroll과 label을 줘요.",

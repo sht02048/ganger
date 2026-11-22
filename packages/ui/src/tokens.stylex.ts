@@ -30,6 +30,9 @@ export const colors = stylex.defineVars({
   meterFill: "oklch(0.62 0 0)",
   meterTrack: "oklch(0.27 0 0)",
 
+  qrForeground: "oklch(0.14 0 0)",
+  qrBackground: "oklch(0.97 0 0)",
+
   textPrimary: "oklch(0.97 0.003 85)",
   textSecondary: "oklch(0.8 0.004 85)",
   textTertiary: "oklch(0.68 0.004 85)",

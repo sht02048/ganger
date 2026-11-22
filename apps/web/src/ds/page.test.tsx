@@ -51,6 +51,7 @@ describe("/ds 서버 렌더", () => {
       "choices",
       "question",
       "codeBlock",
+      "qrCode",
       "dataTable",
       "outcomes",
       "steps",
