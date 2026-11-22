@@ -6,8 +6,10 @@ import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type { ChangeKind } from "@ganger/db/change-events-model";
 import { createWorkspace, getWorkspaceProjectChoices } from "../server/onboarding-functions";
+import { openEditorField } from "../settings/blocked-editor";
 import { invalidateChanged } from "../settings/settings-query";
 import { CreateWorkspaceDialog } from "./create-workspace-dialog";
+import { isAtCreatedWorkspace } from "./create-workspace-model";
 import type {
   CreateWorkspaceInput,
   CreateWorkspaceResult,
@@ -16,8 +18,6 @@ import type {
 
 const WORKSPACE_CREATED: ReadonlyArray<ChangeKind> = ["workspace"];
 const PROJECTS_HEADING_ID = "projects-heading";
-
-const UNSAVED_EDITOR_FIELD = "[data-editing] input:not([readonly]), [data-editing] button";
 
 function workspaceProjectChoicesQuery(session: number) {
   return queryOptions({
@@ -62,10 +62,8 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const choices = useMemo((): ProjectChoices => {
-    if (choicesQuery.isError) return { kind: "failed" };
-    return choicesQuery.data === undefined
-      ? { kind: "loading" }
-      : { kind: "ready", groups: choicesQuery.data };
+    if (choicesQuery.data !== undefined) return { kind: "ready", groups: choicesQuery.data };
+    return choicesQuery.isError ? { kind: "failed" } : { kind: "loading" };
   }, [choicesQuery.data, choicesQuery.isError]);
 
   const create = async (input: CreateWorkspaceInput): Promise<CreateWorkspaceResult> => {
@@ -78,7 +76,9 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
     created.current = true;
     setOpen(false);
     void navigate({ to: "/settings", search: { ws: result.id }, hash: "projects" }).then(() => {
-      document.getElementById(PROJECTS_HEADING_ID)?.focus();
+      if (isAtCreatedWorkspace(window.location.href, result.id)) {
+        document.getElementById(PROJECTS_HEADING_ID)?.focus();
+      }
     });
     return result;
   };
@@ -92,8 +92,7 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
         onOpenChange={setOpen}
         finalFocus={() =>
           (created.current
-            ? (document.querySelector<HTMLElement>(UNSAVED_EDITOR_FIELD) ??
-              document.getElementById(PROJECTS_HEADING_ID))
+            ? (openEditorField() ?? document.getElementById(PROJECTS_HEADING_ID))
             : null) ?? focusBack.current
         }
         choices={choices}

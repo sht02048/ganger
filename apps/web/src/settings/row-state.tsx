@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslations } from "use-intl";
+import { ROW_EDITOR_SELECTOR, blockedEditorField } from "./blocked-editor";
 import type { UnsavedGuard } from "./navigation-guard";
 import { ReportUnsavedContext, useReason, type ActionResult } from "./settings-screen";
 
@@ -83,11 +84,8 @@ const EditorContext = createContext<EditorSlot>({
 });
 
 export function showBlockedEditor(selector: string): void {
-  const editing = document.querySelector<HTMLElement>(selector);
-  editing?.scrollIntoView({ block: "nearest" });
-  editing?.querySelector<HTMLElement>("input:not([readonly]), button")?.focus({
-    preventScroll: true,
-  });
+  document.querySelector(selector)?.scrollIntoView({ block: "nearest" });
+  blockedEditorField(selector)?.focus({ preventScroll: true });
 }
 
 export function useUnsavedHold(blockedSelector: string) {
@@ -121,7 +119,7 @@ export function useUnsavedHold(blockedSelector: string) {
 export function EditorProvider({
   children,
   renderGuard,
-  blockedSelector = "[data-editing]",
+  blockedSelector = ROW_EDITOR_SELECTOR,
 }: {
   children: ReactNode;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;

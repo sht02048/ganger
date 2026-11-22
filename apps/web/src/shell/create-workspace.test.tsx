@@ -21,7 +21,13 @@ import type {
   CreateWorkspaceInput,
   CreateWorkspaceResult,
 } from "./create-workspace-dialog";
-import { canCreateWorkspace, pickedProjects, projectChoiceNotice } from "./create-workspace-model";
+import { openEditorField } from "../settings/blocked-editor";
+import {
+  canCreateWorkspace,
+  isAtCreatedWorkspace,
+  pickedProjects,
+  projectChoiceNotice,
+} from "./create-workspace-model";
 
 const mocks = vi.hoisted(() => ({
   createWorkspace: vi.fn<(input: unknown) => Promise<CreateWorkspaceResult>>(),
@@ -354,6 +360,61 @@ describe("입구와 만든 뒤", () => {
     await settle();
     expect(mocks.navigate).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("막혔던 이동이 다음 이동 때 끝나도 프로젝트 구역으로 포커스를 옮기지 않는다", async () => {
+    mocks.createWorkspace.mockResolvedValue({ ok: true, id: "ws-new", name: "Labs" });
+    let finishNavigation = () => {};
+    mocks.navigate.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishNavigation = resolve;
+      }),
+    );
+    const heading = document.createElement("h2");
+    heading.id = "projects-heading";
+    heading.tabIndex = -1;
+    document.body.append(heading);
+    await settle(() =>
+      root.render(
+        wrapped(
+          <CreateWorkspaceProvider>
+            <OpenButton />
+          </CreateWorkspaceProvider>,
+        ),
+      ),
+    );
+    await settle(() => buttonNamed(settingsMessages.settings.workspace.create).click());
+    await settle();
+    await settle(() => typeName("Labs"));
+    await settle(() => checkbox("Free").click());
+    await settle(() => buttonNamed(copy.submit).click());
+    await settle();
+    const other = buttonNamed(settingsMessages.settings.workspace.create);
+    other.focus();
+    await settle(() => finishNavigation());
+    expect(document.activeElement).toBe(other);
+    heading.remove();
+  });
+
+  it("도착한 주소가 새 Workspace 의 프로젝트 구역일 때만 도착으로 본다", () => {
+    const base = "https://ganger.example.com/settings";
+    expect(isAtCreatedWorkspace(`${base}?ws=ws-new#projects`, "ws-new")).toBe(true);
+    expect(isAtCreatedWorkspace(`${base}?ws=ws-a#projects`, "ws-new")).toBe(false);
+    expect(isAtCreatedWorkspace(`${base}?ws=ws-new`, "ws-new")).toBe(false);
+    expect(
+      isAtCreatedWorkspace("https://ganger.example.com/runs?ws=ws-new#projects", "ws-new"),
+    ).toBe(false);
+  });
+
+  it("프로젝트 상세의 편집 구역도 막힌 편집 칸으로 찾는다", () => {
+    const section = document.createElement("section");
+    section.id = "repo";
+    const input = document.createElement("input");
+    section.append(input);
+    document.body.append(section);
+    expect(openEditorField()).toBe(input);
+    section.remove();
+    expect(openEditorField()).toBeNull();
   });
 
   it("다시 열면 지난 목록을 보이지 않고 새로 읽는다", async () => {

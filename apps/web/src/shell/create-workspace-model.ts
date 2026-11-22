@@ -44,6 +44,15 @@ export function canCreateWorkspace(
   return name.trim() !== "" && !workspaceNameTooLong(name) && projects.length > 0;
 }
 
+export function isAtCreatedWorkspace(href: string, workspaceId: string): boolean {
+  const url = new URL(href);
+  return (
+    url.pathname === "/settings" &&
+    url.searchParams.get("ws") === workspaceId &&
+    url.hash === "#projects"
+  );
+}
+
 export function workspaceNameTooLong(name: string): boolean {
   return Array.from(name.trim()).length > MAX_NAME_LENGTH;
 }
