@@ -117,6 +117,23 @@ describe("행동 버튼을 켜는 때", () => {
     expect(w.session.getState().actionsReady).toBe(true);
   });
 
+  it("읽는 동안 쓰기 실패가 와도 다시 읽어 버튼을 되살린다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.streams[0]?.onReady();
+    await settle();
+    let finishRead: (reply: V1Result<V1Dashboard>) => void = () => undefined;
+    w.client.dashboard.mockImplementationOnce(
+      () => new Promise((resolve) => (finishRead = resolve)),
+    );
+    void w.session.refresh();
+    w.session.noteFailure({ kind: "unreachable" });
+    finishRead({ ok: true, data: dashboard, serverVersion: "0.4.0" });
+    await settle();
+    expect(w.session.getState()).toMatchObject({ phase: "live", actionsReady: true });
+  });
+
   it("쓰기에서 서버에 닿지 않으면 바로 끈다", async () => {
     const w = world();
     w.session.setForeground(true);

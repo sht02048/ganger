@@ -32,6 +32,7 @@ import { removeDeviceAndCloseStreams } from "./device-removal";
 import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
 
+const RUN_ACTION_BODY_LIMIT_BYTES = 64 * 1024;
 const NO_STORE = { "cache-control": "no-store" };
 const META: V1Meta = { serverVersion: PRODUCT_VERSION, contractVersion: CONTRACT_VERSION };
 
@@ -47,8 +48,8 @@ function requestDevice(request: Request): string | null {
   return authenticateDevice(getDatabase(), request.headers.get("authorization"), new Date());
 }
 
-async function readJson(request: Request): Promise<unknown> {
-  const text = await readLimited(request);
+async function readJson(request: Request, limitBytes?: number): Promise<unknown> {
+  const text = await readLimited(request, limitBytes);
   if (text === null) return null;
   try {
     const parsed: unknown = JSON.parse(text);
@@ -153,7 +154,13 @@ export async function serveV1RunAction(
   if (requestDevice(request) === null) return v1Error(401, "invalid-token");
   const known = parseV1RunAction(action);
   if (known === null) return v1Error(404, "not-found");
-  const reply = handleV1RunAction(getDatabase(), runId, known, await readJson(request), new Date());
+  const reply = handleV1RunAction(
+    getDatabase(),
+    runId,
+    known,
+    await readJson(request, RUN_ACTION_BODY_LIMIT_BYTES),
+    new Date(),
+  );
   return reply.status === 200 ? v1Data({ accepted: true }) : v1Error(reply.status, reply.reason);
 }
 

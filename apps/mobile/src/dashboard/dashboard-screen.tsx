@@ -53,14 +53,14 @@ function RunList({
   runs,
   showWorkspace,
   actionsDisabled,
-  resumingRunId,
+  resumingRunIds,
   onAction,
   onMenu,
 }: {
   runs: DashboardRun[];
   showWorkspace: boolean;
   actionsDisabled: boolean;
-  resumingRunId: string | null;
+  resumingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
   onMenu: (run: DashboardRun) => void;
 }) {
@@ -71,7 +71,7 @@ function RunList({
           key={run.id}
           run={run}
           showWorkspace={showWorkspace}
-          actionsDisabled={actionsDisabled || resumingRunId === run.id}
+          actionsDisabled={actionsDisabled || resumingRunIds.has(run.id)}
           onAction={(action) => onAction(run, action)}
           onMenu={() => onMenu(run)}
         />
@@ -86,7 +86,7 @@ function ColumnBody({
   todoOnly,
   showWorkspace,
   actionsDisabled,
-  resumingRunId,
+  resumingRunIds,
   onAction,
   onMenu,
 }: {
@@ -95,7 +95,7 @@ function ColumnBody({
   todoOnly: boolean;
   showWorkspace: boolean;
   actionsDisabled: boolean;
-  resumingRunId: string | null;
+  resumingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
   onMenu: (run: DashboardRun) => void;
 }) {
@@ -115,7 +115,7 @@ function ColumnBody({
       runs={runs}
       showWorkspace={showWorkspace}
       actionsDisabled={actionsDisabled}
-      resumingRunId={resumingRunId}
+      resumingRunIds={resumingRunIds}
       onAction={onAction}
       onMenu={onMenu}
     />
@@ -178,16 +178,17 @@ export function DashboardScreen({
 }) {
   const [picking, setPicking] = useState(false);
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
-  const [resumingRunId, setResumingRunId] = useState<string | null>(null);
+  const [resumeNotice, setResumeNotice] = useState<OpenRunSheet | null>(null);
+  const [resumingRunIds, setResumingRunIds] = useState<ReadonlySet<string>>(new Set());
   const resume = async (run: DashboardRun) => {
-    setResumingRunId(run.id);
+    setResumingRunIds((current) => new Set(current).add(run.id));
     const outcome = await port.write(run, { action: "resume" });
-    setResumingRunId(null);
+    setResumingRunIds((current) => new Set([...current].filter((id) => id !== run.id)));
     const message = outcomeMessage("resume", outcome);
     if (message !== null) {
       const title =
         outcome.kind === "demo" ? t("settings.serverDemo") : t("actions.resumeFailedTitle");
-      setSheet({ kind: "notice", title, message });
+      setResumeNotice({ kind: "notice", title, message });
     }
   };
   const runAction = (run: DashboardRun, action: RunCardAction) => {
@@ -292,7 +293,7 @@ export function DashboardScreen({
               todoOnly={todoOnly}
               showWorkspace={workspaceId === ALL_WORKSPACES}
               actionsDisabled={actionsDisabled}
-              resumingRunId={resumingRunId}
+              resumingRunIds={resumingRunIds}
               onAction={runAction}
               onMenu={(run) => setSheet({ kind: "menu", run })}
             />
@@ -318,11 +319,11 @@ export function DashboardScreen({
         ))}
       </Sheet>
       <RunSheets
-        sheet={sheet}
+        sheet={sheet ?? resumeNotice}
         port={port}
         disabled={actionsDisabled}
         onOpen={setSheet}
-        onClose={() => setSheet(null)}
+        onClose={() => (sheet === null ? setResumeNotice(null) : setSheet(null))}
       />
     </View>
   );

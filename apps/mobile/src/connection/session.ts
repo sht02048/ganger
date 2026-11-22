@@ -200,7 +200,8 @@ export class LiveSession {
       fetchedAt,
       actionsReady: trustEpoch === this.#trustEpoch,
     });
-    if (this.#state.transport === "stream") this.#stopPolling();
+    if (!this.#state.actionsReady) this.#refreshAgain = true;
+    else if (this.#state.transport === "stream") this.#stopPolling();
   }
 
   #applyFailure(failure: V1Failure): void {

@@ -225,6 +225,23 @@ describe("답하기 시트", () => {
     expect(write).toHaveBeenCalledTimes(2);
   });
 
+  it("보내는 동안에는 시트를 닫지 않는다", async () => {
+    let finish: (outcome: RunWriteOutcome) => void = () => undefined;
+    const { port, write } = fakePort();
+    write.mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)));
+    const { onClose } = await open({ kind: "answer", run: questionRun }, port);
+    await press("왼쪽");
+    await press("보내기");
+    await press("닫기");
+    expect(onClose).not.toHaveBeenCalled();
+    await act(async () => {
+      finish({ kind: "failed", cause: "unreachable" });
+      await Promise.resolve();
+    });
+    await press("닫기");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("연결을 확인하는 동안에는 보내기를 끈다", async () => {
     await open({ kind: "answer", run: questionRun }, fakePort().port, true);
     await press("왼쪽");

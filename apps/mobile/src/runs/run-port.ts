@@ -101,7 +101,7 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
     ticketLink: async (run) => {
       const reply = await client.ticketLink(run.id);
       if (reply.ok) return { kind: "ok", value: reply.data.url };
-      note(reply.failure);
+      if (reply.failure.kind === "token-rejected") session.noteFailure(reply.failure);
       return readFailure(reply.failure);
     },
     write: async (run, write) => {

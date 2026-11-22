@@ -84,6 +84,12 @@ describe("앱의 쓰기 요청", () => {
     expect(w.session.refresh).toHaveBeenCalledOnce();
   });
 
+  it("트래커 주소를 읽지 못해도 연결 문제로 다루지 않는다", async () => {
+    const w = world([]);
+    expect(await w.port.ticketLink(run)).toEqual({ kind: "unavailable" });
+    expect(w.session.noteFailure).not.toHaveBeenCalled();
+  });
+
   it("토큰이 거절되면 세션에 알린다", async () => {
     const w = world([{ ok: false, failure: { kind: "token-rejected" } }]);
     await w.port.write(run, { action: "cancel" });

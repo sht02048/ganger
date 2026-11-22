@@ -247,6 +247,13 @@ describe("늦게 간 쓰기", () => {
     ).toEqual({ status: 409, reason: "resolved" });
   });
 
+  it("10,000자 한국어 답도 받는다", async () => {
+    const { run, questionId } = await askedRun();
+    const answer = "가".repeat(10_000);
+    await accepted(run.id, "answer", { requestId: newRequestId(), questionId, answer });
+    expect(listRunQuestions(h.db, run.id)[0]?.answer?.text).toBe(answer);
+  });
+
   it("없는 런은 not-found로 거절한다", async () => {
     expect(await refused(await post("no-run", "cancel", { requestId: newRequestId() }))).toEqual({
       status: 404,

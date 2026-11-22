@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -372,7 +374,10 @@ export function Sheet({
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.sheetRoot}>
+      <KeyboardAvoidingView
+        {...(Platform.OS === "ios" ? { behavior: "padding" as const } : {})}
+        style={styles.sheetRoot}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={closeLabel}
@@ -389,14 +394,18 @@ export function Sheet({
           </Text>
           {composed ? children : <SheetBody>{children}</SheetBody>}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 export function SheetBody({ children }: { children: ReactNode }) {
   return (
-    <ScrollView style={styles.sheetBody} contentContainerStyle={styles.sheetContent}>
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      style={styles.sheetBody}
+      contentContainerStyle={styles.sheetContent}
+    >
       {children}
     </ScrollView>
   );

@@ -1,7 +1,7 @@
 import { V1_TEXT_MAX_LENGTH } from "@ganger/api";
 import type { V1HumanCheckDecision, V1RunDetail, V1RunInput, V1RunRefusal } from "@ganger/api";
-import { useEffect, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState } from "react";
+import type { ReactNode, RefObject } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 
 import type { DashboardRun } from "../dashboard/model";
@@ -16,6 +16,7 @@ import {
   TextField,
 } from "../design/components";
 import { Text, TextLink } from "../design/text";
+import type { TextTone } from "../design/text";
 import { space } from "../design/tokens";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
@@ -68,11 +69,21 @@ export function outcomeMessage(
   }
 }
 
+const SendingLock = createContext<RefObject<boolean>>({ current: false });
+
+function useCloseUnlessSending(onClose: () => void): () => void {
+  const sending = useContext(SendingLock);
+  return () => {
+    if (!sending.current) onClose();
+  };
+}
+
 function useRunWrite(port: RunPort, run: DashboardRun, onSent: () => void) {
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [refused, setRefused] = useState(false);
-  const busy = useRef(false);
+  const [messageTone, setMessageTone] = useState<TextTone>("problem");
+  const busy = useContext(SendingLock);
   const send = async (write: RunWrite) => {
     if (busy.current) return;
     busy.current = true;
@@ -86,9 +97,10 @@ function useRunWrite(port: RunPort, run: DashboardRun, onSent: () => void) {
       return;
     }
     setRefused(outcome.kind === "refused");
+    setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
   };
-  return { sending, message, refused, send };
+  return { sending, message, messageTone, refused, send };
 }
 
 function useRunDetail(port: RunPort, run: DashboardRun): RunRead<V1RunDetail> | null {
@@ -117,10 +129,10 @@ function ContextLine({ run }: { run: DashboardRun }) {
   );
 }
 
-function SheetMessage({ message }: { message: string | null }) {
+function SheetMessage({ message, tone = "problem" }: { message: string | null; tone?: TextTone }) {
   if (message === null) return null;
   return (
-    <Text variant="meta" tone="problem" accessibilityRole="alert">
+    <Text variant="meta" tone={tone} accessibilityRole="alert">
       {message}
     </Text>
   );
@@ -178,7 +190,7 @@ function AnswerForm({
     input.choices.length === 0 ? "other" : null,
   );
   const [other, setOther] = useState("");
-  const { sending, message, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
   const answer =
     picked === "other"
       ? other.trim()
@@ -189,8 +201,8 @@ function AnswerForm({
     <>
       <SheetBody>
         <ContextLine run={run} />
-        {input.lead.map((paragraph) => (
-          <Text key={paragraph} variant="body" tone="primary">
+        {input.lead.map((paragraph, index) => (
+          <Text key={`${index}:${paragraph}`} variant="body" tone="primary">
             {paragraph}
           </Text>
         ))}
@@ -202,7 +214,7 @@ function AnswerForm({
           >
             {input.choices.map((choice, index) => (
               <RadioRow
-                key={choice.answer}
+                key={`${index}:${choice.answer}`}
                 label={choice.text}
                 selected={picked === index}
                 onPress={() => setPicked(index)}
@@ -215,8 +227,8 @@ function AnswerForm({
             />
           </View>
         )}
-        {input.after.map((paragraph) => (
-          <Text key={paragraph} variant="meta">
+        {input.after.map((paragraph, index) => (
+          <Text key={`${index}:${paragraph}`} variant="meta">
             {paragraph}
           </Text>
         ))}
@@ -232,7 +244,7 @@ function AnswerForm({
         ) : null}
       </SheetBody>
       <SheetFooter>
-        <SheetMessage message={message} />
+        <SheetMessage message={message} tone={messageTone} />
         <Text variant="small">{t("actions.answer.irreversible")}</Text>
         <Button
           variant="primary"
@@ -275,7 +287,7 @@ function HumanCheckForm({
   onClose: () => void;
 }) {
   const [note, setNote] = useState("");
-  const { sending, message, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
   const decide = (decision: V1HumanCheckDecision) =>
     void send({ action: "human-check", questionId: input.questionId, decision, note: note.trim() });
   const off = disabled || sending || refused;
@@ -293,7 +305,7 @@ function HumanCheckForm({
         />
       </SheetBody>
       <SheetFooter>
-        <SheetMessage message={message} />
+        <SheetMessage message={message} tone={messageTone} />
         <Text variant="small">{t("actions.humanCheck.after")}</Text>
         <Button
           variant="primary"
@@ -327,7 +339,7 @@ function DenyForm({
   onClose: () => void;
 }) {
   const [reason, setReason] = useState("");
-  const { sending, message, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
   return (
     <>
       <SheetBody>
@@ -345,7 +357,7 @@ function DenyForm({
         />
       </SheetBody>
       <SheetFooter>
-        <SheetMessage message={message} />
+        <SheetMessage message={message} tone={messageTone} />
         <Button
           variant="danger"
           label={sending ? t("actions.sending") : t("actions.deny.send")}
@@ -371,6 +383,7 @@ function InputSheet({
   onClose: () => void;
 }) {
   const read = useRunDetail(port, sheet.run);
+  const closeSheet = useCloseUnlessSending(onClose);
   const { run, kind } = sheet;
   const title =
     kind === "answer"
@@ -379,7 +392,7 @@ function InputSheet({
         ? t("actions.humanCheck.title")
         : t("actions.deny.title");
   return (
-    <Sheet visible composed title={title} closeLabel={t("common.close")} onClose={onClose}>
+    <Sheet visible composed title={title} closeLabel={t("common.close")} onClose={closeSheet}>
       <DetailGate read={read}>
         {({ input }) => {
           if (kind === "answer" && input?.kind === "question" && !input.answered) {
@@ -418,7 +431,7 @@ function InputSheet({
           return (
             <SheetBody>
               <ContextLine run={run} />
-              <SheetMessage message={t(handled)} />
+              <SheetMessage message={t(handled)} tone="secondary" />
             </SheetBody>
           );
         }}
@@ -438,24 +451,25 @@ function CancelSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { sending, message, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const closeSheet = useCloseUnlessSending(onClose);
   return (
     <Sheet
       visible
       title={t("actions.cancel.title")}
       closeLabel={t("common.close")}
-      onClose={onClose}
+      onClose={closeSheet}
     >
       <ContextLine run={run} />
       <Text variant="body">{t("actions.cancel.body")}</Text>
-      <SheetMessage message={message} />
+      <SheetMessage message={message} tone={messageTone} />
       <Button
         variant="danger"
         label={sending ? t("actions.sending") : t("actions.cancel.confirm")}
         disabled={disabled || sending || refused}
         onPress={() => void send({ action: "cancel" })}
       />
-      <Button label={t("common.close")} onPress={onClose} />
+      <Button label={t("common.close")} disabled={sending} onPress={closeSheet} />
     </Sheet>
   );
 }
@@ -474,17 +488,27 @@ function MenuSheet({
   onClose: () => void;
 }) {
   const [message, setMessage] = useState<string | null>(null);
+  const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const [opening, setOpening] = useState(false);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const openTicket = async () => {
     setOpening(true);
     setMessage(null);
     const link = await port.ticketLink(run);
+    if (!mounted.current) return;
     setOpening(false);
     if (link.kind === "ok") {
       openWebLink(link.value);
       onClose();
       return;
     }
+    setMessageTone(link.kind === "demo" ? "secondary" : "problem");
     setMessage(link.kind === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed"));
   };
   return (
@@ -502,7 +526,7 @@ function MenuSheet({
           onPress={onCancel}
         />
       )}
-      <SheetMessage message={message} />
+      <SheetMessage message={message} tone={messageTone} />
     </Sheet>
   );
 }
@@ -604,20 +628,31 @@ function DetailSheet({
   );
 }
 
-export function RunSheets({
-  sheet,
-  port,
-  disabled,
-  onOpen,
-  onClose,
-}: {
+interface RunSheetsProps {
   sheet: OpenRunSheet | null;
   port: RunPort;
   disabled: boolean;
   onOpen: (next: OpenRunSheet) => void;
   onClose: () => void;
-}) {
+}
+
+export function RunSheets({ sheet, ...rest }: RunSheetsProps) {
+  const sendingLock = useRef(false);
   if (sheet === null) return null;
+  return (
+    <SendingLock.Provider value={sendingLock}>
+      <OpenSheet sheet={sheet} {...rest} />
+    </SendingLock.Provider>
+  );
+}
+
+function OpenSheet({
+  sheet,
+  port,
+  disabled,
+  onOpen,
+  onClose,
+}: RunSheetsProps & { sheet: OpenRunSheet }) {
   switch (sheet.kind) {
     case "answer":
     case "human-check":
@@ -632,10 +667,19 @@ export function RunSheets({
         />
       );
     case "cancel":
-      return <CancelSheet run={sheet.run} port={port} disabled={disabled} onClose={onClose} />;
+      return (
+        <CancelSheet
+          key={sheet.run.id}
+          run={sheet.run}
+          port={port}
+          disabled={disabled}
+          onClose={onClose}
+        />
+      );
     case "menu":
       return (
         <MenuSheet
+          key={sheet.run.id}
           run={sheet.run}
           port={port}
           disabled={disabled}
@@ -644,7 +688,7 @@ export function RunSheets({
         />
       );
     case "detail":
-      return <DetailSheet run={sheet.run} port={port} onClose={onClose} />;
+      return <DetailSheet key={sheet.run.id} run={sheet.run} port={port} onClose={onClose} />;
     case "notice":
       return (
         <Sheet visible title={sheet.title} closeLabel={t("common.close")} onClose={onClose}>
