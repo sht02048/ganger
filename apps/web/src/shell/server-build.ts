@@ -73,12 +73,28 @@ export function reloadPage(): void {
   window.location.reload();
 }
 
+export async function checkBuildOnFailure<T>(
+  next: () => Promise<T>,
+  check: () => Promise<BuildCheck>,
+): Promise<T> {
+  try {
+    return await next();
+  } catch (error) {
+    void check();
+    throw error;
+  }
+}
+
 export async function retryOrReload(actions: {
   check: () => Promise<BuildCheck>;
+  stillOnErrorScreen: () => boolean;
   reload: () => void;
   retry: () => void;
+  abandon: () => void;
 }): Promise<void> {
-  if ((await actions.check()) === "different") actions.reload();
+  const result = await actions.check();
+  if (!actions.stillOnErrorScreen()) actions.abandon();
+  else if (result === "different") actions.reload();
   else actions.retry();
 }
 

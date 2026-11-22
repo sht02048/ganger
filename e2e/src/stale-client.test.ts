@@ -123,6 +123,25 @@ describe("서버 빌드가 바뀐 뒤 옛 화면(브라우저, 0180)", () => {
     expect(await hasMarker(page)).toBe(true);
   }, 120_000);
 
+  it("질의를 거치지 않는 서버 함수가 실패해도 빌드를 확인한다", async (context) => {
+    const page = await openRuns(context);
+    await reportServerBuild(page, "newer-build");
+    await failServerFunctions(page);
+    const buildCheck = page.waitForRequest("**/api/build");
+
+    await page.evaluate(() => {
+      const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
+      if (typeof router !== "object" || router === null) throw new Error("router is missing");
+      const invalidate: unknown = Reflect.get(router, "invalidate");
+      if (typeof invalidate !== "function") throw new Error("router.invalidate is missing");
+      const filter = (match: { routeId: string }) => match.routeId === "__root__";
+      void Reflect.apply(invalidate, router, [{ filter }]);
+    });
+
+    const request = await buildCheck;
+    expect(new URL(request.url()).pathname).toBe("/api/build");
+  }, 120_000);
+
   it("오류 없는 화면에서는 알림만 보이고, 버튼을 눌러야 다시 불러온다", async (context) => {
     const page = await openRuns(context);
     await reportServerBuild(page, "newer-build");

@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
+  checkBuildOnFailure,
   createServerBuildWatch,
   retryOrReload,
   showsServerBuildNotice,
@@ -63,11 +64,48 @@ describe("다시 읽기(0180)", () => {
     async (result, reloads, retries) => {
       const reload = vi.fn<() => void>();
       const retry = vi.fn<() => void>();
-      await retryOrReload({ check: () => Promise.resolve(result), reload, retry });
+      await retryOrReload({
+        check: () => Promise.resolve(result),
+        stillOnErrorScreen: () => true,
+        reload,
+        retry,
+        abandon: () => undefined,
+      });
       expect(reload).toHaveBeenCalledTimes(reloads);
       expect(retry).toHaveBeenCalledTimes(retries);
     },
   );
+
+  it("확인하는 사이 오류 화면을 떠났으면 다시 불러오지 않는다", async () => {
+    const reload = vi.fn<() => void>();
+    const retry = vi.fn<() => void>();
+    const abandon = vi.fn<() => void>();
+    await retryOrReload({
+      check: () => Promise.resolve("different"),
+      stillOnErrorScreen: () => false,
+      reload,
+      retry,
+      abandon,
+    });
+    expect(reload).not.toHaveBeenCalled();
+    expect(retry).not.toHaveBeenCalled();
+    expect(abandon).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("서버 함수 실패(0180)", () => {
+  it("실패하면 빌드를 확인하고 오류는 그대로 던진다", async () => {
+    const check = vi.fn<() => Promise<BuildCheck>>(() => Promise.resolve("same"));
+    const failure = new Error("gone");
+    await expect(checkBuildOnFailure(() => Promise.reject(failure), check)).rejects.toBe(failure);
+    expect(check).toHaveBeenCalledTimes(1);
+  });
+
+  it("성공하면 확인하지 않는다", async () => {
+    const check = vi.fn<() => Promise<BuildCheck>>(() => Promise.resolve("same"));
+    await expect(checkBuildOnFailure(() => Promise.resolve(1), check)).resolves.toBe(1);
+    expect(check).not.toHaveBeenCalled();
+  });
 });
 
 describe("서버 새 버전 알림 조건(0180)", () => {

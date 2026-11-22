@@ -117,7 +117,13 @@ export function ScreenError({ reset }: ErrorComponentProps) {
   const retry = () => {
     if (retrying) return;
     setRetryState({ kind: "retrying", href });
-    void retryOrReload({ check: serverBuild.check, reload: reloadPage, retry: retryReads });
+    void retryOrReload({
+      check: serverBuild.check,
+      stillOnErrorScreen: () => mountedErrorScreens > 0 && router.state.location.href === href,
+      reload: reloadPage,
+      retry: retryReads,
+      abandon: () => setRetryState(IDLE),
+    });
   };
 
   const retryReads = () => {
