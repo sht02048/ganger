@@ -8,6 +8,7 @@ import {
   Button,
   Dialog,
   DialogClose,
+  InfoTip,
   QrCode,
   SettingsGroup,
   SettingsRow,
@@ -40,12 +41,14 @@ type Status = { tone: "done" | "problem"; text: string } | null;
 
 export function DevicesSection({ view, actions }: { view: DevicesView; actions: DeviceActions }) {
   const t = useTranslations("settings.devices");
-  const tSections = useTranslations("settings.sections");
+  const tSettings = useTranslations("settings");
   const [qr, setQr] = useState<OpenQr | null>(null);
   const [status, setStatus] = useState<Status>(null);
   const [starting, setStarting] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
   const openId = useRef<string | null>(null);
+  const qrGeneration = useRef(0);
+  const shownAddress = useRef(view.address);
   const knownIds = useRef(new Set(view.devices.map((device) => device.id)));
 
   const showQr = (next: OpenQr | null) => {
@@ -53,12 +56,30 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
     setQr(next);
   };
 
+  const cancelCode = (id: string) => {
+    void actions.cancel(id).catch(() => undefined);
+  };
+
+  const dropQr = () => {
+    qrGeneration.current += 1;
+    if (openId.current !== null) cancelCode(openId.current);
+    showQr(null);
+    setStarting(false);
+  };
+
   useEffect(
     () => () => {
+      qrGeneration.current += 1;
       if (openId.current !== null) void actions.cancel(openId.current).catch(() => undefined);
     },
     [actions],
   );
+
+  useEffect(() => {
+    if (shownAddress.current === view.address) return;
+    shownAddress.current = view.address;
+    dropQr();
+  }, [view.address]);
 
   useEffect(() => {
     if (qr === null || qr.expired) return;
@@ -72,32 +93,38 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
     const added = view.devices.find((device) => !knownIds.current.has(device.id));
     knownIds.current = new Set(view.devices.map((device) => device.id));
     if (added === undefined || openId.current === null) return;
-    showQr(null);
+    dropQr();
     setStatus({ tone: "done", text: t("connected", { name: added.name }) });
     statusRef.current?.focus();
   }, [view.devices, t]);
 
   const start = async () => {
+    qrGeneration.current += 1;
+    const generation = qrGeneration.current;
     setStarting(true);
     setStatus(null);
     try {
       const result = await actions.start(openId.current ?? undefined);
+      if (qrGeneration.current !== generation) {
+        if (result.ok) cancelCode(result.id);
+        return;
+      }
       if (result.ok) {
         showQr({ id: result.id, qr: result.qr, expiresInMs: result.expiresInMs, expired: false });
       } else {
         showQr(null);
         setStatus({ tone: "problem", text: t("needsHttps") });
       }
-    } catch {
-      setStatus({ tone: "problem", text: t("startFailed") });
-    } finally {
       setStarting(false);
+    } catch {
+      if (qrGeneration.current !== generation) return;
+      dropQr();
+      setStatus({ tone: "problem", text: t("startFailed") });
     }
   };
 
   const close = () => {
-    if (qr !== null) void actions.cancel(qr.id).catch(() => undefined);
-    showQr(null);
+    dropQr();
     statusRef.current?.focus();
   };
 
@@ -116,11 +143,17 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
   };
 
   return (
-    <SettingsSection id="devices" title={tSections("devices")}>
+    <SettingsSection id="devices" title={tSettings("sections.devices")}>
       <SettingsGroup>
-        {view.connectable ? (
+        {view.address !== null ? (
           <SettingsRow
             label={t("connect")}
+            info={
+              <InfoTip
+                label={tSettings("infoLabel", { label: t("connect") })}
+                content={t("qrNote")}
+              />
+            }
             detail={t("connectDetail")}
             control={
               qr === null ? (
@@ -189,12 +222,7 @@ function QrPanel({
           {t("expired")}
         </Text>
       ) : (
-        <>
-          <QrCode value={qr.qr} label={t("qrLabel")} />
-          <Text variant="meta" as="p">
-            {t("qrNote")}
-          </Text>
-        </>
+        <QrCode value={qr.qr} label={t("qrLabel")} />
       )}
       <div {...stylex.props(styles.actions)}>
         <Button onClick={onRenew} disabled={starting}>

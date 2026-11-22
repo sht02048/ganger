@@ -36,6 +36,7 @@
 | 스위치 | `switchTrack`, `switchTrackRing`, `switchTrackDisabled`, `switchThumb`, `switchThumbDisabled` | `Switch` 꺼진 트랙·트랙 테두리(카드 위 3:1 이상)·못 쓰는 트랙·손잡이. 무채색. 켜진 트랙은 `accent` |
 | 목차   | `navChip`                                                                                     | 좁은 폭 `SectionNav` 칩 바탕                                                                       |
 | 막대   | `meterFill`, `meterTrack`                                                                     | 상태가 아닌 막대 채움(`UsageBar` 90% 미만)과 빈 트랙. 무채색                                       |
+| QR     | `qrForeground`, `qrBackground`                                                                | `QrCode` 전용. 어두운 화면에서도 카메라가 읽게 밝은 바탕을 유지한다                                |
 | 글자   | `textPrimary` > `textSecondary` > `textTertiary` > `textDisabled`                             | 제목·값 > 본문·설명 > ID·러너·시간·머리글 > 못 쓰는 상태                                           |
 |        | `textOnAccent`                                                                                | `accent`(노랑) 바탕 위 글자. Ink                                                                   |
 |        | `textOnProblem`                                                                               | `problem` 바탕 위 글자(Runner Issue 개수 점)                                                       |

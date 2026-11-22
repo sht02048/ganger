@@ -152,13 +152,13 @@ export interface DeviceRow {
 
 export interface DevicesView {
   devices: DeviceRow[];
-  connectable: boolean;
+  address: string | null;
 }
 
 export function loadDevicesView(db: Database, webAddress: string | null, now: Date): DevicesView {
   const agoMs = (at: Date) => Math.max(0, now.getTime() - at.getTime());
   return {
-    connectable: isConnectableAddress(webAddress),
+    address: isConnectableAddress(webAddress) ? webAddress : null,
     devices: listDevices(db).map((device) => ({
       id: device.id,
       name: device.name,

@@ -28,21 +28,21 @@ function render(view: DevicesView): string {
 
 describe("Settings 기기 연결 구역(0104)", () => {
   it("https 주소가 있으면 QR 띄우기 버튼을 보인다", () => {
-    const html = render({ connectable: true, devices: [] });
+    const html = render({ address: "https://ganger.example.com", devices: [] });
     expect(html).toContain(settings.devices.showQr);
     expect(html).toContain(settings.devices.empty);
     expect(html).not.toContain(settings.devices.needsHttps);
   });
 
   it("https 주소가 없으면 QR 대신 주소 칸으로 안내한다", () => {
-    const html = render({ connectable: false, devices: [] });
+    const html = render({ address: null, devices: [] });
     expect(html).not.toContain(settings.devices.showQr);
     expect(html).toContain(settings.devices.needsHttps);
     expect(html).toContain(`href="#${WEB_ADDRESS_ROW_ID}"`);
   });
 
   it("기기마다 이름, 마지막 접속, 이름 붙은 지우기 버튼을 보인다", () => {
-    const html = render({ connectable: true, devices: [device] });
+    const html = render({ address: "https://ganger.example.com", devices: [device] });
     expect(html).toContain("Acme iPhone");
     expect(html).toContain(settings.devices.neverSeen);
     expect(html).toContain("Acme iPhone 기기 지우기");

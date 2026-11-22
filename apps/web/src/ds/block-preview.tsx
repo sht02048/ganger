@@ -338,14 +338,6 @@ export function BlockSections() {
         </Section>
       </div>
 
-      <div id="qrCode">
-        <Section title={tNav("qrCode")} note={t("qrCode.note")}>
-          <Demo>
-            <QrCode value={t("qrCode.value")} label={t("qrCode.label")} />
-          </Demo>
-        </Section>
-      </div>
-
       <div id="codeBlock">
         <Section title={tNav("codeBlock")} note={t("codeBlock.note")}>
           <Demo>
@@ -356,6 +348,14 @@ export function BlockSections() {
                 {t("codeBlock.log")}
               </CodeBlock>
             </div>
+          </Demo>
+        </Section>
+      </div>
+
+      <div id="qrCode">
+        <Section title={tNav("qrCode")} note={t("qrCode.note")}>
+          <Demo>
+            <QrCode value={t("qrCode.value")} label={t("qrCode.label")} />
           </Demo>
         </Section>
       </div>
