@@ -2,6 +2,12 @@
 
 조사일 2026-11-19. 운영자가 모바일 앱을 계획하려 한다. 운영자 결정(같은 날): Ganger 웹 화면을 그대로 가져가지 않고, 모바일 UI는 모바일에 맞게 따로 설계한다. 낱말은 GLOSSARY를 그대로 쓴다. 이 문서는 기술 선택지와 제약, 모바일에서 할 일과 흐름을 사실로 정리한다. 제품 코드는 바꾸지 않았다. 결정은 운영자 몫이라 ADR은 쓰지 않고 권장안과 남은 결정만 적는다. 서버 발견·페어링은 research [0013](0013-remote-client-pairing.md)을 잇는다. 1·4·6절의 서버 현황(공개 경로, `/api/attention` 폴링, GLOSSARY의 Runner Issue)은 티켓 0103 머지 전 기준이다. 아래 「남은 결정」은 운영자가 2026-11-19에 정했거나 미뤘고, 그 결과는 스펙 [0002](../spec/0002-mobile.md)와 ADR [0015](../adr/0015-device-token-pairing.md)·[0016](../adr/0016-mobile-push-via-expo.md)에 있다.
 
+**갱신 메모(2026-11-23, 티켓 [0188](../tickets/0188-mobile-plan-refresh.md)).** 아래 본문은 조사일의 기록이라 고치지 않는다. 그 뒤 달라진 사실은 다음과 같고, 지금 기준은 스펙 0002다.
+
+- 1절의 공개 경로: 지금은 알림 사건(`/api/notification-events`), 변경 기록 SSE(`/api/change-events/stream`), `/api/build`, 진단, 러너 등록 경로도 있다. `/api/attention`은 v0.4.0에도 남아 있지만 데스크톱 앱은 알림 사건 경로를 쓴다.
+- 6절의 결과와 Human Check: 요약 결과는 Succeeded·Failed·Canceled이고 병합은 PR 정보다(ADR [0022](../adr/0022-run-outcome-from-agent-report.md)). Human Check는 PR 확인이 아니라 에이전트가 `decision_gate`로 요청하는 Waiting for Input 종류이고, 앱에서 답한다(ADR [0023](../adr/0023-human-check-request.md), 스펙 0002 M22).
+- 6절의 쓰기: 재개(`controlRun`), 이어서 맡기기(`continueRunFrom`)가 생겼고 런 쓰기는 `requestId`로 한 번만 처리한다(티켓 0156). Paused 상태도 새로 생겼다(티켓 0118).
+
 출처 표시는 research 0004·0009·0012·0013을 따른다.
 
 - **[문서]** 공식 문서와 공식 저장소. 링크를 문장 옆에 단다. 2026-11-19에 찾았다.
