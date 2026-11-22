@@ -1,9 +1,9 @@
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useEffect, useRef } from "react";
-import { StyleSheet, View } from "react-native";
+import { StyleSheet } from "react-native";
 
+import { CameraFrame } from "../design/components";
 import { Text } from "../design/text";
-import { radius } from "../design/tokens";
 import { t } from "../i18n";
 
 export function QrScanner({ onRead }: { onRead: (text: string) => void }) {
@@ -14,6 +14,7 @@ export function QrScanner({ onRead }: { onRead: (text: string) => void }) {
   }, [permission, requestPermission]);
   if (permission === null) return null;
   if (!permission.granted) {
+    if (permission.canAskAgain) return null;
     return (
       <Text variant="meta" tone="problem" accessibilityRole="alert">
         {t("connection.cameraDenied")}
@@ -21,7 +22,7 @@ export function QrScanner({ onRead }: { onRead: (text: string) => void }) {
     );
   }
   return (
-    <View style={styles.frame}>
+    <CameraFrame>
       <CameraView
         style={StyleSheet.absoluteFill}
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
@@ -31,10 +32,6 @@ export function QrScanner({ onRead }: { onRead: (text: string) => void }) {
           onRead(data);
         }}
       />
-    </View>
+    </CameraFrame>
   );
 }
-
-const styles = StyleSheet.create({
-  frame: { aspectRatio: 1, borderRadius: radius.card, overflow: "hidden" },
-});

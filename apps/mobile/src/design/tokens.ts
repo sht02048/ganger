@@ -58,6 +58,7 @@ export const radius = {
   segmentOuter: 8,
   segmentInner: 6,
   sheet: 16,
+  cameraFrame: 10,
   pill: 6,
   full: 9999,
 } as const;

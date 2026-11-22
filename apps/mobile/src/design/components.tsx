@@ -105,6 +105,14 @@ export function TextField({
   );
 }
 
+export function CameraFrame({ children }: { children: ReactNode }) {
+  return (
+    <View testID="camera-frame" style={styles.cameraFrame}>
+      {children}
+    </View>
+  );
+}
+
 export function NoticeBand({ message }: { message: string }) {
   return (
     <View accessibilityRole="alert" testID="notice-band" style={styles.band}>
@@ -422,6 +430,7 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.body,
   },
+  cameraFrame: { aspectRatio: 1, borderRadius: radius.cameraFrame, overflow: "hidden" },
   band: {
     paddingHorizontal: space.s4,
     paddingVertical: space.s2,

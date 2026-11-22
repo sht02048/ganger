@@ -10,7 +10,7 @@ const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
 function nameIn(names: Readonly<Record<string, string>>, id: string): string {
-  return Object.hasOwn(names, id) ? (names[id] ?? id) : id;
+  return Object.prototype.hasOwnProperty.call(names, id) ? (names[id] ?? id) : id;
 }
 
 export function agentName(id: string): string {

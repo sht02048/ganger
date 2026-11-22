@@ -9,13 +9,5 @@
     "customConditions": ["react-native"],
     "resolveJsonModule": true
   },
-  "include": [
-    "index.ts",
-    "app.config.ts",
-    "build-config.ts",
-    "build-config.test.ts",
-    "src",
-    "messages",
-    "*.mts"
-  ]
+  "include": ["index.ts", "app.config.ts", "app.config.test.ts", "src", "messages", "*.mts"]
 }
