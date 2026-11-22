@@ -266,6 +266,21 @@ export function saveInProgressState(
   return { ok: true };
 }
 
+export const mergedStateInput = trackerProjectInput.extend({ stateId: id.nullable() });
+
+export function saveMergedState(
+  context: SettingsContext,
+  input: z.infer<typeof mergedStateInput>,
+): SaveResult<"not-found"> {
+  const project = boundProject(context, input);
+  if (project === null) return { ok: false, reason: "not-found" };
+  saveWorkspaceTrackerProject(context.db, {
+    ...project,
+    mergedStateId: input.stateId === null ? null : toTrackerStateId(input.stateId),
+  });
+  return { ok: true };
+}
+
 export const labelInput = z.object({ ws: id, connectionId: id, labelId: id });
 
 export const createLabelInput = z.object({ ws: id, connectionId: id });

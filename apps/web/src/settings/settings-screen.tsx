@@ -101,6 +101,10 @@ export interface SettingsActions {
   turnOffWebhook: (input: { id: string }) => Promise<ActionResult>;
 }
 
+export interface ProjectDetailActions extends SettingsActions {
+  saveMergedState: (input: ProjectRef & { stateId: string | null }) => Promise<ActionResult>;
+}
+
 export const ReportUnsavedContext = createContext<(formId: string, unsaved: boolean) => void>(
   () => {},
 );

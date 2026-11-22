@@ -104,6 +104,7 @@ export interface RunRecords {
   worktreeKept: WorktreeKeptReason | null;
   worktreeRemoveRequestedAt: Date | null;
   trackerStateSetAt: Date | null;
+  mergedStateSetAt: Date | null;
   trackerComment: { id: CommentId; at: Date } | null;
   unreachableSince: Date | null;
   pausedSince: Date | null;
@@ -228,6 +229,7 @@ function toRunRecords(row: RunRow): RunRecords {
     worktreeKept: row.worktreeKept,
     worktreeRemoveRequestedAt: row.worktreeRemoveRequestedAt,
     trackerStateSetAt: row.trackerStateSetAt,
+    mergedStateSetAt: row.mergedStateSetAt,
     trackerComment:
       row.trackerCommentId === null || row.trackerCommentedAt === null
         ? null
@@ -1017,6 +1019,7 @@ export function updateRunRecords(
   }
   if (patch.worktreeKept !== undefined) set.worktreeKept = patch.worktreeKept;
   if (patch.trackerStateSetAt !== undefined) set.trackerStateSetAt = patch.trackerStateSetAt;
+  if (patch.mergedStateSetAt !== undefined) set.mergedStateSetAt = patch.mergedStateSetAt;
   if (patch.trackerComment !== undefined) {
     set.trackerCommentId = patch.trackerComment?.id ?? null;
     set.trackerCommentedAt = patch.trackerComment?.at ?? null;

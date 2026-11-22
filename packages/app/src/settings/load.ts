@@ -318,6 +318,7 @@ function workspaceDbSettings(
       const mapping = getMapping(db, project.connection, project.projectId);
       return {
         connection: connectionChoice(project.connection),
+        trackerKind: connections.find((c) => c.id === project.connection)?.kind ?? null,
         project: { id: project.projectId, name: project.name },
         mapping:
           mapping === null
@@ -332,6 +333,7 @@ function workspaceDbSettings(
                 })),
               },
         inProgressStateId: project.inProgressStateId,
+        mergedStateId: project.mergedStateId,
       };
     }),
     labels: labelConnections.map((connectionId): ConnectionLabelSettings => {

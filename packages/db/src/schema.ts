@@ -175,6 +175,7 @@ export const workspaceTrackerProjects = sqliteTable(
       .$type<WorkspaceId>(),
     name: text("name").notNull(),
     inProgressStateId: text("in_progress_state_id").$type<TrackerStateId>(),
+    mergedStateId: text("merged_state_id").$type<TrackerStateId>(),
   },
   (t) => [
     primaryKey({ columns: [t.trackerConnectionId, t.trackerProjectId] }),
@@ -308,6 +309,7 @@ export const runs = sqliteTable(
     worktreeKept: text("worktree_kept", { enum: WORKTREE_KEPT_REASONS }),
     worktreeRemoveRequestedAt: timeMs("worktree_remove_requested_at"),
     trackerStateSetAt: timeMs("tracker_state_set_at"),
+    mergedStateSetAt: timeMs("merged_state_set_at"),
     trackerCommentId: text("tracker_comment_id").$type<CommentId>(),
     trackerCommentedAt: timeMs("tracker_commented_at"),
     unreachableSince: timeMs("unreachable_since"),
