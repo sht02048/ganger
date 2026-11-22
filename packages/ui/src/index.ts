@@ -153,6 +153,7 @@ export {
   KanbanSubheading,
   type KanbanCardProps,
   type KanbanColumnProps,
+  type KanbanHeadLink,
 } from "./components/kanban";
 export {
   RowLink,

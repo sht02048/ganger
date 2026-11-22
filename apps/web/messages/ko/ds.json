@@ -579,6 +579,7 @@
     "kanban": {
       "note": "Dashboard 칸반의 칸과 카드예요. 카드를 누르면 오른쪽 패널이 열려요. 끌어 옮기지 않아요.",
       "column": "Running",
+      "headLink": "Running 2, Runs에서 보기",
       "tag": "Question",
       "title": "ACME-11 재시도 간격 바꾸기",
       "detail": "재시도 간격을 바꿀까요?",

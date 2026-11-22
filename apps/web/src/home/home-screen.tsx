@@ -17,7 +17,6 @@ import {
   SegmentedTabs,
   StatusDot,
   Text,
-  TextLink,
   showToast,
 } from "@ganger/ui";
 import type { PillStatus } from "@ganger/ui";
@@ -92,7 +91,7 @@ export interface HomeScreenProps {
 
 export const COLUMN_VISIBLE = 6;
 export const DONE_TODO_VISIBLE = 4;
-export const SETTLED_VISIBLE = 3;
+export const SETTLED_VISIBLE = 5;
 
 interface CardHost {
   all: boolean;
@@ -100,6 +99,7 @@ interface CardHost {
   lastTags: ReadonlyMap<RunId, PillStatus | null>;
   selectedId: RunId | null;
   revealedId: RunId | null;
+  sheetRunId: RunId | null;
   cardRef: (id: RunId) => (element: HTMLButtonElement | null) => void;
   focusCard: (id: RunId) => void;
   onOpen: (run: HomeRun, tagged: boolean, mode: SheetMode) => void;
@@ -173,6 +173,7 @@ export function HomeScreen({
     listKey: `${workspaceScope}:${view}`,
     selectedId: open && target !== null ? target.run.id : null,
     revealedId,
+    sheetRunId: target?.run.id ?? null,
     cardRef: (id) => (element) => {
       if (element === null) cards.current.delete(id);
       else cards.current.set(id, element);
@@ -206,6 +207,9 @@ export function HomeScreen({
   const humanChecks = board.running.todo.filter((run) => todoGroupOf(run) === "check");
   const otherTodo = board.running.todo.filter((run) => todoGroupOf(run) !== "check");
   const todoIds = new Set(page.attention.map(({ run }) => run.id));
+  const doneCount = todoOnly
+    ? board.done.todo.length
+    : board.done.todo.length + board.done.rest.length;
   return (
     <ScreenLayout
       header={
@@ -283,11 +287,11 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.done")}
-                count={
-                  todoOnly
-                    ? board.done.todo.length
-                    : board.done.todo.length + board.done.rest.length
-                }
+                count={doneCount}
+                headLink={{
+                  href: endedRunsHref(page),
+                  label: t("board.doneLink", { column: t("column.done"), count: doneCount }),
+                }}
               >
                 <CardList
                   runs={board.done.todo}
@@ -302,7 +306,7 @@ export function HomeScreen({
                   }
                   host={host}
                 />
-                <SettledCards runs={todoOnly ? [] : board.done.rest} page={page} host={host} />
+                <SettledCards runs={todoOnly ? [] : board.done.rest} host={host} />
               </KanbanColumn>
             </MotionScope>
             <div {...stylex.props(styles.runners)}>
@@ -487,10 +491,10 @@ function AnimatedCards({
   );
 }
 
-function SettledCards({ runs, page, host }: { runs: HomeRun[]; page: HomePage; host: CardHost }) {
+function SettledCards({ runs, host }: { runs: HomeRun[]; host: CardHost }) {
   const t = useTranslations("home.board");
   const first = runs.slice(0, SETTLED_VISIBLE);
-  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.revealedId);
+  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.sheetRunId);
   const visible = revealed === undefined ? first : [...first, revealed];
   return (
     <div data-settled={runs.length === 0 ? undefined : ""} {...stylex.props(styles.settled)}>
@@ -501,11 +505,6 @@ function SettledCards({ runs, page, host }: { runs: HomeRun[]; page: HomePage; h
         resetKey={`${host.listKey}:${revealed?.id ?? "first"}`}
         host={host}
       />
-      {runs.length > visible.length ? (
-        <div {...stylex.props(styles.allRuns)}>
-          <TextLink href={runsHref(page)}>{t("allRuns")}</TextLink>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -671,10 +670,9 @@ function runnersHref(page: HomePage): (sel?: string) => string {
   return (sel) => href("/runners", { ...ws, ...(sel === undefined ? {} : { sel }) });
 }
 
-function runsHref(page: HomePage): string {
-  return page.workspace.kind === "one"
-    ? href("/runs", { ws: page.workspace.workspace.id })
-    : "/runs";
+function endedRunsHref(page: HomePage): string {
+  const ws = page.workspace.kind === "one" ? { ws: page.workspace.workspace.id } : {};
+  return href("/runs", { ...ws, view: "all" });
 }
 
 const styles = stylex.create({
@@ -717,7 +715,6 @@ const styles = stylex.create({
     gap: space.s2,
     minWidth: 0,
   },
-  allRuns: { paddingInline: space.s1 },
   sideBlock: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
   runnerText: { display: "flex", flexDirection: "column", gap: space.px2, minWidth: 0 },
   rows: {
