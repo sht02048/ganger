@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -84,24 +86,60 @@ export function TextField({
   label,
   value,
   onChangeText,
+  multiline = false,
+  placeholder,
+  maxLength,
 }: {
   label: string;
   value: string;
   onChangeText: (next: string) => void;
+  multiline?: boolean;
+  placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <View style={styles.field}>
       <Text variant="meta">{label}</Text>
       <TextInput
         accessibilityLabel={label}
-        autoCapitalize="none"
-        autoCorrect={false}
+        autoCapitalize={multiline ? "sentences" : "none"}
+        autoCorrect={multiline}
+        multiline={multiline}
         value={value}
         onChangeText={onChangeText}
+        {...(placeholder === undefined ? {} : { placeholder })}
+        {...(maxLength === undefined ? {} : { maxLength })}
         placeholderTextColor={colors.textDisabled}
-        style={styles.fieldInput}
+        style={[styles.fieldInput, multiline ? styles.fieldMultiline : null]}
       />
     </View>
+  );
+}
+
+export function RadioRow({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      aria-checked={selected}
+      onPress={onPress}
+      style={[styles.radioRow, selected ? styles.radioRowSelected : null]}
+    >
+      <View style={[styles.radioMark, selected ? styles.radioMarkSelected : null]} />
+      <View style={styles.radioLabel}>
+        <Text variant="body" tone="primary">
+          {label}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -323,18 +361,23 @@ export function Sheet({
   title,
   closeLabel,
   onClose,
+  composed = false,
   children,
 }: {
   visible: boolean;
   title: string;
   closeLabel: string;
   onClose: () => void;
+  composed?: boolean;
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.sheetRoot}>
+      <KeyboardAvoidingView
+        {...(Platform.OS === "ios" ? { behavior: "padding" as const } : {})}
+        style={styles.sheetRoot}
+      >
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={closeLabel}
@@ -349,12 +392,30 @@ export function Sheet({
           <Text variant="panel" heading>
             {title}
           </Text>
-          <ScrollView style={styles.sheetBody} contentContainerStyle={styles.sheetContent}>
-            {children}
-          </ScrollView>
+          {composed ? children : <SheetBody>{children}</SheetBody>}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
+  );
+}
+
+export function SheetBody({ children }: { children: ReactNode }) {
+  return (
+    <ScrollView
+      keyboardShouldPersistTaps="handled"
+      style={styles.sheetBody}
+      contentContainerStyle={styles.sheetContent}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+export function SheetFooter({ children }: { children: ReactNode }) {
+  return (
+    <View testID="sheet-footer" style={styles.sheetFooter}>
+      {children}
+    </View>
   );
 }
 
@@ -430,6 +491,32 @@ const styles = StyleSheet.create({
     fontFamily: fontFamily.regular,
     fontSize: fontSize.body,
   },
+  fieldMultiline: {
+    minHeight: size.touchTarget * 2,
+    paddingVertical: space.s2,
+    textAlignVertical: "top",
+  },
+  radioRow: {
+    minHeight: size.touchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s2,
+    paddingHorizontal: space.s3,
+    paddingVertical: space.s2,
+    borderRadius: radius.button,
+    backgroundColor: colors.bgControl,
+  },
+  radioRowSelected: { backgroundColor: colors.bgSelected },
+  radioMark: {
+    width: size.radioMark,
+    height: size.radioMark,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+  },
+  radioMarkSelected: { borderColor: colors.accent, backgroundColor: colors.accent },
+  radioLabel: { flex: 1 },
+  sheetFooter: { gap: space.s2 },
   cameraFrame: { aspectRatio: 1, borderRadius: radius.cameraFrame, overflow: "hidden" },
   band: {
     paddingHorizontal: space.s4,

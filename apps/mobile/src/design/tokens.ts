@@ -79,6 +79,7 @@ export const size = {
   backIcon: 24,
   dot: 6,
   badge: 18,
+  radioMark: 18,
   mascot: 112,
   meterHeight: 4,
   sheetHandleWidth: 36,

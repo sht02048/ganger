@@ -1,12 +1,14 @@
 import {
   AGENT_MESSAGE_MAX_LENGTH,
   toAgentMessageRequestId,
+  toPermissionRequestId,
   toRunActionRequestId,
   toRunId,
 } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import {
   continueRun,
+  denyPermissionWait,
   getRun,
   getRunControlRequest,
   getRunWithRecords,
@@ -23,6 +25,7 @@ import { z } from "zod";
 import {
   AnswerRejectedError,
   answerInput,
+  denyInput,
   humanCheckAnswerInput,
   submitAnswer,
   submitHumanCheckAnswer,
@@ -253,6 +256,32 @@ export function continueRunOnce(
         return next === null || (next.state === "ended" && next.startedAt === null);
       },
     },
+  );
+}
+
+export const denyOnceInput = denyInput.extend({ requestId: runActionRequestId });
+
+export function denyPermissionOnce(
+  db: Database,
+  { requestId, ...denial }: z.infer<typeof denyOnceInput>,
+  now: Date,
+): RunActionResult {
+  return onceForRun(
+    db,
+    { runId: denial.runId, requestId },
+    "deny",
+    [denial.promptId, denial.reason],
+    now,
+    () =>
+      denyPermissionWait(
+        db,
+        {
+          runId: toRunId(denial.runId),
+          permissionId: toPermissionRequestId(denial.promptId),
+          reason: denial.reason,
+        },
+        now,
+      ),
   );
 }
 

@@ -66,6 +66,102 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("행동 버튼을 켜는 때", () => {
+  it("읽기가 성공해야 켜고, 뒤로 갔다 돌아오면 다시 읽을 때까지 끈다", async () => {
+    const w = world();
+    expect(w.session.getState().actionsReady).toBe(false);
+    w.session.setForeground(true);
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+    w.session.setForeground(false);
+    expect(w.session.getState().actionsReady).toBe(false);
+    w.session.setForeground(true);
+    expect(w.session.getState().actionsReady).toBe(false);
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+  });
+
+  it("스트림이 말없이 끊기면 다시 읽을 때까지 끈다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.streams[0]?.onReady();
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+    w.fail({ kind: "unreachable" });
+    await vi.advanceTimersByTimeAsync(STREAM_SILENCE_MS);
+    expect(w.session.getState().actionsReady).toBe(false);
+    w.fail(null);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(w.session.getState().actionsReady).toBe(true);
+  });
+
+  it("끊기기 전에 시작한 읽기의 성공으로는 켜지 않는다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.streams[0]?.onReady();
+    await settle();
+    let finishRead: (reply: V1Result<V1Dashboard>) => void = () => undefined;
+    w.client.dashboard.mockImplementationOnce(
+      () => new Promise((resolve) => (finishRead = resolve)),
+    );
+    void w.session.refresh();
+    w.streams[0]?.onEnd("failed");
+    expect(w.session.getState().actionsReady).toBe(false);
+    finishRead({ ok: true, data: dashboard, serverVersion: "0.4.0" });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(w.session.getState().actionsReady).toBe(false);
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+  });
+
+  it("읽는 동안 쓰기 실패가 와도 다시 읽어 버튼을 되살린다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.streams[0]?.onReady();
+    await settle();
+    let finishRead: (reply: V1Result<V1Dashboard>) => void = () => undefined;
+    w.client.dashboard.mockImplementationOnce(
+      () => new Promise((resolve) => (finishRead = resolve)),
+    );
+    void w.session.refresh();
+    w.session.noteFailure({ kind: "unreachable" });
+    finishRead({ ok: true, data: dashboard, serverVersion: "0.4.0" });
+    await settle();
+    expect(w.session.getState()).toMatchObject({ phase: "live", actionsReady: true });
+  });
+
+  it("Workspace를 바꾸면 새로 읽을 때까지 끈다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.setWorkspace("ws-other");
+    expect(w.session.getState().actionsReady).toBe(false);
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+  });
+
+  it("쓰기 실패 뒤 바로 다시 읽어 서버가 돌아오면 버튼을 켠다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.noteFailure({ kind: "unreachable" });
+    await settle();
+    expect(w.session.getState()).toMatchObject({ phase: "live", actionsReady: true });
+  });
+
+  it("쓰기에서 서버에 닿지 않으면 바로 끈다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.noteFailure({ kind: "unreachable" });
+    expect(w.session.getState()).toMatchObject({ phase: "stale", actionsReady: false });
+  });
+});
+
 describe("화면 갱신(M26)", () => {
   it("앞에 있을 때만 변경 기록에 붙고 뒤로 가면 닫는다", async () => {
     const w = world();

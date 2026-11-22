@@ -31,6 +31,7 @@ export interface SessionState {
   device: V1ThisDevice | null;
   serverVersion: string | null;
   fetchedAt: number | null;
+  actionsReady: boolean;
 }
 
 export interface SessionDeps {
@@ -87,9 +88,11 @@ export class LiveSession {
     device: null,
     serverVersion: null,
     fetchedAt: null,
+    actionsReady: false,
   };
   #workspaceId: string;
   #generation = 0;
+  #trustEpoch = 0;
   #active = false;
   #refreshing = false;
   #refreshAgain = false;
@@ -114,6 +117,7 @@ export class LiveSession {
   setForeground(foreground: boolean): void {
     if (foreground === this.#active || this.#state.phase === "rejected") return;
     this.#active = foreground;
+    this.#distrustActions();
     if (!foreground) {
       this.#generation += 1;
       this.#clearTransport();
@@ -133,6 +137,7 @@ export class LiveSession {
   setWorkspace(workspaceId: string): void {
     if (workspaceId === this.#workspaceId) return;
     this.#workspaceId = workspaceId;
+    this.#distrustActions();
     if (this.#active) void this.refresh();
   }
 
@@ -154,8 +159,21 @@ export class LiveSession {
     }
   }
 
+  noteFailure(failure: V1Failure): void {
+    if (!this.#active) return;
+    this.#distrustActions();
+    this.#applyFailure(failure);
+    if (failure.kind !== "token-rejected") void this.refresh();
+  }
+
+  #distrustActions(): void {
+    this.#trustEpoch += 1;
+    if (this.#state.actionsReady) this.#setState({ ...this.#state, actionsReady: false });
+  }
+
   async #readAll(): Promise<void> {
     const generation = this.#generation;
+    const trustEpoch = this.#trustEpoch;
     const workspaceId = this.#workspaceId;
     const { client, timeZone, now } = this.#deps;
     const [dashboard, workspaces, runners, device] = await Promise.all([
@@ -182,8 +200,10 @@ export class LiveSession {
       device: device.data,
       serverVersion: dashboard.serverVersion,
       fetchedAt,
+      actionsReady: trustEpoch === this.#trustEpoch,
     });
-    if (this.#state.transport === "stream") this.#stopPolling();
+    if (!this.#state.actionsReady) this.#refreshAgain = true;
+    else if (this.#state.transport === "stream") this.#stopPolling();
   }
 
   #applyFailure(failure: V1Failure): void {
@@ -194,7 +214,7 @@ export class LiveSession {
       failure.kind === "server-error" || failure.kind === "unreachable"
         ? failure.kind
         : this.#state.staleReason;
-    this.#setState({ ...this.#state, phase, serverVersion, staleReason });
+    this.#setState({ ...this.#state, phase, serverVersion, staleReason, actionsReady: false });
     if (phase === "rejected") {
       this.stop();
       this.#deps.onRejected();
@@ -222,6 +242,7 @@ export class LiveSession {
     if (!this.#active) return;
     this.#closeStream = null;
     this.#clearSilence();
+    this.#distrustActions();
     this.#setState({ ...this.#state, transport: "polling" });
     this.#startPolling();
     this.#clearRetry();

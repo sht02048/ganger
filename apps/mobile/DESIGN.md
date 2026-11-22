@@ -35,10 +35,14 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                |
 | `Meter`         | 러너의 공급자 사용량 막대                                                 |
 | `SwitchRow`     | 이름이 붙은 스위치                                                        |
-| `TextField`     | 이름이 붙은 한 줄 입력. 개발용 QR 붙여 넣기에 쓴다                        |
+| `TextField`     | 이름이 붙은 입력. 답·덧붙일 말은 `multiline`을 쓴다                       |
+| `RadioRow`      | 질문 선택지. 모두 같은 모양이고 고르기만 해서는 보내지 않는다             |
+| `TextLink`      | 글 안의 웹 주소. 노랑을 쓰지 않고 밑줄로 보인다                           |
 | `CameraFrame`   | QR을 읽는 카메라 미리 보기의 정사각형 틀                                  |
 | `NoticeBand`    | 화면 맨 위 연결 문제 띠("n분 전 기준", Host 거절, 서버 버전)              |
 | `Sheet`         | 아래에서 올라오는 레이어. 안의 주 행동 하나는 노란 버튼을 쓸 수 있다      |
+| `SheetBody`     | `composed` 시트의 스크롤 영역                                             |
+| `SheetFooter`   | `composed` 시트 아래에 고정한 안내와 보내기                               |
 | `RestingMascot` | 빈 상태에만 쓴다. 목록 행, 상태 알약, 러너 문제 카드 곁에 두지 않는다     |
 
 ## 문구

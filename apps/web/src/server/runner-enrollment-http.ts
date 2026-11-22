@@ -14,7 +14,10 @@ const BODY_LIMIT_BYTES = 16 * 1024;
 const NO_STORE = { "cache-control": "no-store" };
 const TEXT = { "content-type": "text/plain; charset=utf-8", ...NO_STORE };
 
-export async function readLimited(request: Request): Promise<string | null> {
+export async function readLimited(
+  request: Request,
+  limitBytes: number = BODY_LIMIT_BYTES,
+): Promise<string | null> {
   if (request.body === null) return "";
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -23,7 +26,7 @@ export async function readLimited(request: Request): Promise<string | null> {
     const { done, value } = await reader.read();
     if (done) break;
     size += value.byteLength;
-    if (size > BODY_LIMIT_BYTES) {
+    if (size > limitBytes) {
       await reader.cancel();
       return null;
     }

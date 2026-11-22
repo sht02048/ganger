@@ -3,8 +3,6 @@
     "close": "닫기",
     "back": "뒤로",
     "demoAction": "데모 모드에서는 보내지 않아요. 서버에 연결하면 쓸 수 있어요.",
-    "liveAction": "이 동작은 아직 앱에서 보낼 수 없어요. Ganger 웹이나 데스크톱 앱에서 해 주세요.",
-    "liveActionTitle": "앱에서는 아직 볼 수만 있어요",
     "retry": "다시 시도",
     "loading": "불러오는 중이에요"
   },
@@ -80,7 +78,7 @@
     "cancelling": "취소 중",
     "noRunner": "러너 없음",
     "inputUnknown": "무엇을 기다리는지 아직 읽지 못했어요",
-    "allowOnRunner": "허용은 러너 화면에서만 할 수 있어요. 여기서는 거절만 할 수 있어요.",
+    "allowOnRunner": "허용은 러너의 Orca에서 해요. 여기서는 거절만 할 수 있어요.",
     "unreachableFor": "{runner}에 {duration} 닿지 않아요",
     "unreachable": "{runner}에 닿지 않아요",
     "disconnected": "워크트리는 그대로 두었어요. 러너에 다시 닿으면 실제 상태를 확인해 이어 가요.",
@@ -93,7 +91,6 @@
     "check": "확인하기",
     "deny": "거절",
     "resume": "재개하기",
-    "retry": "다시 맡기기",
     "pullRequest": "PR {pr}",
     "prMerged": "PR {pr} 병합됨",
     "prClosed": "PR {pr} 닫힘",
@@ -135,7 +132,10 @@
       "worktree-missing": "워크트리 없음",
       "canceled": "운영자가 취소함",
       "could-not-start": "시작할 수 없음"
-    }
+    },
+    "detail": "런 상세",
+    "menu": "{key} 메뉴",
+    "menuLabel": "더 보기"
   },
   "runners": {
     "title": "Runners",
@@ -254,5 +254,110 @@
     },
     "noWorkspaceData": "이 Workspace는 아직 받은 내용이 없어요.",
     "saveFailed": "이 기기에 연결을 저장하지 못했어요. QR을 새로 띄워 다시 연결해 주세요."
+  },
+  "actions": {
+    "loading": "내용을 불러오는 중이에요",
+    "loadFailed": "내용을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.",
+    "notFound": "런을 찾지 못했어요. Dashboard를 다시 확인해 주세요.",
+    "sending": "보내는 중…",
+    "failed": {
+      "unreachable": "서버에 닿지 않아 보내지 못했어요. 다시 보내 주세요.",
+      "other": "보내지 못했어요. 다시 보내 주세요.",
+      "invalid-request": "서버가 이 내용을 받지 않았어요. 내용을 고쳐 다시 보내 주세요."
+    },
+    "refused": {
+      "answer": {
+        "already-answered": "다른 곳에서 이미 답한 질문이에요. 다시 보내지 않아도 돼요.",
+        "not-found": "질문을 찾지 못했어요. 런이 끝났는지 런 상세에서 확인해 주세요."
+      },
+      "humanCheck": {
+        "already-answered": "다른 곳에서 이미 답한 요청이에요. 다시 보내지 않아도 돼요.",
+        "not-found": "요청을 찾지 못했어요. 런이 끝났는지 런 상세에서 확인해 주세요."
+      },
+      "deny": {
+        "already-denied": "다른 곳에서 이미 거절했어요. 다시 보내지 않아도 돼요.",
+        "resolved": "러너에서 이미 처리한 요청이에요. 다시 보내지 않아도 돼요.",
+        "not-found": "요청을 찾지 못했어요. 런이 끝났는지 런 상세에서 확인해 주세요."
+      },
+      "run": {
+        "not-found": "런을 찾지 못했어요. Dashboard를 다시 확인해 주세요.",
+        "already-ended": "이미 끝난 런이에요.",
+        "not-paused": "이미 멈춰 있지 않은 런이에요. 지금 상태를 확인해 주세요.",
+        "cancelling": "취소하는 중인 런이에요.",
+        "state-changed": "런의 상태가 그사이 바뀌었어요. 지금 상태를 확인해 주세요.",
+        "request-reused": "이미 다른 내용으로 보낸 요청이에요. 시트를 닫고 다시 열어 주세요."
+      }
+    },
+    "answer": {
+      "title": "질문에 답하기",
+      "choices": "답 고르기",
+      "other": "직접 쓰기",
+      "otherLabel": "직접 쓴 답",
+      "otherPlaceholder": "에이전트에게 보낼 답을 써 주세요",
+      "irreversible": "보내면 되돌릴 수 없어요",
+      "send": "보내기",
+      "handled": "이미 답한 질문이에요. 다시 보내지 않아도 돼요."
+    },
+    "humanCheck": {
+      "title": "확인해 주세요",
+      "noteLabel": "에이전트에게 함께 보낼 말(선택)",
+      "confirm": "확인했어요",
+      "requestChanges": "고쳐 주세요",
+      "after": "답을 보내면 런이 다시 Running이 돼요. Ganger는 머지하지 않아요.",
+      "handled": "이미 답한 요청이에요. 다시 보내지 않아도 돼요."
+    },
+    "deny": {
+      "title": "Permission 거절",
+      "reasonLabel": "거절 이유(선택)",
+      "allowOnRunner": "허용은 러너의 Orca에서 해요",
+      "send": "거절 보내기",
+      "handled": "이미 처리한 요청이에요. 다시 보내지 않아도 돼요."
+    },
+    "cancel": {
+      "title": "이 런을 취소할까요?",
+      "body": "worker가 에이전트를 멈추고 런을 끝내요. 끝낸 런은 되돌릴 수 없어요.",
+      "confirm": "런 취소하기"
+    },
+    "menu": {
+      "openTicket": "Linear에서 열기",
+      "cancel": "런 취소",
+      "ticketFailed": "Linear 주소를 읽지 못했어요. 잠시 뒤 다시 해 주세요."
+    },
+    "resumeFailedTitle": "재개하지 못했어요"
+  },
+  "runDetail": {
+    "next": "처리할 일",
+    "summary": "요약",
+    "pr": "PR",
+    "openPr": "GitHub에서 열기",
+    "state": "상태",
+    "agentResult": "에이전트 결과",
+    "report": "에이전트 보고",
+    "startError": "시작 오류",
+    "noReport": "에이전트 보고가 아직 없어요.",
+    "noPr": "아직 PR이 없어요.",
+    "ciLabel": "CI {state}",
+    "ci": {
+      "success": "통과",
+      "failure": "실패",
+      "pending": "도는 중",
+      "none": "없음",
+      "unavailable": "읽을 수 없음",
+      "unknown": "알 수 없음"
+    },
+    "step": {
+      "pr-ci-failed": "PR의 CI가 실패했어요. GitHub에서 확인해 주세요.",
+      "pr-conflict": "PR이 base와 충돌해요. GitHub에서 확인해 주세요.",
+      "question": "에이전트의 질문에 답해 주세요.",
+      "permission": "Permission을 확인해 주세요. 허용은 러너의 Orca에서 해요.",
+      "human-check": "에이전트가 확인을 기다려요.",
+      "waiting-input": "무엇을 기다리는지 아직 읽지 못했어요.",
+      "paused": "멈춰 있어요. 재개하면 같은 자리에서 이어서 해요.",
+      "disconnected": "러너에 닿지 않아요. 다시 닿으면 실제 상태를 확인해 이어 가요.",
+      "blockers-stuck": "선행 티켓이 풀리지 않아 기다리고 있어요.",
+      "kept-worktree": "워크트리를 남겨 두었어요. Ganger 웹이나 데스크톱 앱에서 정리할 수 있어요.",
+      "failed": "런이 실패했어요. 이유를 확인해 주세요.",
+      "none": "지금 처리할 일은 없어요."
+    }
   }
 }

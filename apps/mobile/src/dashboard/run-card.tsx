@@ -110,22 +110,26 @@ function noteOf(run: DashboardRun): string | null {
   return null;
 }
 
-function actionOf(run: DashboardRun): { key: MessageKey; danger: boolean } | null {
+export type RunCardAction = "answer" | "human-check" | "deny" | "resume" | "detail";
+
+function actionOf(
+  run: DashboardRun,
+): { action: RunCardAction; key: MessageKey; danger: boolean } | null {
   if (inputHandled(run)) return null;
   switch (run.todoTag) {
     case "question":
-      return { key: "card.answer", danger: false };
+      return { action: "answer", key: "card.answer", danger: false };
     case "human-check":
-      return { key: "card.check", danger: false };
+      return { action: "human-check", key: "card.check", danger: false };
     case "permission":
-      return { key: "card.deny", danger: true };
+      return { action: "deny", key: "card.deny", danger: true };
     case "failed":
-      return { key: "card.retry", danger: false };
-    case "waiting-for-input":
     case "disconnected":
+      return { action: "detail", key: "card.detail", danger: false };
+    case "waiting-for-input":
     case null:
       return run.state === "paused" && !run.cancelling && run.control?.status !== "pending"
-        ? { key: "card.resume", danger: false }
+        ? { action: "resume", key: "card.resume", danger: false }
         : null;
   }
 }
@@ -156,11 +160,13 @@ export function RunCard({
   showWorkspace = false,
   actionsDisabled = false,
   onAction,
+  onMenu,
 }: {
   run: DashboardRun;
   showWorkspace?: boolean;
   actionsDisabled?: boolean;
-  onAction: () => void;
+  onAction: (action: RunCardAction) => void;
+  onMenu?: () => void;
 }) {
   const pill = pillOf(run);
   const detail = detailOf(run);
@@ -210,8 +216,16 @@ export function RunCard({
         <Button
           label={t(action.key)}
           variant={action.danger ? "danger" : "secondary"}
-          disabled={actionsDisabled}
-          onPress={onAction}
+          disabled={action.action !== "detail" && actionsDisabled}
+          onPress={() => onAction(action.action)}
+        />
+      )}
+      {onMenu === undefined || run.state === "ended" ? null : (
+        <Button
+          compact
+          label={t("card.menuLabel")}
+          accessibilityLabel={t("card.menu", { key: run.ticketKey })}
+          onPress={onMenu}
         />
       )}
     </Card>
