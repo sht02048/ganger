@@ -538,6 +538,25 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       },
     );
 
+    it("순환 카드는 원인 티켓의 칩만 멈춤으로 보인다", () => {
+      const inCycle = { ...active, key: "ACME-12" };
+      const card = cardWith({
+        kind: "blockers-stuck",
+        cause: "cycle",
+        blocker: inCycle,
+        blockers: [canceled, active, inCycle],
+      });
+      const chipOf = (state: string) => {
+        const [, chip = ""] = card.split(`data-blocker-state="${state}"`);
+        return text(`<span ${chip.split("data-blocker-state")[0] ?? ""}`);
+      };
+      expect(card.match(/data-blocker-state="stuck"/g)).toHaveLength(1);
+      expect(chipOf("stuck")).toContain("ACME-12");
+      expect(chipOf("stuck")).toContain(domain.blocker.stuckCause.cycle);
+      expect(chipOf("canceled")).toContain("ACME-10");
+      expect(chipOf("active")).toContain("ACME-11");
+    });
+
     it("칩의 키와 상태는 카드 버튼의 설명으로 전해진다", () => {
       const card = cardWith({ kind: "blockers-waiting", blockers: [active] });
       const chipsId = /aria-describedby="[^"]*?([^" ]+chips)/.exec(card)?.[1] ?? "";

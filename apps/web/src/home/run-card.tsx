@@ -189,7 +189,11 @@ function useCardParts(
       const blockers = allBlockersOf(waiting);
       const keylessLine = keylessBlockerLine(waiting);
       return {
-        ...(blockers.length === 0 ? {} : { blockers: <BlockerChipList blockers={blockers} /> }),
+        ...(blockers.length === 0
+          ? {}
+          : {
+              blockers: <BlockerChipList blockers={blockers} cycleKey={cycleBlockerKey(waiting)} />,
+            }),
         stuck,
         meta: [
           run.cancelling ? t("cancelling") : null,
@@ -323,6 +327,12 @@ function keylessBlockerLine(
 ): "waiting" | "canceled" | "unreadable" | "cycle" | null {
   if (reason.blockers.length === 0) return null;
   return reason.kind === "blockers-waiting" ? "waiting" : reason.cause;
+}
+
+function cycleBlockerKey(reason: BlockerReason): string | null {
+  return reason.kind === "blockers-stuck" && reason.cause === "cycle"
+    ? (reason.blocker?.key ?? null)
+    : null;
 }
 
 function firstLineOf(body: string): string {
