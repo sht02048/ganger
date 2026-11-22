@@ -1,0 +1,161 @@
+{
+  "common": {
+    "close": "닫기",
+    "back": "뒤로",
+    "demoAction": "데모 모드에서는 보내지 않아요. 서버에 연결하면 쓸 수 있어요."
+  },
+  "time": {
+    "underMinute": "<1 min",
+    "minutes": "{minutes} min",
+    "hours": "{hours} hr",
+    "hoursMinutes": "{hours} hr {minutes} min",
+    "day": "1 day",
+    "days": "{days} days",
+    "justNow": "Just now",
+    "ago": "{duration} ago",
+    "date": "{month}월 {day}일"
+  },
+  "status": {
+    "question": "Question",
+    "permission": "Permission",
+    "human-check": "Human Check",
+    "waiting-for-input": "Waiting for Input",
+    "failed": "Failed",
+    "disconnected": "Disconnected",
+    "runner-issue": "Runner Issue",
+    "offline": "Offline",
+    "running": "Running",
+    "online": "Online",
+    "succeeded": "Succeeded",
+    "queued": "Queued",
+    "paused": "Paused",
+    "canceled": "Canceled"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "allWorkspaces": "모든 Workspace",
+    "chooseWorkspace": "Workspace 고르기",
+    "runners": "Runners",
+    "runnersWithIssues": "Runners, 문제 러너 {count}대",
+    "settings": "설정",
+    "todoOnly": "처리할 일만",
+    "todoCount": "처리할 일 {count}개",
+    "countTodo": "처리할 일 {count}",
+    "countRest": "{column} {count}",
+    "countSeparator": " · ",
+    "humanCheckGroup": "확인해 주세요",
+    "settledGroup": "처리할 일 없이 끝났어요",
+    "summary": {
+      "sentence": "처리할 일은 {list}예요.",
+      "separator": ", ",
+      "check": "확인할 일 {count}개",
+      "answer": "답할 질문 {count}개",
+      "stopped": "멈춘 런 {count}개",
+      "inProgress": "처리할 일은 없고, 진행 중인 런이 {count}개 있어요.",
+      "idle": "처리할 일도, 진행 중인 런도 없어요.",
+      "limit": "한도에 닿은 러너 {count}대는 {duration} 뒤 한도가 풀리면 다시 런을 받아요.",
+      "limitUnknown": "한도에 닿은 러너가 {count}대 있어요.",
+      "withLimit": "{work} {limit}"
+    },
+    "column": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done"
+    },
+    "columnEmpty": {
+      "queued": "Queued 런이 없어요",
+      "running": "Running 런이 없어요",
+      "done": "최근 7일 동안 끝난 런이 없어요",
+      "todo": "처리할 일이 없어요"
+    },
+    "empty": "에이전트가 묻거나 멈추면 알려 줄게요."
+  },
+  "card": {
+    "cancelling": "취소 중",
+    "noRunner": "러너 없음",
+    "inputUnknown": "무엇을 기다리는지 아직 읽지 못했어요",
+    "allowOnRunner": "허용은 러너 화면에서만 할 수 있어요. 여기서는 거절만 할 수 있어요.",
+    "unreachableFor": "{runner}에 {duration} 닿지 않아요",
+    "unreachable": "{runner}에 닿지 않아요",
+    "disconnected": "워크트리는 그대로 두었어요. 러너에 다시 닿으면 실제 상태를 확인해 이어 가요.",
+    "answer": "답하기",
+    "check": "확인하기",
+    "deny": "거절",
+    "resume": "재개하기",
+    "retry": "다시 맡기기",
+    "pullRequest": "PR {pr}",
+    "prMerged": "PR {pr} 병합됨",
+    "prClosed": "PR {pr} 닫힘",
+    "prChip": {
+      "ciFailed": "CI 실패",
+      "conflict": "충돌",
+      "behind": "{count}커밋 뒤",
+      "more": "+{count}"
+    },
+    "paused": {
+      "operator": "Ganger에서 멈춤",
+      "runner": "러너에서 멈춤",
+      "unreported": "보고 없이 멈춤"
+    },
+    "queued": {
+      "free": "빈 러너를 기다려요",
+      "offline": "{runner}{particle} Offline이라 기다려요",
+      "particleConsonant": "이",
+      "particleVowel": "가",
+      "anyOffline": "맞는 러너가 Offline이라 기다려요",
+      "starting": "곧 시작해요",
+      "projectMissing": "러너에서 프로젝트가 빠져 다시 고르는 중",
+      "assignmentBlocked": "러너의 GitHub 인증이 깨져 기다리는 중",
+      "usageLimit": "모든 러너가 {provider} 한도에 닿아 {duration} 뒤 풀려요"
+    },
+    "blockerLine": {
+      "waiting": "선행 티켓을 기다려요",
+      "canceled": "선행 티켓이 취소됐어요",
+      "unreadable": "선행 티켓을 읽지 못했어요",
+      "cycle": "선행 티켓과 서로 기다려요"
+    }
+  },
+  "runners": {
+    "title": "Runners",
+    "fixElsewhere": "고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 해요",
+    "problems": "문제",
+    "list": "러너",
+    "empty": "아직 러너가 없어요.",
+    "offlineFor": "{duration} 닿지 않아요",
+    "offline": "오케스트레이터가 이 러너에 닿지 않아요",
+    "auth": "GitHub 인증을 다시 해야 해요",
+    "limit": "{provider} {window} 한도에 닿았어요 · {duration} 뒤 풀려요",
+    "limitUnknown": "{provider} {window} 한도에 닿았어요",
+    "capacity": "{total}자리 중 {used}자리 사용",
+    "usage": "{provider} {window}",
+    "usageValue": "{percent}%",
+    "window": {
+      "session": "5시간",
+      "weekly": "주간",
+      "fableWeekly": "Fable 주간",
+      "monthly": "월간"
+    }
+  },
+  "settings": {
+    "title": "설정",
+    "server": "연결한 서버",
+    "serverDemo": "데모 모드",
+    "connection": "연결 상태",
+    "connectionDemo": "서버 없이 데모 데이터를 보고 있어요",
+    "disconnect": "이 기기 연결 끊기",
+    "notifications": "알림",
+    "notificationsOn": "알림 켜기",
+    "notificationKinds": "받을 알림",
+    "kind": {
+      "question": "Question",
+      "permission": "Permission",
+      "humanCheck": "Human Check",
+      "failedDisconnected": "Failed·Disconnected",
+      "runnerIssue": "Runner Issue"
+    },
+    "pushNotice": "알림은 Expo Push를 거쳐 와요. 티켓 내용은 싣지 않아요.",
+    "demo": "데모",
+    "emptyPreview": "빈 화면 미리 보기",
+    "version": "앱 버전"
+  }
+}

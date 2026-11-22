@@ -150,6 +150,8 @@ describe("isChecked", () => {
     expect(isChecked("apps/web/src/styles/app.css")).toBe(true);
     expect(isChecked("packages/core/src/index.ts")).toBe(true);
     expect(isChecked("packages/ui/src/tokens.stylex.ts")).toBe(false);
+    expect(isChecked("apps/mobile/src/design/tokens.ts")).toBe(false);
+    expect(isChecked("apps/mobile/src/design/components.tsx")).toBe(true);
     expect(isChecked("apps/web/src/routeTree.gen.ts")).toBe(false);
     expect(isChecked("apps/web/dist/client/assets/app.css")).toBe(false);
     expect(isChecked("apps/web/messages/ko.json")).toBe(false);
