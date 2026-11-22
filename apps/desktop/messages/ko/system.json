@@ -26,6 +26,7 @@
     "server": "서버",
     "edit": "편집",
     "view": "보기",
+    "reload": "다시 불러오기",
     "window": "창",
     "navigate": "이동",
     "notificationSettings": "알림 설정…",

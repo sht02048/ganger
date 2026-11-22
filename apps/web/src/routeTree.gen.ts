@@ -19,6 +19,7 @@ import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
 import { Route as AppTicketsRouteImport } from './routes/_app/tickets'
 import { Route as ApiAttentionRouteImport } from './routes/api/attention'
+import { Route as ApiBuildRouteImport } from './routes/api/build'
 import { Route as ApiDiagnosticsRouteImport } from './routes/api/diagnostics'
 import { Route as ApiIdentityRouteImport } from './routes/api/identity'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs_.$runId'
@@ -82,6 +83,11 @@ const AppTicketsRoute = AppTicketsRouteImport.update({
 const ApiAttentionRoute = ApiAttentionRouteImport.update({
   id: '/api/attention',
   path: '/api/attention',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiBuildRoute = ApiBuildRouteImport.update({
+  id: '/api/build',
+  path: '/api/build',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiDiagnosticsRoute = ApiDiagnosticsRouteImport.update({
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
   '/api/attention': typeof ApiAttentionRoute
+  '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
   '/api/attention': typeof ApiAttentionRoute
+  '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
   '/': typeof AppIndexRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/_app/stats': typeof AppStatsRoute
   '/_app/tickets': typeof AppTicketsRoute
   '/api/attention': typeof ApiAttentionRoute
+  '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
   '/_app/': typeof AppIndexRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/stats'
     | '/tickets'
     | '/api/attention'
+    | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
     | '/runs/$runId'
@@ -287,6 +297,7 @@ export interface FileRouteTypes {
     | '/stats'
     | '/tickets'
     | '/api/attention'
+    | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
     | '/'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/_app/stats'
     | '/_app/tickets'
     | '/api/attention'
+    | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
     | '/_app/'
@@ -337,6 +349,7 @@ export interface RootRouteChildren {
   DsRoute: typeof DsRoute
   OnboardingRoute: typeof OnboardingRoute
   ApiAttentionRoute: typeof ApiAttentionRoute
+  ApiBuildRoute: typeof ApiBuildRoute
   ApiDiagnosticsRoute: typeof ApiDiagnosticsRoute
   ApiIdentityRoute: typeof ApiIdentityRoute
   ApiChangeEventsStreamRoute: typeof ApiChangeEventsStreamRoute
@@ -420,6 +433,13 @@ declare module '@tanstack/react-router' {
       path: '/api/attention'
       fullPath: '/api/attention'
       preLoaderRoute: typeof ApiAttentionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/build': {
+      id: '/api/build'
+      path: '/api/build'
+      fullPath: '/api/build'
+      preLoaderRoute: typeof ApiBuildRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/diagnostics': {
@@ -565,6 +585,7 @@ const rootRouteChildren: RootRouteChildren = {
   DsRoute: DsRoute,
   OnboardingRoute: OnboardingRoute,
   ApiAttentionRoute: ApiAttentionRoute,
+  ApiBuildRoute: ApiBuildRoute,
   ApiDiagnosticsRoute: ApiDiagnosticsRoute,
   ApiIdentityRoute: ApiIdentityRoute,
   ApiChangeEventsStreamRoute: ApiChangeEventsStreamRoute,
@@ -582,10 +603,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { bundleMigrations } from "@ganger/db/bundle-migrations";
 import stylex from "@stylexjs/unplugin";
@@ -10,8 +11,12 @@ import { thirdPartyManifest } from "../../scripts/third-party";
 const stylexPlugin = stylex.vite as (options?: Parameters<typeof stylex.vite>[0]) => PluginOption;
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
+const productionBuildId = (process.env["GANGER_WEB_BUILD_ID"] ??= randomUUID());
 
 export default defineConfig(({ command }) => ({
+  define: {
+    __GANGER_BUILD_ID__: JSON.stringify(command === "build" ? productionBuildId : "dev"),
+  },
   server: { host: "127.0.0.1", port: 3000 },
   ...(command === "build" ? { ssr: { noExternal: true } } : {}),
   plugins: [

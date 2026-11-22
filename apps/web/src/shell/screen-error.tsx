@@ -7,6 +7,7 @@ import { useRouter, useRouterState } from "@tanstack/react-router";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useTranslations } from "use-intl";
+import { reloadPage, retryOrReload, serverBuild } from "./server-build";
 
 type RetryState =
   | { kind: "idle" }
@@ -60,6 +61,26 @@ async function retrySettled(queryClient: QueryClient): Promise<void> {
   await nextFrame();
 }
 
+const errorScreenListeners = new Set<() => void>();
+
+function changeMountedErrorScreens(by: 1 | -1): void {
+  mountedErrorScreens += by;
+  for (const listener of errorScreenListeners) listener();
+}
+
+function subscribeErrorScreens(listener: () => void): () => void {
+  errorScreenListeners.add(listener);
+  return () => errorScreenListeners.delete(listener);
+}
+
+export function useErrorScreenShown(): boolean {
+  return useSyncExternalStore(
+    subscribeErrorScreens,
+    () => mountedErrorScreens > 0,
+    () => false,
+  );
+}
+
 function focusCurrentScreenLinkIfLost(): void {
   requestAnimationFrame(() => {
     const active = document.activeElement;
@@ -82,10 +103,9 @@ export function ScreenError({ reset }: ErrorComponentProps) {
   const failedAttempt = state.kind === "failed" && state.href === href ? state.attempt : null;
 
   useEffect(() => {
-    mountedErrorScreens += 1;
-    return () => {
-      mountedErrorScreens -= 1;
-    };
+    changeMountedErrorScreens(1);
+    void serverBuild.check();
+    return () => changeMountedErrorScreens(-1);
   }, []);
 
   useEffect(() => {
@@ -97,6 +117,18 @@ export function ScreenError({ reset }: ErrorComponentProps) {
   const retry = () => {
     if (retrying) return;
     setRetryState({ kind: "retrying", href });
+    void retryOrReload({
+      check: serverBuild.check,
+      stillOnErrorScreen: () => mountedErrorScreens > 0 && router.state.location.href === href,
+      reload: reloadPage,
+      retry: retryReads,
+      abandon: () => {
+        if (retryState.kind === "retrying" && retryState.href === href) setRetryState(IDLE);
+      },
+    });
+  };
+
+  const retryReads = () => {
     queryErrorReset.reset();
     const failed = () => {
       failedAttempts += 1;
