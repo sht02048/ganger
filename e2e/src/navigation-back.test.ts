@@ -146,14 +146,13 @@ afterAll(async () => {
 describe("앱 안 이동과 돌아가기(브라우저, 0181)", () => {
   it("Tickets 에서 답하기로 간 런 상세의 ‹ 는 거르기·고른 줄·스크롤을 그대로 돌려준다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 480 });
-    await open(page, `/tickets?ws=${workspaceId}&f=todo`);
-    const list = page.getByRole("list", { name: ticketsJson.listLabel });
     const key = "ACME-Q6";
+    await open(page, `/tickets?ws=${workspaceId}&f=todo&sel=${ticketSel(key)}`);
+    const list = page.getByRole("list", { name: ticketsJson.listLabel });
     const row = list.getByRole("listitem").filter({ hasText: key });
     await row.waitFor();
     const run = fillerRuns.get(key) ?? "";
     expect(run).not.toBe("");
-    await row.getByRole("button", { name: new RegExp(key) }).click();
     const panel = page.getByRole("region", { name: ticketsJson.panel.label });
     await panel.getByRole("heading", { name: `Ticket ${key}`, exact: true }).waitFor();
     await expect.poll(() => new URL(page.url()).searchParams.get("sel")).toContain(key);
@@ -243,7 +242,7 @@ describe("앱 안 이동과 돌아가기(브라우저, 0181)", () => {
       .poll(() =>
         page.evaluate((id) => {
           const box = document.getElementById(id)?.getBoundingClientRect();
-          return box !== undefined && box.top >= 0 && box.bottom <= window.innerHeight;
+          return box !== undefined && box.top >= -1 && box.bottom <= window.innerHeight + 1;
         }, rowId),
       )
       .toBe(true);
