@@ -132,7 +132,7 @@ export interface RunDetail {
   workspace: { id: string; name: string };
   branch: string | null;
   worktree: string | null;
-  runner: { name: string; online: boolean } | null;
+  runner: { id: string; name: string; online: boolean } | null;
   agent: string;
   model: string | null;
   assignedAt: string;

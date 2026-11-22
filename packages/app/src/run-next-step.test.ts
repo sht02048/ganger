@@ -58,6 +58,11 @@ describe("runNextStep", () => {
       "none",
     ],
     ["취소 중", { ...active, cancelling: true, state: "paused" }, "none"],
+    [
+      "취소 중인 Disconnected",
+      { ...active, cancelling: true, state: "disconnected" },
+      "disconnected",
+    ],
     ["Succeeded", ended, "none"],
     ["Canceled", { ...ended, summary: "canceled" }, "none"],
     ["Failed", { ...ended, summary: "failed" }, "failed"],

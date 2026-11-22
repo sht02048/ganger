@@ -47,6 +47,7 @@ export type RunNextStepInput =
 
 export function runNextStep(run: RunNextStepInput): RunNextStep {
   if (run.state === "ended") return endedNextStep(run);
+  if (run.state === "disconnected") return "disconnected";
   if (run.cancelling) return "none";
   switch (run.state) {
     case "queued":
@@ -55,8 +56,6 @@ export function runNextStep(run: RunNextStepInput): RunNextStep {
       return "none";
     case "paused":
       return "paused";
-    case "disconnected":
-      return "disconnected";
     case "waiting-for-input":
       return inputNextStep(run.input);
   }
