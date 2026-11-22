@@ -87,12 +87,12 @@ export function ProgressRing({
           cx="8"
           cy="8"
           r={RING_RADIUS}
-          stroke="currentColor"
           strokeWidth="2"
           strokeLinecap="round"
           strokeDasharray={`${share * RING_LENGTH} ${RING_LENGTH}`}
           transform="rotate(-90 8 8)"
           opacity={share === 0 ? 0 : 1}
+          {...stylex.props(styles.ringFill)}
         />
       </svg>
     </Tooltip>
@@ -279,6 +279,7 @@ export function IssueRow({
           styles.grid,
           indent === "none" ? styles.gridFlat : styles.gridIndented,
           styles.row,
+          surface !== "none" && styles.rowInCard,
           selected && styles.rowSelected,
         )}
       >
@@ -402,6 +403,7 @@ const styles = stylex.create({
     transitionDuration: motion.durationFast,
     transitionTimingFunction: motion.easeOut,
   },
+  rowInCard: { backgroundColor: { default: "transparent", ":hover": colors.bgCardHover } },
   rowSelected: {
     backgroundColor: { default: colors.bgSelected, ":hover": colors.bgSelected },
     boxShadow: `inset 0 0 0 1px ${colors.borderSelected}`,
@@ -410,7 +412,8 @@ const styles = stylex.create({
   iconSlot: { display: "inline-flex", flexShrink: 0 },
   iconPastToggle: { marginInlineStart: `calc(${size.issueToggle} + ${space.s1})` },
   stateIcon: { display: "inline-flex", flexShrink: 0, color: colors.textSecondary },
-  ringTrack: { stroke: colors.bgSelected },
+  ringTrack: { stroke: colors.meterTrack },
+  ringFill: { stroke: colors.meterFill },
   disclosure: {
     ...overlayed,
     display: "inline-flex",
@@ -423,7 +426,7 @@ const styles = stylex.create({
     padding: 0,
     borderWidth: 0,
     borderRadius: radius.pill,
-    backgroundColor: { default: "transparent", ":hover": colors.bgRaisedHover },
+    backgroundColor: { default: "transparent", ":hover": colors.bgCardHover },
     color: colors.textSecondary,
     cursor: "pointer",
     outline: { default: "none", ":focus-visible": `2px solid ${colors.accentText}` },
@@ -508,8 +511,8 @@ const styles = stylex.create({
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: size.control,
-    height: size.control,
+    width: size.iconButton,
+    height: size.iconButton,
     padding: 0,
     borderWidth: 0,
     borderRadius: radius.control,

@@ -303,13 +303,17 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
         .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
         .click();
       await child.waitFor({ state: "detached" });
+      const search = page.getByRole("searchbox", { name: tickets.search.label });
+      await search.fill("number 501");
+      await child.waitFor();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
       await list
         .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
         .click();
       await child.waitFor();
-
-      const search = page.getByRole("searchbox", { name: tickets.search.label });
-      await search.fill("number 501");
       await page.getByRole("button", { name: tickets.view.flat }).click();
       await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("flat");
       expect(new URL(page.url()).searchParams.get("f")).toBe("assignable");

@@ -610,6 +610,7 @@ describe("상위 이슈로 묶기(0171)", () => {
     const panel = panelText(html);
     expect(panel).toContain("읽은 범위 밖의 이슈예요");
     expect(panel).not.toContain("티켓 정보");
+    expect(panel).not.toContain("하위 티켓");
     expect(html.split("<aside")[1]).toContain("issue/EPIC-1");
   });
 

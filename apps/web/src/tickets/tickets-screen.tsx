@@ -26,6 +26,7 @@ import {
   PageHeader,
   PanelList,
   PanelListRow,
+  PanelHeader,
   PanelSection,
   ProgressRing,
   ScreenLayout,
@@ -65,7 +66,7 @@ import { isBlockerFinished } from "@ganger/core";
 import { blockerChipState } from "../blockers";
 import { useAgentName, useQueuedReasonText } from "../labels";
 import { useRowWindow } from "./row-window";
-import { groupTickets } from "@ganger/app/tickets/groups";
+import { groupTickets, issueGroupsById, ticketStage } from "@ganger/app/tickets/groups";
 import type { TicketGroup, TicketListView } from "@ganger/app/tickets/groups";
 import { isSelectableRow, issueStateKind, listRows, rowActionOf } from "./ticket-rows";
 import type { TicketListRow } from "./ticket-rows";
@@ -228,7 +229,17 @@ function TicketsList({
   const reread = useReread(onReread, page);
   const [query, setQuery] = useState("");
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const narrowing = `${filter}\u0000${query}`;
+  const [expansionNarrowing, setExpansionNarrowing] = useState(narrowing);
+  if (expansionNarrowing !== narrowing) {
+    setExpansionNarrowing(narrowing);
+    setExpansion(new Map());
+  }
   const grouping = useMemo(() => groupTickets(page.tickets), [page.tickets]);
+  const issueGroups = useMemo(
+    () => issueGroupsById(page.tickets, grouping),
+    [page.tickets, grouping],
+  );
   const rows = useMemo(
     () =>
       listRows({
@@ -246,10 +257,9 @@ function TicketsList({
   const counts = useMemo(() => countByFilter(page.tickets), [page.tickets]);
   const selectionExists =
     selectedId !== undefined &&
-    (page.tickets.some((ticket) => ticket.id === selectedId) ||
-      grouping.groups.some((group) => group.id === selectedId));
+    (page.tickets.some((ticket) => ticket.id === selectedId) || issueGroups.has(selectedId));
   const effectiveId = selectionExists ? selectedId : selectableRows[0]?.id;
-  const selectedGroup = grouping.groups.find((group) => group.id === effectiveId) ?? null;
+  const selectedGroup = effectiveId === undefined ? null : (issueGroups.get(effectiveId) ?? null);
   const selectedTicket = page.tickets.find((ticket) => ticket.id === effectiveId);
   const selectedIndex = rows.findIndex((row) => row.id === effectiveId);
   const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
@@ -257,6 +267,10 @@ function TicketsList({
   const listRef = useRef<HTMLDivElement>(null);
   const rowWindow = useRowWindow(listRef, rowKeys, selectedIndex);
   const moreBelow = useMoreBelow(scrollRef, listRef, rows.length);
+  const renderedRows = rows.slice(rowWindow.start, rowWindow.end);
+  const tabbableId = renderedRows.some((row) => row.id === effectiveId)
+    ? effectiveId
+    : renderedRows.find(isSelectableRow)?.id;
   const [assignedId, setAssignedId] = useState<string | null>(null);
   const [relationPickedId, setRelationPickedId] = useState<string | null>(null);
   const pendingRowFocus = useRef<string | null>(null);
@@ -286,6 +300,17 @@ function TicketsList({
     if (next === undefined) return;
     pendingRowFocus.current = next.id;
     onSelect(next.id);
+  };
+  const selectFromPanel = (id: string) => {
+    setRelationPickedId(id);
+    setExpansion((current) => {
+      const next = new Map(current);
+      for (const group of grouping.groups) {
+        if (group.children.some((child) => child.id === id)) next.delete(group.id);
+      }
+      return next;
+    });
+    onSelect(id);
   };
   const toggleGroup = (id: string, expanded: boolean) => {
     setExpansion((current) => new Map(current).set(id, !expanded));
@@ -406,15 +431,13 @@ function TicketsList({
                         {rowWindow.spaceBefore > 0 ? (
                           <div aria-hidden="true" style={{ height: rowWindow.spaceBefore }} />
                         ) : null}
-                        {rows.slice(rowWindow.start, rowWindow.end).map((row) => (
+                        {renderedRows.map((row) => (
                           <TicketListRowView
                             key={row.id}
                             row={row}
                             page={page}
                             selected={row.id === effectiveId}
-                            tabbable={
-                              row.id === (selectedIndex < 0 ? selectableRows[0]?.id : effectiveId)
-                            }
+                            tabbable={row.id === tabbableId}
                             onSelect={onSelect}
                             onToggle={toggleGroup}
                             onOpenRun={onOpenRun}
@@ -439,10 +462,7 @@ function TicketsList({
               <ParentIssuePanel
                 key={selectedGroup.id}
                 group={selectedGroup}
-                onSelectTicket={(id) => {
-                  setRelationPickedId(id);
-                  onSelect(id);
-                }}
+                onSelectTicket={selectFromPanel}
                 onOpenRun={onOpenRun}
                 onOpenRuns={onOpenRuns}
                 focusTitle={relationPickedId === selectedGroup.id}
@@ -457,10 +477,7 @@ function TicketsList({
                 page={page}
                 onOpenRun={onOpenRun}
                 onOpenRuns={onOpenRuns}
-                onSelectTicket={(id) => {
-                  setRelationPickedId(id);
-                  onSelect(id);
-                }}
+                onSelectTicket={selectFromPanel}
                 focusTitle={relationPickedId === selectedTicket.id}
                 onFocusedTitle={() => setRelationPickedId(null)}
                 onAssign={onAssign}
@@ -695,7 +712,7 @@ function GroupRunSummary({ group }: { group: TicketGroup }) {
   const counts = new Map<PillStatus, number>();
   for (const child of group.children) {
     const run = lastRun(child);
-    if (run === undefined) continue;
+    if (run === undefined || ticketStage(child) === "finished") continue;
     if (run.state === "ended" && run.summary !== "failed") continue;
     const status = runDisplayStatus(run);
     counts.set(status, (counts.get(status) ?? 0) + 1);
@@ -771,7 +788,7 @@ function ParentIssuePanel({
   const t = useTranslations("tickets.panel");
   const tTickets = useTranslations("tickets");
   const statusName = useStatusName();
-  const titleRef = useRef<HTMLElement>(null);
+  const titleRef = useRef<HTMLDivElement>(null);
   const { root, rootTicket, progress, children } = group;
   useEffect(() => {
     if (!focusTitle) return;
@@ -783,63 +800,63 @@ function ParentIssuePanel({
     .join(" · ");
   return (
     <DetailPanel>
-      <div {...stylex.props(styles.panelHead)}>
-        <div {...stylex.props(styles.panelMeta)}>
-          <Text variant="meta" numeric wrap="anywhere">
-            {meta}
-          </Text>
-          {root.url === null ? null : (
-            <ExternalIconLink href={root.url} label={`${t("openInLinear")} (${t("newTab")})`} />
-          )}
-        </div>
-        <Text ref={titleRef} tabIndex={-1} variant="heading">
-          {root.title}
-        </Text>
-        <div {...stylex.props(styles.chips)}>
-          <Chip wrapText>{root.state.name}</Chip>
-        </div>
-        {rootTicket === null ? <Text variant="body">{t("outOfScope")}</Text> : null}
+      <div ref={titleRef} tabIndex={-1}>
+        <PanelHeader
+          eyebrow={
+            <span {...stylex.props(styles.panelMeta)}>
+              <Text variant="meta" numeric wrap="anywhere">
+                {meta}
+              </Text>
+              {root.url === null ? null : (
+                <ExternalIconLink href={root.url} label={`${t("openInLinear")} (${t("newTab")})`} />
+              )}
+            </span>
+          }
+          status={<Chip wrapText>{root.state.name}</Chip>}
+          title={root.title}
+          {...(rootTicket === null ? { subtitle: t("outOfScope") } : {})}
+        />
       </div>
-      <PanelSection title={t("childrenTitle")} titleRole="subheading" count={children.length}>
-        <span {...stylex.props(styles.runLine)}>
-          <ProgressRing
-            done={progress.done}
-            total={progress.total}
-            label={tTickets("group.progress", { done: progress.done, total: progress.total })}
-          />
-          <Text variant="meta">
-            {t("childrenProgress", {
-              total: progress.total,
-              done: progress.done,
-              inProgress: progress.inProgress,
-              remaining: progress.remaining,
-            })}
-          </Text>
-        </span>
-        <PanelList>
-          {children.map((child) => {
-            const run = lastRun(child);
-            return (
-              <PanelListRow
-                key={child.id}
-                marker={
-                  <IssueStateIcon
-                    kind={issueStateKind(child.trackerState.category)}
-                    label={child.trackerState.name}
-                  />
-                }
-                ticketKey={child.key}
-                title={child.title}
-                done={child.trackerState.category === "completed"}
-                {...(run === undefined ? {} : { trailing: statusName(runDisplayStatus(run)) })}
-                onClick={() => onSelectTicket(child.id)}
-              />
-            );
-          })}
-        </PanelList>
-      </PanelSection>
       {rootTicket === null ? null : (
         <>
+          <PanelSection title={t("childrenTitle")} titleRole="subheading" count={children.length}>
+            <span {...stylex.props(styles.runLine)}>
+              <ProgressRing
+                done={progress.done}
+                total={progress.total}
+                label={tTickets("group.progress", { done: progress.done, total: progress.total })}
+              />
+              <Text variant="meta">
+                {t("childrenProgress", {
+                  total: progress.total,
+                  done: progress.done,
+                  inProgress: progress.inProgress,
+                  remaining: progress.remaining,
+                })}
+              </Text>
+            </span>
+            <PanelList>
+              {children.map((child) => {
+                const run = lastRun(child);
+                return (
+                  <PanelListRow
+                    key={child.id}
+                    marker={
+                      <IssueStateIcon
+                        kind={issueStateKind(child.trackerState.category)}
+                        label={child.trackerState.name}
+                      />
+                    }
+                    ticketKey={child.key}
+                    title={child.title}
+                    done={child.trackerState.category === "completed"}
+                    {...(run === undefined ? {} : { trailing: statusName(runDisplayStatus(run)) })}
+                    onClick={() => onSelectTicket(child.id)}
+                  />
+                );
+              })}
+            </PanelList>
+          </PanelSection>
           <PanelSection title={t("ticketInfo")} titleRole="subheading">
             <DefinitionList>
               <DefinitionItem label={t("priority")} empty={rootTicket.priority === "none"}>
@@ -1304,16 +1321,24 @@ function TicketPanel({
           )}
         </div>
         {parentIssue === undefined ? null : (
-          <Text variant="meta" wrap="anywhere">
-            {`${t("parentLink")} `}
+          <div {...stylex.props(styles.parentLine)}>
+            <Text variant="meta">{t("parentLink")}</Text>
             {parentIsKnown ? (
               <Button variant="ghost" compact onClick={() => onSelectTicket(parentId)}>
                 {`${parentIssue.key} ${parentIssue.title}`}
               </Button>
             ) : (
-              `${parentIssue.key} ${parentIssue.title}`
+              <Text variant="meta" wrap="anywhere">
+                {`${parentIssue.key} ${parentIssue.title}`}
+              </Text>
             )}
-          </Text>
+            {parentIsKnown || parentIssue.url === null ? null : (
+              <ExternalIconLink
+                href={parentIssue.url}
+                label={`${t("openInLinear")} (${t("newTab")})`}
+              />
+            )}
+          </div>
         )}
       </div>
       <Card label={t("lastRun")}>
@@ -1448,5 +1473,6 @@ const styles = stylex.create({
   chips: { display: "flex", flexWrap: "wrap", gap: space.px6, minWidth: 0 },
   relationGroup: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
   waitMark: { display: "inline-flex", flexShrink: 0, alignItems: "center", gap: space.s1 },
+  parentLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   runLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
 });

@@ -53,8 +53,9 @@ function isFinishedInTracker(ticket: TicketView): boolean {
 }
 
 export function ticketStage(ticket: TicketView): TicketStage {
-  if (isFinishedInTracker(ticket)) return "finished";
   const run = lastRun(ticket);
+  if (run !== undefined && run.state !== "ended" && isTodo(run)) return "attention";
+  if (isFinishedInTracker(ticket)) return "finished";
   if (run !== undefined && isTodo(run)) return "attention";
   if (ticket.assignability.kind === "ready" && matchesFilter(ticket, "assignable"))
     return "assignable";
@@ -110,6 +111,48 @@ interface GroupDraft {
   children: TicketView[];
 }
 
+function finishGroup(draft: GroupDraft): TicketGroup {
+  const children = byStage(draft.children, ticketStage);
+  const stage = children.reduce<TicketStage>((best, child) => {
+    const next = ticketStage(child);
+    return stageRank(next) < stageRank(best) ? next : best;
+  }, "finished");
+  return {
+    ...draft,
+    children,
+    progress: progressOf(children),
+    stage,
+    expandedByDefault: stage !== "finished",
+  };
+}
+
+export function issueGroupsById(
+  tickets: ReadonlyArray<TicketView>,
+  grouping: TicketGrouping,
+): ReadonlyMap<string, TicketGroup> {
+  const loaded = new Map(tickets.map((ticket) => [ticket.id, ticket]));
+  const drafts = new Map<string, GroupDraft>();
+  for (const ticket of tickets) {
+    for (const ancestor of ticket.ancestors) {
+      const id = ticketId(ticket.connection, ancestor.key);
+      const rootTicket = loaded.get(id);
+      if (rootTicket === undefined) continue;
+      const draft = drafts.get(id) ?? {
+        id,
+        connection: ticket.connection,
+        root: refOf(rootTicket),
+        rootTicket,
+        children: [],
+      };
+      draft.children.push(ticket);
+      drafts.set(id, draft);
+    }
+  }
+  const byId = new Map([...drafts.values()].map((draft) => [draft.id, finishGroup(draft)]));
+  for (const group of grouping.groups) byId.set(group.id, group);
+  return byId;
+}
+
 export function groupTickets(tickets: ReadonlyArray<TicketView>): TicketGrouping {
   const loaded = new Map(tickets.map((ticket) => [ticket.id, ticket]));
   const tops = new Map(tickets.map((ticket) => [ticket.id, topIssueOf(ticket, loaded)]));
@@ -142,20 +185,7 @@ export function groupTickets(tickets: ReadonlyArray<TicketView>): TicketGrouping
     }
     if (topId !== ticket.id) draft.children.push(ticket);
   }
-  const groups = [...drafts.values()].map((draft): TicketGroup => {
-    const children = byStage(draft.children, ticketStage);
-    const stage = children.reduce<TicketStage>((best, child) => {
-      const next = ticketStage(child);
-      return stageRank(next) < stageRank(best) ? next : best;
-    }, "finished");
-    return {
-      ...draft,
-      children,
-      progress: progressOf(children),
-      stage,
-      expandedByDefault: stage !== "finished",
-    };
-  });
+  const groups = [...drafts.values()].map(finishGroup);
   return { groups: byStage(groups, (group) => group.stage), loose: byStage(loose, ticketStage) };
 }
 
@@ -170,9 +200,7 @@ export function visibleGrouping(
     const children = group.children.filter(
       (child) => matchesFilter(child, filter) && (rootMatches || matchesSearch(child, query)),
     );
-    const rootItselfMatches =
-      rootMatches && group.rootTicket !== null && matchesFilter(group.rootTicket, filter);
-    if (children.length > 0 || rootItselfMatches) groups.push({ group, children });
+    if (children.length > 0) groups.push({ group, children });
   }
   return {
     groups,

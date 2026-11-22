@@ -7,7 +7,7 @@ import type {
   TicketListView,
   VisibleTicketGrouping,
 } from "@ganger/app/tickets/groups";
-import { visibleGrouping } from "@ganger/app/tickets/groups";
+import { issueGroupsById, visibleGrouping } from "@ganger/app/tickets/groups";
 
 export type TicketListRow =
   | { kind: "parent"; id: string; group: TicketGroup; expanded: boolean; surface: IssueRowSurface }
@@ -95,7 +95,7 @@ export function flatRows(
   filter: TicketFilter,
   query: string,
 ): TicketListRow[] {
-  const groups = new Map(grouping.groups.map((group) => [group.id, group]));
+  const groups = issueGroupsById(tickets, grouping);
   return tickets
     .filter((ticket) => matchesFilter(ticket, filter) && matchesSearch(ticket, query))
     .map((ticket) => ({

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { groupTickets, ticketStage, visibleGrouping } from "@ganger/app/tickets/groups";
+import {
+  groupTickets,
+  issueGroupsById,
+  ticketStage,
+  visibleGrouping,
+} from "@ganger/app/tickets/groups";
 import { mergeTicketsPage, ticketId } from "@ganger/app/tickets/merge";
 import { countByFilter, matchesFilter } from "@ganger/app/tickets/model";
 import type {
@@ -138,6 +143,30 @@ describe("묶기(0171)", () => {
     expect(ticketStage(ticket("B", { runs: [failed] }))).toBe("attention");
   });
 
+  it("트래커에서 끝났어도 답을 기다리는 런은 사람이 볼 일이고 묶음을 펼친다", () => {
+    const { groups } = groupTickets([
+      ticket("A", {
+        ...under("P"),
+        ...state("completed"),
+        runs: [active("waiting-for-input")],
+        assignability: { kind: "active-run", runId: "q" },
+      }),
+    ]);
+    expect(groups[0]?.stage).toBe("attention");
+    expect(groups[0]?.expandedByDefault).toBe(true);
+  });
+
+  it("중간 단계 이슈도 자기 아래 티켓으로 상위 이슈 묶음을 가진다", () => {
+    const tickets = [
+      ticket("A", parentIssue),
+      ticket("B", { ...under("A"), ...parentIssue }),
+      ticket("C", under("B", "A")),
+    ];
+    const byId = issueGroupsById(tickets, groupTickets(tickets));
+    expect(byId.get(ticketId("c", "B"))?.children.map((child) => child.key)).toEqual(["C"]);
+    expect(byId.get(ticketId("c", "A"))?.children).toHaveLength(2);
+  });
+
   it("하위가 모두 끝난 묶음만 접어 둔다", () => {
     const { groups } = groupTickets([
       ticket("A", { ...under("DONE"), ...state("completed") }),
@@ -183,16 +212,15 @@ describe("묶기 보기의 거르기·찾기(0171)", () => {
     expect(keys("done", "")).toEqual({ groups: [], loose: [] });
   });
 
-  it("상위 이슈 자기 런이 거르기에 맞으면 하위 없이 상위 줄을 남긴다", () => {
-    const failed: TicketRun = { ...active("waiting-for-input") };
+  it("상위 이슈 자기 런만 거르기에 맞으면 묶음을 숨긴다", () => {
     const own = groupTickets([
-      ticket("P", { runs: [failed], assignability: { kind: "active-run", runId: "x" } }),
+      ticket("P", {
+        runs: [active("waiting-for-input")],
+        assignability: { kind: "active-run", runId: "x" },
+      }),
       ticket("A", under("P")),
     ]);
-    const visible = visibleGrouping(own, "todo", "");
-    expect(visible.groups.map(({ group, children }) => [group.root.key, children.length])).toEqual([
-      ["P", 0],
-    ]);
+    expect(visibleGrouping(own, "todo", "").groups).toEqual([]);
   });
 
   it("찾는 말이 상위 이슈에 맞으면 묶음 전체를 보인다", () => {
