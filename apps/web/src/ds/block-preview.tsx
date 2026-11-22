@@ -554,7 +554,11 @@ export function BlockSections() {
       <div id="kanban">
         <Section title={tNav("kanban")} note={t("kanban.note")}>
           <div {...stylex.props(styles.kanban)}>
-            <KanbanColumn title={t("kanban.column")} count={2}>
+            <KanbanColumn
+              title={t("kanban.column")}
+              count={2}
+              headLink={{ href: "#kanban", label: t("kanban.headLink") }}
+            >
               <KanbanCards>
                 <li>
                   <KanbanCard

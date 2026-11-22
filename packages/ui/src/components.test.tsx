@@ -633,6 +633,29 @@ describe("서버 렌더", () => {
     expect(html).toMatch(/<p[^>]*>처리할 일 없이 끝났어요<\/p>/);
   });
 
+  it("KanbanColumn headLink 는 제목과 개수를 접근 이름 있는 링크로 감싸고 없으면 링크가 없다(티켓 0186)", () => {
+    const linked = renderToString(
+      <KanbanColumn
+        title="Done"
+        count={18}
+        note="메모"
+        headLink={{ href: "/runs?view=all", label: "Done 18, Runs에서 보기" }}
+      >
+        <p>내용</p>
+      </KanbanColumn>,
+    );
+    expect(linked).toMatch(
+      /<a href="\/runs\?view=all" aria-label="Done 18, Runs에서 보기"[^>]*><h2[^>]*>Done<\/h2><span[^>]*>18<\/span><\/a>/,
+    );
+    expect(linked.indexOf("메모")).toBeGreaterThan(linked.indexOf("</a>"));
+    const plain = renderToString(
+      <KanbanColumn title="Queued" count={1}>
+        <p>내용</p>
+      </KanbanColumn>,
+    );
+    expect(plain).not.toContain("<a ");
+  });
+
   it("KanbanCard 는 패널을 여는 버튼 하나이고, 행동은 그 버튼 밖에 둔다(티켓 0100)", () => {
     const html = renderToString(
       <KanbanCard

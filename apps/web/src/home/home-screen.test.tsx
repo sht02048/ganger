@@ -277,11 +277,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       expect(done.indexOf(row(done, tagged))).toBeLessThan(subheading);
   });
 
-  it("처리할 일 없이 끝난 카드가 3장을 넘으면 3장만 보이고 Runs 링크를 둔다", () => {
+  it("처리할 일 없이 끝난 카드가 5장을 넘으면 5장만 보이고 더 보기나 Runs 링크를 두지 않는다 (0186)", () => {
     const page = seededPage();
     const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
     if (merged === undefined) throw new Error("no ACME-1");
-    const extra = [1, 2, 3, 4].map((n) => ({
+    const extra = [1, 2, 3, 4, 5, 6].map((n) => ({
       ...merged,
       id: toRunId(`run-extra-${n}`),
       ticketKey: toTicketKey(`ACME-${40 + n}`),
@@ -291,8 +291,19 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       "Done",
     );
     const settled = done.slice(done.indexOf(homeJson.board.settled));
+    expect(SETTLED_VISIBLE).toBe(5);
     expect(rows(settled)).toHaveLength(SETTLED_VISIBLE);
-    expect(settled).toMatch(/<a href="\/runs\?ws=ws-commerce"[^>]*>Runs에서 모두 보기<\/a>/);
+    expect(settled).not.toContain("Runs에서 모두 보기");
+    expect(actionsOf(settled).filter(({ label }) => label.includes("더 보기"))).toEqual([]);
+  });
+
+  it("Done 칸 머리만 끝난 런 모두를 보여 주는 Runs 링크다 (0186)", () => {
+    const html = render(seededPage());
+    const head = section(html, "Done").match(/<a href="([^"]+)" aria-label="([^"]+)"/);
+    expect(head?.[1]?.replaceAll("&amp;", "&")).toBe("/runs?ws=ws-commerce&view=all");
+    expect(head?.[2]).toMatch(/^Done \d+, Runs에서 보기$/);
+    for (const name of ["Queued", "Running"])
+      expect(section(html, name)).not.toContain("Runs에서 보기");
   });
 
   it("Done 칸 머리 개수는 보이는 카드 수 제한과 상관없이 칸에 든 런 전체다 (0163)", () => {

@@ -2,6 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { useId } from "react";
 import type { ReactNode, Ref } from "react";
 import { focusStyles } from "./focus";
+import { linkStyles } from "./link";
 import { textStyles } from "./text";
 import { breakpoints, colors, fontSize, motion, radius, size, space } from "../tokens.stylex";
 
@@ -9,15 +10,36 @@ export interface KanbanColumnProps {
   title: string;
   count: number;
   note?: ReactNode;
+  headLink?: KanbanHeadLink;
   children: ReactNode;
 }
 
-export function KanbanColumn({ title, count, note, children }: KanbanColumnProps) {
+export interface KanbanHeadLink {
+  href: string;
+  label: string;
+}
+
+export function KanbanColumn({ title, count, note, headLink, children }: KanbanColumnProps) {
+  const name = (
+    <>
+      <h2 {...stylex.props(textStyles("subheading"), styles.columnTitle)}>{title}</h2>
+      <span {...stylex.props(styles.count)}>{count}</span>
+    </>
+  );
   return (
     <section aria-label={title} data-column="" {...stylex.props(styles.column)}>
       <div {...stylex.props(styles.columnHead)}>
-        <h2 {...stylex.props(textStyles("subheading"), styles.columnTitle)}>{title}</h2>
-        <span {...stylex.props(styles.count)}>{count}</span>
+        {headLink === undefined ? (
+          name
+        ) : (
+          <a
+            href={headLink.href}
+            aria-label={headLink.label}
+            {...stylex.props(linkStyles("plain"), styles.headLink)}
+          >
+            {name}
+          </a>
+        )}
         {note === undefined ? null : <span {...stylex.props(styles.note)}>{note}</span>}
       </div>
       {children}
@@ -227,6 +249,7 @@ const styles = stylex.create({
     paddingTop: space.s1,
   },
   columnTitle: { margin: 0 },
+  headLink: { display: "inline-flex", alignItems: "baseline", gap: space.s2, minWidth: 0 },
   count: { color: colors.textTertiary, fontVariantNumeric: "tabular-nums" },
   note: {
     marginInlineStart: "auto",

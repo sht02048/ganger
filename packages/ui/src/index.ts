@@ -153,6 +153,7 @@ export {
   KanbanSubheading,
   type KanbanCardProps,
   type KanbanColumnProps,
+  type KanbanHeadLink,
 } from "./components/kanban";
 export { TextLink, linkStyles, type LinkTone, type TextLinkProps } from "./components/link";
 export {

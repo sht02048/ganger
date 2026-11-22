@@ -124,6 +124,65 @@ beforeEach(async (test) => {
 const longChoice =
   "Keep the cache in SQLite so that it survives restarts, and add a nightly job that removes entries older than thirty days from every table";
 
+const settledKeys = ["ACME-50", "ACME-51", "ACME-52", "ACME-53", "ACME-54", "ACME-55"];
+
+function doneHeadLink(target: Page): Locator {
+  const name = new RegExp(
+    `^${home.board.doneLink.replace("{column}", home.column.done).replace("{count}", "\\d+")}$`,
+  );
+  return target.getByRole("region", { name: home.column.done }).getByRole("link", { name });
+}
+
+function settledCards(target: Page): Locator {
+  return target
+    .getByRole("region", { name: home.column.done })
+    .locator("[data-settled] li[data-run]");
+}
+
+describe("Done 칸 머리 링크(브라우저, 0186)", () => {
+  it("머리를 누르면 문서를 다시 불러오지 않고 끝난 런 모두를 보여 주는 Runs 로 간다", async () => {
+    await openHome(page);
+    await page.evaluate(() => {
+      Object.assign(globalThis, { doneHeadMarker: true });
+    });
+    await doneHeadLink(page).click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    const url = new URL(page.url());
+    expect(url.searchParams.get("ws")).toBe(workspaceId);
+    expect(url.searchParams.get("view")).toBe("all");
+    expect(await page.evaluate(() => "doneHeadMarker" in globalThis)).toBe(true);
+  });
+
+  it("수정 키로 누르면 Dashboard 를 그대로 두고 새 탭으로 연다", async () => {
+    await openHome(page);
+    const opened = context.waitForEvent("page");
+    await doneHeadLink(page).click({ modifiers: ["ControlOrMeta"] });
+    const tab = await opened;
+    try {
+      await tab.waitForURL((url) => url.pathname === "/runs");
+      expect(new URL(page.url()).pathname).toBe("/");
+    } finally {
+      await tab.close();
+    }
+  });
+
+  it("처리할 일 없이 끝난 카드는 5장만 보이고, 숨은 카드를 패널로 열면 그 카드도 보인다", async () => {
+    await openHome(page);
+    expect(await settledCards(page).count()).toBe(5);
+    const shown = await settledCards(page).allInnerTexts();
+    const hidden = settledKeys.find((key) => !shown.some((text) => text.includes(key)));
+    if (hidden === undefined) throw new Error("no hidden settled card");
+    await page.goto(`/?ws=${workspaceId}&run=${runIds.get(hidden)}`);
+    await hydrated(page);
+    const panel = page.getByRole("dialog");
+    await panel.getByRole("heading", { name: new RegExp(hidden) }).waitFor();
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    expect(await settledCards(page).count()).toBe(6);
+    expect(await focusedSoon(cardButton(page, hidden))).toBe(true);
+  });
+});
+
 describe("알림에서 Dashboard 열기(브라우저, 0103)", () => {
   it("주소의 run 으로 그 카드 상세 패널을 연 채로 열고, 주소에서 run 을 지운다", async () => {
     await page.goto(`/?ws=${workspaceId}&run=${runIds.get("ACME-34")}`);
@@ -669,6 +728,16 @@ function seed(db: Database): void {
         to: "ended",
         agentResult: "timed-out",
         prState: "none",
+      }),
+    );
+  }
+
+  for (const key of settledKeys) {
+    ok(
+      changeRunState(db, startRun(toTicketKey(key)), {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "merged",
       }),
     );
   }
