@@ -594,7 +594,7 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       await list.getByRole("button", { name: "하위 2개 할당, ACME-800" }).click();
 
       const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
-      await dialog.getByText("ACME-700 티켓이 취소돼서 할당하면 Queued에 멈춰요").waitFor();
+      await dialog.getByText("ACME-700 · Canceled").waitFor();
       const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
       await expect.poll(() => choices.getByRole("checkbox", { checked: true }).count()).toBe(1);
       await dialog.getByRole("button", { name: "1개 할당하기" }).click();
@@ -609,6 +609,65 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       for (const run of listRuns(db, { ticket: { connection, key: freeKey } })) {
         if (run.state !== "ended") endCanceled(run.id, new Date());
       }
+      for (const { key, original } of originals) tracker.tickets.set(key, original);
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+    }
+  });
+
+  it("관계도에서 앞 티켓 체크를 풀면 뒤 티켓 상자가 빨간 테두리가 된다(0182)", async () => {
+    const firstKey = toTicketKey("ACME-811");
+    const nextKey = toTicketKey("ACME-812");
+    const originals = [firstKey, nextKey].map((key) => {
+      const original = tracker.tickets.get(key);
+      if (original === undefined) throw new Error(`no ${key}`);
+      tracker.tickets.set(key, {
+        ...original,
+        ancestors: [
+          {
+            id: "issue-810",
+            key: toTicketKey("ACME-810"),
+            title: "Ticket number 810",
+            url: "https://tracker.example.com/ACME-810",
+            state: { name: "Todo", category: "unstarted" },
+          },
+        ],
+      });
+      return { key, original };
+    });
+    tracker.relations.set(nextKey, {
+      priority: "none",
+      blockers: [
+        {
+          key: firstKey,
+          title: "Ticket number 811",
+          state: { id: toTrackerStateId("todo"), name: "Todo", category: "unstarted" },
+        },
+      ],
+    });
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      await list.getByRole("button", { name: "하위 2개 할당, ACME-810" }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      const nextNode = choices.locator("[data-graph-node]").filter({ hasText: "ACME-812" });
+      await nextNode.waitFor();
+      expect(await nextNode.getAttribute("data-tone")).toBe("default");
+
+      await choices.getByRole("checkbox", { name: /ACME-811/ }).click();
+
+      await expect.poll(() => nextNode.getAttribute("data-tone")).toBe("problem");
+      expect(await nextNode.getByRole("checkbox").getAttribute("aria-checked")).toBe("true");
+      await dialog.getByText(tickets.bulkAssign.legend).waitFor();
+      await dialog.getByRole("button", { name: tickets.bulkAssign.close }).click();
+      await dialog.waitFor({ state: "hidden" });
+    } finally {
+      tracker.relations.delete(nextKey);
       for (const { key, original } of originals) tracker.tickets.set(key, original);
       await page.goto(`/tickets?ws=${workspaceId}`);
       await hydrated(page);

@@ -4,6 +4,8 @@ import {
   Button,
   CloseIcon,
   Card,
+  DependencyGraph,
+  Spinner,
   Checkbox,
   DefinitionItem,
   DefinitionList,
@@ -147,6 +149,7 @@ export function ComponentSections() {
   const [selected, setSelected] = useState<RunId>("r1051");
   const [workspace, setWorkspace] = useState("commerce");
   const [agent, setAgent] = useState<string | null>(null);
+  const [graphFirst, setGraphFirst] = useState(true);
   const [web, setWeb] = useState(true);
   const [api, setApi] = useState(false);
 
@@ -564,6 +567,64 @@ export function ComponentSections() {
               actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
             />
             <TriggerlessDialogPreview />
+          </Demo>
+        </Section>
+      </div>
+
+      <div id="dependencyGraph">
+        <Section title={t("nav.dependencyGraph")} note={t("dependencyGraph.note")}>
+          <Demo>
+            <DependencyGraph
+              label={t("dependencyGraph.label")}
+              scrollLabel={t("dependencyGraph.label")}
+              columns={[
+                { number: 1, label: t("dependencyGraph.first") },
+                { number: 2, label: t("dependencyGraph.second") },
+              ]}
+              nodes={[
+                {
+                  id: "ACME-11",
+                  column: 0,
+                  row: 0,
+                  ticketKey: "ACME-11",
+                  title: t("dependencyGraph.firstTicket"),
+                  tone: "default",
+                  check: {
+                    checked: graphFirst,
+                    disabled: false,
+                    description: t("dependencyGraph.firstNote"),
+                    onCheckedChange: setGraphFirst,
+                  },
+                },
+                {
+                  id: "ACME-9",
+                  column: 0,
+                  row: 1,
+                  ticketKey: "ACME-9 · In Progress",
+                  title: t("dependencyGraph.outsideTicket"),
+                  tone: "default",
+                },
+                {
+                  id: "ACME-13",
+                  column: 1,
+                  row: 0,
+                  ticketKey: "ACME-13",
+                  title: t("dependencyGraph.secondTicket"),
+                  tone: graphFirst ? "default" : "problem",
+                  check: {
+                    checked: true,
+                    disabled: false,
+                    description: t("dependencyGraph.secondNote"),
+                    onCheckedChange: () => {},
+                  },
+                },
+              ]}
+              edges={[
+                { from: "ACME-11", to: "ACME-13", tone: graphFirst ? "default" : "problem" },
+                { from: "ACME-9", to: "ACME-13", tone: "waiting" },
+              ]}
+            />
+            <Spinner />
           </Demo>
         </Section>
       </div>
