@@ -14,12 +14,14 @@ import { space } from "@ganger/ui/tokens.stylex";
 import { useId, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
+import { MAX_NAME_LENGTH } from "@ganger/app/settings/model";
 import type { ConnectionProjects } from "@ganger/app/settings/model";
 import {
   canCreateWorkspace,
   pickedProjects,
   projectChoiceKey,
   projectChoiceNotice,
+  workspaceNameTooLong,
 } from "./create-workspace-model";
 import type { NewWorkspaceProject } from "./create-workspace-model";
 
@@ -135,7 +137,12 @@ export function CreateWorkspaceDialog({
           submit();
         }}
       >
-        <Field label={t("name")}>
+        <Field
+          label={t("name")}
+          {...(workspaceNameTooLong(name)
+            ? { error: t("nameTooLong", { max: MAX_NAME_LENGTH }) }
+            : {})}
+        >
           <Input
             name="name"
             value={name}

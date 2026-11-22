@@ -196,6 +196,8 @@ describe("고를 수 있는 트래커 프로젝트", () => {
     expect(canCreateWorkspace("Labs", one)).toBe(true);
     expect(canCreateWorkspace("   ", one)).toBe(false);
     expect(canCreateWorkspace("Labs", [])).toBe(false);
+    expect(canCreateWorkspace("가".repeat(200), one)).toBe(true);
+    expect(canCreateWorkspace("가".repeat(201), one)).toBe(false);
   });
 });
 
@@ -330,6 +332,50 @@ describe("입구와 만든 뒤", () => {
       search: { ws: "ws-new" },
       hash: "projects",
     });
+  });
+
+  it("저장하지 않은 편집이 이동을 막아도 대화상자는 닫힌다", async () => {
+    mocks.createWorkspace.mockResolvedValue({ ok: true, id: "ws-new", name: "Labs" });
+    mocks.navigate.mockReturnValue(new Promise<void>(() => {}));
+    await settle(() =>
+      root.render(
+        wrapped(
+          <CreateWorkspaceProvider>
+            <OpenButton />
+          </CreateWorkspaceProvider>,
+        ),
+      ),
+    );
+    await settle(() => buttonNamed(settingsMessages.settings.workspace.create).click());
+    await settle();
+    await settle(() => typeName("Labs"));
+    await settle(() => checkbox("Free").click());
+    await settle(() => buttonNamed(copy.submit).click());
+    await settle();
+    expect(mocks.navigate).toHaveBeenCalledOnce();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("다시 열면 지난 목록을 보이지 않고 새로 읽는다", async () => {
+    await settle(() =>
+      root.render(
+        wrapped(
+          <CreateWorkspaceProvider>
+            <OpenButton />
+          </CreateWorkspaceProvider>,
+        ),
+      ),
+    );
+    await settle(() => buttonNamed(settingsMessages.settings.workspace.create).click());
+    await settle();
+    expect(document.body.textContent).toContain("Free");
+    await settle(() => buttonNamed(copy.close).click());
+    await settle();
+    mocks.getChoices.mockReturnValue(new Promise<ConnectionProjects[]>(() => {}));
+    await settle(() => buttonNamed(settingsMessages.settings.workspace.create).click());
+    await settle();
+    expect(document.querySelector('[role="dialog"]')?.textContent).toContain(copy.loading);
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Free");
   });
 
   it("Workspace 메뉴 맨 끝의 새 Workspace 가 대화상자를 연다. 전체 보기에서도 같다", async () => {

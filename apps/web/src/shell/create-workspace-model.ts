@@ -1,3 +1,4 @@
+import { MAX_NAME_LENGTH } from "@ganger/app/settings/model";
 import type { ConnectionProjects } from "@ganger/app/settings/model";
 
 export interface NewWorkspaceProject {
@@ -40,5 +41,9 @@ export function canCreateWorkspace(
   name: string,
   projects: ReadonlyArray<NewWorkspaceProject>,
 ): boolean {
-  return name.trim() !== "" && projects.length > 0;
+  return name.trim() !== "" && !workspaceNameTooLong(name) && projects.length > 0;
+}
+
+export function workspaceNameTooLong(name: string): boolean {
+  return Array.from(name.trim()).length > MAX_NAME_LENGTH;
 }

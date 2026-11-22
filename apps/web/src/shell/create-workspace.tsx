@@ -17,12 +17,16 @@ import type {
 const WORKSPACE_CREATED: ReadonlyArray<ChangeKind> = ["workspace"];
 const PROJECTS_HEADING_ID = "projects-heading";
 
-const workspaceProjectChoicesQuery = queryOptions({
-  queryKey: ["workspace-project-choices"],
-  queryFn: () => getWorkspaceProjectChoices(),
-  staleTime: 0,
-  gcTime: 0,
-});
+const UNSAVED_EDITOR_FIELD = "[data-editing] input:not([readonly]), [data-editing] button";
+
+function workspaceProjectChoicesQuery(session: number) {
+  return queryOptions({
+    queryKey: ["workspace-project-choices", session],
+    queryFn: () => getWorkspaceProjectChoices(),
+    staleTime: 0,
+    gcTime: 0,
+  });
+}
 
 export type OpenCreateWorkspace = (focusBack: HTMLElement | null) => void;
 
@@ -42,7 +46,7 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState(0);
   const focusBack = useRef<HTMLElement | null>(null);
   const created = useRef(false);
-  const choicesQuery = useQuery({ ...workspaceProjectChoicesQuery, enabled: open });
+  const choicesQuery = useQuery({ ...workspaceProjectChoicesQuery(session), enabled: open });
   const { mutateAsync } = useMutation({
     mutationFn: (data: CreateWorkspaceInput) => createWorkspace({ data }),
     onSuccess: async (result) => {
@@ -58,8 +62,10 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const choices = useMemo((): ProjectChoices => {
-    if (choicesQuery.data !== undefined) return { kind: "ready", groups: choicesQuery.data };
-    return choicesQuery.isError ? { kind: "failed" } : { kind: "loading" };
+    if (choicesQuery.isError) return { kind: "failed" };
+    return choicesQuery.data === undefined
+      ? { kind: "loading" }
+      : { kind: "ready", groups: choicesQuery.data };
   }, [choicesQuery.data, choicesQuery.isError]);
 
   const create = async (input: CreateWorkspaceInput): Promise<CreateWorkspaceResult> => {
@@ -69,9 +75,11 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
       return result;
     }
     showToast(t("created", { name: result.name }));
-    await navigate({ to: "/settings", search: { ws: result.id }, hash: "projects" });
     created.current = true;
     setOpen(false);
+    void navigate({ to: "/settings", search: { ws: result.id }, hash: "projects" }).then(() => {
+      document.getElementById(PROJECTS_HEADING_ID)?.focus();
+    });
     return result;
   };
 
@@ -83,8 +91,10 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
         open={open}
         onOpenChange={setOpen}
         finalFocus={() =>
-          (created.current ? document.getElementById(PROJECTS_HEADING_ID) : null) ??
-          focusBack.current
+          (created.current
+            ? (document.querySelector<HTMLElement>(UNSAVED_EDITOR_FIELD) ??
+              document.getElementById(PROJECTS_HEADING_ID))
+            : null) ?? focusBack.current
         }
         choices={choices}
         onRetry={() => void choicesQuery.refetch()}

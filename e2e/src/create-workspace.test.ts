@@ -88,6 +88,7 @@ beforeAll(async () => {
   tracker.projects.push(
     { id: trackerProject, name: "Web", url: "https://tracker.example.com/projects/web" },
     { id: freeProject, name: "Mobile", url: "https://tracker.example.com/projects/mobile" },
+    { id: toTrackerProjectId("tp-api"), name: "API", url: "https://tracker.example.com/api" },
   );
   Object.assign(globalThis, {
     [registryKey]: new AdapterRegistry().registerTracker({
@@ -119,6 +120,34 @@ afterAll(async () => {
 });
 
 describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", () => {
+  it("저장하지 않은 편집이 있으면 만들어도 그 자리에 남고 편집을 잃지 않는다", async (context) => {
+    const page = await newPage(context);
+    await open(page, `/settings?ws=${workspaceId}`);
+    await page
+      .locator("#workspace")
+      .getByRole("button", { name: /바꾸기/u })
+      .first()
+      .click();
+    const editor = page.locator("[data-editing] input").first();
+    await editor.fill("Acme edited");
+
+    await page.getByRole("button", { name: /Workspace 바꾸기/u }).click();
+    await page.getByRole("menuitem", { name: shellJson.workspace.new }).click();
+    const dialog = page.getByRole("dialog", { name: copy.title });
+    await dialog.getByRole("textbox", { name: copy.name }).fill("Draft");
+    await dialog.getByRole("checkbox", { name: /API/u }).click();
+    await dialog.getByRole("button", { name: copy.submit, exact: true }).click();
+
+    await page.getByText("Draft Workspace를 만들었어요").waitFor();
+    await dialog.waitFor({ state: "hidden" });
+    expect(listWorkspaces(db).some((workspace) => workspace.name === "Draft")).toBe(true);
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
+    expect(await editor.inputValue()).toBe("Acme edited");
+    await expect
+      .poll(() => editor.evaluate((element) => element === document.activeElement))
+      .toBe(true);
+  }, 120_000);
+
   it("메뉴에서 이름과 프로젝트를 골라 만들면 새 Workspace 의 Settings 프로젝트 구역으로 간다", async (context) => {
     const page = await newPage(context);
     await open(page, `/settings?ws=${workspaceId}`);

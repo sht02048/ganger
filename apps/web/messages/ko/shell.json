@@ -11,6 +11,7 @@
       "title": "새 Workspace",
       "name": "Workspace 이름",
       "namePlaceholder": "예: Acme Commerce",
+      "nameTooLong": "이름은 {max}자까지 넣을 수 있어요.",
       "projects": "넣을 트래커 프로젝트",
       "projectsHint": "하나 이상 골라요. 한 트래커 프로젝트는 Workspace 하나에만 넣을 수 있어요.",
       "inOther": "{workspace}에 있어요",
