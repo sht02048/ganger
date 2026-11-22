@@ -32,6 +32,7 @@ import {
   RevertedMessage,
   useAutoSave,
 } from "./row-state";
+import { PROJECT_EDITOR_SELECTOR } from "./blocked-editor";
 import { AutoAssignLabelPicker } from "./label-picker";
 import { MappingEditor, ReloadFromTracker, autoAssignLabelOf } from "./mapping-editor";
 import {
@@ -121,7 +122,7 @@ export function ProjectDetailScreen({
       }
     >
       <EditorProvider
-        blockedSelector="#repo"
+        blockedSelector={PROJECT_EDITOR_SELECTOR}
         {...(renderGuard === undefined ? {} : { renderGuard })}
       >
         <SettingsLayout>

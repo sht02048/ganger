@@ -15,7 +15,7 @@ import {
   saveWorkspaceTrackerProject,
   toWorkspaceId,
 } from "@ganger/db";
-import type { Database, SecretBox } from "@ganger/db";
+import type { Database, SecretBox, WorkspaceId } from "@ganger/db";
 import { z } from "zod";
 import { idSchema, nameSchema } from "@ganger/app/settings/actions";
 import { loadSettingsPage, loadTrackerProjectChoices } from "@ganger/app/settings/load";
@@ -79,12 +79,38 @@ class WorkspaceSetupRejected extends Error {
   }
 }
 
+function bindProjects(
+  { db, secretBox }: SettingsContext,
+  workspaceId: WorkspaceId,
+  projects: z.infer<typeof firstWorkspaceInput>["projects"],
+): void {
+  for (const project of projects) {
+    const connection = toTrackerConnectionId(project.connectionId);
+    if (getTrackerConnection(db, secretBox, connection) === null) {
+      throw new WorkspaceSetupRejected("not-found");
+    }
+    const projectId = toTrackerProjectId(project.projectId);
+    const bound = getWorkspaceTrackerProject(db, connection, projectId);
+    if (bound !== null) {
+      if (bound.workspaceId === workspaceId) continue;
+      throw new WorkspaceSetupRejected("taken");
+    }
+    saveWorkspaceTrackerProject(db, {
+      workspaceId,
+      connection,
+      projectId,
+      name: project.name,
+      inProgressStateId: null,
+    });
+  }
+}
+
 export function setUpFirstWorkspace(
   context: SettingsContext,
   input: z.infer<typeof firstWorkspaceInput>,
   now: Date,
 ): SaveResult<"not-found" | "taken"> {
-  const { db, secretBox } = context;
+  const { db } = context;
   try {
     inTransaction(db, () => {
       const existing = listWorkspaces(db)[0];
@@ -98,29 +124,38 @@ export function setUpFirstWorkspace(
         },
         now,
       );
-      for (const project of input.projects) {
-        const connection = toTrackerConnectionId(project.connectionId);
-        if (getTrackerConnection(db, secretBox, connection) === null) {
-          throw new WorkspaceSetupRejected("not-found");
-        }
-        const projectId = toTrackerProjectId(project.projectId);
-        const bound = getWorkspaceTrackerProject(db, connection, projectId);
-        if (bound !== null) {
-          if (bound.workspaceId === workspaceId) continue;
-          throw new WorkspaceSetupRejected("taken");
-        }
-        saveWorkspaceTrackerProject(db, {
-          workspaceId,
-          connection,
-          projectId,
-          name: project.name,
-          inProgressStateId: null,
-        });
-      }
+      bindProjects(context, workspaceId, input.projects);
     });
   } catch (error) {
     if (error instanceof WorkspaceSetupRejected) return { ok: false, reason: error.reason };
     throw error;
   }
   return { ok: true };
+}
+
+export const newWorkspaceInput = firstWorkspaceInput.extend({
+  projects: firstWorkspaceInput.shape.projects.min(1),
+});
+
+export type NewWorkspaceResult =
+  | { ok: true; id: string; name: string }
+  | { ok: false; reason: "not-found" | "taken" };
+
+export function createNewWorkspace(
+  context: SettingsContext,
+  input: z.infer<typeof newWorkspaceInput>,
+  now: Date,
+): NewWorkspaceResult {
+  const { db } = context;
+  const workspaceId = toWorkspaceId(randomUUID());
+  try {
+    inTransaction(db, () => {
+      saveWorkspace(db, { id: workspaceId, name: input.name }, now);
+      bindProjects(context, workspaceId, input.projects);
+    });
+  } catch (error) {
+    if (error instanceof WorkspaceSetupRejected) return { ok: false, reason: error.reason };
+    throw error;
+  }
+  return { ok: true, id: workspaceId, name: input.name };
 }

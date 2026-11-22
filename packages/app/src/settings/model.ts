@@ -242,6 +242,7 @@ export interface SettingsDbPage {
 }
 
 export const MAX_RUN_MINUTES = 7 * 24 * 60;
+export const MAX_NAME_LENGTH = 200;
 
 export const RUNNER_CHECK_POLL_MS = 3000;
 export const RUNNER_CHECK_POLL_LIMIT_MS = 2 * 60 * 1000;

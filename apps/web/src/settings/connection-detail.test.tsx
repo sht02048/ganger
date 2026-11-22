@@ -163,6 +163,7 @@ function renderSettings(page: SettingsPage): string {
       workspaceView="one"
       ws={workspace}
       actions={noopActions}
+      onCreateWorkspace={() => {}}
     />,
     settingsMessages,
   );

@@ -33,17 +33,5 @@ export function routerSettingsLink(target: SettingsLinkTarget, props: SettingsLi
           {...props}
         />
       );
-    case "createWorkspace":
-      return (
-        <Link
-          to="/onboarding"
-          search={(prev) => ({
-            step: 4,
-            from: "settings" as const,
-            ...("ws" in prev && typeof prev.ws === "string" ? { ws: prev.ws } : {}),
-          })}
-          {...props}
-        />
-      );
   }
 }

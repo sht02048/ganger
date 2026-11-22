@@ -123,6 +123,7 @@ export {
   ExternalIcon,
   InfoIcon,
   MoreIcon,
+  PlusIcon,
   UnknownIcon,
 } from "./components/icons";
 export {
