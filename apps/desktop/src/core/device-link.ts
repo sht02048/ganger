@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   DEVICE_NAME_MAX_LENGTH,
   V1_DESKTOP_REGISTER_PATH,
@@ -71,6 +72,7 @@ export type RegisterResult =
 export async function registerDesktop(
   origin: string,
   name: string,
+  requestId: string,
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 5_000,
 ): Promise<RegisterResult> {
@@ -78,7 +80,7 @@ export async function registerDesktop(
     const response = await fetchImpl(new URL(V1_DESKTOP_REGISTER_PATH, origin), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: name.trim().slice(0, DEVICE_NAME_MAX_LENGTH) }),
+      body: JSON.stringify({ name: name.trim().slice(0, DEVICE_NAME_MAX_LENGTH), requestId }),
       signal: AbortSignal.timeout(timeoutMs),
       redirect: "error",
     });
@@ -96,12 +98,13 @@ export async function registerDesktop(
 export interface DeviceLinkOptions {
   store: DeviceTokenStore;
   identify: (origin: string) => Promise<string | null>;
-  register: (origin: string) => Promise<RegisterResult>;
+  register: (origin: string, requestId: string) => Promise<RegisterResult>;
 }
 
 export class DeviceLink {
   private readonly options: DeviceLinkOptions;
   private readonly registering = new Map<string, Promise<RegisterResult>>();
+  private readonly unfinishedRequests = new Map<string, string>();
 
   constructor(options: DeviceLinkOptions) {
     this.options = options;
@@ -126,10 +129,15 @@ export class DeviceLink {
   private registerOnce(origin: string, instanceId: string): Promise<RegisterResult> {
     const running = this.registering.get(instanceId);
     if (running !== undefined) return running;
+    const requestId = this.unfinishedRequests.get(instanceId) ?? randomUUID();
+    this.unfinishedRequests.set(instanceId, requestId);
     const started = this.options
-      .register(origin)
+      .register(origin, requestId)
       .then((result) => {
-        if (result.kind === "registered") this.options.store.write(instanceId, result.token);
+        if (result.kind === "registered") {
+          this.options.store.write(instanceId, result.token);
+          this.unfinishedRequests.delete(instanceId);
+        }
         return result;
       })
       .finally(() => this.registering.delete(instanceId));

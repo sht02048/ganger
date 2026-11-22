@@ -163,7 +163,8 @@ export class Controller {
         const probed = await probeIdentity(origin, CONNECT_TIMEOUT_MS);
         return probed.kind === "ours" ? probed.identity.instanceId : null;
       },
-      register: (origin) => registerDesktop(origin, t("deviceName", { host: hostname() })),
+      register: (origin, requestId) =>
+        registerDesktop(origin, t("deviceName", { host: hostname() }), requestId),
     });
     this.watch = new ServerWatch(options.local, { onChange: (state) => this.onWatch(state) });
     this.enrollment = new RunnerEnrollmentFlow({
@@ -798,7 +799,8 @@ export class Controller {
 
   private onDeviceRejected(url: string): void {
     if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
-    const firstNotice = this.deviceLinkState === "connected";
+    const firstNotice =
+      this.deviceLinkState === "connected" || this.deviceLinkState === "reconnected";
     this.setDeviceLinkState("rejected");
     if (firstNotice) this.notifyDeviceRejected();
   }
@@ -823,7 +825,7 @@ export class Controller {
     this.setDeviceLinkState("reconnecting");
     const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
     if (this.feed !== current) return;
-    this.setDeviceLinkState(connected ? "connected" : "failed");
+    this.setDeviceLinkState(connected ? "reconnected" : "failed");
     if (connected) current.feed.reconnect();
   }
 

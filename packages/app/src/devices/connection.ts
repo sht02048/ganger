@@ -6,7 +6,13 @@ import {
   registerDesktopRequestSchema,
 } from "@ganger/api";
 import type { ConnectResult, V1ErrorReason } from "@ganger/api";
-import { addDevice, listDevices, removeDevice, seeDeviceByTokenHash } from "@ganger/db";
+import {
+  addDevice,
+  listDevices,
+  removeDevice,
+  replaceDeviceToken,
+  seeDeviceByTokenHash,
+} from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { z } from "zod";
 import {
@@ -141,10 +147,42 @@ export type RegisterDesktopReply =
   | { status: 200; result: ConnectResult }
   | { status: 400; reason: V1ErrorReason };
 
-export function registerDesktop(db: Database, body: unknown, now: Date): RegisterDesktopReply {
+const DESKTOP_REGISTRATION_KEEP_MS = 10 * 60_000;
+
+export class DesktopRegistrations {
+  private readonly entries = new Map<string, { deviceId: string; name: string; at: number }>();
+
+  find(requestId: string, now: Date): { deviceId: string; name: string } | null {
+    for (const [id, entry] of this.entries) {
+      if (now.getTime() - entry.at >= DESKTOP_REGISTRATION_KEEP_MS) this.entries.delete(id);
+    }
+    return this.entries.get(requestId) ?? null;
+  }
+
+  remember(requestId: string, deviceId: string, name: string, now: Date): void {
+    this.entries.set(requestId, { deviceId, name, at: now.getTime() });
+  }
+}
+
+export function registerDesktop(
+  context: { db: Database; registrations: DesktopRegistrations },
+  body: unknown,
+  now: Date,
+): RegisterDesktopReply {
   const request = registerDesktopRequestSchema.safeParse(body);
   if (!request.success) return { status: 400, reason: "invalid-request" };
-  return { status: 200, result: issueDeviceToken(db, request.data.name, now) };
+  const { name, requestId } = request.data;
+  const earlier = context.registrations.find(requestId, now);
+  if (earlier !== null && earlier.name !== name) return { status: 400, reason: "invalid-request" };
+  if (earlier !== null) {
+    const token = randomBytes(DEVICE_TOKEN_BYTES).toString("base64url");
+    if (replaceDeviceToken(context.db, earlier.deviceId, hashToken(token))) {
+      return { status: 200, result: { deviceId: earlier.deviceId, token } };
+    }
+  }
+  const result = issueDeviceToken(context.db, name, now);
+  context.registrations.remember(requestId, result.deviceId, name, now);
+  return { status: 200, result };
 }
 
 export function authenticateDevice(

@@ -6,7 +6,7 @@ import {
   notificationRecordSchema,
 } from "@ganger/app/notifications/feed";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
-import { V1_NOTIFICATION_PATHS, notificationFeedResponseSchema } from "@ganger/api";
+import { V1_NOTIFICATION_PATHS, notificationFeedResponseSchema, v1ErrorSchema } from "@ganger/api";
 import type { FeedConnection } from "./device-link.js";
 
 export interface FeedBatch {
@@ -85,6 +85,12 @@ export class SseParser {
 
 function authorization(connection: FeedConnection): Record<string, string> {
   return connection.kind === "token" ? { authorization: `Bearer ${connection.token}` } : {};
+}
+
+async function isTokenRefused(response: Response): Promise<boolean> {
+  if (response.status !== 401) return false;
+  const body: unknown = await response.json().catch(() => null);
+  return v1ErrorSchema.safeParse(body).data?.error.reason === "invalid-token";
 }
 
 function parseJson(text: string): unknown {
@@ -215,8 +221,7 @@ export class NotificationFeed {
         signal: abort.signal,
         redirect: "error",
       });
-      if (connection.kind === "token" && response.status === 401) {
-        await response.body?.cancel();
+      if (connection.kind === "token" && (await isTokenRefused(response))) {
         if (generation === this.generation) this.reject();
         return;
       }
@@ -293,8 +298,7 @@ export class NotificationFeed {
         redirect: "error",
       });
       if (generation !== this.generation) return;
-      if (connection.kind === "token" && response.status === 401) {
-        await response.body?.cancel();
+      if (connection.kind === "token" && (await isTokenRefused(response))) {
         if (generation === this.generation) this.reject();
         return;
       }

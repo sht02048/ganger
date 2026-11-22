@@ -108,6 +108,30 @@ describe("데스크톱 기기 연결(M48)", () => {
     expect(await link.connection(ORIGIN)).toEqual({ kind: "token", token: "token-2" });
   });
 
+  it("등록이 실패하면 같은 requestId 로 다시 보내고, 성공한 뒤에는 새 값을 쓴다", async () => {
+    const results: RegisterResult[] = [
+      { kind: "failed" },
+      { kind: "registered", token: "token-1" },
+      { kind: "registered", token: "token-2" },
+    ];
+    const requestIds: string[] = [];
+    const link = new DeviceLink({
+      store: deviceTokenStore(memorySettings(), reversingCipher),
+      identify: () => Promise.resolve("instance-1"),
+      register: (_origin, requestId) => {
+        requestIds.push(requestId);
+        return Promise.resolve(results.shift() ?? { kind: "failed" });
+      },
+    });
+
+    await link.connection(ORIGIN);
+    await link.connection(ORIGIN);
+    await link.reconnect(ORIGIN);
+
+    expect(requestIds[1]).toBe(requestIds[0]);
+    expect(requestIds[2]).not.toBe(requestIds[0]);
+  });
+
   it("v1 이 없는 옛 서버는 옛 경로로, 등록 실패는 나중에 다시 시도로 돌린다", async () => {
     const legacy = linkWith(memorySettings(), [{ kind: "unsupported" }]);
     expect(await legacy.link.connection(ORIGIN)).toEqual({ kind: "legacy" });
@@ -124,11 +148,16 @@ describe("자동 등록 요청", () => {
   it("토큰을 읽고, 없는 경로는 옛 서버로, 서버 오류는 실패로 본다", async () => {
     const meta = { serverVersion: "0.5.0", contractVersion: 1 };
     const ok = JSON.stringify({ meta, data: { deviceId: "d", token: "t" } });
-    expect(await registerDesktop(ORIGIN, "Mac", respond(200, ok))).toEqual({
+    const requestId = "request-id-0000001";
+    expect(await registerDesktop(ORIGIN, "Mac", requestId, respond(200, ok))).toEqual({
       kind: "registered",
       token: "t",
     });
-    expect(await registerDesktop(ORIGIN, "Mac", respond(404, ""))).toEqual({ kind: "unsupported" });
-    expect(await registerDesktop(ORIGIN, "Mac", respond(500, ""))).toEqual({ kind: "failed" });
+    expect(await registerDesktop(ORIGIN, "Mac", requestId, respond(404, ""))).toEqual({
+      kind: "unsupported",
+    });
+    expect(await registerDesktop(ORIGIN, "Mac", requestId, respond(500, ""))).toEqual({
+      kind: "failed",
+    });
   });
 });

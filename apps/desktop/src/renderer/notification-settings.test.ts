@@ -52,7 +52,7 @@ function installFakeNotifications(first: NotificationSettingsView) {
     },
     reconnectDevice: () => {
       calls.push("reconnect");
-      for (const listener of viewListeners) listener({ ...first, deviceLink: "connected" });
+      for (const listener of viewListeners) listener({ ...first, deviceLink: "reconnected" });
       return Promise.resolve();
     },
     openSystemNotificationSettings: () => {
@@ -144,6 +144,13 @@ describe("알림 설정 창(브라우저, 0103)", () => {
     const callout = page.getByRole("region", { name: t.deviceLink.title });
     await callout.getByText(t.deviceLink.failed).waitFor();
     expect(await callout.getByRole("button", { name: t.deviceLink.action }).isEnabled()).toBe(true);
+    expect(await page.getByText(t.deviceLink.done).count()).toBe(0);
+  });
+
+  it("다시 연결하지 않고 연결 상태가 되면 성공 문구를 보이지 않는다", async () => {
+    await openSettings(allOn);
+    await page.getByRole("heading", { name: t.title }).waitFor();
+    expect(await page.getByText(t.deviceLink.done).count()).toBe(0);
   });
 
   it("다시 연결을 누르면 등록하고, 안내가 사라져도 포커스를 지킨다", async () => {

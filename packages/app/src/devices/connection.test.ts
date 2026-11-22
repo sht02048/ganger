@@ -3,10 +3,12 @@ import { listDevices, migrate, openDatabase, removeDevice } from "@ganger/db";
 import { describe, expect, it } from "vitest";
 import { ENROLLMENT_TTL_MS } from "../runner-setup/enrollment.js";
 import {
+  DesktopRegistrations,
   DeviceConnectionCodes,
   authenticateDevice,
   connectDevice,
   loadDevicesView,
+  registerDesktop,
   removeDeviceById,
   startDeviceConnection,
 } from "./connection.js";
@@ -148,6 +150,54 @@ describe("기기 토큰", () => {
     const { deviceId, token } = connected(context);
     removeDevice(context.db, deviceId, at);
     expect(authenticateDevice(context.db, `Bearer ${token}`, at)).toBeNull();
+  });
+
+  it("데스크톱 등록을 같은 requestId 로 다시 보내면 기기를 늘리지 않고 앞 토큰을 끊는다", () => {
+    const { db } = world();
+    const registrations = new DesktopRegistrations();
+    const body = { name: "Acme Mac", requestId: "request-id-0000001" };
+    const first = registerDesktop({ db, registrations }, body, at);
+    const second = registerDesktop({ db, registrations }, body, at);
+    if (first.status !== 200 || second.status !== 200) throw new Error("등록 실패");
+
+    expect(second.result.deviceId).toBe(first.result.deviceId);
+    expect(listDevices(db)).toHaveLength(1);
+    expect(authenticateDevice(db, `Bearer ${first.result.token}`, at)).toBeNull();
+    expect(authenticateDevice(db, `Bearer ${second.result.token}`, at)).toBe(first.result.deviceId);
+  });
+
+  it("같은 requestId 에 이름이 다르면 거절하고, requestId 가 없으면 거절한다", () => {
+    const { db } = world();
+    const registrations = new DesktopRegistrations();
+    const requestId = "request-id-0000002";
+    registerDesktop({ db, registrations }, { name: "Acme Mac", requestId }, at);
+
+    expect(registerDesktop({ db, registrations }, { name: "Other", requestId }, at)).toEqual({
+      status: 400,
+      reason: "invalid-request",
+    });
+    expect(registerDesktop({ db, registrations }, { name: "Acme Mac" }, at)).toEqual({
+      status: 400,
+      reason: "invalid-request",
+    });
+    expect(listDevices(db)).toHaveLength(1);
+  });
+
+  it("지운 기기의 requestId 로 다시 보내면 새 기기로 등록한다", () => {
+    const { db } = world();
+    const registrations = new DesktopRegistrations();
+    const body = { name: "Acme Mac", requestId: "request-id-0000003" };
+    const first = registerDesktop({ db, registrations }, body, at);
+    if (first.status !== 200) throw new Error("등록 실패");
+    removeDevice(db, first.result.deviceId, at);
+
+    const second = registerDesktop({ db, registrations }, body, at);
+
+    if (second.status !== 200) throw new Error("등록 실패");
+    expect(second.result.deviceId).not.toBe(first.result.deviceId);
+    expect(authenticateDevice(db, `Bearer ${second.result.token}`, at)).toBe(
+      second.result.deviceId,
+    );
   });
 
   it("기기를 지우면 그 기기의 열린 스트림을 닫고, 없는 기기는 아무것도 닫지 않는다", async () => {

@@ -25,6 +25,7 @@ class FakeServer {
   log: NotificationRecord[] = [];
   streamAvailable = true;
   tokenAccepted = true;
+  proxyRefuses = false;
   legacyRequests = 0;
   readonly v1Requests: Array<string | null> = [];
   readonly streamRequests: Array<string | null> = [];
@@ -88,6 +89,10 @@ class FakeServer {
     const pathname = v1 ? url.pathname.replace("/api/v1/", "/api/") : url.pathname;
     if (v1) {
       this.v1Requests.push(request.headers.authorization ?? null);
+      if (this.proxyRefuses) {
+        response.writeHead(401, { "content-type": "text/plain" }).end("proxy login required");
+        return;
+      }
       if (!this.tokenAccepted || request.headers.authorization !== `Bearer ${DEVICE_TOKEN}`) {
         response.writeHead(401, { "content-type": "application/json" });
         response.end(JSON.stringify({ meta: V1_META, error: { reason: "invalid-token" } }));
@@ -246,6 +251,20 @@ describe("v1 기기 토큰", () => {
     feed.reconnect();
     await waitFor(() => ids(batches).some(([id]) => id === 2));
     expect(server.streamRequests.at(-1)).toBe("1");
+  });
+
+  it("앞단 프록시의 401 은 기기 거절로 보지 않고 다시 시도한다", async () => {
+    const server = await startServer();
+    server.proxyRefuses = true;
+    let rejected = 0;
+    startFeed(server, {
+      connection: tokenConnection,
+      onRejected: () => {
+        rejected += 1;
+      },
+    });
+    await waitFor(() => server.v1Requests.length >= 3);
+    expect(rejected).toBe(0);
   });
 
   it("저장한 토큰을 쓸 수 없으면 요청 없이 거절로 알린다", async () => {

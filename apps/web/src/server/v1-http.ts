@@ -16,6 +16,7 @@ import {
   notificationStreamResponse,
 } from "../notifications/stream";
 import { getDatabase } from "./database";
+import { getDesktopRegistrations } from "./desktop-registrations";
 import { getDeviceConnectionCodes } from "./device-connection-codes";
 import { removeDeviceAndCloseStreams } from "./device-removal";
 import { getDeviceStreams } from "./device-streams";
@@ -64,7 +65,11 @@ export function serveV1Disconnect(request: Request): Response {
 }
 
 export async function serveV1RegisterDesktop(request: Request): Promise<Response> {
-  const reply = registerDesktop(getDatabase(), await readJson(request), new Date());
+  const reply = registerDesktop(
+    { db: getDatabase(), registrations: getDesktopRegistrations() },
+    await readJson(request),
+    new Date(),
+  );
   return reply.status === 200 ? v1Data(reply.result) : v1Error(reply.status, reply.reason);
 }
 

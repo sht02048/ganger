@@ -72,6 +72,16 @@ export function removeDevice(db: Database, id: string, now: Date): boolean {
   });
 }
 
+export function replaceDeviceToken(db: Database, id: string, tokenHash: string): boolean {
+  const replaced = db
+    .update(devices)
+    .set({ tokenHash })
+    .where(eq(devices.id, id))
+    .returning({ id: devices.id })
+    .all();
+  return replaced.length > 0;
+}
+
 export function seeDeviceByTokenHash(db: Database, tokenHash: string, now: Date): string | null {
   const device = db
     .select({ id: devices.id, lastSeenAt: devices.lastSeenAt })

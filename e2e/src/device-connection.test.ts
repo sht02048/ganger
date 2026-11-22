@@ -386,7 +386,7 @@ describe("v1 알림 사건", () => {
     const response = await fetch(new URL(V1_DESKTOP_REGISTER_PATH, baseUrl), {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: "Acme Mac" }),
+      body: JSON.stringify({ name: "Acme Mac", requestId: "e2e-register-000001" }),
     });
     const { deviceId, token } = connectResponseSchema.parse(await response.json()).data;
     expect(listDevices(db).find((device) => device.id === deviceId)?.name).toBe("Acme Mac");
@@ -398,7 +398,7 @@ describe("v1 알림 사건", () => {
     const response = await fetch(new URL(V1_DESKTOP_REGISTER_PATH, baseUrl), {
       method: "POST",
       headers: { "content-type": "application/json", origin: "https://evil.example.com" },
-      body: JSON.stringify({ name: "Evil" }),
+      body: JSON.stringify({ name: "Evil", requestId: "e2e-register-000002" }),
     });
     expect(response.status).toBe(403);
     expect(listDevices(db)).toHaveLength(before);

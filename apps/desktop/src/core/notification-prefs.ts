@@ -25,7 +25,13 @@ export type NotificationPrefs = z.infer<typeof notificationPrefsSchema>;
 export const NOTIFICATION_PERMISSIONS = ["allowed", "denied", "unknown"] as const;
 export type NotificationPermission = (typeof NOTIFICATION_PERMISSIONS)[number];
 
-export const DEVICE_LINK_STATES = ["connected", "rejected", "reconnecting", "failed"] as const;
+export const DEVICE_LINK_STATES = [
+  "connected",
+  "rejected",
+  "reconnecting",
+  "reconnected",
+  "failed",
+] as const;
 export type DeviceLinkState = (typeof DEVICE_LINK_STATES)[number];
 
 export const notificationSettingsViewSchema = notificationPrefsSchema.extend({

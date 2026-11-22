@@ -59,14 +59,10 @@ export function NotificationSettings({
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
-  const [reconnected, setReconnected] = useState(false);
-  const previousLink = useRef(view.deviceLink);
+  const reconnected = view.deviceLink === "reconnected";
   useEffect(() => {
-    if (previousLink.current !== "connected" && view.deviceLink === "connected") {
-      titleRef.current?.focus();
-    }
-    previousLink.current = view.deviceLink;
-  }, [view.deviceLink]);
+    if (reconnected) titleRef.current?.focus();
+  }, [reconnected]);
   const save = (next: NotificationSettingsView) => {
     onChange(next);
     window.desktopNotifications
@@ -85,20 +81,15 @@ export function NotificationSettings({
           <Text variant="body">{t("summary")}</Text>
         </header>
         <span role="status" {...stylex.props(styles.status)}>
-          {reconnected && view.deviceLink === "connected" ? (
-            <Text variant="meta">{t("deviceLink.done")}</Text>
-          ) : null}
+          {reconnected ? <Text variant="meta">{t("deviceLink.done")}</Text> : null}
         </span>
-        {view.deviceLink === "connected" ? null : (
+        {view.deviceLink === "connected" || reconnected ? null : (
           <ProblemCallout
             title={t("deviceLink.title")}
             actions={
               <Button
                 disabled={view.deviceLink === "reconnecting"}
-                onClick={() => {
-                  setReconnected(true);
-                  void window.desktopNotifications?.reconnectDevice();
-                }}
+                onClick={() => void window.desktopNotifications?.reconnectDevice()}
               >
                 {view.deviceLink === "reconnecting"
                   ? t("deviceLink.reconnecting")
