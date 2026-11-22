@@ -1,0 +1,13 @@
+{
+  "expo": {
+    "name": "Ganger",
+    "slug": "ganger",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090909",
+    "platforms": ["ios", "web"],
+    "ios": { "supportsTablet": false },
+    "web": { "bundler": "metro", "output": "single" }
+  }
+}

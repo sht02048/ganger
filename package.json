@@ -11,6 +11,7 @@
     "release:mac": "node scripts/release-mac.ts",
     "dev": "node demo/src/desktop.ts",
     "dev:web": "node demo/src/main.ts",
+    "dev:mobile": "node demo/src/mobile.ts",
     "check:colors": "node scripts/check-color-literals.ts",
     "check:lengths": "node scripts/check-style-lengths.ts",
     "smoke:web": "node scripts/smoke-web-prod.ts",
