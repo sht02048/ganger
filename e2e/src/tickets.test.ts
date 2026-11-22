@@ -12,6 +12,7 @@ import {
   toRunnerProjectId,
   toTicketKey,
   toTrackerStateId,
+  toPullRequestId,
 } from "@ganger/core";
 import type { RunId, TicketKey } from "@ganger/core";
 import { FakeTracker } from "@ganger/core/testing";
@@ -32,6 +33,7 @@ import {
   saveWorkspace,
   saveWorkspaceTrackerProject,
   toCodeHostConnectionId,
+  updateRunRecords,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
@@ -830,6 +832,45 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await runs.getByRole("button", { name: tickets.panel.runsAll }).click();
     await page.waitForURL((url) => url.pathname === "/runs");
     expect(new URL(page.url()).searchParams.get("project")).toContain(trackerProject);
+  });
+});
+
+describe("Tickets 목록의 PR 번호 링크(브라우저, 0184)", () => {
+  it("링크는 새 탭으로 열고 고른 티켓을 바꾸지 않는다", async () => {
+    const key = toTicketKey("ACME-7");
+    const selectedKey = toTicketKey("ACME-8");
+    const id = assignQueued(key);
+    endCanceled(id, new Date());
+    const prUrl = "https://code.example.com/acme/web/pull/138";
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("138"),
+        displayId: "#138",
+        url: prUrl,
+        ci: "success",
+        checkedAt: new Date(),
+        signals: null,
+      },
+    });
+    await page
+      .context()
+      .route("https://code.example.com/**", (route) =>
+        route.fulfill({ contentType: "text/html", body: "<title>PR</title>" }),
+      );
+    await page.goto(ticketUrl(selectedKey));
+    await hydrated(page);
+    const before = new URL(page.url()).searchParams.get("sel");
+
+    const row = page
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
+      .filter({ hasText: /ACME-7(?!\d)/ });
+    const link = row.getByRole("link", { name: "PR #138" });
+    const [opened] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+    await opened.waitForLoadState();
+    expect(opened.url()).toBe(prUrl);
+    await opened.close();
+    expect(new URL(page.url()).searchParams.get("sel")).toBe(before);
   });
 });
 

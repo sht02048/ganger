@@ -73,6 +73,7 @@ import {
   StepNav,
   StepNavItem,
   Text,
+  RowLink,
   TextLink,
   Textarea,
   VisuallyHidden,
@@ -239,6 +240,7 @@ export function BlockSections() {
               <TextLink href="#links" tone="plain">
                 {t("links.plain")}
               </TextLink>
+              <RowLink href="#links">{t("links.row")}</RowLink>
             </span>
             <Text variant="ui" tone="problem">
               {t("links.problemTone")}

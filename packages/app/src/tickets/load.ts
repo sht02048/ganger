@@ -50,6 +50,7 @@ import type {
   TicketProjectFacts,
   TicketRun,
   TicketRunFacts,
+  TicketRunPullRequest,
   TicketRunsData,
   TicketsPage,
   TrackerLabel,
@@ -407,9 +408,16 @@ function toTicketRun(
     agentResult: run.agentResult,
     prState: run.prState,
     laterPrState: records.laterPrState?.state ?? null,
-    pullRequest: records.pullRequest?.displayId ?? null,
+    pullRequest: ticketRunPullRequest(records.pullRequest),
     summary: summarizeRunOutcome(run).outcome,
   };
+}
+
+function ticketRunPullRequest(
+  pr: { displayId: string; url: string } | null | undefined,
+): TicketRunPullRequest | null {
+  if (pr === null || pr === undefined || pr.displayId === "") return null;
+  return { displayId: pr.displayId, url: isWebUrl(pr.url) ? pr.url : null };
 }
 
 function msSince(at: Date, now: Date): number {

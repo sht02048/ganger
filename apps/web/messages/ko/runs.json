@@ -28,9 +28,9 @@
   },
   "reason": {
     "ci-failed": "CI 실패",
-    "conflict": "충돌",
-    "merged": "PR 병합됨"
+    "conflict": "충돌"
   },
+  "pullRequest": "PR {pr}",
   "now": {
     "title": "지금",
     "offline": "꺼져 있어요",

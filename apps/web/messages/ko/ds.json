@@ -475,6 +475,7 @@
       "quiet": "‹ Runs",
       "action": "토큰 만들기 페이지",
       "plain": "runner-a",
+      "row": "PR #138",
       "problemTone": "저장하지 못했어요. 다시 해 볼 수 있어요."
     },
     "chips": {

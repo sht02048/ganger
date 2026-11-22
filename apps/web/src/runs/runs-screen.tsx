@@ -25,6 +25,7 @@ import {
   TableRow,
   TableRows,
   Text,
+  RowLink,
   TextLink,
 } from "@ganger/ui";
 import type { PillStatus } from "@ganger/ui";
@@ -58,7 +59,7 @@ import type {
   SituationPart,
 } from "@ganger/app/runs/board";
 import type { ConditionKey } from "@ganger/app/runs/conditions";
-import { currentPrState, elapsedMs } from "@ganger/app/runs/model";
+import { elapsedMs } from "@ganger/app/runs/model";
 import type { RunCondition } from "@ganger/app/runs/model";
 import { runnerRunsHref } from "./hrefs";
 
@@ -671,6 +672,7 @@ function EndedRow({
   const word = runWord(run);
   const reason = useEndedReason(run);
   const wordText = reason === null ? t(`word.${word}`) : `${t(`word.${word}`)} · ${reason}`;
+  const pr = run.pullRequest;
   const runner = run.runner?.name ?? t("endedRuns.noRunner");
   return (
     <TableRow value={run.id} label={ticketName(run)} onActivate={onOpen} disabled={leaving}>
@@ -702,6 +704,14 @@ function EndedRow({
           {...(word === "failed" || word === "needs-review" ? { tone: "problem" as const } : {})}
         >
           {wordText}
+          {pr === null || pr.displayId === "" ? null : (
+            <>
+              <Text variant="meta" as="span" tone="muted">
+                {" · "}
+              </Text>
+              <RowLink href={pr.url}>{t("pullRequest", { pr: pr.displayId })}</RowLink>
+            </>
+          )}
         </Text>
       </TableCell>
       <TableCell align="end" numeric>
@@ -714,8 +724,7 @@ function EndedRow({
 function useEndedReason(run: BoardRun): string | null {
   const t = useTranslations("runs.reason");
   const problem = prProblemOf(run);
-  if (problem !== null) return t(problem);
-  return run.state === "ended" && currentPrState(run) === "merged" ? t("merged") : null;
+  return problem === null ? null : t(problem);
 }
 
 function ticketName(run: BoardRun): string {

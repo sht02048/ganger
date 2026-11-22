@@ -43,7 +43,7 @@ function ended(summary: SummaryOutcome, prState: PrState = "open"): TicketRun {
     agentResult: summary === "succeeded" ? "reported-success" : "reported-failure",
     prState,
     laterPrState: null,
-    pullRequest: prState === "none" ? null : "#1",
+    pullRequest: prState === "none" ? null : { displayId: "#1", url: null },
     summary,
   };
 }

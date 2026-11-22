@@ -154,7 +154,13 @@ export {
   type KanbanCardProps,
   type KanbanColumnProps,
 } from "./components/kanban";
-export { TextLink, linkStyles, type LinkTone, type TextLinkProps } from "./components/link";
+export {
+  RowLink,
+  TextLink,
+  linkStyles,
+  type LinkTone,
+  type TextLinkProps,
+} from "./components/link";
 export {
   Menu,
   MenuItem,

@@ -72,7 +72,7 @@ const signals = {
   behindBy: 3,
 };
 
-function endWithPr(prState: "open" | "merged", ci = "failure") {
+function endWithPr(prState: "open" | "merged" | "closed", ci = "failure") {
   const { db, ids } = seedDatabase();
   const id = ids.get("ACME-10");
   if (id === undefined) throw new Error("seed");
@@ -85,6 +85,40 @@ function endWithPr(prState: "open" | "merged", ci = "failure") {
   });
   return { db, id, page: loadRunsBoard(db, undefined, now, { view: "all" }) };
 }
+
+describe("끝난 런 표의 PR 번호 링크(0184)", () => {
+  const statusCell = (html: string) => textOf(html.split('role="option"')[1] ?? "");
+
+  it.each(["merged", "closed"] as const)("PR 이 %s 이면 상태 낱말 없이 번호만 붙인다", (state) => {
+    const { page } = endWithPr(state, "success");
+    const html = render(page);
+    expect(html).toContain(`href="${pullRequest.url}"`);
+    expect(html).toContain('target="_blank"');
+    expect(textOf(html)).toContain(`PR ${pullRequest.displayId}`);
+    expect(textOf(html)).not.toContain("PR 병합됨");
+  });
+
+  it("CI 가 실패한 열린 PR 은 이유 뒤에 번호를 붙인다", () => {
+    const { page } = endWithPr("open");
+    expect(textOf(render(page))).toMatch(
+      new RegExp(`${runsJson.reason["ci-failed"]}\\s*·\\s*PR ${pullRequest.displayId}`),
+    );
+  });
+
+  it("PR 이 없으면 아무것도 붙이지 않는다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("seed");
+    changeRunState(
+      db,
+      id,
+      { to: "ended", agentResult: "reported-success", prState: "none" },
+      minutes(110),
+    );
+    const html = render(loadRunsBoard(db, undefined, now, { view: "all" }));
+    expect(statusCell(html)).not.toContain("PR #");
+  });
+});
 
 describe("Runs 두 구역(0173)", () => {
   it("상황 문장과 지금·끝난 런 구역을 보이고 묶음 탭·상태 칩은 없다", () => {
