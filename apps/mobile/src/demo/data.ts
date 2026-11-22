@@ -1,27 +1,25 @@
-import type {
-  BlockerView,
-  HomeRun,
-  MobileSnapshot,
-  RunnerUsageView,
-  UsageWindowView,
-  WorkspaceSummary,
-} from "./contract";
+import type { V1Dashboard, V1DashboardRun } from "@ganger/api";
+
+import { ALL_WORKSPACES } from "../dashboard/model";
+import type { MobileRunner, RunnerUsageView, UsageWindowView } from "../runners/model";
+import type { MobileSnapshot, WorkspaceOption } from "../screen-model";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
-const payments: WorkspaceSummary = { id: "ws-payments", name: "Payments" };
-const growth: WorkspaceSummary = { id: "ws-growth", name: "Growth" };
+const payments: WorkspaceOption = { id: "ws-payments", name: "Payments" };
+const growth: WorkspaceOption = { id: "ws-growth", name: "Growth" };
 
 const mini = { name: "acme-runner", online: true };
 const studio = { name: "studio", online: false };
 
-const base = (key: string, title: string, workspace: WorkspaceSummary = payments) => ({
+const base = (key: string, title: string, workspace: WorkspaceOption = payments) => ({
   id: `run-${key}`,
   ticketId: `ticket-${key}`,
   ticketKey: key,
   ticketTitle: title,
+  trackerProject: "ACME",
   workspace,
   runner: mini,
   agent: "Claude",
@@ -29,14 +27,75 @@ const base = (key: string, title: string, workspace: WorkspaceSummary = payments
   executionMs: 25 * MINUTE,
   pullRequest: null,
   cancelling: false,
+  control: null,
+  todoTag: null,
 });
 
-const blocker = (key: string, title: string): BlockerView => ({
+const blocker = (key: string, title: string) => ({
   key,
   title,
   stateName: "In Progress",
   stateCategory: "started",
 });
+
+function demoTodoTag(run: V1DashboardRun): V1DashboardRun["todoTag"] {
+  switch (run.state) {
+    case "waiting-for-input":
+      return run.input === null ? "waiting-for-input" : run.input.kind;
+    case "disconnected":
+      return "disconnected";
+    case "ended":
+      return run.summary === "failed" ? "failed" : null;
+    case "queued":
+    case "running":
+    case "paused":
+      return null;
+  }
+}
+
+function demoDashboard(
+  allRuns: ReadonlyArray<V1DashboardRun>,
+  runners: ReadonlyArray<MobileRunner>,
+  workspaceId: string,
+  workspaces: ReadonlyArray<WorkspaceOption>,
+): V1Dashboard {
+  const chosen = workspaces.find((workspace) => workspace.id === workspaceId);
+  const runs = allRuns
+    .filter((run) => chosen === undefined || run.workspace.id === chosen.id)
+    .map((run): V1DashboardRun => ({ ...run, todoTag: demoTodoTag(run) }));
+  const isTodo = (run: V1DashboardRun) => run.todoTag !== null;
+  const unfinished = runs.filter((run) => run.state !== "ended");
+  const ended = runs.filter((run) => run.state === "ended");
+  const queued = runs.filter((run) => run.state === "queued");
+  const working = runs.filter((run) => run.state === "running" || run.state === "paused");
+  const todoCount = (...tags: ReadonlyArray<V1DashboardRun["todoTag"]>) =>
+    runs.filter((run) => run.todoTag !== null && tags.includes(run.todoTag)).length;
+  const resets = runners.flatMap((runner) =>
+    runner.limits.flatMap((limit) => (limit.resetsInMs === null ? [] : [limit.resetsInMs])),
+  );
+  return {
+    workspace:
+      chosen === undefined || workspaceId === ALL_WORKSPACES
+        ? { kind: "all" }
+        : { kind: "one", workspace: chosen },
+    summary: {
+      todo: {
+        check: todoCount("human-check"),
+        answer: todoCount("question", "permission", "waiting-for-input"),
+        stopped: todoCount("disconnected", "failed"),
+      },
+      inProgress: working.length + queued.length,
+      limitedRunners: runners.filter((runner) => runner.limits.length > 0).length,
+      soonestLimitResetMs: resets.length === 0 ? null : Math.min(...resets),
+      runnerIssues: runners.filter((runner) => runner.cause !== null).length,
+    },
+    columns: {
+      queued,
+      running: { todo: unfinished.filter(isTodo), rest: working },
+      done: { todo: ended.filter(isTodo), rest: ended.filter((run) => !isTodo(run)) },
+    },
+  };
+}
 
 const prDisplayId = (pullNumber: number) => `#${pullNumber}`;
 
@@ -58,9 +117,13 @@ function readUsage(now: Date, provider: string, windows: UsageWindowView[]): Run
 
 export function busySnapshot(now: Date): MobileSnapshot {
   const endedAt = (agoMs: number) => new Date(now.getTime() - agoMs).toISOString();
-  const ended = (agoMs: number) => ({ endedAt: endedAt(agoMs), endedAgoMs: agoMs });
+  const ended = (agoMs: number) => ({
+    endedAt: endedAt(agoMs),
+    endedAgoMs: agoMs,
+    prReadError: null,
+  });
 
-  const runs: HomeRun[] = [
+  const runs: V1DashboardRun[] = [
     {
       ...base("ACME-142", "결제 실패 재시도 간격 조정"),
       state: "waiting-for-input",
@@ -108,7 +171,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       pullRequest: {
         displayId: prDisplayId(212),
         url: "https://example.com/acme/pay/pull/212",
-        signals: { ciFailed: true, conflict: true, behindBy: 3 },
+        problems: [{ kind: "ci-failed" }, { kind: "conflict" }, { kind: "behind", commits: 3 }],
       },
     },
     {
@@ -149,6 +212,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       queuedReason: {
         kind: "blockers-waiting",
         blockers: [blocker("ACME-150", "카드 등록 화면 접근성 개선")],
+        finished: [],
       },
     },
     {
@@ -173,6 +237,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       ...base("ACME-119", "정기 결제 재시도 큐 분리"),
       state: "ended",
       summary: "failed",
+      agentResult: "reported-failure",
       prState: "none",
       ...ended(2 * HOUR),
     },
@@ -180,11 +245,12 @@ export function busySnapshot(now: Date): MobileSnapshot {
       ...base("ACME-118", "결제 위젯 로딩 개선"),
       state: "ended",
       summary: "succeeded",
+      agentResult: "reported-success",
       prState: "merged",
       pullRequest: {
         displayId: prDisplayId(205),
         url: "https://example.com/acme/pay/pull/205",
-        signals: null,
+        problems: [],
       },
       ...ended(45 * MINUTE),
     },
@@ -192,11 +258,12 @@ export function busySnapshot(now: Date): MobileSnapshot {
       ...base("ACME-117", "관리자 환불 권한 분리"),
       state: "ended",
       summary: "succeeded",
+      agentResult: "reported-success",
       prState: "open",
       pullRequest: {
         displayId: prDisplayId(203),
         url: "https://example.com/acme/pay/pull/203",
-        signals: { ciFailed: false, conflict: false, behindBy: 2 },
+        problems: [{ kind: "behind", commits: 2 }],
       },
       ...ended(5 * HOUR),
     },
@@ -204,52 +271,60 @@ export function busySnapshot(now: Date): MobileSnapshot {
       ...base("ACME-112", "이벤트 배너 문구 수정", growth),
       state: "ended",
       summary: "canceled",
+      agentResult: "canceled",
       prState: "none",
       ...ended(2 * DAY),
     },
   ];
 
+  const runners: MobileRunner[] = [
+    {
+      id: "runner-studio",
+      name: "studio",
+      cause: "offline",
+      offlineMs: 18 * MINUTE,
+      used: 0,
+      capacity: 2,
+      usage: { ...usageReadAt(now), kind: "unreadable" },
+      limits: [],
+    },
+    {
+      id: "runner-build",
+      name: "build-box",
+      cause: "auth",
+      offlineMs: null,
+      used: 0,
+      capacity: 2,
+      usage: readUsage(now, "Codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
+      limits: [],
+    },
+    {
+      id: "runner-mini",
+      name: "acme-runner",
+      cause: null,
+      offlineMs: null,
+      used: 3,
+      capacity: 4,
+      usage: readUsage(now, "Claude", [
+        { kind: "session", usedPercent: 100, resetsAt: null },
+        { kind: "weekly", usedPercent: 64, resetsAt: null },
+      ]),
+      limits: [{ provider: "Claude", window: "session", resetsInMs: 42 * MINUTE }],
+    },
+  ];
+  const workspaces = [payments, growth];
   return {
-    workspaces: [payments, growth],
-    runs,
-    runners: [
-      {
-        id: "runner-studio",
-        name: "studio",
-        cause: "offline",
-        offlineMs: 18 * MINUTE,
-        used: 0,
-        capacity: 2,
-        usage: { ...usageReadAt(now), kind: "unreadable" },
-        limits: [],
-      },
-      {
-        id: "runner-build",
-        name: "build-box",
-        cause: "auth",
-        offlineMs: null,
-        used: 0,
-        capacity: 2,
-        usage: readUsage(now, "Codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
-        limits: [],
-      },
-      {
-        id: "runner-mini",
-        name: "acme-runner",
-        cause: null,
-        offlineMs: null,
-        used: 3,
-        capacity: 4,
-        usage: readUsage(now, "Claude", [
-          { kind: "session", usedPercent: 100, resetsAt: null },
-          { kind: "weekly", usedPercent: 64, resetsAt: null },
-        ]),
-        limits: [{ provider: "Claude", window: "session", resetsInMs: 42 * MINUTE }],
-      },
-    ],
+    workspaces,
+    runners,
+    dashboardFor: (workspaceId) => demoDashboard(runs, runners, workspaceId, workspaces),
   };
 }
 
 export function emptySnapshot(): MobileSnapshot {
-  return { workspaces: [payments, growth], runs: [], runners: [] };
+  const workspaces = [payments, growth];
+  return {
+    workspaces,
+    runners: [],
+    dashboardFor: (workspaceId) => demoDashboard([], [], workspaceId, workspaces),
+  };
 }

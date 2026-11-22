@@ -22,7 +22,6 @@ export function AppScreens({ now: fixedNow }: { now?: Date }) {
       return (
         <DashboardScreen
           snapshot={snapshot}
-          now={now}
           view={dashboardView}
           onViewChange={setDashboardView}
           onOpenRunners={() => setScreen("runners")}

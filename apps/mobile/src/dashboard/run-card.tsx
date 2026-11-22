@@ -4,12 +4,11 @@ import { Button, Card, Chip, StatusPill } from "../design/components";
 import type { PillStatus } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
-import type { HomeRun } from "../demo/contract";
 import { formatAgo, formatDuration, queuedLine } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
-import { PR_CHIPS_VISIBLE, prProblemsOf, todoTagOf } from "./model";
-import type { PrProblem } from "./model";
+import { PR_CHIPS_VISIBLE } from "./model";
+import type { DashboardRun, EndedRun, PrProblem } from "./model";
 
 function prProblemLabel(problem: PrProblem): string {
   switch (problem.kind) {
@@ -22,8 +21,8 @@ function prProblemLabel(problem: PrProblem): string {
   }
 }
 
-function PrChips({ run }: { run: HomeRun }) {
-  const problems = prProblemsOf(run.pullRequest?.signals ?? null);
+function PrChips({ run }: { run: DashboardRun }) {
+  const problems = run.pullRequest?.problems ?? [];
   if (problems.length === 0) return null;
   const hidden = problems.length - PR_CHIPS_VISIBLE;
   return (
@@ -40,14 +39,12 @@ function PrChips({ run }: { run: HomeRun }) {
   );
 }
 
-function BlockerChips({ run }: { run: HomeRun }) {
+function BlockerChips({ run }: { run: DashboardRun }) {
   if (run.state !== "queued") return null;
   const reason = run.queuedReason;
   if (reason.kind !== "blockers-waiting" && reason.kind !== "blockers-stuck") return null;
   const blockers =
-    reason.kind === "blockers-waiting"
-      ? [...reason.blockers, ...(reason.finished ?? [])]
-      : reason.blockers;
+    reason.kind === "blockers-waiting" ? [...reason.blockers, ...reason.finished] : reason.blockers;
   if (blockers.length === 0) return null;
   return (
     <View style={styles.chips}>
@@ -58,9 +55,8 @@ function BlockerChips({ run }: { run: HomeRun }) {
   );
 }
 
-function pillOf(run: HomeRun): PillStatus | null {
-  const tag = todoTagOf(run);
-  if (tag !== null) return tag;
+function pillOf(run: DashboardRun): PillStatus | null {
+  if (run.todoTag !== null) return run.todoTag;
   return run.state === "paused" ? "paused" : null;
 }
 
@@ -68,12 +64,12 @@ function firstLineOf(body: string): string {
   return body.split("\n", 1)[0] ?? "";
 }
 
-function inputHandled(run: HomeRun): boolean {
+function inputHandled(run: DashboardRun): boolean {
   if (run.state !== "waiting-for-input" || run.input === null) return false;
   return run.input.kind === "permission" ? run.input.denied : run.input.answered;
 }
 
-function detailOf(run: HomeRun): string | null {
+function detailOf(run: DashboardRun): string | null {
   switch (run.state) {
     case "waiting-for-input":
       if (run.input === null) return t("card.inputUnknown");
@@ -97,7 +93,7 @@ function detailOf(run: HomeRun): string | null {
   }
 }
 
-function noteOf(run: HomeRun): string | null {
+function noteOf(run: DashboardRun): string | null {
   if (run.state === "disconnected") return t("card.disconnected");
   if (run.state === "waiting-for-input" && run.input?.kind === "permission" && !run.input.denied) {
     return t("card.allowOnRunner");
@@ -105,9 +101,9 @@ function noteOf(run: HomeRun): string | null {
   return null;
 }
 
-function actionOf(run: HomeRun): { key: MessageKey; danger: boolean } | null {
+function actionOf(run: DashboardRun): { key: MessageKey; danger: boolean } | null {
   if (inputHandled(run)) return null;
-  switch (todoTagOf(run)) {
+  switch (run.todoTag) {
     case "question":
       return { key: "card.answer", danger: false };
     case "human-check":
@@ -119,13 +115,13 @@ function actionOf(run: HomeRun): { key: MessageKey; danger: boolean } | null {
     case "waiting-for-input":
     case "disconnected":
     case null:
-      return run.state === "paused" && !run.cancelling
+      return run.state === "paused" && !run.cancelling && run.control?.status !== "pending"
         ? { key: "card.resume", danger: false }
         : null;
   }
 }
 
-function timeOf(run: HomeRun): string | null {
+function timeOf(run: DashboardRun): string | null {
   switch (run.state) {
     case "queued":
       return formatDuration(run.waitMs);
@@ -142,7 +138,7 @@ function timeOf(run: HomeRun): string | null {
   }
 }
 
-function isStuck(run: HomeRun): boolean {
+function isStuck(run: DashboardRun): boolean {
   return run.state === "queued" && run.queuedReason.kind === "blockers-stuck";
 }
 
@@ -151,7 +147,7 @@ export function RunCard({
   showWorkspace = false,
   onAction,
 }: {
-  run: HomeRun;
+  run: DashboardRun;
   showWorkspace?: boolean;
   onAction: () => void;
 }) {
@@ -169,6 +165,9 @@ export function RunCard({
     waitsOnBlockers ? null : run.agent,
     showWorkspace ? run.workspace.name : null,
     run.cancelling ? t("card.cancelling") : null,
+    run.control?.status === "pending"
+      ? t(run.control.control === "pause" ? "card.pausing" : "card.resuming")
+      : null,
     run.pullRequest === null ? null : t("card.pullRequest", { pr: run.pullRequest.displayId }),
   ]
     .filter((part) => part !== null)
@@ -207,7 +206,7 @@ export function RunCard({
   );
 }
 
-function settledPrLabel(run: HomeRun & { state: "ended" }): string | null {
+function settledPrLabel(run: EndedRun): string | null {
   if (run.pullRequest === null) return null;
   const pr = run.pullRequest.displayId;
   switch (run.prState) {
@@ -217,6 +216,8 @@ function settledPrLabel(run: HomeRun & { state: "ended" }): string | null {
       return t("card.prClosed", { pr });
     case "open":
       return t("card.pullRequest", { pr });
+    case "unknown":
+      return t("card.prUnread");
     case "none":
       return null;
   }
@@ -226,10 +227,10 @@ export function SettledRow({
   run,
   showWorkspace = false,
 }: {
-  run: HomeRun & { state: "ended" };
+  run: EndedRun;
   showWorkspace?: boolean;
 }) {
-  const status = run.summary === "canceled" ? "canceled" : "succeeded";
+  const status = run.summary;
   const trailing = [
     showWorkspace ? run.workspace.name : null,
     settledPrLabel(run),

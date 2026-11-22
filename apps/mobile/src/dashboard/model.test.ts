@@ -1,17 +1,18 @@
+import { dashboardSchema } from "@ganger/api";
+import type { V1Dashboard } from "@ganger/api";
 import { describe, expect, it } from "vitest";
 
-import type { HomeRun } from "../demo/contract";
 import { busySnapshot, emptySnapshot } from "../demo/data";
 import { dashboardSummary, formatAgo, formatDuration, queuedLine } from "../format";
 import {
+  ALL_WORKSPACES,
   buildBoard,
   columnRestCount,
   columnTodoCount,
   firstColumn,
-  isInDoneWeek,
-  prProblemsOf,
-  runnerIssueCount,
+  hasNoRuns,
 } from "./model";
+import type { DashboardRun, EndedRun, QueuedRun } from "./model";
 
 const NOW = new Date(2026, 10, 23, 12, 0, 0);
 const MINUTE = 60_000;
@@ -19,7 +20,11 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 const baseRun = {
+  id: "run-1",
+  ticketId: "ticket-1",
+  ticketKey: "ACME-1",
   ticketTitle: "제목",
+  trackerProject: "ACME",
   workspace: { id: "ws", name: "Workspace" },
   runner: { name: "acme-runner", online: true },
   agent: "Claude",
@@ -27,35 +32,59 @@ const baseRun = {
   executionMs: null,
   pullRequest: null,
   cancelling: false,
+  control: null,
+  todoTag: null,
 };
 
-function endedRun(
-  key: string,
-  summary: "succeeded" | "failed" | "canceled",
-  agoMs: number,
-  ticketId = key,
-): HomeRun {
+function endedRun(key: string, summary: EndedRun["summary"]): EndedRun {
   return {
     ...baseRun,
     id: `run-${key}`,
-    ticketId,
     ticketKey: key,
     state: "ended",
     summary,
+    agentResult: summary === "failed" ? "reported-failure" : "reported-success",
     prState: "none",
-    endedAt: new Date(NOW.getTime() - agoMs).toISOString(),
-    endedAgoMs: agoMs,
+    prReadError: null,
+    endedAt: NOW.toISOString(),
+    endedAgoMs: MINUTE,
   };
 }
 
+function dashboardWith(columns: Partial<V1Dashboard["columns"]>): V1Dashboard {
+  const empty = emptySnapshot().dashboardFor(ALL_WORKSPACES);
+  return { ...empty, columns: { ...empty.columns, ...columns } };
+}
+
+describe("데모 데이터", () => {
+  it("모든 Workspace와 Workspace별 Dashboard가 API 계약을 통과한다", () => {
+    const snapshot = busySnapshot(NOW);
+    for (const id of [ALL_WORKSPACES, ...snapshot.workspaces.map((workspace) => workspace.id)]) {
+      expect(dashboardSchema.safeParse(snapshot.dashboardFor(id)).success).toBe(true);
+    }
+    expect(dashboardSchema.safeParse(emptySnapshot().dashboardFor(ALL_WORKSPACES)).success).toBe(
+      true,
+    );
+  });
+
+  it("Workspace를 고르면 그 Workspace의 런만 담는다", () => {
+    const dashboard = busySnapshot(NOW).dashboardFor("ws-growth");
+    expect(dashboard.workspace).toMatchObject({ kind: "one", workspace: { name: "Growth" } });
+    const board = buildBoard(dashboard);
+    for (const run of [...board.queued, ...board.running.todo, ...board.running.rest]) {
+      expect(run.workspace.id).toBe("ws-growth");
+    }
+  });
+});
+
 describe("buildBoard", () => {
-  const board = buildBoard(busySnapshot(NOW).runs, NOW);
+  const board = buildBoard(busySnapshot(NOW).dashboardFor(ALL_WORKSPACES));
 
   it("Human Check를 Question과 따로 Running 칸 맨 위에 묶는다", () => {
     expect(board.running.humanCheck.map((run) => run.ticketKey)).toEqual(["ACME-142"]);
     expect(board.running.todo.map((run) => run.ticketKey)).toEqual([
-      "ACME-131",
       "ACME-138",
+      "ACME-131",
       "ACME-127",
     ]);
   });
@@ -80,29 +109,14 @@ describe("buildBoard", () => {
     ]);
   });
 
-  it("Failed는 7일이 지나도 남고, 나머지는 7일이 지나면 빠진다", () => {
-    const old = buildBoard(
-      [endedRun("OLD-1", "failed", 30 * DAY), endedRun("OLD-2", "succeeded", 30 * DAY)],
-      NOW,
-    );
-    expect(old.done.todo).toHaveLength(1);
-    expect(old.done.settled).toHaveLength(0);
-  });
-
-  it("같은 티켓의 Failed는 최신 런만 처리할 일로 남긴다", () => {
-    const retried = buildBoard(
-      [endedRun("A", "failed", 3 * HOUR, "same"), endedRun("B", "succeeded", HOUR, "same")],
-      NOW,
-    );
-    expect(retried.done.todo).toHaveLength(0);
-  });
-
   it("끝난 런 묶음은 5개까지 보이고 수는 전체를 센다", () => {
     const many = buildBoard(
-      Array.from({ length: 7 }, (_, index) =>
-        endedRun(`S-${index}`, "succeeded", (index + 1) * MINUTE),
-      ),
-      NOW,
+      dashboardWith({
+        done: {
+          todo: [],
+          rest: Array.from({ length: 7 }, (_, index) => endedRun(`S-${index}`, "succeeded")),
+        },
+      }),
     );
     expect(many.done.settled).toHaveLength(5);
     expect(many.done.settledTotal).toBe(7);
@@ -111,37 +125,24 @@ describe("buildBoard", () => {
 
 describe("firstColumn", () => {
   it("처리할 일이 있는 칸부터 연다", () => {
-    expect(firstColumn(buildBoard(busySnapshot(NOW).runs, NOW))).toBe("running");
-    expect(firstColumn(buildBoard([endedRun("F", "failed", HOUR)], NOW))).toBe("done");
+    expect(firstColumn(buildBoard(busySnapshot(NOW).dashboardFor(ALL_WORKSPACES)))).toBe("running");
+    const failed: EndedRun = { ...endedRun("F", "failed"), todoTag: "failed" };
+    expect(firstColumn(buildBoard(dashboardWith({ done: { todo: [failed], rest: [] } })))).toBe(
+      "done",
+    );
   });
 
   it("처리할 일이 없으면 Running을 연다", () => {
-    expect(firstColumn(buildBoard([], NOW))).toBe("running");
+    expect(firstColumn(buildBoard(dashboardWith({})))).toBe("running");
   });
 });
 
-describe("isInDoneWeek", () => {
-  it("오늘을 포함한 7개 날짜를 본다", () => {
-    expect(isInDoneWeek(new Date(2026, 10, 17, 0, 0, 0).toISOString(), NOW)).toBe(true);
-    expect(isInDoneWeek(new Date(2026, 10, 16, 23, 59, 59).toISOString(), NOW)).toBe(false);
-  });
-});
-
-describe("prProblemsOf", () => {
-  it("CI 실패, 충돌, 뒤처짐 순서로 돌려준다", () => {
-    expect(prProblemsOf({ ciFailed: true, conflict: true, behindBy: 3 })).toEqual([
-      { kind: "ci-failed" },
-      { kind: "conflict" },
-      { kind: "behind", commits: 3 },
-    ]);
-    expect(prProblemsOf({ ciFailed: false, conflict: null, behindBy: 0 })).toEqual([]);
-    expect(prProblemsOf(null)).toEqual([]);
-  });
-});
-
-describe("runnerIssueCount", () => {
-  it("사용량 한도 러너는 세지 않는다", () => {
-    expect(runnerIssueCount(busySnapshot(NOW).runners)).toBe(2);
+describe("hasNoRuns", () => {
+  it("어느 칸에든 런이 있으면 비어 있지 않다", () => {
+    expect(hasNoRuns(dashboardWith({}))).toBe(true);
+    expect(
+      hasNoRuns(dashboardWith({ done: { todo: [], rest: [endedRun("S", "succeeded")] } })),
+    ).toBe(false);
   });
 });
 
@@ -168,43 +169,32 @@ describe("시간 표기(ADR 0010)", () => {
 
 describe("Queued 이유", () => {
   const queued = (
-    queuedReason: Extract<HomeRun, { state: "queued" }>["queuedReason"],
-    runner: { name: string; online: boolean } | null = baseRun.runner,
-  ): Extract<HomeRun, { state: "queued" }> => ({
-    ...baseRun,
-    runner,
-    id: "run-q",
-    ticketId: "q",
-    ticketKey: "Q-1",
-    state: "queued",
-    queuedReason,
-  });
-
-  it.each([
-    [{ kind: "starting" as const }, "곧 시작해요"],
-    [{ kind: "behind" as const }, "빈 러너를 기다려요"],
-    [{ kind: "no-capacity" as const, runner: "acme-runner" }, "빈 러너를 기다려요"],
-    [{ kind: "project-missing" as const }, "러너에서 프로젝트가 빠져 다시 고르는 중"],
-    [{ kind: "assignment-blocked" as const }, "러너의 GitHub 인증이 깨져 기다리는 중"],
+    queuedReason: QueuedRun["queuedReason"],
+    runner: DashboardRun["runner"] = baseRun.runner,
+  ): QueuedRun => ({ ...baseRun, runner, state: "queued", queuedReason });
+  const blocker = { key: "A-1", title: "선행", stateName: "Todo", stateCategory: "unstarted" };
+  const reasons: Array<[QueuedRun["queuedReason"], string]> = [
+    [{ kind: "starting" }, "곧 시작해요"],
+    [{ kind: "behind" }, "빈 러너를 기다려요"],
+    [{ kind: "no-capacity", runner: "acme-runner" }, "빈 러너를 기다려요"],
+    [{ kind: "project-missing" }, "러너에서 프로젝트가 빠져 다시 고르는 중"],
+    [{ kind: "assignment-blocked" }, "러너의 GitHub 인증이 깨져 기다리는 중"],
     [
-      { kind: "usage-limit" as const, provider: "Claude", resetsInMs: 42 * MINUTE },
+      { kind: "usage-limit", provider: "Claude", resetsInMs: 42 * MINUTE },
       "모든 러너가 Claude 한도에 닿아 42 min 뒤 풀려요",
     ],
-    [{ kind: "blockers-waiting" as const, blockers: [] }, "선행 티켓을 기다려요"],
+    [{ kind: "blockers-waiting", blockers: [], finished: [] }, "선행 티켓을 기다려요"],
     [
-      { kind: "blockers-stuck" as const, cause: "cycle" as const, blocker: null, blockers: [] },
+      { kind: "blockers-stuck", cause: "cycle", blocker: null, blockers: [] },
       "선행 티켓을 읽지 못했어요",
     ],
     [
-      {
-        kind: "blockers-stuck" as const,
-        cause: "cycle" as const,
-        blocker: { key: "A-1", title: "선행", stateName: "Todo", stateCategory: "unstarted" },
-        blockers: [{ key: "A-1", title: "선행", stateName: "Todo", stateCategory: "unstarted" }],
-      },
+      { kind: "blockers-stuck", cause: "cycle", blocker, blockers: [blocker] },
       "선행 티켓과 서로 기다려요",
     ],
-  ])("%j", (reason, text) => {
+  ];
+
+  it.each(reasons)("%j", (reason, text) => {
     expect(queuedLine(queued(reason))).toBe(text);
   });
 
@@ -225,29 +215,31 @@ describe("Queued 이유", () => {
 });
 
 describe("머리 요약", () => {
+  const summaryOf = (summary: Partial<V1Dashboard["summary"]>) => ({
+    ...emptySnapshot().dashboardFor(ALL_WORKSPACES),
+    summary: { ...emptySnapshot().dashboardFor(ALL_WORKSPACES).summary, ...summary },
+  });
+
   it("처리할 일을 웹과 같은 순서로 말하고 한도 문장을 잇는다", () => {
-    const { runs, runners } = busySnapshot(NOW);
-    expect(dashboardSummary(buildBoard(runs, NOW), runners)).toBe(
+    expect(dashboardSummary(busySnapshot(NOW).dashboardFor(ALL_WORKSPACES))).toBe(
       "처리할 일은 확인할 일 1개, 답할 질문 2개, 멈춘 런 2개예요. 한도에 닿은 러너 1대는 42 min 뒤 한도가 풀리면 다시 런을 받아요.",
     );
   });
 
   it("처리할 일이 없으면 진행 중인 런 수를 말한다", () => {
-    const running: HomeRun = {
-      ...baseRun,
-      id: "run-r",
-      ticketId: "r",
-      ticketKey: "R-1",
-      state: "running",
-    };
-    expect(dashboardSummary(buildBoard([running], NOW), [])).toBe(
+    expect(dashboardSummary(summaryOf({ inProgress: 1 }))).toBe(
       "처리할 일은 없고, 진행 중인 런이 1개 있어요.",
     );
   });
 
+  it("풀리는 때를 모르는 한도는 러너 수만 말한다", () => {
+    expect(dashboardSummary(summaryOf({ limitedRunners: 2, soonestLimitResetMs: null }))).toBe(
+      "처리할 일도, 진행 중인 런도 없어요. 한도에 닿은 러너가 2대 있어요.",
+    );
+  });
+
   it("아무 런도 없으면 없다고 말한다", () => {
-    const { runs, runners } = emptySnapshot();
-    expect(dashboardSummary(buildBoard(runs, NOW), runners)).toBe(
+    expect(dashboardSummary(emptySnapshot().dashboardFor(ALL_WORKSPACES))).toBe(
       "처리할 일도, 진행 중인 런도 없어요.",
     );
   });

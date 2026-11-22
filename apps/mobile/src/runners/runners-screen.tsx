@@ -3,10 +3,10 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { Card, Meter, StatusPill } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
-import type { MobileRunner, UsageLimit, UsageWindowView } from "../demo/contract";
 import { formatDuration } from "../format";
 import { t } from "../i18n";
 import { ScreenHeader } from "../screen-header";
+import type { MobileRunner, UsageLimit, UsageWindowView } from "./model";
 
 function limitText(limit: UsageLimit): string {
   const window = t(`runners.window.${limit.window}`);

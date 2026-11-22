@@ -13,6 +13,7 @@ Read [`AGENTS.md`](./AGENTS.md) for the working rules, [`GLOSSARY.md`](./GLOSSAR
 | `apps/mobile`              | iOS app (Expo) with its own design system and an in-app demo mode                         |
 | `packages/core`            | Domain logic and the Tracker, Runner, and CodeHost adapter interfaces                     |
 | `packages/app`             | What each screen reads and writes, shared by the web server functions and `ganger mcp`    |
+| `packages/api`             | `/api/v1` request and response contract (zod schemas), shared by the server and the app   |
 | `packages/db`              | SQLite (WAL) schema, access, and migrations                                               |
 | `packages/log`             | Server log writing and reading                                                            |
 | `packages/ui`              | Design system (StyleX + UI SDK)                                                           |

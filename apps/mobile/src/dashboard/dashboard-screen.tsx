@@ -4,21 +4,21 @@ import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
-import type { HomeRun, MobileSnapshot } from "../demo/contract";
 import { dashboardSummary } from "../format";
 import { t } from "../i18n";
+import type { MobileSnapshot } from "../screen-model";
 import {
+  ALL_WORKSPACES,
   buildBoard,
   columnRestCount,
   columnTodoCount,
   firstColumn,
-  runnerIssueCount,
+  hasNoRuns,
 } from "./model";
-import type { Board, ColumnKey } from "./model";
+import type { Board, ColumnKey, DashboardRun } from "./model";
 import { RunCard, SettledRow } from "./run-card";
 
 const COLUMNS: ReadonlyArray<ColumnKey> = ["queued", "running", "done"];
-export const ALL_WORKSPACES = "all";
 
 export interface DashboardView {
   workspaceId: string;
@@ -48,7 +48,7 @@ function RunList({
   showWorkspace,
   onAction,
 }: {
-  runs: HomeRun[];
+  runs: DashboardRun[];
   showWorkspace: boolean;
   onAction: () => void;
 }) {
@@ -85,7 +85,7 @@ function ColumnBody({
       </View>
     );
   }
-  const list = (runs: HomeRun[]) => (
+  const list = (runs: DashboardRun[]) => (
     <RunList runs={runs} showWorkspace={showWorkspace} onAction={onAction} />
   );
   switch (column) {
@@ -113,11 +113,9 @@ function ColumnBody({
               <Text variant="meta" tone="secondary" heading>
                 {t("dashboard.settledGroup")}
               </Text>
-              {board.done.settled.flatMap((run) =>
-                run.state === "ended"
-                  ? [<SettledRow key={run.id} run={run} showWorkspace={showWorkspace} />]
-                  : [],
-              )}
+              {board.done.settled.map((run) => (
+                <SettledRow key={run.id} run={run} showWorkspace={showWorkspace} />
+              ))}
             </View>
           )}
         </>
@@ -127,14 +125,12 @@ function ColumnBody({
 
 export function DashboardScreen({
   snapshot,
-  now,
   view,
   onViewChange,
   onOpenRunners,
   onOpenSettings,
 }: {
   snapshot: MobileSnapshot;
-  now: Date;
   view: DashboardView;
   onViewChange: (next: DashboardView) => void;
   onOpenRunners: () => void;
@@ -143,16 +139,10 @@ export function DashboardScreen({
   const [picking, setPicking] = useState(false);
   const [demoNotice, setDemoNotice] = useState(false);
   const { workspaceId, todoOnly } = view;
-  const runs = useMemo(
-    () =>
-      workspaceId === ALL_WORKSPACES
-        ? snapshot.runs
-        : snapshot.runs.filter((run) => run.workspace.id === workspaceId),
-    [snapshot.runs, workspaceId],
-  );
-  const board = useMemo(() => buildBoard(runs, now), [runs, now]);
+  const dashboard = useMemo(() => snapshot.dashboardFor(workspaceId), [snapshot, workspaceId]);
+  const board = useMemo(() => buildBoard(dashboard), [dashboard]);
   const column = view.column ?? firstColumn(board);
-  const issues = runnerIssueCount(snapshot.runners);
+  const issues = dashboard.summary.runnerIssues;
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");
@@ -192,10 +182,10 @@ export function DashboardScreen({
             {t("dashboard.title")}
           </Text>
           <Text variant="meta" tone="secondary">
-            {dashboardSummary(board, snapshot.runners)}
+            {dashboardSummary(dashboard)}
           </Text>
         </View>
-        {snapshot.runs.length === 0 ? (
+        {hasNoRuns(dashboard) ? (
           <View style={styles.empty}>
             <RestingMascot />
             <Text variant="body">{t("dashboard.empty")}</Text>

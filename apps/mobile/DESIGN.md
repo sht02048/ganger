@@ -44,4 +44,4 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 
 ## 데모 데이터
 
-앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). `src/demo/contract.ts`는 `packages/api` 계약이 생기기 전까지 쓰는 임시 타입이고, 계약이 머지되면 그 타입으로 바꾼다.
+앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). Dashboard 데이터는 `@ganger/api`의 `V1Dashboard` 모양이다. 계약에 없는 Runners와 Workspace 목록은 앱 안 화면 모델(`src/runners/model.ts`, `src/screen-model.ts`)에 둔다.

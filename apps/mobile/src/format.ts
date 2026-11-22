@@ -1,11 +1,7 @@
-import type { HomeRun, QueuedReason, MobileRunner } from "./demo/contract";
-import {
-  endsWithFinalConsonant,
-  limitedRunners,
-  readyAgainInMs,
-  todoGroupOf,
-} from "./dashboard/model";
-import type { Board, TodoGroupKind } from "./dashboard/model";
+import type { V1Dashboard } from "@ganger/api";
+
+import { endsWithFinalConsonant } from "./dashboard/model";
+import type { QueuedRun } from "./dashboard/model";
 import { t } from "./i18n";
 
 const MINUTE_MS = 60_000;
@@ -39,8 +35,8 @@ export function formatAgo(at: string, agoMs: number): string {
   return t("time.date", { month: date.getMonth() + 1, day: date.getDate() });
 }
 
-export function queuedLine(run: HomeRun & { state: "queued" }): string {
-  const reason: QueuedReason = run.queuedReason;
+export function queuedLine(run: QueuedRun): string {
+  const reason = run.queuedReason;
   switch (reason.kind) {
     case "behind":
     case "no-capacity":
@@ -74,34 +70,28 @@ export function queuedLine(run: HomeRun & { state: "queued" }): string {
   }
 }
 
-const SUMMARY_ORDER: ReadonlyArray<TodoGroupKind> = ["check", "answer", "stopped"];
+const SUMMARY_ORDER = ["check", "answer", "stopped"] as const;
 
-export function dashboardSummary(board: Board, runners: ReadonlyArray<MobileRunner>): string {
-  const todo = [...board.running.humanCheck, ...board.running.todo, ...board.done.todo];
-  const inProgress = board.running.rest.length + board.queued.length;
-  const work =
-    todo.length === 0
-      ? inProgress === 0
-        ? t("dashboard.summary.idle")
-        : t("dashboard.summary.inProgress", { count: inProgress })
-      : t("dashboard.summary.sentence", {
-          list: SUMMARY_ORDER.flatMap((kind) => {
-            const count = todo.filter((run) => todoGroupOf(run) === kind).length;
-            return count === 0 ? [] : [t(`dashboard.summary.${kind}`, { count })];
-          }).join(t("dashboard.summary.separator")),
-        });
-  const limited = limitedRunners(runners);
-  if (limited.length === 0) return work;
-  const readyTimes = limited.flatMap((runner) => {
-    const ms = readyAgainInMs(runner);
-    return ms === null ? [] : [ms];
+export function dashboardSummary({ summary }: V1Dashboard): string {
+  const groups = SUMMARY_ORDER.flatMap((kind) => {
+    const count = summary.todo[kind];
+    return count === 0 ? [] : [t(`dashboard.summary.${kind}`, { count })];
   });
+  const work =
+    groups.length === 0
+      ? summary.inProgress === 0
+        ? t("dashboard.summary.idle")
+        : t("dashboard.summary.inProgress", { count: summary.inProgress })
+      : t("dashboard.summary.sentence", {
+          list: groups.join(t("dashboard.summary.separator")),
+        });
+  if (summary.limitedRunners === 0) return work;
   const limit =
-    readyTimes.length === 0
-      ? t("dashboard.summary.limitUnknown", { count: limited.length })
+    summary.soonestLimitResetMs === null
+      ? t("dashboard.summary.limitUnknown", { count: summary.limitedRunners })
       : t("dashboard.summary.limit", {
-          count: limited.length,
-          duration: formatDuration(Math.min(...readyTimes)),
+          count: summary.limitedRunners,
+          duration: formatDuration(summary.soonestLimitResetMs),
         });
   return t("dashboard.summary.withLimit", { work, limit });
 }
