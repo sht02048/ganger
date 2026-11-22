@@ -70,6 +70,7 @@ export const SETTINGS_SECTIONS = [
   "projects",
   "connections",
   "server",
+  "devices",
   "logs",
   "advanced",
 ] as const;
@@ -118,6 +119,7 @@ export function connectionRowId(connectionId: string): string {
 }
 
 export const MCP_ROW_ID = "mcp-row";
+export const WEB_ADDRESS_ROW_ID = "web-address-row";
 
 function SettingsBackAnchor({
   renderLink,
@@ -161,6 +163,7 @@ export interface SettingsScreenProps {
   onCreateWorkspace: (focusBack: HTMLElement | null) => void;
   renderLink?: RenderSettingsLink;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
+  devices?: ReactNode;
   logs?: ReactNode;
 }
 
@@ -173,13 +176,17 @@ export function SettingsScreen({
   onCreateWorkspace,
   renderLink = plainSettingsLink(ws),
   renderGuard,
+  devices,
   logs,
 }: SettingsScreenProps) {
   const t = useTranslations("settings");
   const workspace = page.workspace;
   const problems = sectionProblems(page, runnerIssues);
   const navItems: SectionNavItem[] = SETTINGS_SECTIONS.filter(
-    (id) => (workspace !== null || id !== "projects") && (logs !== undefined || id !== "logs"),
+    (id) =>
+      (workspace !== null || id !== "projects") &&
+      (devices !== undefined || id !== "devices") &&
+      (logs !== undefined || id !== "logs"),
   ).map((id) => ({
     id,
     label: t(`sections.${id}`),
@@ -222,6 +229,7 @@ export function SettingsScreen({
               <UpdatesRows />
             </SettingsGroup>
           </SettingsSection>
+          {devices}
           {logs}
           <SettingsSection id="advanced" title={t("sections.advanced")}>
             <SettingsGroup>
@@ -1029,6 +1037,7 @@ function WebAddressRow({
   const label = t("addresses.web");
   return (
     <SettingsRow
+      id={WEB_ADDRESS_ROW_ID}
       label={label}
       labelId={labelId}
       info={<InfoTip label={t("infoLabel", { label })} content={t("addresses.webInfo")} />}

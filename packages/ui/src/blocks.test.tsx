@@ -15,6 +15,7 @@ import {
   PanelSection,
   StatusDot,
   CodeBlock,
+  QrCode,
   ScrollRegion,
   DataTable,
   DataTableBody,
@@ -257,6 +258,15 @@ describe("칩·링크·코드(티켓 0074)", () => {
         </TextLink>,
       ),
     ).toContain('target="_blank" rel="noreferrer"');
+  });
+
+  it("QrCode 는 이름 있는 그림이고 값마다 다른 모듈을 그린다", () => {
+    const first = renderToString(<QrCode value="ganger://connect?code=a" label="기기 연결 QR" />);
+    const second = renderToString(<QrCode value="ganger://connect?code=b" label="기기 연결 QR" />);
+    expect(first).toContain('role="img"');
+    expect(first).toContain('aria-label="기기 연결 QR"');
+    expect(first).toMatch(/<path d="M\d+ \d+h1v1h-1z/);
+    expect(first).not.toBe(second);
   });
 
   it("CodeBlock scroll 은 이름 있는 영역이라 키보드로 스크롤할 수 있다", () => {

@@ -29,9 +29,12 @@ import { Route as ApiNotificationEventsIndexRouteImport } from './routes/api/not
 import { Route as ApiNotificationEventsStreamRouteImport } from './routes/api/notification-events/stream'
 import { Route as ApiRunnerEnrollmentIndexRouteImport } from './routes/api/runner-enrollment/index'
 import { Route as ApiRunnerEnrollmentScriptRouteImport } from './routes/api/runner-enrollment/script'
+import { Route as ApiV1DashboardRouteImport } from './routes/api/v1/dashboard'
 import { Route as AppSettingsConnectionsConnectionIdRouteImport } from './routes/_app/settings_.connections.$connectionId'
 import { Route as ApiRunnerEnrollmentOfferIndexRouteImport } from './routes/api/runner-enrollment/offer/index'
 import { Route as ApiRunnerEnrollmentOfferAcceptRouteImport } from './routes/api/runner-enrollment/offer/accept'
+import { Route as ApiV1DevicesConnectRouteImport } from './routes/api/v1/devices/connect'
+import { Route as ApiV1DevicesMeRouteImport } from './routes/api/v1/devices/me'
 import { Route as ApiWebhooksPingInstanceIdRouteImport } from './routes/api/webhooks/ping/$instanceId'
 import { Route as ApiWebhooksTrackerConnectionIdRouteImport } from './routes/api/webhooks/tracker/$connectionId'
 import { Route as AppSettingsProjectsConnectionIdProjectIdRouteImport } from './routes/_app/settings_.projects.$connectionId.$projectId'
@@ -139,6 +142,11 @@ const ApiRunnerEnrollmentScriptRoute =
     path: '/api/runner-enrollment/script',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1DashboardRoute = ApiV1DashboardRouteImport.update({
+  id: '/api/v1/dashboard',
+  path: '/api/v1/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppSettingsConnectionsConnectionIdRoute =
   AppSettingsConnectionsConnectionIdRouteImport.update({
     id: '/settings_/connections/$connectionId',
@@ -157,6 +165,16 @@ const ApiRunnerEnrollmentOfferAcceptRoute =
     path: '/api/runner-enrollment/offer/accept',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1DevicesConnectRoute = ApiV1DevicesConnectRouteImport.update({
+  id: '/api/v1/devices/connect',
+  path: '/api/v1/devices/connect',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1DevicesMeRoute = ApiV1DevicesMeRouteImport.update({
+  id: '/api/v1/devices/me',
+  path: '/api/v1/devices/me',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWebhooksPingInstanceIdRoute =
   ApiWebhooksPingInstanceIdRouteImport.update({
     id: '/api/webhooks/ping/$instanceId',
@@ -194,10 +212,13 @@ export interface FileRoutesByFullPath {
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
+  '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
+  '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
@@ -221,10 +242,13 @@ export interface FileRoutesByTo {
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
+  '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/notification-events': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
+  '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
   '/api/runner-enrollment/offer': typeof ApiRunnerEnrollmentOfferIndexRoute
@@ -250,10 +274,13 @@ export interface FileRoutesById {
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
+  '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/_app/settings_/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
+  '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
@@ -279,10 +306,13 @@ export interface FileRouteTypes {
     | '/api/change-events/stream'
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
+    | '/api/v1/dashboard'
     | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/devices/connect'
+    | '/api/v1/devices/me'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
     | '/api/runner-enrollment/offer/'
@@ -306,10 +336,13 @@ export interface FileRouteTypes {
     | '/api/change-events/stream'
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
+    | '/api/v1/dashboard'
     | '/api/notification-events'
     | '/api/runner-enrollment'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/devices/connect'
+    | '/api/v1/devices/me'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
     | '/api/runner-enrollment/offer'
@@ -334,10 +367,13 @@ export interface FileRouteTypes {
     | '/api/change-events/stream'
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
+    | '/api/v1/dashboard'
     | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/_app/settings_/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/devices/connect'
+    | '/api/v1/devices/me'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
     | '/api/runner-enrollment/offer/'
@@ -355,9 +391,12 @@ export interface RootRouteChildren {
   ApiChangeEventsStreamRoute: typeof ApiChangeEventsStreamRoute
   ApiNotificationEventsStreamRoute: typeof ApiNotificationEventsStreamRoute
   ApiRunnerEnrollmentScriptRoute: typeof ApiRunnerEnrollmentScriptRoute
+  ApiV1DashboardRoute: typeof ApiV1DashboardRoute
   ApiNotificationEventsIndexRoute: typeof ApiNotificationEventsIndexRoute
   ApiRunnerEnrollmentIndexRoute: typeof ApiRunnerEnrollmentIndexRoute
   ApiRunnerEnrollmentOfferAcceptRoute: typeof ApiRunnerEnrollmentOfferAcceptRoute
+  ApiV1DevicesConnectRoute: typeof ApiV1DevicesConnectRoute
+  ApiV1DevicesMeRoute: typeof ApiV1DevicesMeRoute
   ApiWebhooksPingInstanceIdRoute: typeof ApiWebhooksPingInstanceIdRoute
   ApiWebhooksTrackerConnectionIdRoute: typeof ApiWebhooksTrackerConnectionIdRoute
   ApiRunnerEnrollmentOfferIndexRoute: typeof ApiRunnerEnrollmentOfferIndexRoute
@@ -505,6 +544,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRunnerEnrollmentScriptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/dashboard': {
+      id: '/api/v1/dashboard'
+      path: '/api/v1/dashboard'
+      fullPath: '/api/v1/dashboard'
+      preLoaderRoute: typeof ApiV1DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/settings_/connections/$connectionId': {
       id: '/_app/settings_/connections/$connectionId'
       path: '/settings/connections/$connectionId'
@@ -524,6 +570,20 @@ declare module '@tanstack/react-router' {
       path: '/api/runner-enrollment/offer/accept'
       fullPath: '/api/runner-enrollment/offer/accept'
       preLoaderRoute: typeof ApiRunnerEnrollmentOfferAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/devices/connect': {
+      id: '/api/v1/devices/connect'
+      path: '/api/v1/devices/connect'
+      fullPath: '/api/v1/devices/connect'
+      preLoaderRoute: typeof ApiV1DevicesConnectRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/devices/me': {
+      id: '/api/v1/devices/me'
+      path: '/api/v1/devices/me'
+      fullPath: '/api/v1/devices/me'
+      preLoaderRoute: typeof ApiV1DevicesMeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/webhooks/ping/$instanceId': {
@@ -591,9 +651,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChangeEventsStreamRoute: ApiChangeEventsStreamRoute,
   ApiNotificationEventsStreamRoute: ApiNotificationEventsStreamRoute,
   ApiRunnerEnrollmentScriptRoute: ApiRunnerEnrollmentScriptRoute,
+  ApiV1DashboardRoute: ApiV1DashboardRoute,
   ApiNotificationEventsIndexRoute: ApiNotificationEventsIndexRoute,
   ApiRunnerEnrollmentIndexRoute: ApiRunnerEnrollmentIndexRoute,
   ApiRunnerEnrollmentOfferAcceptRoute: ApiRunnerEnrollmentOfferAcceptRoute,
+  ApiV1DevicesConnectRoute: ApiV1DevicesConnectRoute,
+  ApiV1DevicesMeRoute: ApiV1DevicesMeRoute,
   ApiWebhooksPingInstanceIdRoute: ApiWebhooksPingInstanceIdRoute,
   ApiWebhooksTrackerConnectionIdRoute: ApiWebhooksTrackerConnectionIdRoute,
   ApiRunnerEnrollmentOfferIndexRoute: ApiRunnerEnrollmentOfferIndexRoute,

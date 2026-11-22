@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ganger/api": "workspace:*",
     "@ganger/codehost-github": "workspace:*",
     "@ganger/core": "workspace:*",
     "@ganger/db": "workspace:*",

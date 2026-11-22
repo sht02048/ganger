@@ -18,7 +18,7 @@ import {
 
 export const ENROLLMENT_TTL_MS = 10 * 60_000;
 const FORGET_AFTER_MS = 60 * 60_000;
-const TOKEN_BYTES = 24;
+export const ENROLLMENT_TOKEN_BYTES = 24;
 const DETAIL_LIMIT = 300;
 
 export { ENROLLMENT_PROBLEMS, GITHUB_SETUP_RESULTS } from "./enrollment-protocol.js";
@@ -92,7 +92,8 @@ export class RunnerEnrollments {
   constructor(options: RunnerEnrollmentsOptions = {}) {
     this.now = options.now ?? Date.now;
     this.ttlMs = options.ttlMs ?? ENROLLMENT_TTL_MS;
-    this.newToken = options.newToken ?? (() => randomBytes(TOKEN_BYTES).toString("base64url"));
+    this.newToken =
+      options.newToken ?? (() => randomBytes(ENROLLMENT_TOKEN_BYTES).toString("base64url"));
   }
 
   issue(replacing?: string): IssuedEnrollment {
