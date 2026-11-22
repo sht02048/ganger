@@ -1,13 +1,13 @@
 import * as stylex from "@stylexjs/stylex";
-import type { MouseEventHandler, ReactNode, Ref } from "react";
+import type { KeyboardEvent, MouseEventHandler, ReactNode, Ref, SyntheticEvent } from "react";
 import type { StyleArg } from "../cx";
 import { colors, fontWeight, space } from "../tokens.stylex";
 import { focusStyles } from "./focus";
 
-export type LinkTone = "accent" | "quiet" | "action" | "plain";
+export type LinkTone = "accent" | "quiet" | "action" | "plain" | "row";
 
 export function linkStyles(tone: LinkTone = "accent"): ReadonlyArray<StyleArg> {
-  return [styles.base, styles[tone], focusStyles.ring];
+  return [styles.base, styles[tone], tone === "row" ? focusStyles.ringInset : focusStyles.ring];
 }
 
 export interface TextLinkProps {
@@ -33,6 +33,44 @@ export function TextLink({ href, tone, external, onClick, ref, children }: TextL
   );
 }
 
+const ROW_KEYS = new Set([
+  "Enter",
+  " ",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+]);
+
+function keepFromRow(event: SyntheticEvent) {
+  event.stopPropagation();
+}
+
+function keepKeyFromRow(event: KeyboardEvent<HTMLAnchorElement>) {
+  const movesOrActivatesRow = ROW_KEYS.has(event.key);
+  const leavesLink = event.key === "Tab" || event.key === "Escape";
+  const isShortcut = event.metaKey || event.ctrlKey || event.altKey;
+  if (movesOrActivatesRow || !(leavesLink || isShortcut)) event.stopPropagation();
+}
+
+export function RowLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      onClick={keepFromRow}
+      onDoubleClick={keepFromRow}
+      onKeyDown={keepKeyFromRow}
+      {...stylex.props(linkStyles("row"))}
+    >
+      {children}
+    </a>
+  );
+}
+
 const styles = stylex.create({
   base: { textUnderlineOffset: 3 },
   accent: { color: colors.accentText },
@@ -43,6 +81,13 @@ const styles = stylex.create({
   plain: {
     color: "inherit",
     textDecoration: { default: "none", ":hover": "underline", ":focus-visible": "underline" },
+  },
+  row: {
+    position: "relative",
+    zIndex: 1,
+    color: colors.textSecondary,
+    textDecorationLine: "underline",
+    textDecorationColor: { default: colors.textTertiary, ":hover": colors.textSecondary },
   },
   action: {
     display: "inline-flex",

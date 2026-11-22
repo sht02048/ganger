@@ -28,9 +28,14 @@ export type TicketRun =
       agentResult: AgentResult;
       prState: PrState;
       laterPrState: "merged" | "closed" | null;
-      pullRequest: string | null;
+      pullRequest: TicketRunPullRequest | null;
       summary: SummaryOutcome;
     };
+
+export interface TicketRunPullRequest {
+  displayId: string;
+  url: string | null;
+}
 
 export interface AssignRepo {
   id: string;

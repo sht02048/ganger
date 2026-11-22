@@ -67,15 +67,17 @@ export function PanelList({ children }: { children: ReactNode }) {
   return <ul {...stylex.props(styles.list)}>{children}</ul>;
 }
 
-export interface PanelListRowProps {
+interface PanelListRowBase {
   marker?: ReactNode;
   ticketKey?: string;
   title: string;
   done?: boolean;
   trailing?: ReactNode;
   onClick?: () => void;
-  href?: string;
 }
+
+export type PanelListRowProps = PanelListRowBase &
+  ({ href?: string; after?: never } | { href?: never; after?: ReactNode });
 
 export function PanelListRow({
   marker,
@@ -85,6 +87,7 @@ export function PanelListRow({
   trailing,
   onClick,
   href,
+  after,
 }: PanelListRowProps) {
   const content = (
     <>
@@ -117,6 +120,21 @@ export function PanelListRow({
         >
           {content}
         </a>
+      ) : after !== undefined && after !== null ? (
+        <div {...stylex.props(styles.row, styles.rowWithAfter, onClick && styles.rowButton)}>
+          {onClick === undefined ? (
+            <span {...stylex.props(styles.rowMain)}>{content}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={onClick}
+              {...stylex.props(styles.rowMain, styles.rowMainButton, focusStyles.ringInset)}
+            >
+              {content}
+            </button>
+          )}
+          <span {...stylex.props(textStyles("meta"), styles.after)}>{after}</span>
+        </div>
       ) : onClick === undefined ? (
         <div {...stylex.props(styles.row)}>{content}</div>
       ) : (
@@ -207,6 +225,27 @@ const styles = stylex.create({
     cursor: "pointer",
   },
   rowLink: { textDecorationLine: "none" },
+  rowWithAfter: { position: "relative", gap: space.s1 },
+  rowMain: {
+    display: "flex",
+    flexGrow: 1,
+    flexShrink: 1,
+    alignItems: "center",
+    gap: space.s2,
+    minWidth: 0,
+    minHeight: size.panelListRow,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: "inherit",
+    font: "inherit",
+    textAlign: "start",
+  },
+  rowMainButton: {
+    cursor: "pointer",
+    "::after": { content: '""', position: "absolute", inset: 0 },
+  },
+  after: { flexShrink: 0, whiteSpace: "nowrap" },
   marker: {
     display: "inline-flex",
     flexShrink: 0,
