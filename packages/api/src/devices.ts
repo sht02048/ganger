@@ -5,6 +5,9 @@ export const V1_PATHS = {
   connect: "/api/v1/devices/connect",
   thisDevice: "/api/v1/devices/me",
   dashboard: "/api/v1/dashboard",
+  runners: "/api/v1/runners",
+  workspaces: "/api/v1/workspaces",
+  changeStream: "/api/v1/change-events/stream",
 } as const;
 
 export const DEVICE_NAME_MAX_LENGTH = 100;

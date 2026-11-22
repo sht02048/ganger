@@ -47,6 +47,7 @@ export const inputWaitSchema = z.discriminatedUnion("kind", [
     kind: z.literal("question"),
     questionId: z.string(),
     body: z.string(),
+    summary: z.string(),
     choices: z.array(z.string()),
     answered: z.boolean(),
   }),
