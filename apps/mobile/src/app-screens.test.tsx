@@ -90,7 +90,8 @@ describe("Dashboard 데모", () => {
     const host = mountApp();
     press(tab(host, "Done"));
     const text = host.textContent ?? "";
-    expect(byLabel(host, "다시 맡기기")).not.toBeNull();
+    expect(byLabel(host, "런 상세")).not.toBeNull();
+    expect(byLabel(host, "다시 맡기기")).toBeNull();
     expect(text.indexOf("ACME-119")).toBeLessThan(text.indexOf("처리할 일 없이 끝났어요"));
     expect(text).toContain("Succeeded");
     expect(text).toContain("Canceled");
@@ -113,9 +114,12 @@ describe("Dashboard 데모", () => {
     expect(host.textContent).not.toContain("ACME-138");
   });
 
-  it("카드 행동은 데모에서 보내지 않고 안내만 한다", () => {
+  it("재개하기는 데모에서 보내지 않고 안내만 한다", async () => {
     const host = mountApp();
-    press(byLabel(host, "답하기"));
+    await act(async () => {
+      byLabel(host, "재개하기")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
     expect(document.body.textContent).toContain("데모 모드에서는 보내지 않아요");
   });
 });

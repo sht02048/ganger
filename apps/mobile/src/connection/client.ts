@@ -3,13 +3,31 @@ import {
   connectResponseSchema,
   dashboardResponseSchema,
   disconnectResponseSchema,
+  runActionResponseSchema,
+  runDetailResponseSchema,
   runnersResponseSchema,
   thisDeviceResponseSchema,
+  ticketLinkResponseSchema,
   v1ErrorSchema,
   v1MetaSchema,
+  v1RunActionPath,
+  v1RunPath,
+  v1RunTicketLinkPath,
   workspacesResponseSchema,
 } from "@ganger/api";
-import type { ConnectResult, V1Dashboard, V1Runner, V1ThisDevice, V1Workspaces } from "@ganger/api";
+import type {
+  ConnectResult,
+  V1AnswerBody,
+  V1Dashboard,
+  V1DenyBody,
+  V1HumanCheckBody,
+  V1RunDetail,
+  V1RunKeyBody,
+  V1RunRefusal,
+  V1Runner,
+  V1ThisDevice,
+  V1Workspaces,
+} from "@ganger/api";
 import { z } from "zod";
 
 import { isCompatibleServer } from "./version";
@@ -32,9 +50,20 @@ export type V1Result<Data> =
   | { ok: true; data: Data; serverVersion: string }
   | { ok: false; failure: V1Failure };
 
+export type V1RunFailure =
+  | V1Failure
+  | { kind: "refused"; reason: V1RunRefusal }
+  | { kind: "invalid-request" };
+
+export type V1RunResult<Data> =
+  | { ok: true; data: Data; serverVersion: string }
+  | { ok: false; failure: V1RunFailure };
+
+type SendFailure = V1Failure | ConnectFailure | { kind: "refused"; reason: V1RunRefusal };
+
 type SendResult<Data> =
   | { ok: true; data: Data; serverVersion: string }
-  | { ok: false; failure: V1Failure | ConnectFailure };
+  | { ok: false; failure: SendFailure };
 
 export const REQUEST_TIMEOUT_MS = 10_000;
 
@@ -105,7 +134,7 @@ async function send<Data>(
   if (response.status === 403) {
     return { ok: false, failure: await classifyForbidden(fetcher, server) };
   }
-  if (response.status === 404) {
+  if (response.status === 404 && !v1ErrorSchema.safeParse(body).success) {
     return { ok: false, failure: { kind: "incompatible", serverVersion: null } };
   }
   if (!response.ok) return { ok: false, failure: refusalOf(body) };
@@ -122,7 +151,7 @@ async function send<Data>(
   return { ok: true, data: parsed.data.data, serverVersion: meta.serverVersion };
 }
 
-function refusalOf(body: unknown): V1Failure | ConnectFailure {
+function refusalOf(body: unknown): SendFailure {
   const refusal = v1ErrorSchema.safeParse(body);
   if (!refusal.success) return { kind: "server-error" };
   const { reason } = refusal.data.error;
@@ -135,15 +164,35 @@ function refusalOf(body: unknown): V1Failure | ConnectFailure {
       return { kind: "code-refused", reason };
     case "invalid-request":
       return { kind: "invalid-request" };
-    case "not-found":
+    case "tracker-unavailable":
       return { kind: "server-error" };
+    case "not-found":
+    case "already-answered":
+    case "already-denied":
+    case "resolved":
+    case "request-reused":
+    case "already-ended":
+    case "not-paused":
+    case "cancelling":
+    case "state-changed":
+      return { kind: "refused", reason };
   }
 }
 
 function asV1Result<Data>(result: SendResult<Data>): V1Result<Data> {
   if (result.ok) return result;
   const { failure } = result;
-  return failure.kind === "code-refused" || failure.kind === "invalid-request"
+  return failure.kind === "code-refused" ||
+    failure.kind === "invalid-request" ||
+    failure.kind === "refused"
+    ? { ok: false, failure: { kind: "server-error" } }
+    : { ok: false, failure };
+}
+
+function asRunResult<Data>(result: SendResult<Data>): V1RunResult<Data> {
+  if (result.ok) return result;
+  const { failure } = result;
+  return failure.kind === "code-refused"
     ? { ok: false, failure: { kind: "server-error" } }
     : { ok: false, failure };
 }
@@ -158,7 +207,7 @@ export async function connectToServer(
     body: JSON.stringify({ code: input.code, name: input.name }),
   });
   if (reply.ok) return { ok: true, result: reply.data };
-  return reply.failure.kind === "token-rejected"
+  return reply.failure.kind === "token-rejected" || reply.failure.kind === "refused"
     ? { ok: false, failure: { kind: "server-error" } }
     : { ok: false, failure: reply.failure };
 }
@@ -171,10 +220,22 @@ export interface V1Client {
   disconnect(): Promise<V1Result<{ disconnected: true }>>;
 }
 
+export type V1RunActionBody =
+  | { action: "answer"; body: V1AnswerBody }
+  | { action: "human-check"; body: V1HumanCheckBody }
+  | { action: "deny"; body: V1DenyBody }
+  | { action: "resume" | "cancel"; body: V1RunKeyBody };
+
+export interface V1RunsClient {
+  runDetail(runId: string): Promise<V1RunResult<V1RunDetail>>;
+  ticketLink(runId: string): Promise<V1RunResult<{ url: string }>>;
+  runAction(runId: string, request: V1RunActionBody): Promise<V1RunResult<{ accepted: true }>>;
+}
+
 export function createV1Client(
   fetcher: FetchLike,
   { server, token }: { server: string; token: string },
-): V1Client {
+): V1Client & V1RunsClient {
   const authorized = { authorization: `Bearer ${token}` };
   const read = async <Data>(
     path: string,
@@ -193,6 +254,26 @@ export function createV1Client(
         await send(fetcher, server, V1_PATHS.thisDevice, disconnectResponseSchema, {
           method: "DELETE",
           headers: authorized,
+        }),
+      ),
+    runDetail: async (runId) =>
+      asRunResult(
+        await send(fetcher, server, v1RunPath(runId), runDetailResponseSchema, {
+          headers: authorized,
+        }),
+      ),
+    ticketLink: async (runId) =>
+      asRunResult(
+        await send(fetcher, server, v1RunTicketLinkPath(runId), ticketLinkResponseSchema, {
+          headers: authorized,
+        }),
+      ),
+    runAction: async (runId, { action, body }) =>
+      asRunResult(
+        await send(fetcher, server, v1RunActionPath(runId, action), runActionResponseSchema, {
+          method: "POST",
+          headers: { ...authorized, "content-type": "application/json" },
+          body: JSON.stringify(body),
         }),
       ),
   };

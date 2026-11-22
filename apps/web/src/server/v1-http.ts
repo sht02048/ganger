@@ -2,6 +2,12 @@ import { CONTRACT_VERSION } from "@ganger/api";
 import type { V1ErrorReason, V1Meta } from "@ganger/api";
 import { authenticateDevice, connectDevice, registerDesktop } from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
+import {
+  handleV1RunAction,
+  loadV1RunDetail,
+  loadV1TicketLink,
+  parseV1RunAction,
+} from "@ganger/app/devices/run-actions";
 import { loadThisDevice, loadV1Runners, loadV1Workspaces } from "@ganger/app/devices/runners";
 import { loadHomePage } from "@ganger/app/home/load";
 import { parseAfter, toNotificationRecord } from "@ganger/app/notifications/feed";
@@ -17,6 +23,7 @@ import {
   notificationStream,
   notificationStreamResponse,
 } from "../notifications/stream";
+import { getAdapterRegistry, getSecretBox } from "./adapters";
 import { changeSourceOf, getChangeFeed } from "./change-events";
 import { getDatabase } from "./database";
 import { getDesktopRegistrations } from "./desktop-registrations";
@@ -130,6 +137,33 @@ export function serveV1ThisDevice(request: Request): Response {
   const deviceId = requestDevice(request);
   const device = deviceId === null ? null : loadThisDevice(getDatabase(), deviceId);
   return device === null ? v1Error(401, "invalid-token") : v1Data(device);
+}
+
+export function serveV1RunDetail(request: Request, runId: string): Response {
+  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
+  const detail = loadV1RunDetail(getDatabase(), runId, new Date());
+  return detail === null ? v1Error(404, "not-found") : v1Data(detail);
+}
+
+export async function serveV1RunAction(
+  request: Request,
+  runId: string,
+  action: string,
+): Promise<Response> {
+  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
+  const known = parseV1RunAction(action);
+  if (known === null) return v1Error(404, "not-found");
+  const reply = handleV1RunAction(getDatabase(), runId, known, await readJson(request), new Date());
+  return reply.status === 200 ? v1Data({ accepted: true }) : v1Error(reply.status, reply.reason);
+}
+
+export async function serveV1TicketLink(request: Request, runId: string): Promise<Response> {
+  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
+  const reply = await loadV1TicketLink(
+    { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() },
+    runId,
+  );
+  return reply.status === 200 ? v1Data({ url: reply.url }) : v1Error(reply.status, reply.reason);
 }
 
 export function serveV1ChangeStream(request: Request): Response {

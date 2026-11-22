@@ -61,7 +61,20 @@ export function Text({
   );
 }
 
+export function TextLink({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <NativeText
+      accessibilityRole="link"
+      onPress={onPress}
+      style={[styles.body, styles.link, { color: colors.textPrimary }]}
+    >
+      {label}
+    </NativeText>
+  );
+}
+
 const styles = StyleSheet.create({
+  link: { textDecorationLine: "underline" },
   page: { fontFamily: fontFamily.semibold, fontSize: fontSize.page, lineHeight: lineHeight.page },
   panel: {
     fontFamily: fontFamily.semibold,

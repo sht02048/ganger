@@ -7,6 +7,7 @@ import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { t } from "../i18n";
 import { RunnersScreen } from "../runners/runners-screen";
+import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
 import { SettingsScreen } from "../settings/settings-screen";
 import { openChangeStream } from "./change-stream";
@@ -129,6 +130,7 @@ export function LiveScreens({
       ),
   );
   const state = useSyncExternalStore(session.subscribe, session.getState);
+  const port = useMemo(() => createLiveRunPort(client, session), [client, session]);
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [view, setView] = useState(INITIAL_DASHBOARD_VIEW);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -216,11 +218,11 @@ export function LiveScreens({
           onOpenRunners={() => setScreen("runners")}
           onOpenSettings={() => setScreen("settings")}
           band={band}
-          actionsDisabled={state.phase !== "live"}
+          actionsDisabled={state.phase !== "live" || !state.actionsReady}
+          port={port}
           {...(state.phase === "loading" || state.phase === "live"
             ? {}
             : { onRetry: () => void session.refresh() })}
-          actionNotice={{ title: t("common.liveActionTitle"), body: t("common.liveAction") }}
         />
       );
     case "runners":

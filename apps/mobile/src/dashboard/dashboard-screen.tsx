@@ -7,6 +7,10 @@ import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { dashboardSummary } from "../format";
 import { t } from "../i18n";
+import { demoRunPort } from "../runs/run-port";
+import type { RunPort } from "../runs/run-port";
+import { RunSheets, outcomeMessage } from "../runs/run-sheets";
+import type { OpenRunSheet } from "../runs/run-sheets";
 import type { MobileSnapshot } from "../screen-model";
 import {
   ALL_WORKSPACES,
@@ -18,6 +22,7 @@ import {
 } from "./model";
 import type { Board, ColumnKey, DashboardRun } from "./model";
 import { RunCard, SettledRow } from "./run-card";
+import type { RunCardAction } from "./run-card";
 
 const COLUMNS: ReadonlyArray<ColumnKey> = ["queued", "running", "done"];
 
@@ -48,12 +53,16 @@ function RunList({
   runs,
   showWorkspace,
   actionsDisabled,
+  resumingRunId,
   onAction,
+  onMenu,
 }: {
   runs: DashboardRun[];
   showWorkspace: boolean;
   actionsDisabled: boolean;
-  onAction: () => void;
+  resumingRunId: string | null;
+  onAction: (run: DashboardRun, action: RunCardAction) => void;
+  onMenu: (run: DashboardRun) => void;
 }) {
   return (
     <>
@@ -62,8 +71,9 @@ function RunList({
           key={run.id}
           run={run}
           showWorkspace={showWorkspace}
-          actionsDisabled={actionsDisabled}
-          onAction={onAction}
+          actionsDisabled={actionsDisabled || resumingRunId === run.id}
+          onAction={(action) => onAction(run, action)}
+          onMenu={() => onMenu(run)}
         />
       ))}
     </>
@@ -76,14 +86,18 @@ function ColumnBody({
   todoOnly,
   showWorkspace,
   actionsDisabled,
+  resumingRunId,
   onAction,
+  onMenu,
 }: {
   board: Board;
   column: ColumnKey;
   todoOnly: boolean;
   showWorkspace: boolean;
   actionsDisabled: boolean;
-  onAction: () => void;
+  resumingRunId: string | null;
+  onAction: (run: DashboardRun, action: RunCardAction) => void;
+  onMenu: (run: DashboardRun) => void;
 }) {
   const hasTodo = columnTodoCount(board, column) > 0;
   const hasRest = columnRestCount(board, column) > 0;
@@ -101,7 +115,9 @@ function ColumnBody({
       runs={runs}
       showWorkspace={showWorkspace}
       actionsDisabled={actionsDisabled}
+      resumingRunId={resumingRunId}
       onAction={onAction}
+      onMenu={onMenu}
     />
   );
   switch (column) {
@@ -147,7 +163,7 @@ export function DashboardScreen({
   onOpenSettings,
   band = null,
   actionsDisabled = false,
-  actionNotice = { title: t("settings.serverDemo"), body: t("common.demoAction") },
+  port = demoRunPort,
   onRetry,
 }: {
   snapshot: MobileSnapshot;
@@ -157,11 +173,27 @@ export function DashboardScreen({
   onOpenSettings: () => void;
   band?: ReactNode;
   actionsDisabled?: boolean;
-  actionNotice?: { title: string; body: string };
+  port?: RunPort;
   onRetry?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
-  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
+  const [resumingRunId, setResumingRunId] = useState<string | null>(null);
+  const resume = async (run: DashboardRun) => {
+    setResumingRunId(run.id);
+    const outcome = await port.write(run, { action: "resume" });
+    setResumingRunId(null);
+    const message = outcomeMessage("resume", outcome);
+    if (message !== null) {
+      const title =
+        outcome.kind === "demo" ? t("settings.serverDemo") : t("actions.resumeFailedTitle");
+      setSheet({ kind: "notice", title, message });
+    }
+  };
+  const runAction = (run: DashboardRun, action: RunCardAction) => {
+    if (action === "resume") void resume(run);
+    else setSheet({ kind: action, run });
+  };
   const { workspaceId, todoOnly } = view;
   const dashboard = useMemo(() => snapshot.dashboardFor(workspaceId), [snapshot, workspaceId]);
   const board = useMemo(() => (dashboard === null ? null : buildBoard(dashboard)), [dashboard]);
@@ -260,7 +292,9 @@ export function DashboardScreen({
               todoOnly={todoOnly}
               showWorkspace={workspaceId === ALL_WORKSPACES}
               actionsDisabled={actionsDisabled}
-              onAction={() => setNoticeOpen(true)}
+              resumingRunId={resumingRunId}
+              onAction={runAction}
+              onMenu={(run) => setSheet({ kind: "menu", run })}
             />
           </>
         )}
@@ -283,15 +317,13 @@ export function DashboardScreen({
           />
         ))}
       </Sheet>
-      <Sheet
-        visible={noticeOpen}
-        title={actionNotice.title}
-        closeLabel={t("common.close")}
-        onClose={() => setNoticeOpen(false)}
-      >
-        <Text variant="body">{actionNotice.body}</Text>
-        <Button label={t("common.close")} onPress={() => setNoticeOpen(false)} />
-      </Sheet>
+      <RunSheets
+        sheet={sheet}
+        port={port}
+        disabled={actionsDisabled}
+        onOpen={setSheet}
+        onClose={() => setSheet(null)}
+      />
     </View>
   );
 }
