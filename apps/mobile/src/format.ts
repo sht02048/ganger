@@ -2,11 +2,24 @@ import type { V1Dashboard } from "@ganger/api";
 
 import { endsWithFinalConsonant } from "./dashboard/model";
 import type { QueuedRun } from "./dashboard/model";
+import ko from "../messages/ko.json";
 import { t } from "./i18n";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
+
+function nameIn(names: Readonly<Record<string, string>>, id: string): string {
+  return Object.prototype.hasOwnProperty.call(names, id) ? (names[id] ?? id) : id;
+}
+
+export function agentName(id: string): string {
+  return nameIn(ko.names.agent, id);
+}
+
+export function providerName(id: string): string {
+  return nameIn(ko.names.provider, id);
+}
 
 export function formatDuration(ms: number): string {
   if (ms >= DAY_MS) {
@@ -58,7 +71,7 @@ export function queuedLine(run: QueuedRun): string {
       return t("card.queued.assignmentBlocked");
     case "usage-limit":
       return t("card.queued.usageLimit", {
-        provider: reason.provider,
+        provider: providerName(reason.provider),
         duration: formatDuration(reason.resetsInMs),
       });
     case "blockers-waiting":

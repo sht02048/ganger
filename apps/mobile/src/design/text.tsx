@@ -39,18 +39,21 @@ export function Text({
   tone,
   numberOfLines,
   heading = false,
+  accessibilityRole,
   children,
 }: {
   variant?: TextVariant;
   tone?: TextTone;
   numberOfLines?: number;
   heading?: boolean;
+  accessibilityRole?: "alert";
   children: ReactNode;
 }) {
   return (
     <NativeText
       {...(numberOfLines === undefined ? {} : { numberOfLines })}
       {...(heading ? { accessibilityRole: "header" as const } : {})}
+      {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
       style={[styles[variant], { color: toneColor[tone ?? variantTone[variant]] }]}
     >
       {children}

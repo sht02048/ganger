@@ -53,7 +53,14 @@ describe("RunCard", () => {
       ...base,
       state: "waiting-for-input",
       waitingMs: null,
-      input: { kind: "question", questionId: "q", body: "질문", choices: [], answered: true },
+      input: {
+        kind: "question",
+        questionId: "q",
+        body: "질문",
+        summary: "질문",
+        choices: [],
+        answered: true,
+      },
     };
     const host = mount(<RunCard run={run} onAction={noAction} />);
     expect(buttons(host)).toBe(0);
@@ -94,6 +101,7 @@ describe("RunCard", () => {
         kind: "question",
         questionId: "q",
         body: "첫 줄\n둘째 줄",
+        summary: "첫 줄\n둘째 줄",
         choices: [],
         answered: false,
       },

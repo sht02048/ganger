@@ -30,9 +30,12 @@ import { Route as ApiNotificationEventsStreamRouteImport } from './routes/api/no
 import { Route as ApiRunnerEnrollmentIndexRouteImport } from './routes/api/runner-enrollment/index'
 import { Route as ApiRunnerEnrollmentScriptRouteImport } from './routes/api/runner-enrollment/script'
 import { Route as ApiV1DashboardRouteImport } from './routes/api/v1/dashboard'
+import { Route as ApiV1RunnersRouteImport } from './routes/api/v1/runners'
+import { Route as ApiV1WorkspacesRouteImport } from './routes/api/v1/workspaces'
 import { Route as AppSettingsConnectionsConnectionIdRouteImport } from './routes/_app/settings_.connections.$connectionId'
 import { Route as ApiRunnerEnrollmentOfferIndexRouteImport } from './routes/api/runner-enrollment/offer/index'
 import { Route as ApiRunnerEnrollmentOfferAcceptRouteImport } from './routes/api/runner-enrollment/offer/accept'
+import { Route as ApiV1ChangeEventsStreamRouteImport } from './routes/api/v1/change-events/stream'
 import { Route as ApiV1DevicesConnectRouteImport } from './routes/api/v1/devices/connect'
 import { Route as ApiV1DevicesMeRouteImport } from './routes/api/v1/devices/me'
 import { Route as ApiV1DevicesRegisterRouteImport } from './routes/api/v1/devices/register'
@@ -151,6 +154,16 @@ const ApiV1DashboardRoute = ApiV1DashboardRouteImport.update({
   path: '/api/v1/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiV1RunnersRoute = ApiV1RunnersRouteImport.update({
+  id: '/api/v1/runners',
+  path: '/api/v1/runners',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiV1WorkspacesRoute = ApiV1WorkspacesRouteImport.update({
+  id: '/api/v1/workspaces',
+  path: '/api/v1/workspaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppSettingsConnectionsConnectionIdRoute =
   AppSettingsConnectionsConnectionIdRouteImport.update({
     id: '/settings_/connections/$connectionId',
@@ -169,6 +182,11 @@ const ApiRunnerEnrollmentOfferAcceptRoute =
     path: '/api/runner-enrollment/offer/accept',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1ChangeEventsStreamRoute = ApiV1ChangeEventsStreamRouteImport.update({
+  id: '/api/v1/change-events/stream',
+  path: '/api/v1/change-events/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiV1DevicesConnectRoute = ApiV1DevicesConnectRouteImport.update({
   id: '/api/v1/devices/connect',
   path: '/api/v1/devices/connect',
@@ -240,10 +258,13 @@ export interface FileRoutesByFullPath {
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
+  '/api/v1/runners': typeof ApiV1RunnersRoute
+  '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/change-events/stream': typeof ApiV1ChangeEventsStreamRoute
   '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
   '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/v1/devices/register': typeof ApiV1DevicesRegisterRoute
@@ -274,10 +295,13 @@ export interface FileRoutesByTo {
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
+  '/api/v1/runners': typeof ApiV1RunnersRoute
+  '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/api/notification-events': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/change-events/stream': typeof ApiV1ChangeEventsStreamRoute
   '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
   '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/v1/devices/register': typeof ApiV1DevicesRegisterRoute
@@ -310,10 +334,13 @@ export interface FileRoutesById {
   '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
+  '/api/v1/runners': typeof ApiV1RunnersRoute
+  '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/_app/settings_/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
+  '/api/v1/change-events/stream': typeof ApiV1ChangeEventsStreamRoute
   '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
   '/api/v1/devices/me': typeof ApiV1DevicesMeRoute
   '/api/v1/devices/register': typeof ApiV1DevicesRegisterRoute
@@ -346,10 +373,13 @@ export interface FileRouteTypes {
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
+    | '/api/v1/runners'
+    | '/api/v1/workspaces'
     | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/change-events/stream'
     | '/api/v1/devices/connect'
     | '/api/v1/devices/me'
     | '/api/v1/devices/register'
@@ -380,10 +410,13 @@ export interface FileRouteTypes {
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
+    | '/api/v1/runners'
+    | '/api/v1/workspaces'
     | '/api/notification-events'
     | '/api/runner-enrollment'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/change-events/stream'
     | '/api/v1/devices/connect'
     | '/api/v1/devices/me'
     | '/api/v1/devices/register'
@@ -415,10 +448,13 @@ export interface FileRouteTypes {
     | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
+    | '/api/v1/runners'
+    | '/api/v1/workspaces'
     | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/_app/settings_/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
+    | '/api/v1/change-events/stream'
     | '/api/v1/devices/connect'
     | '/api/v1/devices/me'
     | '/api/v1/devices/register'
@@ -443,9 +479,12 @@ export interface RootRouteChildren {
   ApiNotificationEventsStreamRoute: typeof ApiNotificationEventsStreamRoute
   ApiRunnerEnrollmentScriptRoute: typeof ApiRunnerEnrollmentScriptRoute
   ApiV1DashboardRoute: typeof ApiV1DashboardRoute
+  ApiV1RunnersRoute: typeof ApiV1RunnersRoute
+  ApiV1WorkspacesRoute: typeof ApiV1WorkspacesRoute
   ApiNotificationEventsIndexRoute: typeof ApiNotificationEventsIndexRoute
   ApiRunnerEnrollmentIndexRoute: typeof ApiRunnerEnrollmentIndexRoute
   ApiRunnerEnrollmentOfferAcceptRoute: typeof ApiRunnerEnrollmentOfferAcceptRoute
+  ApiV1ChangeEventsStreamRoute: typeof ApiV1ChangeEventsStreamRoute
   ApiV1DevicesConnectRoute: typeof ApiV1DevicesConnectRoute
   ApiV1DevicesMeRoute: typeof ApiV1DevicesMeRoute
   ApiV1DevicesRegisterRoute: typeof ApiV1DevicesRegisterRoute
@@ -606,6 +645,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiV1DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/runners': {
+      id: '/api/v1/runners'
+      path: '/api/v1/runners'
+      fullPath: '/api/v1/runners'
+      preLoaderRoute: typeof ApiV1RunnersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/workspaces': {
+      id: '/api/v1/workspaces'
+      path: '/api/v1/workspaces'
+      fullPath: '/api/v1/workspaces'
+      preLoaderRoute: typeof ApiV1WorkspacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_app/settings_/connections/$connectionId': {
       id: '/_app/settings_/connections/$connectionId'
       path: '/settings/connections/$connectionId'
@@ -625,6 +678,13 @@ declare module '@tanstack/react-router' {
       path: '/api/runner-enrollment/offer/accept'
       fullPath: '/api/runner-enrollment/offer/accept'
       preLoaderRoute: typeof ApiRunnerEnrollmentOfferAcceptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/v1/change-events/stream': {
+      id: '/api/v1/change-events/stream'
+      path: '/api/v1/change-events/stream'
+      fullPath: '/api/v1/change-events/stream'
+      preLoaderRoute: typeof ApiV1ChangeEventsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/v1/devices/connect': {
@@ -735,9 +795,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNotificationEventsStreamRoute: ApiNotificationEventsStreamRoute,
   ApiRunnerEnrollmentScriptRoute: ApiRunnerEnrollmentScriptRoute,
   ApiV1DashboardRoute: ApiV1DashboardRoute,
+  ApiV1RunnersRoute: ApiV1RunnersRoute,
+  ApiV1WorkspacesRoute: ApiV1WorkspacesRoute,
   ApiNotificationEventsIndexRoute: ApiNotificationEventsIndexRoute,
   ApiRunnerEnrollmentIndexRoute: ApiRunnerEnrollmentIndexRoute,
   ApiRunnerEnrollmentOfferAcceptRoute: ApiRunnerEnrollmentOfferAcceptRoute,
+  ApiV1ChangeEventsStreamRoute: ApiV1ChangeEventsStreamRoute,
   ApiV1DevicesConnectRoute: ApiV1DevicesConnectRoute,
   ApiV1DevicesMeRoute: ApiV1DevicesMeRoute,
   ApiV1DevicesRegisterRoute: ApiV1DevicesRegisterRoute,

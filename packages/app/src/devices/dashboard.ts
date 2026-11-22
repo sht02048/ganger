@@ -9,13 +9,22 @@ import {
   todoGroups,
   todoTagOf,
 } from "../home/model.js";
-import type { HomePage, HomeRun, TodoGroupKind } from "../home/model.js";
+import type { HomePage, HomeRun, InputWait, TodoGroupKind } from "../home/model.js";
+import { questionSummary } from "../question.js";
 import type { QueuedReason } from "../runs/model.js";
+
+type V1Input = Extract<V1DashboardRun, { state: "waiting-for-input" }>["input"];
 
 function toQueuedReason(reason: QueuedReason): V1QueuedReason {
   return reason.kind === "blockers-waiting"
     ? { ...reason, finished: reason.finished ?? [] }
     : reason;
+}
+
+function toInput(input: InputWait | null): V1Input | null {
+  return input?.kind === "question"
+    ? { ...input, summary: questionSummary(input.body, input.choices) }
+    : input;
 }
 
 function toRun(run: HomeRun): V1DashboardRun {
@@ -50,7 +59,7 @@ function toRun(run: HomeRun): V1DashboardRun {
     case "paused":
       return { ...base, state: run.state, pausedMs: run.pausedMs, pauseSource: run.pauseSource };
     case "waiting-for-input":
-      return { ...base, state: run.state, input: run.input, waitingMs: run.waitingMs };
+      return { ...base, state: run.state, input: toInput(run.input), waitingMs: run.waitingMs };
     case "disconnected":
       return { ...base, state: run.state, unreachableMs: run.unreachableMs };
     case "ended":

@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import { useFonts } from "expo-font";
 import { StatusBar } from "expo-status-bar";
 import medium from "pretendard/dist/public/static/Pretendard-Medium.otf";
@@ -6,8 +7,14 @@ import semibold from "pretendard/dist/public/static/Pretendard-SemiBold.otf";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { StyleSheet } from "react-native";
 
-import { AppScreens } from "./app-screens";
+import { AppRoot } from "./connection/app-root";
+import { connectionStore } from "./connection/connection-store";
+import { bundledDevConnection } from "./connection/dev-connection";
+import { platformFetch } from "./connection/platform-fetch";
 import { fontFamily, colors } from "./design/tokens";
+import { t } from "./i18n";
+
+const DEV_CONNECTION = bundledDevConnection();
 
 export default function App() {
   const [loaded, error] = useFonts({
@@ -20,7 +27,12 @@ export default function App() {
     <SafeAreaProvider>
       <SafeAreaView style={styles.root}>
         <StatusBar style="light" />
-        <AppScreens />
+        <AppRoot
+          store={connectionStore}
+          fetcher={platformFetch}
+          devConnection={DEV_CONNECTION}
+          deviceName={Constants.deviceName ?? t("connection.defaultDeviceName")}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );

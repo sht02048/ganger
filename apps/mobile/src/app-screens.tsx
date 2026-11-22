@@ -7,7 +7,7 @@ import { INITIAL_NOTIFICATION_PREFERENCES, SettingsScreen } from "./settings/set
 
 type Screen = "dashboard" | "runners" | "settings";
 
-export function AppScreens({ now: fixedNow }: { now?: Date }) {
+export function AppScreens({ now: fixedNow, onExit }: { now?: Date; onExit?: () => void }) {
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [emptyPreview, setEmptyPreview] = useState(false);
   const [dashboardView, setDashboardView] = useState(INITIAL_DASHBOARD_VIEW);
@@ -33,13 +33,16 @@ export function AppScreens({ now: fixedNow }: { now?: Date }) {
     case "settings":
       return (
         <SettingsScreen
-          emptyPreview={emptyPreview}
-          onEmptyPreviewChange={(next) => {
-            setEmptyPreview(next);
-            setDashboardView(INITIAL_DASHBOARD_VIEW);
+          demo={{
+            emptyPreview,
+            onEmptyPreviewChange: (next) => {
+              setEmptyPreview(next);
+              setDashboardView(INITIAL_DASHBOARD_VIEW);
+            },
+            preferences: notifications,
+            onPreferencesChange: setNotifications,
+            ...(onExit === undefined ? {} : { onExit }),
           }}
-          preferences={notifications}
-          onPreferencesChange={setNotifications}
           onBack={() => setScreen("dashboard")}
         />
       );

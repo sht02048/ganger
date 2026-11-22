@@ -277,7 +277,7 @@ function operatorHandled(input: InputWait): boolean {
   }
 }
 
-function dashboardUsage(
+export function dashboardUsage(
   runner: StoredRunner,
   now: Date,
 ): Pick<DashboardRunner, "usage" | "limits"> {

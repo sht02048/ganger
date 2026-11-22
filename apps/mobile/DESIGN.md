@@ -35,6 +35,9 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                |
 | `Meter`         | 러너의 공급자 사용량 막대                                                 |
 | `SwitchRow`     | 이름이 붙은 스위치                                                        |
+| `TextField`     | 이름이 붙은 한 줄 입력. 개발용 QR 붙여 넣기에 쓴다                        |
+| `CameraFrame`   | QR을 읽는 카메라 미리 보기의 정사각형 틀                                  |
+| `NoticeBand`    | 화면 맨 위 연결 문제 띠("n분 전 기준", Host 거절, 서버 버전)              |
 | `Sheet`         | 아래에서 올라오는 레이어. 안의 주 행동 하나는 노란 버튼을 쓸 수 있다      |
 | `RestingMascot` | 빈 상태에만 쓴다. 목록 행, 상태 알약, 러너 문제 카드 곁에 두지 않는다     |
 
@@ -44,4 +47,8 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 
 ## 데모 데이터
 
-앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). Dashboard 데이터는 `@ganger/api`의 `V1Dashboard` 모양이다. 계약에 없는 Runners와 Workspace 목록은 앱 안 화면 모델(`src/runners/model.ts`, `src/screen-model.ts`)에 둔다.
+앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). Dashboard와 Runners 데이터는 `@ganger/api`의 `V1Dashboard`, `V1Runner` 모양이다.
+
+## 서버 연결
+
+연결과 갱신은 `src/connection/`에 둔다. 기기 토큰은 iOS 키체인(`expo-secure-store`, 이 기기에서만)에 두고, Expo web에서는 메모리에만 둔다. 개발 연결은 `__DEV__`일 때만 `EXPO_PUBLIC_GANGER_DEV_SERVER`·`EXPO_PUBLIC_GANGER_DEV_TOKEN`을 읽는다. ATS 예외는 `GANGER_MOBILE_BUILD=development`일 때만 `app.config.ts`가 더한다.

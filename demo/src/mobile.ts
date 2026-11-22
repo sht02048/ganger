@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
+import { DEV_DEVICE_NAME, mobileDevEnv } from "./mobile-env.ts";
 import { repoRoot, startDevServer } from "./server.ts";
 
 const mobileRoot = join(repoRoot, "apps/mobile");
@@ -8,6 +9,10 @@ console.info(`[dev:mobile] demo server ${server.url}`);
 
 const expo = spawn(join(mobileRoot, "node_modules/.bin/expo"), ["start"], {
   cwd: mobileRoot,
+  env: mobileDevEnv(process.env, {
+    url: server.url,
+    token: server.issueDeviceToken(DEV_DEVICE_NAME),
+  }),
   stdio: "inherit",
 });
 

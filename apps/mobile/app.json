@@ -7,7 +7,23 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#090909",
     "platforms": ["ios", "web"],
-    "ios": { "supportsTablet": false },
-    "web": { "bundler": "metro", "output": "single" }
+    "ios": {
+      "supportsTablet": false
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ganger 화면의 기기 연결 QR을 읽을 때 카메라를 써요.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      "expo-secure-store"
+    ]
   }
 }

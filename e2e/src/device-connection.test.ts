@@ -13,8 +13,11 @@ import {
   notificationEventResponseSchema,
   notificationFeedResponseSchema,
   parseConnectionQr,
+  runnersResponseSchema,
+  thisDeviceResponseSchema,
   v1ErrorSchema,
   v1NotificationEventPath,
+  workspacesResponseSchema,
 } from "@ganger/api";
 import { DeviceConnectionCodes, startDeviceConnection } from "@ganger/app/devices/connection";
 import { ENROLLMENT_TTL_MS } from "@ganger/app/runner-setup/enrollment";
@@ -222,6 +225,95 @@ afterAll(async () => {
   if (dir !== undefined) rmSync(dir, { recursive: true, force: true });
 });
 
+function v1Get(path: string, token?: string, signal?: AbortSignal): Promise<Response> {
+  return fetch(new URL(path, baseUrl), {
+    headers: token === undefined ? {} : { authorization: `Bearer ${token}` },
+    ...(signal === undefined ? {} : { signal }),
+  });
+}
+
+describe("v1 Runners·Workspace·이 기기 읽기", () => {
+  it.each([V1_PATHS.runners, V1_PATHS.workspaces, V1_PATHS.thisDevice])(
+    "%s는 기기 토큰이 없으면 거절한다",
+    async (path) => {
+      expect(await refusalOf(await v1Get(path))).toEqual(refused(401, "invalid-token"));
+      expect(await refusalOf(await v1Get(path, "wrong-token"))).toEqual(
+        refused(401, "invalid-token"),
+      );
+    },
+  );
+
+  it("Runners와 Workspace 목록, 이 기기 정보를 계약 모양으로 돌려준다", async () => {
+    const { deviceId, token } = await connectedDevice();
+    const runners = runnersResponseSchema.parse(
+      await (await v1Get(V1_PATHS.runners, token)).json(),
+    );
+    expect(runners.data.runners[0]).toMatchObject({
+      name: "runner-a",
+      cause: null,
+      used: 1,
+      capacity: 4,
+    });
+    const workspaces = workspacesResponseSchema.parse(
+      await (await v1Get(V1_PATHS.workspaces, token)).json(),
+    );
+    expect(workspaces.data.workspaces).toEqual([{ id: workspaceId, name: "Acme" }]);
+    const device = thisDeviceResponseSchema.parse(
+      await (await v1Get(V1_PATHS.thisDevice, token)).json(),
+    );
+    expect(device.data).toMatchObject({ id: deviceId, name: "Acme iPhone" });
+  });
+
+  it("Dashboard의 질문에 카드용 요약을 싣는다", async () => {
+    const { token } = await connectedDevice();
+    const body = dashboardResponseSchema.parse(await (await dashboard(token)).json());
+    expect(body.data.columns.running.todo[0]).toMatchObject({
+      input: { kind: "question", summary: "Ship it?" },
+    });
+  });
+});
+
+describe("v1 변경 기록 SSE", () => {
+  it("기기 토큰이 없거나 틀리면 스트림을 열지 않는다", async () => {
+    expect(await refusalOf(await v1Get(V1_PATHS.changeStream))).toEqual(
+      refused(401, "invalid-token"),
+    );
+    expect(await refusalOf(await v1Get(V1_PATHS.changeStream, "wrong-token"))).toEqual(
+      refused(401, "invalid-token"),
+    );
+  });
+
+  it("지운 기기의 토큰으로는 새 스트림을 열지 못한다", async () => {
+    const { deviceId, token } = await connectedDevice();
+    removeDevice(db, deviceId, new Date());
+    expect(await refusalOf(await v1Get(V1_PATHS.changeStream, token))).toEqual(
+      refused(401, "invalid-token"),
+    );
+  });
+
+  it("기기 토큰으로 열면 ready 사건을 보낸다", async () => {
+    const { token } = await connectedDevice();
+    const abort = new AbortController();
+    try {
+      const response = await v1Get(V1_PATHS.changeStream, token, abort.signal);
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      const reader = response.body?.getReader();
+      if (reader === undefined) throw new Error("본문이 없다");
+      const decoder = new TextDecoder();
+      let text = "";
+      while (!text.includes("event: ready")) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+      }
+      expect(text).toContain("event: ready");
+    } finally {
+      abort.abort();
+    }
+  });
+});
+
 describe("기기 연결과 v1 Dashboard", () => {
   it("연결 코드로 토큰을 받아 Dashboard를 읽고 서버·계약 버전을 싣는다", async () => {
     const { token } = await connectedDevice();
@@ -322,8 +414,11 @@ function authorized(token: string): { authorization: string } {
   return { authorization: `Bearer ${token}` };
 }
 
-async function openStream(token: string): Promise<ReadableStreamDefaultReader<Uint8Array>> {
-  const response = await fetch(new URL(V1_NOTIFICATION_PATHS.stream, baseUrl), {
+async function openStream(
+  token: string,
+  path: string = V1_NOTIFICATION_PATHS.stream,
+): Promise<ReadableStreamDefaultReader<Uint8Array>> {
+  const response = await fetch(new URL(path, baseUrl), {
     headers: authorized(token),
   });
   expect(response.status).toBe(200);
@@ -346,6 +441,41 @@ async function endOf(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<b
     if (done) return true;
   }
 }
+
+describe("지운 기기의 v1 변경 기록 SSE", () => {
+  it("기기가 스스로 끊으면 그 토큰으로 열린 스트림만 닫는다", async () => {
+    const leaving = await connectedDevice();
+    const staying = await connectedDevice();
+    const leavingStream = await openStream(leaving.token, V1_PATHS.changeStream);
+    const stayingStream = await openStream(staying.token, V1_PATHS.changeStream);
+
+    await fetch(new URL(V1_PATHS.thisDevice, baseUrl), {
+      method: "DELETE",
+      headers: authorized(leaving.token),
+    });
+
+    expect(await endOf(leavingStream)).toBe(true);
+    const devices = globalThis.__gangerTestDeviceStreams;
+    expect(devices?.openCount(leaving.deviceId)).toBe(0);
+    expect(devices?.openCount(staying.deviceId)).toBe(1);
+    await stayingStream.cancel();
+  });
+
+  it("Settings에서 기기를 지우면 그 토큰으로 열린 스트림을 닫는다", async () => {
+    const { deviceId, token } = await connectedDevice();
+    const stream = await openStream(token, V1_PATHS.changeStream);
+    const removal = await web.ssrLoadModule(removalModule);
+    const remove: unknown = removal["removeDeviceAndCloseStreams"];
+    if (!isRemoval(remove)) throw new Error("지우기 함수를 찾지 못했다");
+
+    expect(remove(deviceId)).toEqual({ ok: true });
+
+    expect(await endOf(stream)).toBe(true);
+    expect(await refusalOf(await v1Get(V1_PATHS.changeStream, token))).toEqual(
+      refused(401, "invalid-token"),
+    );
+  });
+});
 
 describe("v1 알림 사건", () => {
   it("토큰 없는 목록·스트림·사건 하나 읽기를 거절한다", async () => {

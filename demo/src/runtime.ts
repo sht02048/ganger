@@ -1,4 +1,14 @@
-import { SecretBox, listTrackerConnections, migrate, openDatabase } from "@ganger/db";
+import { randomBytes } from "node:crypto";
+import { hashToken } from "@ganger/app/runner-setup/enrollment";
+import {
+  SecretBox,
+  addDevice,
+  listDevices,
+  listTrackerConnections,
+  migrate,
+  openDatabase,
+  removeDevice,
+} from "@ganger/db";
 import { startWorker } from "@ganger/worker";
 import { hydrateWorld } from "./hydrate.js";
 import { DemoLife } from "./life.js";
@@ -21,6 +31,7 @@ export interface DevRuntime {
   seeded: boolean;
   life: DemoLife;
   wake(): void;
+  issueDeviceToken(name: string): string;
   stop(): Promise<void>;
 }
 
@@ -62,6 +73,15 @@ async function start(options: DevStartOptions): Promise<DevRuntime> {
     seeded,
     life,
     wake: () => worker.wake(),
+    issueDeviceToken: (name) => {
+      const now = new Date();
+      for (const device of listDevices(db)) {
+        if (device.name === name) removeDevice(db, device.id, now);
+      }
+      const token = randomBytes(32).toString("base64url");
+      addDevice(db, { name, tokenHash: hashToken(token) }, now);
+      return token;
+    },
     stop: async () => {
       clearInterval(timer);
       await worker.stop();

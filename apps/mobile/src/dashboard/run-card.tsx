@@ -4,7 +4,7 @@ import { Button, Card, Chip, StatusPill } from "../design/components";
 import type { PillStatus } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
-import { formatAgo, formatDuration, queuedLine } from "../format";
+import { agentName, formatAgo, formatDuration, queuedLine } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
 import { PR_CHIPS_VISIBLE } from "./model";
@@ -76,7 +76,15 @@ function detailOf(run: DashboardRun): string | null {
       if (inputHandled(run)) {
         return run.input.kind === "permission" ? t("card.denied") : t("card.answered");
       }
-      return run.input.kind === "permission" ? run.input.detail : firstLineOf(run.input.body);
+      switch (run.input.kind) {
+        case "permission":
+          return run.input.detail;
+        case "question":
+          return firstLineOf(run.input.summary);
+        case "human-check":
+          return firstLineOf(run.input.body);
+      }
+      break;
     case "disconnected": {
       const runner = run.runner?.name ?? t("card.noRunner");
       return run.unreachableMs === null
@@ -87,8 +95,9 @@ function detailOf(run: DashboardRun): string | null {
       return t(`card.paused.${run.pauseSource}`);
     case "queued":
       return queuedLine(run);
-    case "running":
     case "ended":
+      return run.summary === "failed" ? t(`card.agentResult.${run.agentResult}`) : null;
+    case "running":
       return null;
   }
 }
@@ -145,10 +154,12 @@ function isStuck(run: DashboardRun): boolean {
 export function RunCard({
   run,
   showWorkspace = false,
+  actionsDisabled = false,
   onAction,
 }: {
   run: DashboardRun;
   showWorkspace?: boolean;
+  actionsDisabled?: boolean;
   onAction: () => void;
 }) {
   const pill = pillOf(run);
@@ -162,7 +173,7 @@ export function RunCard({
     (run.queuedReason.kind === "blockers-waiting" || run.queuedReason.kind === "blockers-stuck");
   const meta = [
     waitsOnBlockers ? null : (run.runner?.name ?? t("card.noRunner")),
-    waitsOnBlockers ? null : run.agent,
+    waitsOnBlockers ? null : agentName(run.agent),
     showWorkspace ? run.workspace.name : null,
     run.cancelling ? t("card.cancelling") : null,
     run.control?.status === "pending"
@@ -199,6 +210,7 @@ export function RunCard({
         <Button
           label={t(action.key)}
           variant={action.danger ? "danger" : "secondary"}
+          disabled={actionsDisabled}
           onPress={onAction}
         />
       )}
