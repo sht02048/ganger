@@ -455,29 +455,33 @@ function EndedSection({
           />
         )}
         <span {...stylex.props(styles.menus)}>
-          <Select
-            aria-label={t("periodLabel")}
-            value={periodIsChoice ? String(page.days) : null}
-            placeholder={t("periodOther", { days: page.days })}
-            options={ENDED_PERIOD_CHOICES.map((days) => ({
-              value: String(days),
-              label: t("period", { days }),
-            }))}
-            onValueChange={(value) => {
-              const days = ENDED_PERIOD_CHOICES.find((choice) => String(choice) === value);
-              if (days !== undefined) onPeriodChange?.(days);
-            }}
-          />
-          <Select
-            aria-label={t("runnerLabel")}
-            value={runnerValue}
-            placeholder={t("noRunner")}
-            options={[
-              { value: ALL_RUNNERS, label: t("allRunners") },
-              ...page.runners.map((runner) => ({ value: runner.id, label: runner.name })),
-            ]}
-            onValueChange={(value) => onRunnerChange?.(value === ALL_RUNNERS ? undefined : value)}
-          />
+          <span {...stylex.props(styles.menu)}>
+            <Select
+              aria-label={t("periodLabel")}
+              value={periodIsChoice ? String(page.days) : null}
+              placeholder={t("periodOther", { days: page.days })}
+              options={ENDED_PERIOD_CHOICES.map((days) => ({
+                value: String(days),
+                label: t("period", { days }),
+              }))}
+              onValueChange={(value) => {
+                const days = ENDED_PERIOD_CHOICES.find((choice) => String(choice) === value);
+                if (days !== undefined) onPeriodChange?.(days);
+              }}
+            />
+          </span>
+          <span {...stylex.props(styles.menu)}>
+            <Select
+              aria-label={t("runnerLabel")}
+              value={runnerValue}
+              placeholder={t("noRunner")}
+              options={[
+                { value: ALL_RUNNERS, label: t("allRunners") },
+                ...page.runners.map((runner) => ({ value: runner.id, label: runner.name })),
+              ]}
+              onValueChange={(value) => onRunnerChange?.(value === ALL_RUNNERS ? undefined : value)}
+            />
+          </span>
         </span>
       </div>
       <Card padding="compact" label={t("listLabel")}>
@@ -648,8 +652,15 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: space.s6,
     minWidth: 0,
+    boxSizing: "border-box",
     containerType: "inline-size",
     outline: "none",
+    height: "100%",
+    minHeight: 0,
+    overflowY: "auto",
+    paddingTop: space.s6,
+    paddingInline: { default: space.s8, [breakpoints.narrowScreen]: space.s4 },
+    paddingBottom: `max(${space.s10}, var(--pinned-toast-space, 0px) + ${space.s10})`,
   },
   nowGrid: {
     display: "grid",
@@ -698,6 +709,7 @@ const styles = stylex.create({
     gap: space.s3,
   },
   menus: { display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
+  menu: { width: size.lastRunColumn, maxWidth: "100%" },
   conditions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   more: {
     display: "flex",
