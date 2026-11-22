@@ -7,6 +7,7 @@ export const BULK_ASSIGN_LIMIT = 1000;
 export type BulkChoiceKind =
   | "ready"
   | "waiting"
+  | "blocker-canceled"
   | "failed"
   | "canceled"
   | "succeeded"
@@ -14,6 +15,7 @@ export type BulkChoiceKind =
   | "no-mapping";
 
 export interface BlockerWaitHint {
+  state: "waiting" | "canceled";
   key: string;
   rest: number;
 }
@@ -46,10 +48,13 @@ export function blockerWaitHint(
   blockers: ReadonlyArray<{ key: string; stateCategory: string }>,
 ): BlockerWaitHint | null {
   const unfinished = blockers.filter((blocker) => !isBlockerFinished(blocker.stateCategory));
+  const canceled = unfinished.filter((blocker) => blocker.stateCategory === "canceled");
+  const [firstCanceled] = canceled;
+  if (firstCanceled !== undefined)
+    return { state: "canceled", key: firstCanceled.key, rest: canceled.length - 1 };
   const [first] = unfinished;
-  if (first === undefined || unfinished.some((blocker) => blocker.stateCategory === "canceled"))
-    return null;
-  return { key: first.key, rest: unfinished.length - 1 };
+  if (first === undefined) return null;
+  return { state: "waiting", key: first.key, rest: unfinished.length - 1 };
 }
 
 function kindOf(ticket: TicketView, waitingOn: BlockerWaitHint | null): BulkChoiceKind | null {
@@ -61,11 +66,18 @@ function kindOf(ticket: TicketView, waitingOn: BlockerWaitHint | null): BulkChoi
   if (category === "completed" || category === "canceled") return "done";
   if (ticket.assignability.kind === "no-mapping") return "no-mapping";
   if (run !== undefined) return run.summary;
-  return waitingOn === null ? "ready" : "waiting";
+  if (waitingOn === null) return "ready";
+  return waitingOn.state === "canceled" ? "blocker-canceled" : "waiting";
 }
 
 function isSelectable(kind: BulkChoiceKind): boolean {
-  return kind === "ready" || kind === "waiting" || kind === "failed" || kind === "canceled";
+  return (
+    kind === "ready" ||
+    kind === "waiting" ||
+    kind === "blocker-canceled" ||
+    kind === "failed" ||
+    kind === "canceled"
+  );
 }
 
 export function bulkChoices(
@@ -82,10 +94,25 @@ export function bulkChoices(
         kind,
         selectable: isSelectable(kind),
         initiallySelected: kind === "ready" || kind === "waiting",
-        waitingOn: kind === "waiting" ? hint : null,
+        waitingOn: kind === "waiting" || kind === "blocker-canceled" ? hint : null,
       },
     ];
   });
+}
+
+export function selectedBulkIds(
+  choices: ReadonlyArray<BulkChoice>,
+  firstSelected: ReadonlySet<string>,
+  operatorChoices: ReadonlyMap<string, boolean>,
+): ReadonlySet<string> {
+  return new Set(
+    choices
+      .filter(
+        ({ ticket, initiallySelected }) =>
+          operatorChoices.get(ticket.id) ?? (firstSelected.has(ticket.id) && initiallySelected),
+      )
+      .map((choice) => choice.ticket.id),
+  );
 }
 
 export function assignableChildCount(children: ReadonlyArray<TicketView>): number {

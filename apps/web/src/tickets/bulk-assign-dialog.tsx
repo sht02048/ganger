@@ -9,6 +9,7 @@ import {
   blockerWaitHint,
   bulkAssignmentsFor,
   bulkChoices,
+  selectedBulkIds,
 } from "@ganger/app/tickets/bulk-assign";
 import type {
   BlockerWaitHint,
@@ -80,7 +81,7 @@ export function BulkAssignDialog({
   const targets = useMemo(() => blockerReadTargets(group.children), [group.children]);
   const hints = useBlockerHints(targets, onReadBlockers, open);
   const choices = useMemo(() => bulkChoices(group.children, hints), [group.children, hints]);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(
+  const [firstSelected] = useState<ReadonlySet<string>>(
     () =>
       new Set(
         bulkChoices(group.children)
@@ -88,6 +89,8 @@ export function BulkAssignDialog({
           .map((choice) => choice.ticket.id),
       ),
   );
+  const [operatorChoices, setOperatorChoices] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const selected = selectedBulkIds(choices, firstSelected, operatorChoices);
   const [pending, setPending] = useState(false);
   const sending = useRef(false);
   const [outcome, setOutcome] = useState<Outcome>(null);
@@ -105,10 +108,10 @@ export function BulkAssignDialog({
         setPending(false);
         const succeeded = results.filter((result) => result.ok);
         if (succeeded.length > 0) onAssigned();
-        setSelected((current) => {
-          const next = new Set(current);
+        setOperatorChoices((current) => {
+          const next = new Map(current);
           for (const result of succeeded)
-            next.delete(ticketId(result.connection, result.ticketKey));
+            next.set(ticketId(result.connection, result.ticketKey), false);
           return next;
         });
         if (succeeded.length === results.length) {
@@ -157,12 +160,7 @@ export function BulkAssignDialog({
         selected={selected}
         disabled={pending}
         onToggle={(id, checked) => {
-          setSelected((current) => {
-            const next = new Set(current);
-            if (checked) next.add(id);
-            else next.delete(id);
-            return next;
-          });
+          setOperatorChoices((current) => new Map(current).set(id, checked));
         }}
       />
       <BulkAssignAnnouncement outcome={outcome} />
@@ -191,6 +189,13 @@ export function BulkChoiceList({
         return choice.waitingOn === null
           ? null
           : tHint("waiting", { key: choice.waitingOn.key, rest: choice.waitingOn.rest });
+      case "blocker-canceled":
+        return choice.waitingOn === null
+          ? null
+          : tHint("blocker-canceled", {
+              key: choice.waitingOn.key,
+              rest: choice.waitingOn.rest,
+            });
       case "failed":
       case "canceled":
       case "succeeded":

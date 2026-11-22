@@ -9,6 +9,7 @@ import {
   blockerWaitHint,
   bulkAssignmentsFor,
   bulkChoices,
+  selectedBulkIds,
 } from "@ganger/app/tickets/bulk-assign";
 import type { BulkAssignment } from "@ganger/app/tickets/bulk-assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
@@ -100,12 +101,50 @@ describe("하위 티켓 처음 선택(0172)", () => {
 
   it("선행 티켓을 기다리면 체크한 채 그 키를 안내한다", () => {
     const ticket = child("ACME-1");
-    const [choice] = bulkChoices([ticket], new Map([[ticket.id, { key: "ACME-9", rest: 0 }]]));
+    const [choice] = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "waiting", key: "ACME-9", rest: 0 }]]),
+    );
     expect(choice).toMatchObject({
       kind: "waiting",
       initiallySelected: true,
       waitingOn: { key: "ACME-9", rest: 0 },
     });
+  });
+
+  it("선행 티켓이 취소되면 처음에 체크하지 않지만 고를 수 있고, 고르면 그대로 보낸다", () => {
+    const ticket = child("ACME-1");
+    const choices = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "canceled", key: "ACME-9", rest: 0 }]]),
+    );
+    expect(choices[0]).toMatchObject({
+      kind: "blocker-canceled",
+      selectable: true,
+      initiallySelected: false,
+      waitingOn: { state: "canceled", key: "ACME-9" },
+    });
+    const sent = bulkAssignmentsFor(choices, new Set([ticket.id]));
+    expect(sent.map((one) => one.ticketKey)).toEqual(["ACME-1"]);
+  });
+
+  it("선행 티켓을 읽는 동안 체크돼 있던 티켓은 취소가 확인되면 풀리고, 운영자가 고른 값은 지킨다", () => {
+    const ticket = child("ACME-1");
+    const first = new Set([ticket.id]);
+    expect([...selectedBulkIds(bulkChoices([ticket]), first, new Map())]).toEqual([ticket.id]);
+    const canceled = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "canceled", key: "ACME-9", rest: 0 }]]),
+    );
+    expect([...selectedBulkIds(canceled, first, new Map())]).toEqual([]);
+    expect([...selectedBulkIds(canceled, first, new Map([[ticket.id, true]]))]).toEqual([
+      ticket.id,
+    ]);
+  });
+
+  it("처음 연 뒤 새로 생긴 할당 전 티켓은 저절로 체크하지 않는다", () => {
+    const ticket = child("ACME-1");
+    expect([...selectedBulkIds(bulkChoices([ticket]), new Set(), new Map())]).toEqual([]);
   });
 
   it("끝나지 않은 런이 있는 티켓과 하위가 있는 상위 이슈는 목록에서 뺀다", () => {
@@ -144,15 +183,21 @@ describe("하위 티켓 처음 선택(0172)", () => {
     expect(blockerReadTargets(children).map((ticket) => ticket.key)).toEqual(["ACME-1"]);
   });
 
-  it("끝나지 않은 선행 티켓의 첫 키와 나머지 수를 알려 주고, 취소된 선행 티켓이 있으면 알리지 않는다", () => {
+  it("끝나지 않은 선행 티켓의 첫 키와 나머지 수를 알려 주고, 취소된 선행 티켓이 있으면 그 키를 먼저 알린다", () => {
     expect(
       blockerWaitHint([
         { key: "ACME-7", stateCategory: "completed" },
         { key: "ACME-8", stateCategory: "started" },
         { key: "ACME-9", stateCategory: "unstarted" },
       ]),
-    ).toEqual({ key: "ACME-8", rest: 1 });
-    expect(blockerWaitHint([{ key: "ACME-8", stateCategory: "canceled" }])).toBeNull();
+    ).toEqual({ state: "waiting", key: "ACME-8", rest: 1 });
+    expect(
+      blockerWaitHint([
+        { key: "ACME-7", stateCategory: "started" },
+        { key: "ACME-8", stateCategory: "canceled" },
+      ]),
+    ).toEqual({ state: "canceled", key: "ACME-8", rest: 0 });
+    expect(blockerWaitHint([{ key: "ACME-7", stateCategory: "completed" }])).toBeNull();
   });
 
   it("저장소 칸이 없으니 라벨이나 지난 런으로 정해진 저장소를 다른 저장소로 바꾸지 않는다", () => {
@@ -307,7 +352,10 @@ describe("하위 티켓 할당 대화상자(0172)", () => {
 
   it("선행 티켓 안내를 해요체로 보인다", () => {
     const ticket = child("ACME-1");
-    const choices = bulkChoices([ticket], new Map([[ticket.id, { key: "ACME-9", rest: 1 }]]));
+    const choices = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "waiting", key: "ACME-9", rest: 1 }]]),
+    );
     const html = renderWithMessages(
       <BulkChoiceList
         choices={choices}
@@ -318,6 +366,26 @@ describe("하위 티켓 할당 대화상자(0172)", () => {
       ticketsMessages,
     );
     expect(text(html)).toContain("ACME-9 외 1개 티켓이 끝날 때까지 Queued로 남아요");
+  });
+
+  it("취소된 선행 티켓 안내를 보이고 체크하지 않은 채 고를 수 있게 둔다", () => {
+    const ticket = child("ACME-1");
+    const choices = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "canceled", key: "ACME-9", rest: 0 }]]),
+    );
+    const html = renderWithMessages(
+      <BulkChoiceList
+        choices={choices}
+        selected={selectedBulkIds(choices, new Set([ticket.id]), new Map())}
+        disabled={false}
+        onToggle={() => {}}
+      />,
+      ticketsMessages,
+    );
+    expect(text(html)).toContain("ACME-9 티켓이 취소돼서 할당하면 Queued에 멈춰요");
+    expect(html).toContain('aria-checked="false"');
+    expect(html).not.toContain('aria-disabled="true"');
   });
 
   it("결과를 role=status로 티켓별로 알리고 단일 할당 오류 문구를 다시 쓴다", () => {
