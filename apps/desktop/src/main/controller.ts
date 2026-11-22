@@ -1,5 +1,6 @@
 import { PRODUCT_DISPLAY_NAME } from "@ganger/cli/home";
 import { existsSync } from "node:fs";
+import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import {
   BrowserWindow,
@@ -16,6 +17,8 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent, MenuItemConstructorOptions } from "electron";
 import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
+import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
+import type { TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
 import {
   notificationId,
@@ -25,7 +28,7 @@ import {
 } from "../core/notification-ids.js";
 import type { FeedBatch } from "../core/notification-feed.js";
 import { DEFAULT_NOTIFICATION_PREFS, notificationPrefsSchema } from "../core/notification-prefs.js";
-import type { NotificationPrefs } from "../core/notification-prefs.js";
+import type { DeviceLinkState, NotificationPrefs } from "../core/notification-prefs.js";
 import { notificationText } from "../core/notification-text.js";
 import { Notifier } from "../core/notifier.js";
 import type { NotifierEffect } from "../core/notifier.js";
@@ -117,6 +120,7 @@ export interface ControllerOptions {
   openedAtLogin: boolean;
   updater: Updater;
   devServerUrl: string | undefined;
+  tokenCipher: TokenCipher | null;
 }
 
 type Mode = "choosing" | "local" | "remote";
@@ -146,10 +150,20 @@ export class Controller {
   private notifiedVersion = false;
   private serverVersion: string | null = null;
   private updateTimer: NodeJS.Timeout | undefined;
+  private readonly deviceLink: DeviceLink;
+  private deviceLinkState: DeviceLinkState = "connected";
   quitting = false;
 
   constructor(options: ControllerOptions) {
     this.options = options;
+    this.deviceLink = new DeviceLink({
+      store: deviceTokenStore(options.settings, options.tokenCipher),
+      identify: async (origin) => {
+        const probed = await probeIdentity(origin, CONNECT_TIMEOUT_MS);
+        return probed.kind === "ours" ? probed.identity.instanceId : null;
+      },
+      register: (origin) => registerDesktop(origin, t("deviceName", { host: hostname() })),
+    });
     this.watch = new ServerWatch(options.local, { onChange: (state) => this.onWatch(state) });
     this.enrollment = new RunnerEnrollmentFlow({
       fetchOffer: (origin) => fetchOffer(origin),
@@ -654,6 +668,7 @@ export class Controller {
     handle("open-system-notification-settings", () =>
       process.platform === "darwin" ? shell.openExternal(SYSTEM_NOTIFICATION_SETTINGS) : undefined,
     );
+    handle("reconnect-device", () => this.reconnectDevice());
     handle("enrollment-accept", () => {
       void this.enrollment.accept();
     });
@@ -772,9 +787,46 @@ export class Controller {
     const feed = new NotificationFeed({
       origin: url,
       onBatch: (batch) => this.receiveNotifications(url, batch),
+      connection: () => this.deviceLink.connection(url),
+      onRejected: () => this.onDeviceRejected(url),
     });
     this.feed = { url, feed, notifier };
+    this.setDeviceLinkState("connected");
     feed.start();
+  }
+
+  private onDeviceRejected(url: string): void {
+    if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
+    const firstNotice = this.deviceLinkState === "connected";
+    this.setDeviceLinkState("rejected");
+    if (firstNotice) this.notifyDeviceRejected();
+  }
+
+  private notifyDeviceRejected(): void {
+    if (!Notification.isSupported()) return;
+    const notification = new Notification({
+      title: t("notifications.deviceRejected.title"),
+      body: t("notifications.deviceRejected.body"),
+    });
+    notification.on("click", () => this.showNotificationSettings());
+    notification.show();
+  }
+
+  private async reconnectDevice(): Promise<void> {
+    const current = this.feed;
+    if (current === undefined || this.deviceLinkState === "reconnecting") return;
+    this.setDeviceLinkState("reconnecting");
+    const connected = await this.deviceLink.reconnect(current.url);
+    if (this.feed !== current) return;
+    this.setDeviceLinkState(connected ? "connected" : "failed");
+    if (connected) current.feed.reconnect();
+  }
+
+  private setDeviceLinkState(state: DeviceLinkState): void {
+    if (this.deviceLinkState === state) return;
+    this.deviceLinkState = state;
+    this.sendNotificationSettings();
+    this.refreshMenus();
   }
 
   private stopFeed(): void {
@@ -888,7 +940,11 @@ export class Controller {
   }
 
   private notificationSettingsView(): NotificationSettingsView {
-    return { ...this.notificationPrefs(), permission: this.notificationPermission };
+    return {
+      ...this.notificationPrefs(),
+      permission: this.notificationPermission,
+      deviceLink: this.deviceLinkState,
+    };
   }
 
   private sendNotificationSettings(): void {
@@ -1018,6 +1074,13 @@ export class Controller {
         click: () => this.showNotificationSettings(),
       },
     );
+    if (this.deviceLinkState === "rejected" || this.deviceLinkState === "failed") {
+      items.push({
+        id: "reconnect-device",
+        label: t("menu.reconnectDevice"),
+        click: () => void this.reconnectDevice(),
+      });
+    }
 
     const state = this.watch.state;
     const owned = this.mode === "local" && !("owner" in state && state.owner === "external");

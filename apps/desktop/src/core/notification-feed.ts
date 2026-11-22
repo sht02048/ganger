@@ -6,6 +6,8 @@ import {
   notificationRecordSchema,
 } from "@ganger/app/notifications/feed";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
+import { V1_NOTIFICATION_PATHS, notificationFeedResponseSchema } from "@ganger/api";
+import type { FeedConnection } from "./device-link.js";
 
 export interface FeedBatch {
   events: NotificationRecord[];
@@ -20,6 +22,8 @@ export interface NotificationFeedOptions {
   origin: string;
   onBatch: (batch: FeedBatch) => void;
   onTransport?: (transport: FeedTransport) => void;
+  connection?: () => Promise<FeedConnection>;
+  onRejected?: () => void;
   fetch?: typeof fetch;
   pollMs?: number;
   reconnectMs?: number;
@@ -77,6 +81,10 @@ export class SseParser {
     else if (field === "id" && !value.includes("\u0000")) this.id = value;
     return null;
   }
+}
+
+function authorization(connection: FeedConnection): Record<string, string> {
+  return connection.kind === "token" ? { authorization: `Bearer ${connection.token}` } : {};
 }
 
 function parseJson(text: string): unknown {
@@ -152,6 +160,16 @@ export class NotificationFeed {
     }, ms);
   }
 
+  private connection(): Promise<FeedConnection> {
+    return this.options.connection?.() ?? Promise.resolve({ kind: "legacy" });
+  }
+
+  private reject(): void {
+    this.stop();
+    this.setTransport("down");
+    this.options.onRejected?.();
+  }
+
   private setTransport(transport: FeedTransport): void {
     if (transport === this.transport) return;
     this.transport = transport;
@@ -178,13 +196,30 @@ export class NotificationFeed {
     };
     try {
       watch();
-      const headers: Record<string, string> = { accept: "text/event-stream" };
+      const connection = await this.connection();
+      if (generation !== this.generation) return;
+      if (connection.kind === "rejected") {
+        this.reject();
+        return;
+      }
+      if (connection.kind === "unavailable") throw new Error("no device connection");
+      const headers: Record<string, string> = {
+        accept: "text/event-stream",
+        ...authorization(connection),
+      };
       if (this.cursor !== null) headers["last-event-id"] = String(this.cursor);
-      const response = await this.fetch(new URL(NOTIFICATION_STREAM_PATH, this.options.origin), {
+      const path =
+        connection.kind === "token" ? V1_NOTIFICATION_PATHS.stream : NOTIFICATION_STREAM_PATH;
+      const response = await this.fetch(new URL(path, this.options.origin), {
         headers,
         signal: abort.signal,
         redirect: "error",
       });
+      if (connection.kind === "token" && response.status === 401) {
+        await response.body?.cancel();
+        if (generation === this.generation) this.reject();
+        return;
+      }
       const type = response.headers.get("content-type") ?? "";
       if (!response.ok || !type.startsWith("text/event-stream") || response.body === null) {
         await response.body?.cancel();
@@ -240,20 +275,39 @@ export class NotificationFeed {
   }
 
   private async poll(generation: number): Promise<void> {
-    const url = new URL(NOTIFICATION_FEED_PATH, this.options.origin);
-    if (this.cursor !== null) url.searchParams.set("after", String(this.cursor));
     try {
+      const connection = await this.connection();
+      if (generation !== this.generation) return;
+      if (connection.kind === "rejected") {
+        this.reject();
+        return;
+      }
+      if (connection.kind === "unavailable") throw new Error("no device connection");
+      const path =
+        connection.kind === "token" ? V1_NOTIFICATION_PATHS.feed : NOTIFICATION_FEED_PATH;
+      const url = new URL(path, this.options.origin);
+      if (this.cursor !== null) url.searchParams.set("after", String(this.cursor));
       const response = await this.fetch(url, {
+        headers: authorization(connection),
         signal: AbortSignal.timeout(this.options.requestTimeoutMs ?? 5_000),
         redirect: "error",
       });
       if (generation !== this.generation) return;
+      if (connection.kind === "token" && response.status === 401) {
+        await response.body?.cancel();
+        if (generation === this.generation) this.reject();
+        return;
+      }
       if (!response.ok) throw new Error(`poll failed: ${response.status}`);
-      const parsed = notificationFeedSchema.safeParse(await response.json());
+      const body: unknown = await response.json();
       if (generation !== this.generation) return;
-      if (!parsed.success) throw new Error("poll response did not parse");
+      const feed =
+        connection.kind === "token"
+          ? notificationFeedResponseSchema.safeParse(body).data?.data
+          : notificationFeedSchema.safeParse(body).data;
+      if (feed === undefined) throw new Error("poll response did not parse");
       this.setTransport("polling");
-      this.emit(parsed.data.events, parsed.data.open, parsed.data.cursor);
+      this.emit(feed.events, feed.open, feed.cursor);
     } catch {
       if (generation !== this.generation) return;
       this.setTransport("down");

@@ -1,5 +1,10 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { connectRequestSchema, connectionQrText, isConnectableAddress } from "@ganger/api";
+import {
+  connectRequestSchema,
+  connectionQrText,
+  isConnectableAddress,
+  registerDesktopRequestSchema,
+} from "@ganger/api";
 import type { ConnectResult, V1ErrorReason } from "@ganger/api";
 import { addDevice, listDevices, removeDevice, seeDeviceByTokenHash } from "@ganger/db";
 import type { Database } from "@ganger/db";
@@ -123,13 +128,23 @@ export function connectDevice(
   if (!request.success) return { status: 400, reason: "invalid-request" };
   const claimed = context.codes.claim(request.data.code);
   if (!claimed.ok) return REFUSALS[claimed.refusal];
+  return { status: 200, result: issueDeviceToken(context.db, request.data.name, now) };
+}
+
+function issueDeviceToken(db: Database, name: string, now: Date): ConnectResult {
   const token = randomBytes(DEVICE_TOKEN_BYTES).toString("base64url");
-  const device = addDevice(
-    context.db,
-    { name: request.data.name, tokenHash: hashToken(token) },
-    now,
-  );
-  return { status: 200, result: { deviceId: device.id, token } };
+  const device = addDevice(db, { name, tokenHash: hashToken(token) }, now);
+  return { deviceId: device.id, token };
+}
+
+export type RegisterDesktopReply =
+  | { status: 200; result: ConnectResult }
+  | { status: 400; reason: V1ErrorReason };
+
+export function registerDesktop(db: Database, body: unknown, now: Date): RegisterDesktopReply {
+  const request = registerDesktopRequestSchema.safeParse(body);
+  if (!request.success) return { status: 400, reason: "invalid-request" };
+  return { status: 200, result: issueDeviceToken(db, request.data.name, now) };
 }
 
 export function authenticateDevice(

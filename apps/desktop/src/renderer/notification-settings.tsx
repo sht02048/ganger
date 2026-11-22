@@ -59,6 +59,14 @@ export function NotificationSettings({
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
+  const [reconnected, setReconnected] = useState(false);
+  const previousLink = useRef(view.deviceLink);
+  useEffect(() => {
+    if (previousLink.current !== "connected" && view.deviceLink === "connected") {
+      titleRef.current?.focus();
+    }
+    previousLink.current = view.deviceLink;
+  }, [view.deviceLink]);
   const save = (next: NotificationSettingsView) => {
     onChange(next);
     window.desktopNotifications
@@ -76,6 +84,31 @@ export function NotificationSettings({
           </h1>
           <Text variant="body">{t("summary")}</Text>
         </header>
+        <span role="status" {...stylex.props(styles.status)}>
+          {reconnected && view.deviceLink === "connected" ? (
+            <Text variant="meta">{t("deviceLink.done")}</Text>
+          ) : null}
+        </span>
+        {view.deviceLink === "connected" ? null : (
+          <ProblemCallout
+            title={t("deviceLink.title")}
+            actions={
+              <Button
+                disabled={view.deviceLink === "reconnecting"}
+                onClick={() => {
+                  setReconnected(true);
+                  void window.desktopNotifications?.reconnectDevice();
+                }}
+              >
+                {view.deviceLink === "reconnecting"
+                  ? t("deviceLink.reconnecting")
+                  : t("deviceLink.action")}
+              </Button>
+            }
+          >
+            {view.deviceLink === "failed" ? t("deviceLink.failed") : t("deviceLink.body")}
+          </ProblemCallout>
+        )}
         {view.permission === "denied" ? (
           <ProblemCallout
             title={t("permissionOff.title")}
@@ -145,5 +178,6 @@ const styles = stylex.create({
   },
   header: { display: "flex", flexDirection: "column", gap: space.s2 },
   title: { outline: "none" },
+  status: { display: "contents" },
   groups: { display: "flex", flexDirection: "column", gap: space.s1 },
 });

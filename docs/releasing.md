@@ -23,6 +23,10 @@ To ship a hotfix, branch `hotfix/<name>` from `main`, commit the fix, and open a
 
 An administrator can still push a `v*` tag by hand to release a commit on `main`. `release.yml` can also be called from another workflow with a `tag` input, but its signing job only gets the `release` environment when the calling run is on a `v*` tag.
 
+## Removals due in a release
+
+- **v0.6.0:** remove the old `/api/notification-events`, `/api/notification-events/stream`, and `/api/attention` routes, and the desktop app's fallback to them (`legacy` in `apps/desktop/src/core/device-link.ts`). Clients use `/api/v1/notification-events` with a device token since ticket 0108.
+
 ## Automatic releases
 
 Tags, pushes, and pull requests made with the default `GITHUB_TOKEN` do not start other workflows, so Prepare release, Tag release, and Sync develop use a GitHub App token instead. The app's key lives in a `release-bot` environment that only `main` and `develop` can use; the signing secrets stay in the `release` environment, which only `v*` tags can use. Set this up once, before you merge a version change. Replace `OWNER/REPO` with your repository.

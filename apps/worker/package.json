@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@ganger/app": "workspace:*",
     "@ganger/codehost-github": "workspace:*",
     "@ganger/core": "workspace:*",
     "@ganger/db": "workspace:*",

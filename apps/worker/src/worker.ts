@@ -52,6 +52,7 @@ import {
   isPinnedToRunner,
 } from "@ganger/db";
 import type { RunRecords, SecretBox, StoredRun } from "@ganger/db";
+import { syncNotifications } from "@ganger/app/notifications/sync";
 import { log, withLogContext } from "@ganger/log";
 import { WorkerAdapters } from "./adapters.js";
 import {
@@ -214,6 +215,15 @@ async function tick(context: TickContext): Promise<void> {
   await processQueue(context);
   await processAfterRuns(context);
   await processWebRequests(context, "log-tail");
+  syncNotificationEventsSafely(context);
+}
+
+function syncNotificationEventsSafely(context: TickContext): void {
+  try {
+    syncNotifications(context.db, context.now());
+  } catch (error) {
+    context.logger.warn("notifications.sync_failed", { error });
+  }
 }
 
 async function cancelQueuedRuns(context: TickContext): Promise<void> {

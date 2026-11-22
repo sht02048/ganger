@@ -72,6 +72,7 @@ if (window.location.protocol === "file:") {
     },
     setNotificationSettings: (settings) => invoke("set-notification-settings", settings),
     openSystemNotificationSettings: () => invoke("open-system-notification-settings"),
+    reconnectDevice: () => invoke("reconnect-device"),
   };
   contextBridge.exposeInMainWorld("desktopNotifications", notifications);
 }

@@ -14,6 +14,7 @@ export const V1_ERROR_REASONS = [
   "unknown-code",
   "expired-code",
   "used-code",
+  "not-found",
 ] as const;
 export type V1ErrorReason = (typeof V1_ERROR_REASONS)[number];
 

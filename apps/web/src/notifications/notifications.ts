@@ -2,18 +2,14 @@ import {
   listNotificationChanges,
   listOpenNotificationEvents,
   notificationCursor,
-  syncNotificationEvents,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
-import { loadNotificationCauses } from "@ganger/app/notifications/causes";
 import { toNotificationRecord } from "@ganger/app/notifications/feed";
 import type { NotificationFeed } from "@ganger/app/notifications/feed";
 
-export const NOTIFICATION_SYNC_MIN_MS = 1_000;
+export { syncNotifications } from "@ganger/app/notifications/sync";
 
-export function syncNotifications(db: Database, now: Date): void {
-  syncNotificationEvents(db, loadNotificationCauses(db, now), now);
-}
+export const NOTIFICATION_SYNC_MIN_MS = 1_000;
 
 export function throttledSync(
   sync: () => void,

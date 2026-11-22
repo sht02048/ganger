@@ -30,8 +30,10 @@
     "window": "창",
     "navigate": "이동",
     "notificationSettings": "알림 설정…",
+    "reconnectDevice": "다시 연결",
     "makeDiagnostics": "진단 묶음 만들기…"
   },
+  "deviceName": "Ganger 데스크톱 ({host})",
   "navigate": {
     "back": "뒤로",
     "forward": "앞으로",
@@ -85,6 +87,10 @@
     "missed": {
       "title": "To do",
       "body": "꺼져 있던 동안 처리할 일 {count}개가 생겼어요."
+    },
+    "deviceRejected": {
+      "title": "이 Mac의 연결이 끊겼어요",
+      "body": "기기 목록에서 지워져 알림을 받지 못해요. 눌러서 다시 연결할 수 있어요."
     },
     "versionDiffers": {
       "title": "서버 버전이 앱과 달라요",

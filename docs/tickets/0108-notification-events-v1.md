@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 blocked_by: [0104]
 ---
 
@@ -22,6 +22,14 @@ blocked_by: [0104]
 ## 범위 밖
 
 - 푸시 보내기(0109).
+
+## 결정과 구현
+
+- **공용 스트림 닫기.** `packages/app/src/devices/streams.ts`의 `DeviceStreams`가 기기별 열린 스트림을 들고 있다. v1 SSE는 `getDeviceStreams().track(deviceId, stream)`으로 감싸 응답한다. 기기를 지우는 두 길(웹 Settings, `DELETE /api/v1/devices/me`)은 모두 `removeDeviceAndCloseStreams`를 지난다.
+- **데스크톱 토큰 저장.** 앱 설정 파일에 Electron `safeStorage`(macOS 키체인)로 암호화한 값만 서버 `instanceId`별로 둔다. 암호화를 쓸 수 없으면 파일에 쓰지 않고 메모리에만 둔다. 이때는 앱을 다시 켤 때 새 기기로 등록된다. 저장한 값을 풀 수 없으면 토큰 거절과 같게 "다시 연결" 안내를 띄운다.
+- **안내 위치.** 웹 화면은 토큰 없이 계속 쓸 수 있어 창을 가리지 않는다. 시스템 알림 한 번, 알림 설정 창의 안내, 메뉴의 "다시 연결"로 알린다.
+- **옛 서버.** 등록 경로가 없는 서버(0108 이전)에는 옛 알림 경로로 붙는다. 이 대체 경로도 v0.6.0에 지운다(`docs/releasing.md`).
+- **동기화.** worker가 틱마다 동기화한다(`packages/app/src/notifications/sync.ts`). SSE가 붙어 있으면 web도 지금처럼 2초마다 동기화해 알림이 늦지 않는다. 두 프로세스의 쓰기는 `BEGIN IMMEDIATE` 트랜잭션으로 나뉜다.
 
 ## 완료 조건
 

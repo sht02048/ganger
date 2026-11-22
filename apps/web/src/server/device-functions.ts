@@ -2,14 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import {
   deviceIdInput,
   loadDevicesView,
-  removeDeviceById,
   startConnectionInput,
   startDeviceConnection,
 } from "@ganger/app/devices/connection";
 import { getInstallSettings } from "@ganger/db";
 import { getDatabase } from "./database";
 import { getDeviceConnectionCodes } from "./device-connection-codes";
-import { getDeviceStreams } from "./device-streams";
+import { removeDeviceAndCloseStreams } from "./device-removal";
 
 export const getDevices = createServerFn({ method: "GET" }).handler(() => {
   const db = getDatabase();
@@ -35,6 +34,4 @@ export const cancelConnection = createServerFn({ method: "POST" })
 
 export const forgetDevice = createServerFn({ method: "POST" })
   .validator(deviceIdInput)
-  .handler(({ data }) =>
-    removeDeviceById({ db: getDatabase(), streams: getDeviceStreams() }, data.id, new Date()),
-  );
+  .handler(({ data }) => removeDeviceAndCloseStreams(data.id));
