@@ -89,6 +89,27 @@ function text(html: string): string {
     .replace(/\s+/g, " ");
 }
 
+function problemCalloutBlocks(html: string, title: string): string[] {
+  const titleAt = html.indexOf(`>${title}</h3>`);
+  if (titleAt === -1) throw new Error(`no problem callout titled ${title}`);
+  const section = html.slice(html.lastIndexOf("<section", titleAt));
+  const blocks: string[] = [];
+  let depth = 0;
+  let blockStart = 0;
+  for (const tag of section.matchAll(/<(\/?)[a-zA-Z][\w-]*(?:"[^"]*"|[^>"])*?(\/?)>/g)) {
+    if (tag[2] === "/") continue;
+    if (tag[1] === "/") {
+      depth -= 1;
+      if (depth === 0) return blocks;
+      if (depth === 1) blocks.push(section.slice(blockStart, tag.index + tag[0].length));
+    } else {
+      if (depth === 1) blockStart = tag.index;
+      depth += 1;
+    }
+  }
+  throw new Error("unclosed problem callout");
+}
+
 function valueOf(html: string, label: string): string | undefined {
   const after = html.split(`>${label}</dt>`)[1];
   return after === undefined ? undefined : text(after.split("</dd>")[0] ?? "").trim();
@@ -312,7 +333,14 @@ describe("Run 상세의 받은 지시서 (0146)", () => {
 
 describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
   const prUrl = "https://code.example.com/acme/web/pull/70";
-  const endedWithPr = (ciFailed: boolean, conflict: boolean) => {
+  const endedWithPr = (
+    ciFailed: boolean,
+    conflict: boolean,
+    {
+      checkTotal = 4,
+      keptWorktree = false,
+    }: { checkTotal?: number | null; keptWorktree?: boolean } = {},
+  ) => {
     const { db } = seedDatabase();
     const id = assign(db, "ACME-70", 400);
     walk(db, id, 400, [
@@ -330,7 +358,7 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
           open: true,
           headCommit: "abc",
           ciFailed,
-          checkTotal: 4,
+          checkTotal,
           failedCount: ciFailed ? 1 : 0,
           failedChecks: ciFailed ? ["lint"] : [],
           checksTruncated: false,
@@ -339,9 +367,20 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
         },
       },
     });
+    const run = found(db, id);
+    if (run.status.state !== "ended") throw new Error("run has not ended");
     return render({
       kind: "found",
-      run: { ...found(db, id), report: "시계 adapter를 합쳤어요." },
+      run: {
+        ...run,
+        report: "시계 adapter를 합쳤어요.",
+        status: keptWorktree
+          ? {
+              ...run.status,
+              keptWorktree: { reason: "unpushed-commits", removing: false },
+            }
+          : run.status,
+      },
     });
   };
   const primaryLinks = (html: string): string[] =>
@@ -363,6 +402,34 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
     expect(text(html)).toContain(domain.runNextStep.body["pr-conflict"]);
     expect(primaryLinks(html)).toEqual([prUrl]);
   });
+
+  it.each([
+    { step: "pr-conflict", ciFailed: false, conflict: true },
+    { step: "pr-ci-failed", ciFailed: true, conflict: false },
+  ] as const)(
+    "$step 띠는 덧붙일 말과 보존 워크트리가 없으면 빈 본문을 두지 않는다(0177)",
+    ({ step, ciFailed, conflict }) => {
+      const html = endedWithPr(ciFailed, conflict, { checkTotal: null });
+      const blocks = problemCalloutBlocks(html, domain.runNextStep.body[step]);
+      expect(blocks).toHaveLength(2);
+      expect(blocks[0]).toContain("<h3");
+      expect(blocks[1]).toContain("<a ");
+    },
+  );
+
+  it.each([
+    { step: "pr-conflict", ciFailed: false, conflict: true },
+    { step: "pr-ci-failed", ciFailed: true, conflict: false },
+  ] as const)(
+    "$step 띠는 보존 워크트리가 있으면 본문에 그 안내를 보인다(0177)",
+    ({ step, ciFailed, conflict }) => {
+      const html = endedWithPr(ciFailed, conflict, { checkTotal: null, keptWorktree: true });
+      const blocks = problemCalloutBlocks(html, domain.runNextStep.body[step]);
+      expect(blocks).toHaveLength(3);
+      expect(text(blocks[1] ?? "")).toContain(runJson.keptWorktree["unpushed-commits"]);
+      expect(text(blocks[1] ?? "")).toContain(runJson.keptWorktreeNext["unpushed-commits"]);
+    },
+  );
 
   it("Question 은 띠의 답하기가 보조 버튼이고 노란 버튼은 보내기 하나다", () => {
     const { db, ids } = seedDatabase();

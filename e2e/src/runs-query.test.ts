@@ -111,9 +111,12 @@ beforeAll(async () => {
 
   const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
   warm.setDefaultTimeout(110_000);
-  for (const path of [`/runs?ws=${workspaceId}`, `/runs/${endedRun}?ws=${workspaceId}`]) {
+  for (const [path, screenQueryKey] of [
+    [`/runs?ws=${workspaceId}`, runsListQueryKey],
+    [`/runs/${endedRun}?ws=${workspaceId}`, runDetailQueryKey(endedRun)],
+  ] as const) {
     await warm.goto(path);
-    await warm.waitForLoadState("networkidle");
+    await waitForScreenQuerySettled(warm, screenQueryKey);
   }
   await warm.close();
 }, 240_000);
@@ -299,7 +302,6 @@ async function open(
   await opened.page.goto(`${path}?ws=${workspaceId}`);
   await opened.page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
   await waitForRouterIdle(opened.page, path);
-  await opened.page.waitForLoadState("networkidle");
   await waitForScreenQuerySettled(opened.page, screenQueryKey);
 }
 

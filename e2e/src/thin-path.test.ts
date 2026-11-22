@@ -43,10 +43,13 @@ import {
 import type { Database, StoredRun } from "@ganger/db";
 import { startWorker } from "@ganger/worker";
 import type { RunningWorker } from "@ganger/worker";
+import { chromium } from "playwright-core";
+import type { Browser } from "playwright-core";
 import type { ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadBoardRun } from "@ganger/app/runs/board-load";
+import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
 import runsJson from "../../apps/web/messages/ko/runs.json" with { type: "json" };
+import { waitForScreenQuerySettled } from "./query-settled.js";
 import { startWebServer } from "./web-server.js";
 
 const fakeKind = "fake";
@@ -99,6 +102,7 @@ let db: Database;
 let worker: RunningWorker;
 let web: ViteDevServer;
 let baseUrl: string;
+let browser: Browser;
 const tracker = new FakeTracker(toTrackerKind(fakeKind));
 const codeHost = new FakeCodeHost(toCodeHostKind(fakeKind));
 const runner = new FakeRunner(toRunnerKind(fakeKind));
@@ -128,9 +132,17 @@ beforeAll(async () => {
     plugins: [],
     cacheDir: join(dir, "vite-cache"),
   }));
-}, 120_000);
+  browser = await chromium.launch({ channel: "chrome" });
+
+  const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
+  warm.setDefaultTimeout(110_000);
+  await warm.goto(`/runs?ws=${workspaceId}`);
+  await waitForScreenQuerySettled(warm, ["runs", "list"]);
+  await warm.close();
+}, 240_000);
 
 afterAll(async () => {
+  await browser?.close();
   await web?.close();
   await worker?.stop();
   db?.$client.close();
@@ -168,13 +180,17 @@ describe("끝에서 끝까지 얇은 경로", () => {
       expect(word).toContain(
         runsJson.word[scenario.summary === "succeeded" ? "done" : scenario.summary],
       );
-      const panelRun = loadBoardRun(db, workspaceId, assigned.id, new Date());
-      expect(panelRun).toMatchObject({
-        state: "ended",
-        summary: scenario.summary,
-        agentResult: scenario.agentResult,
-      });
-      expect(panelRun?.pullRequest?.displayId ?? null).toBe(scenario.pr === null ? null : "#pr");
+
+      const panel = await readRenderedPanel(assigned.id);
+      expect(panel.whole).toContain(scenario.key);
+      expect(panel.whole).toContain(domain.summary[scenario.summary]);
+      expect(panel.whole).toContain(domain.agentResult[scenario.agentResult]);
+      expect(panel.prSection).toContain(
+        scenario.prState === "none"
+          ? runsJson.panel.prSection.none
+          : runsJson.panel.prSection.state[scenario.prState],
+      );
+      expect(panel.whole.includes("#pr")).toBe(scenario.pr !== null);
     });
   }
 
@@ -295,6 +311,21 @@ async function fetchRuns(): Promise<string> {
   const response = await fetch(url);
   expect(response.status).toBe(200);
   return response.text();
+}
+
+async function readRenderedPanel(id: RunId): Promise<{ whole: string; prSection: string }> {
+  const page = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
+  page.setDefaultTimeout(30_000);
+  try {
+    await page.goto(`/runs?ws=${workspaceId}&view=all&sel=${id}`);
+    await waitForScreenQuerySettled(page, ["runs", "list", "run", workspaceId, id]);
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
+    const prSection = dialog.getByRole("region", { name: /^PR/ });
+    return { whole: await dialog.innerText(), prSection: await prSection.innerText() };
+  } finally {
+    await page.close();
+  }
 }
 
 function withoutFoldedOnly(html: string): string {

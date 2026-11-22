@@ -48,6 +48,7 @@ import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" 
 import question from "../../apps/web/messages/ko/question.json" with { type: "json" };
 import run from "../../apps/web/messages/ko/run.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
+import { waitForScreenQuerySettled } from "./query-settled.js";
 import { startWebServer } from "./web-server.js";
 
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
@@ -361,7 +362,7 @@ describe("Run 상세 보내기 뒤 포커스와 안내(브라우저, 0051)", () 
 
 async function open(runId: RunId): Promise<void> {
   await page.goto(`/runs/${runId}?ws=${workspaceId}`);
-  await hydrated(page);
+  await waitForScreenQuerySettled(page, ["runs", "detail", runId]);
 }
 
 function answerOf(runId: RunId): string | undefined {
@@ -495,9 +496,4 @@ function startRun(key: string): RunId {
 
 function ok(result: { ok: true } | { ok: false; error: unknown }): void {
   if (!result.ok) throw new Error(`state change failed: ${JSON.stringify(result.error)}`);
-}
-
-async function hydrated(page: Page): Promise<void> {
-  await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-  await page.waitForLoadState("networkidle");
 }

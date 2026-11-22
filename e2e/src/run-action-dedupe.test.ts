@@ -43,6 +43,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } f
 import question from "../../apps/web/messages/ko/question.json" with { type: "json" };
 import run from "../../apps/web/messages/ko/run.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
+import { waitForScreenQuerySettled } from "./query-settled.js";
 import { startWebServer } from "./web-server.js";
 
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
@@ -226,8 +227,7 @@ describe("보내는 동안 버튼을 막는다(0156)", () => {
 
 async function open(runId: RunId): Promise<void> {
   await page.goto(`/runs/${runId}?ws=${workspaceId}`);
-  await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-  await page.waitForLoadState("networkidle");
+  await waitForScreenQuerySettled(page, ["runs", "detail", runId]);
 }
 
 async function expectBlocked(button: Locator): Promise<void> {
