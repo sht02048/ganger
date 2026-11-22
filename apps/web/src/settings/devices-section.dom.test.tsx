@@ -99,6 +99,26 @@ describe("기기 연결 QR의 수명(0104)", () => {
     expect(document.activeElement?.getAttribute("aria-label")).toBe(settings.devices.qrLabel);
   });
 
+  it("새 QR을 만들지 못해 QR 묶음이 사라지면 포커스를 결과 문장으로 옮긴다", async () => {
+    const { actions, pending } = harness();
+    draw({ address: ADDRESS, devices: [] }, actions);
+    press(settings.devices.showQr);
+    await settle(() => pending[0]?.(issued("open")));
+    press(settings.devices.renew);
+    await settle(() => pending[1]?.({ ok: false, reason: "no-https-address" }));
+    expect(shownQr()).toBeNull();
+    expect(document.activeElement?.getAttribute("role")).toBe("status");
+  });
+
+  it("주소가 바뀌어 QR 묶음이 사라지면 포커스를 결과 문장으로 옮긴다", async () => {
+    const { actions, pending } = harness();
+    draw({ address: ADDRESS, devices: [] }, actions);
+    press(settings.devices.showQr);
+    await settle(() => pending[0]?.(issued("open")));
+    draw({ address: null, devices: [] }, actions);
+    expect(document.activeElement?.getAttribute("role")).toBe("status");
+  });
+
   it("기다리는 동안 화면을 떠나면 늦게 온 코드를 취소한다", async () => {
     const { actions, cancel, pending } = harness();
     draw({ address: ADDRESS, devices: [] }, actions);

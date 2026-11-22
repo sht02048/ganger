@@ -5,6 +5,7 @@ import type {
   StartDeviceConnectionResult,
 } from "@ganger/app/devices/connection";
 import {
+  Actions,
   Button,
   Dialog,
   DialogClose,
@@ -64,7 +65,13 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
 
   const dropQr = () => {
     qrGeneration.current += 1;
-    if (openId.current !== null) cancelCode(openId.current);
+    if (openId.current !== null) {
+      const focused = document.activeElement;
+      if (focused === document.body || qrPanelRef.current?.contains(focused)) {
+        statusRef.current?.focus();
+      }
+      cancelCode(openId.current);
+    }
     showQr(null);
     setStarting(false);
   };
@@ -118,7 +125,7 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
       if (result.ok) {
         showQr({ id: result.id, qr: result.qr, expiresInMs: result.expiresInMs, expired: false });
       } else {
-        showQr(null);
+        dropQr();
         setStatus({ tone: "problem", text: t("needsHttps") });
       }
       setStarting(false);
@@ -244,12 +251,12 @@ function QrPanel({
       ) : (
         <QrCode value={qr.qr} label={t("qrLabel")} />
       )}
-      <div {...stylex.props(styles.actions)}>
+      <Actions>
         <Button onClick={onRenew} disabled={starting}>
           {t("renew")}
         </Button>
         <Button onClick={onClose}>{t("close")}</Button>
-      </div>
+      </Actions>
     </div>
   );
 }
@@ -306,10 +313,5 @@ const styles = stylex.create({
     flexDirection: "column",
     alignItems: "flex-start",
     gap: space.s3,
-  },
-  actions: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: space.s2,
   },
 });
