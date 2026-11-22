@@ -81,6 +81,7 @@ import {
 } from "../shared/view.js";
 import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
 import { navigationMenu } from "./navigation-menu.js";
+import { screenOutlivedServerSwap, viewMenu } from "./view-menu.js";
 import {
   diagnosticsDownloadNotice,
   diagnosticsMenuItem,
@@ -282,9 +283,16 @@ export class Controller {
     this.setView({ screen: "local-starting" });
     this.refreshMenus();
     const result = await this.options.local.ensureRunning(this.swapHooks());
-    this.watch.adopt(result);
+    this.adoptEnsured(result);
     this.watch.start();
     this.afterEnsure(result);
+  }
+
+  private adoptEnsured(result: EnsureResult): void {
+    const reloadScreen = screenOutlivedServerSwap(result, this.serverUrl);
+    this.watch.adopt(result);
+    const window = this.window;
+    if (reloadScreen && window !== undefined && !window.isDestroyed()) window.webContents.reload();
   }
 
   private swapHooks(): EnsureHooks {
@@ -312,7 +320,7 @@ export class Controller {
     this.watch.setWanted(true);
     this.setView({ screen: "local-starting" });
     const result = await this.options.local.ensureRunning(this.swapHooks());
-    this.watch.adopt(result);
+    this.adoptEnsured(result);
     this.afterEnsure(result);
   }
 
@@ -946,7 +954,7 @@ export class Controller {
           ],
         },
         { label: t("menu.edit"), role: "editMenu" },
-        { label: t("menu.view"), role: "viewMenu" },
+        viewMenu({ label: t("menu.view"), reloadLabel: t("menu.reload") }),
         navigationMenu({
           label: t("menu.navigate"),
           screenLabel: (screen) => t(`navigate.${screen}`),
