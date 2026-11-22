@@ -160,6 +160,9 @@ export function ComponentSections() {
               <Button>{t("buttons.secondary")}</Button>
               <Button variant="danger">{t("buttons.danger")}</Button>
               <Button variant="ghost">{t("buttons.ghost")}</Button>
+              <Button compact outlined>
+                {t("buttons.outlined")}
+              </Button>
               <Button disabled>{t("buttons.disabled")}</Button>
               <Button busy={{ active: true, label: t("buttons.busyLabel") }}>
                 {t("buttons.busy")}
@@ -557,6 +560,7 @@ export function ComponentSections() {
               title={t("dialog.title")}
               actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
             />
+            <TriggerlessDialogPreview />
           </Demo>
         </Section>
       </div>
@@ -583,6 +587,23 @@ export function ComponentSections() {
           </Demo>
         </Section>
       </div>
+    </>
+  );
+}
+
+function TriggerlessDialogPreview() {
+  const t = useTranslations("ds");
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>{t("dialog.triggerless")}</Button>
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t("dialog.title")}
+        description={t("dialog.description")}
+        actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
+      />
     </>
   );
 }

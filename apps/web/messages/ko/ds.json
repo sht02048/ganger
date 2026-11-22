@@ -130,6 +130,7 @@
     "secondary": "ssh 연결 확인",
     "danger": "런 취소",
     "ghost": "연결 확인",
+    "outlined": "하위 2개 할당",
     "disabled": "할당하기",
     "busy": "Linear에서 다시 읽기",
     "busyLabel": "읽는 중…"
@@ -287,6 +288,7 @@
     "note": "되돌릴 수 없는 행동을 확인할 때만 써요.",
     "trigger": "Mapping 지우기",
     "busyTrigger": "지우는 중",
+    "triggerless": "화면이 여는 Dialog",
     "title": "Mapping을 지울까요?",
     "description": "acme/web으로 들어오던 티켓은 더 할당되지 않아요. 이미 도는 런은 그대로 끝나요.",
     "cancel": "취소",

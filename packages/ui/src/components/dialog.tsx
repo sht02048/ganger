@@ -24,7 +24,8 @@ import {
 } from "../tokens.stylex";
 
 export interface DialogProps {
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  finalFocus?: () => HTMLElement | null;
   triggerVariant?: ButtonVariant;
   triggerBusy?: { active: boolean; label: ReactNode };
   triggerCompact?: boolean;
@@ -51,6 +52,7 @@ export function Dialog({
   onOpenChange,
   scrollBody = false,
   status,
+  finalFocus,
 }: DialogProps) {
   return (
     <SdkDialog
@@ -59,33 +61,36 @@ export function Dialog({
         ? {}
         : { onOpenChange: (next: boolean) => onOpenChange(next) })}
     >
-      <DialogTrigger
-        {...(triggerBusy === undefined
-          ? {}
-          : { "aria-busy": triggerBusy.active, "aria-disabled": triggerBusy.active })}
-        {...(triggerBusy?.active === true
-          ? {
-              onClickCapture: (event: MouseEvent) => {
-                event.preventDefault();
-                event.stopPropagation();
-              },
-            }
-          : {})}
-        data-variant={triggerVariant}
-        className={cx(
-          ...buttonStyles(triggerVariant, triggerBusy?.active === true),
-          triggerCompact && compactButtonStyle,
-        )}
-      >
-        {triggerBusy === undefined ? (
-          trigger
-        ) : (
-          <BusyLabels busy={triggerBusy}>{trigger}</BusyLabels>
-        )}
-      </DialogTrigger>
+      {trigger === undefined ? null : (
+        <DialogTrigger
+          {...(triggerBusy === undefined
+            ? {}
+            : { "aria-busy": triggerBusy.active, "aria-disabled": triggerBusy.active })}
+          {...(triggerBusy?.active === true
+            ? {
+                onClickCapture: (event: MouseEvent) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                },
+              }
+            : {})}
+          data-variant={triggerVariant}
+          className={cx(
+            ...buttonStyles(triggerVariant, triggerBusy?.active === true),
+            triggerCompact && compactButtonStyle,
+          )}
+        >
+          {triggerBusy === undefined ? (
+            trigger
+          ) : (
+            <BusyLabels busy={triggerBusy}>{trigger}</BusyLabels>
+          )}
+        </DialogTrigger>
+      )}
       <DialogBackdrop {...windowRegion("no-drag")} className={cx(styles.backdrop)} />
       <DialogContent
         {...windowRegion("no-drag")}
+        {...(finalFocus === undefined ? {} : { finalFocus })}
         className={cx(styles.content, scrollBody && styles.contentFits)}
       >
         <div {...stylex.props(styles.head)}>

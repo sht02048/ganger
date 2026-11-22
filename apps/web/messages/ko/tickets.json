@@ -143,6 +143,30 @@
     "waitingNone": "없어요",
     "relationsNote": "관계는 Linear의 blocked by에서 읽어요. 바꾸려면 Linear에서 고쳐요."
   },
+  "bulkAssign": {
+    "trigger": "하위 {count, number}개 할당",
+    "triggerLabel": "하위 {count, number}개 할당, {key}",
+    "title": "하위 티켓 할당하기",
+    "description": "{key} {title}의 하위 티켓을 맡겨요. 러너 자리가 나는 순서대로 시작해요.",
+    "listLabel": "할당할 하위 티켓",
+    "submit": "{count, number}개 할당하기",
+    "submitting": "할당하는 중…",
+    "close": "닫기",
+    "hint": {
+      "waiting": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요",
+      "blocker-canceled": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 취소돼서 할당하면 Queued에 멈춰요",
+      "failed": "지난 런이 Failed예요",
+      "canceled": "지난 런이 Canceled예요",
+      "succeeded": "지난 런이 Succeeded예요. 새 런은 티켓 패널에서 시작해요",
+      "done": "이미 끝난 티켓이에요",
+      "no-mapping": "Mapping이 없어요"
+    },
+    "result": {
+      "assigned": "{count, number}개 할당했어요.",
+      "failedTicket": "{key} 티켓은 할당하지 못했어요. {reason}",
+      "retry": "다시 시도해 주세요."
+    }
+  },
   "assign": {
     "title": "{key} 티켓을 할당할까요?",
     "description": "Mapping 기본값으로 채웠어요. 저장소, 러너, 에이전트를 바꿀 수 있어요.",

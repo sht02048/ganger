@@ -49,9 +49,16 @@ import { useTime } from "../format/time";
 import { currentPrState } from "@ganger/app/runs/model";
 import type { WorkspaceSummary } from "@ganger/app/shell/model";
 import { runStatus, useStatusName } from "../status";
-import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
+import type {
+  AssignInput,
+  AssignResult,
+  BulkAssignInput,
+  BulkAssignResult,
+} from "@ganger/app/tickets/assign";
+import { assignableChildCount } from "@ganger/app/tickets/bulk-assign";
 import { ticketId } from "@ganger/app/tickets/merge";
 import { AssignDialog } from "./assign-dialog";
+import { BulkAssignDialog } from "./bulk-assign-dialog";
 import { TICKET_FILTERS, countByFilter, lastRun } from "@ganger/app/tickets/model";
 import type {
   TicketBlockersResult,
@@ -84,6 +91,7 @@ export interface TicketsScreenProps {
   onOpenRun: (runId: string) => void;
   onOpenRuns: (ticket: TicketView) => void;
   onAssign: (input: AssignInput) => Promise<AssignResult>;
+  onAssignMany: (input: BulkAssignInput) => Promise<BulkAssignResult>;
   onAssigned: (ticketId: string) => void;
   onReadBlockers: (ticket: TicketView) => Promise<TicketBlockersResult>;
   onReread: () => Promise<void>;
@@ -221,12 +229,34 @@ function TicketsList({
   onOpenRun,
   onOpenRuns,
   onAssign,
+  onAssignMany,
   onAssigned,
   onReadBlockers,
   onReread,
 }: TicketsScreenProps) {
   const t = useTranslations("tickets");
   const reread = useReread(onReread, page);
+  const [bulkTarget, setBulkTarget] = useState<{ group: TicketGroup; opening: number } | null>(
+    null,
+  );
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const bulkOpener = useRef<HTMLElement | null>(null);
+  const bulkAssigned = useRef(false);
+  const parentTitleRef = useRef<HTMLDivElement>(null);
+  const openBulkAssign = (group: TicketGroup, opener: HTMLElement) => {
+    bulkOpener.current = opener;
+    bulkAssigned.current = false;
+    setBulkTarget((current) => ({ group, opening: (current?.opening ?? 0) + 1 }));
+    setBulkOpen(true);
+  };
+  const bulkFinalFocus = (): HTMLElement | null => {
+    const title = parentTitleRef.current;
+    if (bulkAssigned.current) {
+      return title?.dataset["groupId"] === bulkTarget?.group.id ? title : null;
+    }
+    const opener = bulkOpener.current;
+    return opener?.isConnected === true ? opener : title;
+  };
   const [query, setQuery] = useState("");
   const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(new Map());
   const narrowing = `${filter}\u0000${query}`;
@@ -444,6 +474,7 @@ function TicketsList({
                             onOpenRun={onOpenRun}
                             onAssign={onAssign}
                             onAssigned={assignedFromList}
+                            onBulkAssign={openBulkAssign}
                           />
                         ))}
                         {rowWindow.spaceAfter > 0 ? (
@@ -463,6 +494,8 @@ function TicketsList({
               <ParentIssuePanel
                 key={selectedGroup.id}
                 group={selectedGroup}
+                titleRef={parentTitleRef}
+                onBulkAssign={openBulkAssign}
                 onSelectTicket={selectFromPanel}
                 onOpenRun={onOpenRun}
                 onOpenRuns={onOpenRuns}
@@ -495,7 +528,51 @@ function TicketsList({
           )
         }
       />
+      {bulkTarget === null ? null : (
+        <BulkAssignDialog
+          key={bulkTarget.opening}
+          group={issueGroups.get(bulkTarget.group.id) ?? bulkTarget.group}
+          open={bulkOpen}
+          onOpenChange={(next) => {
+            setBulkOpen(next);
+            if (!next && bulkAssigned.current) {
+              setRelationPickedId(bulkTarget.group.id);
+              onAssigned(bulkTarget.group.id);
+            }
+          }}
+          onAssignMany={onAssignMany}
+          onReadBlockers={onReadBlockers}
+          onAssigned={() => {
+            bulkAssigned.current = true;
+          }}
+          finalFocus={bulkFinalFocus}
+        />
+      )}
     </ScreenLayout>
+  );
+}
+
+function BulkAssignButton({
+  group,
+  inRow = false,
+  onBulkAssign,
+}: {
+  group: TicketGroup;
+  inRow?: boolean;
+  onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
+}) {
+  const t = useTranslations("tickets.bulkAssign");
+  const count = assignableChildCount(group.children);
+  if (count === 0) return null;
+  return (
+    <Button
+      compact
+      outlined={inRow}
+      aria-label={t("triggerLabel", { count, key: group.root.key })}
+      onClick={(event) => onBulkAssign(group, event.currentTarget)}
+    >
+      {t("trigger", { count })}
+    </Button>
   );
 }
 
@@ -534,6 +611,7 @@ interface TicketListRowViewProps {
   onOpenRun: (runId: string) => void;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
+  onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
   issueGroups: ReadonlyMap<string, TicketGroup>;
 }
 
@@ -586,6 +664,7 @@ function ParentRow({
   onOpenRun,
   onAssign,
   onAssigned,
+  onBulkAssign,
 }: RowCommon & {
   rowKey: string;
   group: TicketGroup;
@@ -597,6 +676,8 @@ function ParentRow({
   const t = useTranslations("tickets.group");
   const { progress, root, rootTicket } = group;
   const parentLine = showParentLine ? rootTicket?.ancestors[0] : undefined;
+  const ownAction = rootTicket === null ? null : rowActionOf(rootTicket);
+  const showBulk = toggle !== undefined && ownAction === null;
   return (
     <IssueRow
       rowKey={rowKey}
@@ -629,19 +710,21 @@ function ParentRow({
         ? {}
         : { below: t("parentLine", { key: parentLine.key, title: parentLine.title }) })}
       run={<GroupRunSummary group={group} />}
-      {...(rootTicket === null
-        ? {}
-        : {
-            action: (
-              <TicketRowActionButton
-                ticket={rootTicket}
-                page={page}
-                onOpenRun={onOpenRun}
-                onAssign={onAssign}
-                onAssigned={onAssigned}
-              />
-            ),
-          })}
+      {...(showBulk
+        ? { action: <BulkAssignButton group={group} inRow onBulkAssign={onBulkAssign} /> }
+        : rootTicket === null
+          ? {}
+          : {
+              action: (
+                <TicketRowActionButton
+                  ticket={rootTicket}
+                  page={page}
+                  onOpenRun={onOpenRun}
+                  onAssign={onAssign}
+                  onAssigned={onAssigned}
+                />
+              ),
+            })}
     />
   );
 }
@@ -659,6 +742,7 @@ function TicketRow({
   onOpenRun,
   onAssign,
   onAssigned,
+  onBulkAssign,
 }: RowCommon & {
   ticket: TicketView;
   indent: "none" | "top" | "child";
@@ -668,6 +752,7 @@ function TicketRow({
   const t = useTranslations("tickets.group");
   const parent = showParentLine ? ticket.ancestors[0] : undefined;
   const ownIssueGroup = issueGroups.get(ticket.id);
+  const bulkGroup = indent === "child" && rowActionOf(ticket) === null ? ownIssueGroup : undefined;
   return (
     <IssueRow
       rowKey={ticket.id}
@@ -699,13 +784,17 @@ function TicketRow({
         )
       }
       action={
-        <TicketRowActionButton
-          ticket={ticket}
-          page={page}
-          onOpenRun={onOpenRun}
-          onAssign={onAssign}
-          onAssigned={onAssigned}
-        />
+        bulkGroup === undefined ? (
+          <TicketRowActionButton
+            ticket={ticket}
+            page={page}
+            onOpenRun={onOpenRun}
+            onAssign={onAssign}
+            onAssigned={onAssigned}
+          />
+        ) : (
+          <BulkAssignButton group={bulkGroup} inRow onBulkAssign={onBulkAssign} />
+        )
       }
     />
   );
@@ -816,6 +905,8 @@ function TicketRowActionButton({
 
 function ParentIssuePanel({
   group,
+  titleRef,
+  onBulkAssign,
   onSelectTicket,
   onOpenRun,
   onOpenRuns,
@@ -823,6 +914,8 @@ function ParentIssuePanel({
   onFocusedTitle,
 }: {
   group: TicketGroup;
+  titleRef: RefObject<HTMLDivElement | null>;
+  onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
   onSelectTicket: (id: string) => void;
   onOpenRun: (runId: string) => void;
   onOpenRuns: (ticket: TicketView) => void;
@@ -832,19 +925,18 @@ function ParentIssuePanel({
   const t = useTranslations("tickets.panel");
   const tTickets = useTranslations("tickets");
   const statusName = useStatusName();
-  const titleRef = useRef<HTMLDivElement>(null);
   const { root, rootTicket, progress, children } = group;
   useEffect(() => {
     if (!focusTitle) return;
     titleRef.current?.focus();
     onFocusedTitle();
-  }, [focusTitle, onFocusedTitle]);
+  }, [focusTitle, onFocusedTitle, titleRef]);
   const meta = [root.key, rootTicket?.trackerProject.name, t("parentIssue")]
     .filter((part) => part !== undefined)
     .join(" · ");
   return (
     <DetailPanel>
-      <div ref={titleRef} tabIndex={-1}>
+      <div ref={titleRef} tabIndex={-1} data-group-id={group.id}>
         <PanelHeader
           eyebrow={meta}
           status={
@@ -853,6 +945,7 @@ function ParentIssuePanel({
               {root.url === null ? null : (
                 <ExternalIconLink href={root.url} label={`${t("openInLinear")} (${t("newTab")})`} />
               )}
+              <BulkAssignButton group={group} onBulkAssign={onBulkAssign} />
             </>
           }
           title={root.title}

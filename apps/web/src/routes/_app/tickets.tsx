@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { createTranslator } from "use-intl";
 import { z } from "zod";
 import { trackerProjectKey } from "@ganger/app/runs/conditions";
-import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
+import type { AssignInput, AssignResult, BulkAssignInput } from "@ganger/app/tickets/assign";
 import { mergeTicketsPage } from "@ganger/app/tickets/merge";
 import { TICKET_VIEWS } from "@ganger/app/tickets/groups";
 import { ASSIGN_REJECT_REASONS, TICKET_FILTERS } from "@ganger/app/tickets/model";
@@ -13,7 +13,12 @@ import { INVALIDATED_KEYS } from "../../change-events/invalidation";
 import { ScreenMessages, defaultLocale } from "../../i18n";
 import { okOrThrow, rejectionReasonOf, toMutationError } from "../../query/mutation-error";
 import { loadCachedRouteQuery, loadRouteQuery } from "../../query/route-query";
-import { assignTicket, getTicketBlockers, rereadTrackers } from "../../server/functions";
+import {
+  assignTicket,
+  assignTickets,
+  getTicketBlockers,
+  rereadTrackers,
+} from "../../server/functions";
 import { useShell } from "../../shell/shell-query";
 import { ticketsMessages } from "../../tickets/messages";
 import { TRACKER_KEY, ticketRunsQuery, trackerTicketsQuery } from "../../tickets/tickets-query";
@@ -66,6 +71,13 @@ function TicketsRoute() {
         INVALIDATED_KEYS.assignment.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
       ),
   });
+  const assignMany = useMutation({
+    mutationFn: (input: BulkAssignInput) => assignTickets({ data: input }),
+    onSuccess: () =>
+      Promise.all(
+        INVALIDATED_KEYS.assignment.map((queryKey) => queryClient.invalidateQueries({ queryKey })),
+      ),
+  });
   return (
     <ScreenMessages messages={ticketsMessages}>
       <TicketsScreen
@@ -112,6 +124,7 @@ function TicketsRoute() {
         onAssign={(input) =>
           assign.mutateAsync(input).then((result): AssignResult => result, assignResultOf)
         }
+        onAssignMany={(input) => assignMany.mutateAsync(input)}
         onAssigned={(id) => {
           void navigate({
             search: (prev) => ({ ...prev, sel: id }),

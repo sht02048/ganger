@@ -29,7 +29,12 @@ import { loadShell } from "@ganger/app/shell/load";
 import { TITLE_BAR_COOKIE, isTitleBarHidden } from "@ganger/app/shell/window-chrome";
 import { loadStatsPage } from "@ganger/app/stats/load";
 import { statsPeriodDaysSchema } from "@ganger/app/stats/model";
-import { assignInput, submitAssignment } from "@ganger/app/tickets/assign";
+import {
+  assignInput,
+  bulkAssignInput,
+  submitAssignment,
+  submitBulkAssignment,
+} from "@ganger/app/tickets/assign";
 import { loadTicketBlockers, loadTicketRuns, loadTrackerTickets } from "@ganger/app/tickets/load";
 import { TIME_ZONE_COOKIE, parseTimeZone } from "@ganger/app/time-zone";
 import { getAdapterRegistry, getSecretBox } from "./adapters";
@@ -178,3 +183,7 @@ export const rereadTrackers = createServerFn({ method: "POST" }).handler(() => {
 export const assignTicket = createServerFn({ method: "POST" })
   .validator(assignInput)
   .handler(({ data }) => submitAssignment(getDatabase(), data, new Date()));
+
+export const assignTickets = createServerFn({ method: "POST" })
+  .validator(bulkAssignInput)
+  .handler(({ data }) => submitBulkAssignment(getDatabase(), data, new Date()));
