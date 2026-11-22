@@ -1,7 +1,9 @@
 import { toAgentId, toRunnerProjectId, toTicketKey, toTrackerProjectId } from "@ganger/core";
-import { assignRun, changeRunState } from "@ganger/db";
+import { assignRun, changeRunState, requestRunCancel } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { describe, expect, it } from "vitest";
+import { nextStepInputOfDetail, runNextStep } from "@ganger/app/run-next-step";
+import { loadRunDetail } from "@ganger/app/run-detail/load";
 import { pickBoardConditions } from "@ganger/app/runs/board";
 import { loadBoardRun, loadRunsBoard } from "@ganger/app/runs/board-load";
 import { connection, endedCases, labs, minutes, now, seedDatabase } from "../testing/seed";
@@ -125,6 +127,22 @@ describe("Runs 보드 읽기(0173)", () => {
     expect(loadBoardRun(db, undefined, failedId, now)?.nextStep).toBe("none");
     const page = loadRunsBoard(db, undefined, now);
     expect(page.ended.some((run) => run.id === failedId)).toBe(false);
+  });
+
+  it("모든 런의 처리할 일이 런 상세와 같고, 취소 중인 Disconnected 도 같다", () => {
+    const { db, ids } = seedDatabase();
+    const disconnected = ids.get("ACME-12");
+    if (disconnected === undefined) throw new Error("seed");
+    expect(requestRunCancel(db, disconnected, minutes(110)).ok).toBe(true);
+    for (const id of ids.values()) {
+      const detail = loadRunDetail(db, id, now);
+      if (detail.kind !== "found") throw new Error("detail");
+      const workspace = detail.run.workspace.id;
+      expect(loadBoardRun(db, workspace, id, now)?.nextStep).toBe(
+        runNextStep(nextStepInputOfDetail(detail.run)),
+      );
+    }
+    expect(loadBoardRun(db, undefined, disconnected, now)?.nextStep).toBe("disconnected");
   });
 
   it("이어서 맡길 수 있는지는 목록이 아니라 고른 런 하나를 읽을 때 정한다", () => {
