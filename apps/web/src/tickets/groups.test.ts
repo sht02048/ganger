@@ -82,6 +82,29 @@ describe("묶기(0171)", () => {
     expect(groups[0]?.root.key).toBe("Z");
   });
 
+  it("읽은 조상 사슬을 이어 3단계를 넘는 계층을 한 묶음으로 합친다", () => {
+    const { groups } = groupTickets([
+      ticket("D", under("C", "B", "A")),
+      ticket("C", under("B", "A", "Z")),
+    ]);
+    expect(groups.map((group) => [group.root.key, group.children.map((c) => c.key)])).toEqual([
+      ["Z", ["D", "C"]],
+    ]);
+  });
+
+  it("트래커에서 끝났어도 런이 돌고 있으면 진행 중이고 묶음을 펼친다", () => {
+    const { groups } = groupTickets([
+      ticket("A", {
+        ...under("P"),
+        ...state("completed"),
+        runs: [active("running")],
+        assignability: { kind: "active-run", runId: "r" },
+      }),
+    ]);
+    expect(groups[0]?.stage).toBe("in-progress");
+    expect(groups[0]?.expandedByDefault).toBe(true);
+  });
+
   it("상위 관계가 돌아도 멈추고 티켓을 잃지 않는다", () => {
     const { groups, loose } = groupTickets([ticket("A", under("B")), ticket("B", under("A"))]);
     expect(groups).toEqual([]);

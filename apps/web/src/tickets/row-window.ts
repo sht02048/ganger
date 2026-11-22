@@ -3,7 +3,7 @@ import type { RefObject } from "react";
 
 const ROWS_BEFORE_MEASURING = 30;
 const EXTRA_ROWS_EACH_SIDE = 6;
-const ROW_HEIGHT_BEFORE_MEASURING = 54;
+const ROW_HEIGHT_BEFORE_MEASURING = 52;
 
 export interface RowWindow {
   start: number;
@@ -115,6 +115,7 @@ export function useRowWindow(
     };
   }, [root, rowKeys.length]);
 
+  const keyToKeepInView = rowKeys[indexToKeepInView];
   useLayoutEffect(() => {
     const element = root.current;
     if (element === null || indexToKeepInView < 0) return;
@@ -131,7 +132,7 @@ export function useRowWindow(
     if (delta === 0) return;
     if (scroller === null) window.scrollBy(0, delta);
     else scroller.scrollTop += delta;
-  }, [root, indexToKeepInView]);
+  }, [root, keyToKeepInView]);
 
   if (view === null) {
     const end = Math.min(rowKeys.length, ROWS_BEFORE_MEASURING);

@@ -54,7 +54,7 @@ function isFinishedInTracker(ticket: TicketView): boolean {
 
 export function ticketStage(ticket: TicketView): TicketStage {
   const run = lastRun(ticket);
-  if (run !== undefined && run.state !== "ended" && isTodo(run)) return "attention";
+  if (run !== undefined && run.state !== "ended") return isTodo(run) ? "attention" : "in-progress";
   if (isFinishedInTracker(ticket)) return "finished";
   if (run !== undefined && isTodo(run)) return "attention";
   if (ticket.assignability.kind === "ready" && matchesFilter(ticket, "assignable"))
@@ -83,20 +83,35 @@ export function progressOf(children: ReadonlyArray<TicketView>): TicketProgress 
   return progress;
 }
 
-function topIssueOf(
-  ticket: TicketView,
-  loaded: ReadonlyMap<string, TicketView>,
-): { id: string; ref: TicketIssueRef } | null {
-  let top = ticket.ancestors.at(-1);
-  if (top === undefined) return null;
-  const seen = new Set([ticketId(ticket.connection, ticket.key)]);
-  for (;;) {
-    const id = ticketId(ticket.connection, top.key);
-    const above = seen.has(id) ? undefined : loaded.get(id)?.ancestors.at(-1);
-    seen.add(id);
-    if (above === undefined) return { id, ref: top };
+interface IssueLink {
+  id: string;
+  ref: TicketIssueRef;
+}
+
+function parentLinks(tickets: ReadonlyArray<TicketView>): Map<string, IssueLink> {
+  const links = new Map<string, IssueLink>();
+  for (const ticket of tickets) {
+    let childId = ticket.id;
+    for (const ancestor of ticket.ancestors) {
+      const id = ticketId(ticket.connection, ancestor.key);
+      links.set(childId, { id, ref: ancestor });
+      childId = id;
+    }
+  }
+  return links;
+}
+
+function topIssueOf(ticket: TicketView, links: ReadonlyMap<string, IssueLink>): IssueLink | null {
+  const seen = new Set([ticket.id]);
+  let top = links.get(ticket.id) ?? null;
+  while (top !== null) {
+    if (seen.has(top.id)) return null;
+    seen.add(top.id);
+    const above = links.get(top.id);
+    if (above === undefined) return top;
     top = above;
   }
+  return null;
 }
 
 function refOf(ticket: TicketView): TicketIssueRef {
@@ -160,7 +175,8 @@ export function issueGroupsById(
 
 export function groupTickets(tickets: ReadonlyArray<TicketView>): TicketGrouping {
   const loaded = new Map(tickets.map((ticket) => [ticket.id, ticket]));
-  const tops = new Map(tickets.map((ticket) => [ticket.id, topIssueOf(ticket, loaded)]));
+  const links = parentLinks(tickets);
+  const tops = new Map(tickets.map((ticket) => [ticket.id, topIssueOf(ticket, links)]));
   const parentIds = new Set(
     tickets.flatMap((ticket) => {
       const top = tops.get(ticket.id);

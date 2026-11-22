@@ -577,9 +577,13 @@ function ParentRow({
   surface,
   indent,
   showParentLine = false,
+  page,
   selected,
   tabbable,
   onSelect,
+  onOpenRun,
+  onAssign,
+  onAssigned,
 }: RowCommon & {
   rowKey: string;
   group: TicketGroup;
@@ -611,11 +615,31 @@ function ParentRow({
       ticketKey={root.key}
       title={root.title}
       strong
-      titleAfter={t("count", { done: progress.done, total: progress.total })}
+      titleAfter={
+        <>
+          {t("count", { done: progress.done, total: progress.total })}
+          {rootTicket === null || rootTicket.blockerWait === null ? null : (
+            <WaitMark wait={rootTicket.blockerWait} />
+          )}
+        </>
+      }
       {...(parentLine === undefined
         ? {}
         : { below: t("parentLine", { key: parentLine.key, title: parentLine.title }) })}
       run={<GroupRunSummary group={group} />}
+      {...(rootTicket === null
+        ? {}
+        : {
+            action: (
+              <TicketRowActionButton
+                ticket={rootTicket}
+                page={page}
+                onOpenRun={onOpenRun}
+                onAssign={onAssign}
+                onAssigned={onAssigned}
+              />
+            ),
+          })}
     />
   );
 }
@@ -812,17 +836,15 @@ function ParentIssuePanel({
     <DetailPanel>
       <div ref={titleRef} tabIndex={-1}>
         <PanelHeader
-          eyebrow={
-            <span {...stylex.props(styles.panelMeta)}>
-              <Text variant="meta" numeric wrap="anywhere">
-                {meta}
-              </Text>
+          eyebrow={meta}
+          status={
+            <>
+              <Chip wrapText>{root.state.name}</Chip>
               {root.url === null ? null : (
                 <ExternalIconLink href={root.url} label={`${t("openInLinear")} (${t("newTab")})`} />
               )}
-            </span>
+            </>
           }
-          status={<Chip wrapText>{root.state.name}</Chip>}
           title={root.title}
           {...(rootTicket === null ? { subtitle: t("outOfScope") } : {})}
         />
@@ -1456,6 +1478,7 @@ const styles = stylex.create({
     flexGrow: 1,
     minHeight: 0,
     overflowY: "auto",
+    overflowAnchor: "none",
     overscrollBehavior: "contain",
   },
   fadeBottom: {

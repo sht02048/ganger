@@ -299,10 +299,21 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       const child = list.getByRole("button", { name: "ACME-501 Ticket number 501" });
       await child.waitFor();
 
+      const scroller = page.locator("[data-more-below]");
+      await scroller.evaluate((el) => el.scrollTo({ top: 52 * 54 }));
+      await list.getByRole("button", { name: "ACME-55 Ticket number 55", exact: true }).click();
+      await scroller.evaluate((el) => el.scrollTo({ top: 0 }));
+      await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(0);
       await list
         .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
         .click();
       await child.waitFor({ state: "detached" });
+      expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
       const search = page.getByRole("searchbox", { name: tickets.search.label });
       await search.fill("number 501");
       await child.waitFor();

@@ -581,6 +581,26 @@ describe("상위 이슈로 묶기(0171)", () => {
     expect(rowTexts(listOf(render(withOwn(ended)))).get("ACME-6")).not.toContain("· 상위");
   });
 
+  it("상위 이슈 자기 런이 답을 기다리면 상위 줄에 답하기를 두고, 할당 버튼은 두지 않는다", async () => {
+    const page = await grouped();
+    const waiting = page.tickets.find((ticket) => ticket.key === "ACME-5")?.runs[0];
+    if (waiting === undefined) throw new Error("no run");
+    const withOwn = {
+      ...page,
+      tickets: page.tickets.map((ticket) =>
+        ticket.key === "ACME-6"
+          ? {
+              ...ticket,
+              runs: [waiting],
+              assignability: { kind: "active-run" as const, runId: waiting.id },
+            }
+          : ticket,
+      ),
+    };
+    expect(rowTexts(listOf(render(withOwn))).get("ACME-6")).toContain("답하기");
+    expect(rowTexts(listOf(render(page))).get("ACME-6")).not.toContain("할당");
+  });
+
   it("할 일 칸은 테두리 버튼이고 노란 주 버튼을 쓰지 않는다", async () => {
     const list = listOf(render(await grouped(), { view: "flat" }));
     expect(text(list)).toContain("답하기");
