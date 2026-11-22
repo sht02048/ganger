@@ -43,6 +43,18 @@ describe("Runs 보드 읽기(0173)", () => {
     expect(all.ended.length).toBe(endedCases.length);
   });
 
+  it("러너·프로젝트·에이전트 조건으로 들어오면 그 조건의 런을 모두 보이고 토글은 남긴다", () => {
+    const { db } = seedDatabase();
+    const page = loadRunsBoard(db, undefined, now, { conditions: { agent: "claude" } });
+    expect(page.endedView).toBe("all");
+    expect(page.endedCounts.review).toBeGreaterThan(0);
+    const review = loadRunsBoard(db, undefined, now, {
+      conditions: { agent: "claude" },
+      view: "review",
+    });
+    expect(review.endedView).toBe("review");
+  });
+
   it("확인 필요가 없으면 처음부터 모두다", () => {
     const { db } = seedDatabase();
     const page = loadRunsBoard(db, labs, now, { view: "review" });
@@ -94,6 +106,25 @@ describe("Runs 보드 읽기(0173)", () => {
         .map((c) => c.key)
         .sort(),
     );
+  });
+
+  it("처리할 일은 런 상세와 같은 함수로 정하고, 새 런이 있는 옛 런은 확인 필요에서 뺀다", () => {
+    const { db, ids } = seedDatabase();
+    const failed = endedCases.find((c) => c.summary === "failed");
+    if (failed === undefined) throw new Error("seed");
+    const failedId = ids.get(failed.key) ?? "";
+    expect(loadBoardRun(db, undefined, failedId, now)?.nextStep).not.toBe("none");
+    const again = assignRun(db, {
+      ticket: { connection, key: toTicketKey(failed.key) },
+      trackerProject: toTrackerProjectId("tp-web"),
+      runnerProject: toRunnerProjectId("github:acme/web"),
+      agent: toAgentId("claude"),
+      now: minutes(115),
+    });
+    expect(again.ok).toBe(true);
+    expect(loadBoardRun(db, undefined, failedId, now)?.nextStep).toBe("none");
+    const page = loadRunsBoard(db, undefined, now);
+    expect(page.ended.some((run) => run.id === failedId)).toBe(false);
   });
 
   it("러너 자리는 다른 Workspace 의 런까지 세고, 조건이 걸려도 그대로다", () => {

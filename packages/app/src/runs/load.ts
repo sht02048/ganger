@@ -253,21 +253,20 @@ export function describeConditions(
   return described;
 }
 
-export function isUnresolvedEndedRun(run: StoredRun): boolean {
+function isUnresolvedEndedRun(run: StoredRun): boolean {
   return run.state === "ended" && summarizeRunOutcome(run).outcome === "failed";
 }
 
-export const UNRESOLVED_ENDED_AXES: ReadonlyArray<EndedAxesFilter> = AGENT_RESULTS.flatMap(
-  (agentResult) =>
-    PR_STATES.flatMap((prState): EndedAxesFilter[] => {
-      switch (summarizeRunOutcome({ agentResult, prState, runnerUnreached: false }).outcome) {
-        case "failed":
-          return [{ agentResult, prState }];
-        case "succeeded":
-        case "canceled":
-          return [];
-      }
-    }),
+const UNRESOLVED_ENDED_AXES: ReadonlyArray<EndedAxesFilter> = AGENT_RESULTS.flatMap((agentResult) =>
+  PR_STATES.flatMap((prState): EndedAxesFilter[] => {
+    switch (summarizeRunOutcome({ agentResult, prState, runnerUnreached: false }).outcome) {
+      case "failed":
+        return [{ agentResult, prState }];
+      case "succeeded":
+      case "canceled":
+        return [];
+    }
+  }),
 );
 
 export const ACTIVE_STATES = [

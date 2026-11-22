@@ -25,6 +25,7 @@ const base = {
   attention: false,
   runnerId: "a",
   waitingFor: null,
+  nextStep: "none" as const,
 };
 
 function active(
@@ -91,7 +92,6 @@ function ended(
   change: {
     pr?: ReturnType<typeof signals>;
     laterPrState?: "merged" | "closed" | null;
-    attention?: boolean;
   } = {},
 ): BoardRun {
   return {
@@ -106,7 +106,17 @@ function ended(
     laterPrState: change.laterPrState ?? null,
     prReadError: null,
     summary,
-    attention: change.attention ?? false,
+    attention: false,
+    nextStep:
+      change.laterPrState === "merged" || change.pr === undefined
+        ? summary === "failed"
+          ? "failed"
+          : "none"
+        : change.pr.ciFailed
+          ? "pr-ci-failed"
+          : change.pr.conflict === true
+            ? "pr-conflict"
+            : "none",
     pullRequest:
       change.pr === undefined
         ? null
@@ -256,10 +266,13 @@ describe("상태 한 마디", () => {
     expect(needsReview(merged)).toBe(false);
   });
 
-  it("확인 필요는 To do 인 Failed 와 PR 문제가 있는 Succeeded 다", () => {
-    expect(needsReview(ended("failed", { attention: true }))).toBe(true);
-    expect(needsReview(ended("failed"))).toBe(false);
-    expect(needsReview(ended("succeeded", { pr: signals({ conflict: true }) }))).toBe(true);
+  it("확인 필요는 처리할 일이 남은 Failed 와 PR 문제가 있는 Succeeded 다", () => {
+    expect(needsReview(ended("failed"))).toBe(true);
+    expect(needsReview({ ...ended("failed"), nextStep: "none" })).toBe(false);
+    const conflict = ended("succeeded", { pr: signals({ conflict: true }) });
+    expect(needsReview(conflict)).toBe(true);
+    expect(needsReview({ ...conflict, nextStep: "none" })).toBe(false);
+    expect(runWord({ ...conflict, nextStep: "none" })).toBe("done");
     expect(needsReview(ended("succeeded"))).toBe(false);
     expect(needsReview(ended("canceled"))).toBe(false);
     expect(needsReview(active("r", "running"))).toBe(false);

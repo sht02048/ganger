@@ -1,14 +1,18 @@
-import { toRunId } from "@ganger/core";
+import { summarizeRunOutcome, toRunId } from "@ganger/core";
 import {
   getRunWithRecords,
   listRunners,
   listRuns,
   listRunsWithRecords,
+  listTakenOverRunIds,
   listWorkspaces,
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun } from "@ganger/db";
 import { pendingInput } from "../home/load.js";
+import { keptWorktreeOf } from "../run-detail/load.js";
+import { runNextStep } from "../run-next-step.js";
+import type { NextStepInputWait, RunNextStep } from "../run-next-step.js";
 import { resolveWorkspace } from "../shell/model.js";
 import { DAY_MS, DEFAULT_TIME_ZONE, calendarDay } from "../time-zone.js";
 import { DEFAULT_ENDED_DAYS, needsReview } from "./board.js";
@@ -21,14 +25,9 @@ import type {
   RunsBoardPage,
 } from "./board.js";
 import { pickConditions, startOfCalendarDay, toRunsFilter } from "./conditions.js";
-import {
-  ACTIVE_STATES,
-  UNRESOLVED_ENDED_AXES,
-  describeConditions,
-  isUnresolvedEndedRun,
-  runViewBuilder,
-} from "./load.js";
+import { ACTIVE_STATES, describeConditions, runViewBuilder } from "./load.js";
 import { ENDED_RUNS_PAGE_SIZE } from "./model.js";
+import type { RunView } from "./model.js";
 
 export interface RunsBoardOptions {
   endedLimit?: number;
@@ -87,37 +86,26 @@ export function loadRunsBoard(
   };
   const endedScope = { ...scope, endedBetween: endedBounds(days, now, timeZone) };
 
-  const toBoardRun = (entry: { run: StoredRun; records: RunRecords }, attention: boolean) =>
-    ({
-      ...toView(entry, attention),
-      runnerId: entry.run.runnerId,
-      waitingFor:
-        entry.run.state === "waiting-for-input"
-          ? (pendingInput(db, entry.run.id)?.kind ?? null)
-          : null,
-    }) satisfies BoardRun;
+  const nextStepOf = nextStepReader(db);
+  const toBoardRun = (entry: RunEntry) => boardRun(db, toView(entry, false), entry, nextStepOf);
 
   const active = listRunsWithRecords(db, {
     ...scope,
     states: ACTIVE_STATES,
     order: "newest",
-  }).map((entry) => toBoardRun(entry, false));
+  }).map(toBoardRun);
 
-  const unresolvedLatest = new Set(
-    listRunsWithRecords(db, {
-      ...endedScope,
-      latestPerTicket: true,
-      endedAxes: UNRESOLVED_ENDED_AXES,
-    }).map(({ run }) => run.id),
-  );
   const endedRuns = listRunsWithRecords(db, { ...endedScope, states: ["ended"], order: "newest" })
-    .map((entry) =>
-      toBoardRun(entry, unresolvedLatest.has(entry.run.id) && isUnresolvedEndedRun(entry.run)),
-    )
+    .map(toBoardRun)
     .filter((run) => !failedOnly || (run.state === "ended" && run.summary === "failed"))
     .toSorted((a, b) => endedTime(b) - endedTime(a));
   const review = endedRuns.filter(needsReview);
-  const endedView: EndedView = failedOnly || review.length === 0 ? "all" : (view ?? "review");
+  const narrowed =
+    conditions.runner !== undefined ||
+    conditions.project !== undefined ||
+    conditions.agent !== undefined;
+  const endedView: EndedView =
+    failedOnly || review.length === 0 ? "all" : (view ?? (narrowed ? "all" : "review"));
   const listed = endedView === "review" ? review : endedRuns;
 
   return {
@@ -147,14 +135,82 @@ export function loadBoardRun(
   if (workspace.kind !== "one") return null;
   const entry = getRunWithRecords(db, toRunId(runId));
   if (entry === null || entry.run.workspaceId !== workspace.workspace.id) return null;
+  return boardRun(db, runViewBuilder(db, now).toView(entry, false), entry, nextStepReader(db));
+}
+
+type RunEntry = { run: StoredRun; records: RunRecords };
+
+function boardRun(
+  db: Database,
+  view: RunView,
+  entry: RunEntry,
+  nextStepOf: (view: RunView, entry: RunEntry, input: NextStepInputWait) => RunNextStep,
+): BoardRun {
+  const { run } = entry;
+  const pending = run.state === "waiting-for-input" ? pendingInput(db, run.id) : null;
   return {
-    ...runViewBuilder(db, now).toView(entry, isUnresolvedEndedRun(entry.run)),
-    runnerId: entry.run.runnerId,
-    waitingFor:
-      entry.run.state === "waiting-for-input"
-        ? (pendingInput(db, entry.run.id)?.kind ?? null)
-        : null,
+    ...view,
+    runnerId: run.runnerId,
+    waitingFor: pending?.kind ?? null,
+    nextStep: nextStepOf(view, entry, pending ?? { kind: "unknown" }),
   };
+}
+
+function nextStepReader(db: Database) {
+  const takenOver = listTakenOverRunIds(db);
+  const newest = new Map<string, StoredRun>();
+  for (const run of listRuns(db)) {
+    const key = ticketKeyOf(run);
+    const current = newest.get(key);
+    if (current === undefined || isNewer(run, current)) newest.set(key, run);
+  }
+  return (view: RunView, { run, records }: RunEntry, input: NextStepInputWait): RunNextStep => {
+    const pullRequest = view.pullRequest;
+    switch (view.state) {
+      case "queued":
+        return runNextStep({
+          pullRequest,
+          cancelling: view.cancelling,
+          state: "queued",
+          queuedReason: view.queuedReason,
+        });
+      case "running":
+      case "paused":
+      case "disconnected":
+        return runNextStep({ pullRequest, cancelling: view.cancelling, state: view.state });
+      case "waiting-for-input":
+        return runNextStep({
+          pullRequest,
+          cancelling: view.cancelling,
+          state: "waiting-for-input",
+          input,
+        });
+      case "ended": {
+        if (run.state !== "ended") return "none";
+        const taken = takenOver.has(run.id);
+        return runNextStep({
+          pullRequest,
+          state: "ended",
+          summary: view.summary,
+          prState: view.prState,
+          laterPrState: view.laterPrState,
+          keptWorktree: taken
+            ? null
+            : keptWorktreeOf(run, records, summarizeRunOutcome(run).worktree),
+          superseded: taken || newest.get(ticketKeyOf(run))?.id !== run.id,
+        });
+      }
+    }
+  };
+}
+
+function ticketKeyOf(run: StoredRun): string {
+  return `${run.ticket.connection}\u0000${run.ticket.key}`;
+}
+
+function isNewer(run: StoredRun, than: StoredRun): boolean {
+  const diff = run.assignedAt.getTime() - than.assignedAt.getTime();
+  return diff > 0 || (diff === 0 && run.id > than.id);
 }
 
 function runnerSeats(db: Database): RunnerSeats[] {

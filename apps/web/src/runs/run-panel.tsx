@@ -19,12 +19,12 @@ import { space } from "@ganger/ui/tokens.stylex";
 import { useRef } from "react";
 import type { MouseEvent } from "react";
 import { useTranslations } from "use-intl";
-import { prProblemOf, runWord } from "@ganger/app/runs/board";
-import type { BoardRun, RunWord } from "@ganger/app/runs/board";
+import type { BoardRun } from "@ganger/app/runs/board";
 import { currentPrState } from "@ganger/app/runs/model";
 import type { RunView } from "@ganger/app/runs/model";
 import { useTime } from "../format/time";
 import { useAgentName, useQueuedReasonText } from "../labels";
+import { nextStepAction, useRunNextStepText } from "../run-next-step";
 import { runStatus, useStatusName } from "../status";
 
 type RunPullRequest = NonNullable<RunView["pullRequest"]>;
@@ -83,9 +83,16 @@ export function RunPanelBody({
   const reason = useRunReason(run);
   const pr = run.pullRequest;
   const cancelling = run.state !== "ended" && run.cancelling;
-  const word = runWord(run);
-  const needsAction = TODO_WORDS.has(word);
-  const ciFailed = pr !== null && prProblemOf(run) === "ci-failed";
+  const nextStepText = useRunNextStepText()(run.nextStep);
+  const stepAction = nextStepAction(run.nextStep);
+  const stepHref =
+    run.nextStep === "pr-ci-failed" && pr !== null
+      ? prChecksUrl(pr.url)
+      : run.nextStep === "pr-conflict" && pr !== null
+        ? pr.url
+        : detailHref;
+  const opensHost = run.nextStep === "pr-ci-failed" || run.nextStep === "pr-conflict";
+  const canContinue = opensHost || run.nextStep === "failed";
 
   return (
     <div {...stylex.props(styles.body)}>
@@ -95,38 +102,39 @@ export function RunPanelBody({
           {when}
         </Text>
       ) : null}
-      {needsAction ? (
+      {nextStepText === null ? (
+        <Text variant="body">{reason}</Text>
+      ) : (
         <Card padding="compact" label={t("todoTitle")}>
-          <div {...stylex.props(styles.todo)}>
+          <div data-next-step={nextStepText.kind} {...stylex.props(styles.todo)}>
             <Text variant="title">{t("todoTitle")}</Text>
-            <Text variant="body">{reason}</Text>
-            <Actions>
-              {ciFailed ? (
-                <a
-                  href={prChecksUrl(pr.url)}
-                  target="_blank"
-                  rel="noreferrer"
-                  data-variant="secondary"
-                  {...stylex.props(...buttonStyles("secondary"))}
-                >
-                  {t("prSection.failedChecks")}
-                  <ExternalIcon />
-                </a>
-              ) : null}
-              {word === "failed" || word === "needs-review" ? (
-                <a
-                  href={detailHref}
-                  data-variant="secondary"
-                  {...stylex.props(...buttonStyles("secondary"))}
-                >
-                  {t("continue")}
-                </a>
-              ) : null}
-            </Actions>
+            <Text variant="body">{nextStepText.body}</Text>
+            {stepAction === null && !canContinue ? null : (
+              <Actions>
+                {nextStepText.action === null ? null : (
+                  <a
+                    href={stepHref}
+                    {...(opensHost ? { target: "_blank", rel: "noreferrer" } : {})}
+                    data-variant="secondary"
+                    {...stylex.props(...buttonStyles("secondary"))}
+                  >
+                    {nextStepText.action}
+                    {opensHost ? <ExternalIcon /> : null}
+                  </a>
+                )}
+                {canContinue ? (
+                  <a
+                    href={detailHref}
+                    data-variant="secondary"
+                    {...stylex.props(...buttonStyles("secondary"))}
+                  >
+                    {t("continue")}
+                  </a>
+                ) : null}
+              </Actions>
+            )}
           </div>
         </Card>
-      ) : (
-        <Text variant="body">{reason}</Text>
       )}
       <PrSection run={run} />
       <PanelSection title={t("runInfo")}>
@@ -168,15 +176,6 @@ export function RunPanelBody({
     </div>
   );
 }
-
-const TODO_WORDS: ReadonlySet<RunWord> = new Set([
-  "question",
-  "permission",
-  "human-check",
-  "disconnected",
-  "failed",
-  "needs-review",
-]);
 
 function useRunWhen(run: RunView): string {
   const t = useTranslations("runs.panel");

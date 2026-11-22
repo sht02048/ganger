@@ -1,9 +1,9 @@
 import { z } from "zod";
+import type { RunNextStep } from "../run-next-step.js";
 import type { WorkspaceChoice } from "../shell/model.js";
 import { STATS_PERIOD_DAYS } from "../stats/model.js";
 import { pickConditions } from "./conditions.js";
 import type { RunConditions } from "./conditions.js";
-import { currentPrState } from "./model.js";
 import type { RunCondition, RunView } from "./model.js";
 
 export const RUNNER_CARD_VISIBLE_RUNS = 4;
@@ -32,7 +32,11 @@ export type EndedView = (typeof ENDED_VIEWS)[number];
 
 export type WaitingFor = "question" | "permission" | "human-check";
 
-export type BoardRun = RunView & { runnerId: string | null; waitingFor: WaitingFor | null };
+export type BoardRun = RunView & {
+  runnerId: string | null;
+  waitingFor: WaitingFor | null;
+  nextStep: RunNextStep;
+};
 
 export interface RunnerSeats {
   id: string;
@@ -70,12 +74,9 @@ export type RunWord =
 
 export type PrProblem = "ci-failed" | "conflict";
 
-export function prProblemOf(run: RunView): PrProblem | null {
-  if (run.state !== "ended" || currentPrState(run) !== "open") return null;
-  const signals = run.pullRequest?.signals ?? null;
-  if (signals === null) return null;
-  if (signals.ciFailed) return "ci-failed";
-  return signals.conflict === true ? "conflict" : null;
+export function prProblemOf(run: BoardRun): PrProblem | null {
+  if (run.nextStep === "pr-ci-failed") return "ci-failed";
+  return run.nextStep === "pr-conflict" ? "conflict" : null;
 }
 
 export function runWord(run: BoardRun): RunWord {
@@ -98,9 +99,9 @@ export function runWord(run: BoardRun): RunWord {
   }
 }
 
-export function needsReview(run: RunView): boolean {
-  if (run.state !== "ended") return false;
-  return run.attention || (run.summary === "succeeded" && prProblemOf(run) !== null);
+export function needsReview(run: BoardRun): boolean {
+  if (run.state !== "ended" || run.summary === "canceled") return false;
+  return run.nextStep === "failed" || prProblemOf(run) !== null;
 }
 
 export interface RunnerCard extends RunnerSeats {
