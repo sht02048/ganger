@@ -166,6 +166,14 @@ describe("기다리는 런 이유(0178)", () => {
     expect(text).toContain(runsJson.now.queueReason["runner-offline"]);
     expect(boardRun(db, offlineQueuedKey).state).toBe("queued");
   });
+
+  it("이유와 시간은 제목 줄 밖 둘째 줄에 있다(0185)", () => {
+    const { db } = seedDatabase();
+    const html = screen(loadRunsBoard(db, commerce, now));
+    const reason = runsJson.now.queueReason["runner-offline"];
+
+    expect(html).toMatch(new RegExp(`</span></span><span title="${reason} · [^"]+"`));
+  });
 });
 
 describe("취소 중(0178)", () => {

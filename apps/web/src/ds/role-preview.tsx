@@ -340,6 +340,13 @@ export function RoleSections() {
                     trailing={statusName("succeeded")}
                     done
                   />
+                  <PanelListRow
+                    marker={<StatusDot status="queued" />}
+                    ticketKey="ACME-15"
+                    title={t("usage.listRowWaiting")}
+                    meta={t("usage.listRowMeta")}
+                    onClick={() => {}}
+                  />
                 </PanelList>
               </PanelSection>
               <ResponsiveColumnsHead

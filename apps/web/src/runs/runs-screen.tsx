@@ -249,7 +249,10 @@ function RunsBoard(props: RunsScreenProps) {
                 </div>
               </Card>
             </div>
-            <div data-runner-cards {...stylex.props(styles.cards)}>
+            <div
+              data-runner-cards
+              {...stylex.props(styles.cards, styles.cardsWidthCap(Math.max(cards.length, 1)))}
+            >
               {cards.length === 0 ? (
                 <Text variant="meta">
                   {page.runners.length === 0 ? t("now.noRunners") : t("now.noMatch")}
@@ -296,7 +299,11 @@ function RunnerRunsCard({
   const t = useTranslations("runs.now");
   const elsewhere = card.otherWorkspaces;
   return (
-    <div data-runner-card={card.id} data-dimmed={card.dimmed ? "" : undefined}>
+    <div
+      data-runner-card={card.id}
+      data-dimmed={card.dimmed ? "" : undefined}
+      {...stylex.props(styles.runnerCard)}
+    >
       <Card padding="compact" label={t("runnerLabel", { name: card.name })}>
         <div {...stylex.props(styles.cardBody)}>
           <span {...stylex.props(styles.cardHead)}>
@@ -411,13 +418,12 @@ function FoldedRuns({
             {...(run.ticketTitle === null
               ? { title: run.ticketKey }
               : { ticketKey: run.ticketKey, title: run.ticketTitle })}
-            trailing={
-              trailing === "wait"
-                ? `${queueReason(run)} · ${duration(run.waitMs)}`
-                : runWord(run) === "running"
-                  ? elapsed(elapsedMs(run))
-                  : word(runWord(run))
-            }
+            {...(trailing === "wait"
+              ? { meta: `${queueReason(run)} · ${duration(run.waitMs)}` }
+              : {
+                  trailing:
+                    runWord(run) === "running" ? elapsed(elapsedMs(run)) : word(runWord(run)),
+                })}
             onClick={() => onSelect(run.id)}
           />
         ))}
@@ -512,7 +518,7 @@ function EndedSection({
   const runnerValue = runnerId === undefined ? ALL_RUNNERS : runnerId === "" ? null : runnerId;
   return (
     <Section title={t("title")} titleRole="heading" count={page.endedCounts.all}>
-      <div {...stylex.props(styles.endedTools)}>
+      <div data-ended-tools {...stylex.props(styles.endedTools)}>
         {page.failedOnly || page.endedCounts.review === 0 ? null : (
           <SegmentedTabs<EndedView>
             value={page.endedView}
@@ -762,12 +768,22 @@ const styles = stylex.create({
     gridRow: { default: 1, [breakpoints.runsBoardStacked]: "auto" },
     display: "grid",
     gridTemplateColumns: {
-      default: `repeat(auto-fill, minmax(${size.runnerCardMinWidth}, 1fr))`,
+      default: `repeat(auto-fit, minmax(${size.runnerCardMinWidth}, 1fr))`,
       [breakpoints.runsBoardStacked]: "minmax(0, 1fr)",
     },
     alignItems: "start",
     gap: space.s3,
     minWidth: 0,
+  },
+  cardsWidthCap: (cardCount: number) => ({
+    maxWidth: {
+      default: `calc(${cardCount} * ${size.runnerCardMaxWidth} + ${cardCount - 1} * ${space.s3})`,
+      [breakpoints.runsBoardStacked]: "none",
+    },
+  }),
+  runnerCard: {
+    minWidth: 0,
+    maxWidth: { default: size.runnerCardMaxWidth, [breakpoints.runsBoardStacked]: "none" },
   },
   queue: {
     gridColumn: { default: 2, [breakpoints.runsBoardStacked]: "auto" },
@@ -795,6 +811,7 @@ const styles = stylex.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: space.s3,
+    marginBottom: space.s3,
   },
   menus: { display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   menu: { width: size.runsMenuWidth, maxWidth: "100%" },
