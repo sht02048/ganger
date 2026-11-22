@@ -178,6 +178,7 @@ export function HomeScreen({
     },
     focusCard: (id) => cards.current.get(id)?.focus(),
     onOpen: (run, tagged, mode) => {
+      setRevealedId(run.id);
       setTarget({ run, tagged, mode });
       setOpen(true);
     },

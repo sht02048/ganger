@@ -181,6 +181,37 @@ describe("Done 칸 머리 링크(브라우저, 0186)", () => {
     expect(await settledCards(page).count()).toBe(6);
     expect(await focusedSoon(cardButton(page, hidden))).toBe(true);
   });
+
+  it("패널을 연 카드가 새로 끝난 런에 밀려도 남고, 닫으면 포커스가 그 카드로 돌아온다", async () => {
+    await openHome(page);
+    const fifth = settledCards(page).nth(4);
+    const text = await fifth.innerText();
+    const opened = settledKeys.find((key) => text.includes(key));
+    if (opened === undefined) throw new Error("no fifth settled card");
+    await cardButton(page, opened).click();
+    const panel = page.getByRole("dialog");
+    await panel.getByRole("heading", { name: new RegExp(opened) }).waitFor();
+    ok(
+      changeRunState(db, startRun(toTicketKey("ACME-56")), {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "merged",
+      }),
+    );
+    await page.evaluate(() => {
+      const field = (owner: unknown, name: string): unknown =>
+        typeof owner === "object" && owner !== null ? Reflect.get(owner, name) : undefined;
+      const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
+      const client = field(field(field(router, "options"), "context"), "queryClient");
+      const invalidate = field(client, "invalidateQueries");
+      if (typeof invalidate === "function") Reflect.apply(invalidate, client, []);
+    });
+    await card(page, "ACME-56").waitFor({ state: "attached" });
+    expect(await card(page, opened).count()).toBe(1);
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    expect(await focusedSoon(cardButton(page, opened))).toBe(true);
+  });
 });
 
 describe("알림에서 Dashboard 열기(브라우저, 0103)", () => {
