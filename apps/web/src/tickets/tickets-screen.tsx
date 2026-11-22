@@ -1631,17 +1631,20 @@ function RunPullRequest({ run }: { run: TicketRun & { state: "ended" } }) {
     return stateName === null ? null : (
       <Text variant="meta">{t("prState", { state: stateName })}</Text>
     );
-  const label = row("pullRequest", { pr: pullRequest.displayId });
+  const pr = pullRequest.displayId;
+  const link = (chunks: ReactNode) =>
+    pullRequest.url === null ? (
+      chunks
+    ) : (
+      <TextLink href={pullRequest.url} external>
+        {chunks}
+      </TextLink>
+    );
   return (
     <Text variant="meta">
-      {pullRequest.url === null ? (
-        label
-      ) : (
-        <TextLink href={pullRequest.url} external>
-          {label}
-        </TextLink>
-      )}
-      {stateName === null ? null : ` ${stateName}`}
+      {stateName === null
+        ? link(row("pullRequest", { pr }))
+        : t.rich("pullRequest", { pr, state: stateName, link })}
     </Text>
   );
 }

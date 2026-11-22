@@ -90,6 +90,7 @@
     "lastRun": "마지막 런",
     "noRun": "아직 런이 없어요",
     "noRunnerName": "러너 정하기 전",
+    "pullRequest": "<link>PR {pr}</link> {state}",
     "prState": "PR {state}",
     "next": {
       "parent-issue": "상위 이슈는 이 화면에서 할당하지 않아요. 하위 티켓을 할당해 주세요.",

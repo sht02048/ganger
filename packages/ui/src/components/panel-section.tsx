@@ -245,7 +245,7 @@ const styles = stylex.create({
     cursor: "pointer",
     "::after": { content: '""', position: "absolute", inset: 0 },
   },
-  after: { position: "relative", zIndex: 1, flexShrink: 0, whiteSpace: "nowrap" },
+  after: { flexShrink: 0, whiteSpace: "nowrap" },
   marker: {
     display: "inline-flex",
     flexShrink: 0,

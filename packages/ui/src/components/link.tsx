@@ -33,15 +33,26 @@ export function TextLink({ href, tone, external, onClick, ref, children }: TextL
   );
 }
 
+const ROW_KEYS = new Set([
+  "Enter",
+  " ",
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+]);
+
 function keepFromRow(event: SyntheticEvent) {
   event.stopPropagation();
 }
 
 function keepKeyFromRow(event: KeyboardEvent<HTMLAnchorElement>) {
-  const activatesRow = event.key === "Enter" || event.key === " ";
+  const movesOrActivatesRow = ROW_KEYS.has(event.key);
   const leavesLink = event.key === "Tab" || event.key === "Escape";
   const isShortcut = event.metaKey || event.ctrlKey || event.altKey;
-  if (activatesRow || !(leavesLink || isShortcut)) event.stopPropagation();
+  if (movesOrActivatesRow || !(leavesLink || isShortcut)) event.stopPropagation();
 }
 
 export function RowLink({ href, children }: { href: string; children: ReactNode }) {
@@ -76,7 +87,7 @@ const styles = stylex.create({
     zIndex: 1,
     color: colors.textSecondary,
     textDecorationLine: "underline",
-    textDecorationColor: { default: colors.borderStrong, ":hover": colors.textTertiary },
+    textDecorationColor: { default: colors.textTertiary, ":hover": colors.textSecondary },
   },
   action: {
     display: "inline-flex",

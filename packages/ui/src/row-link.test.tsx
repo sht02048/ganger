@@ -64,6 +64,7 @@ describe("RowLink(0184)", () => {
     press(link, "Enter", { ctrlKey: true });
     press(link, "Enter", { altKey: true });
     press(link, " ", { ctrlKey: true });
+    press(link, "ArrowDown", { metaKey: true });
     expect(onActivate).not.toHaveBeenCalled();
     expect(onValueChange).not.toHaveBeenCalled();
 
@@ -83,6 +84,18 @@ describe("RowLink(0184)", () => {
     press(link, "Tab");
     press(link, "Escape");
     expect(onKeyDown).toHaveBeenCalledTimes(2);
+  });
+
+  it("수정 키와 함께 눌러도 방향키는 행 목록으로 올라가지 않는다", () => {
+    const onKeyDown = vi.fn<() => void>();
+    const link = mount(
+      <div onKeyDown={onKeyDown}>
+        <RowLink href={href}>PR #138</RowLink>
+      </div>,
+    );
+    press(link, "ArrowDown", { metaKey: true });
+    press(link, "Home", { ctrlKey: true });
+    expect(onKeyDown).not.toHaveBeenCalled();
   });
 
   it("PanelListRow 의 after 는 행 버튼 밖에 있어 따로 눌린다", () => {
