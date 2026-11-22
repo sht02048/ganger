@@ -21,7 +21,7 @@ import type {
   CreateWorkspaceInput,
   CreateWorkspaceResult,
 } from "./create-workspace-dialog";
-import { openEditorField } from "../settings/blocked-editor";
+import { openEditorField, registerUnsavedEditsHolder } from "../settings/blocked-editor";
 import {
   canCreateWorkspace,
   isAtCreatedWorkspace,
@@ -45,6 +45,8 @@ vi.mock("../server/onboarding-functions", () => ({
 vi.mock("@ganger/db", () => ({ toWorkspaceId: (value: string) => value }));
 
 vi.mock("../settings/settings-query", () => ({ invalidateChanged: mocks.invalidate }));
+
+vi.mock("./shell-query", () => ({ SHELL_KEY: ["shell"] }));
 
 vi.mock("@tanstack/react-router", async (original) => ({
   ...(await original<typeof import("@tanstack/react-router")>()),
@@ -404,6 +406,32 @@ describe("입구와 만든 뒤", () => {
     expect(
       isAtCreatedWorkspace("https://ganger.example.com/runs?ws=ws-new#projects", "ws-new"),
     ).toBe(false);
+  });
+
+  it("저장하지 않은 편집이 있으면 이미 경고했어도 새 Workspace 로 옮기지 않는다", async () => {
+    mocks.createWorkspace.mockResolvedValue({ ok: true, id: "ws-new", name: "Labs" });
+    const warnIfUnsaved = vi.fn<() => boolean>(() => true);
+    const unregister = registerUnsavedEditsHolder({ warnIfUnsaved });
+    await settle(() =>
+      root.render(
+        wrapped(
+          <CreateWorkspaceProvider>
+            <OpenButton />
+          </CreateWorkspaceProvider>,
+        ),
+      ),
+    );
+    await settle(() => buttonNamed(settingsMessages.settings.workspace.create).click());
+    await settle();
+    await settle(() => typeName("Labs"));
+    await settle(() => checkbox("Free").click());
+    await settle(() => buttonNamed(copy.submit).click());
+    await settle();
+    unregister();
+    expect(warnIfUnsaved).toHaveBeenCalledOnce();
+    expect(mocks.toast).toHaveBeenCalledWith("Labs Workspace를 만들었어요");
+    expect(mocks.navigate).not.toHaveBeenCalled();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it("프로젝트 상세의 편집 구역도 막힌 편집 칸으로 찾는다", () => {

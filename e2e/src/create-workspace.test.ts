@@ -130,6 +130,11 @@ describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", (
       .click();
     const editor = page.locator("[data-editing] input").first();
     await editor.fill("Acme edited");
+    await page.getByRole("link", { name: "Runs" }).click();
+    await expect
+      .poll(() => editor.evaluate((element) => element === document.activeElement))
+      .toBe(true);
+    expect(new URL(page.url()).pathname).toBe("/settings");
 
     await page.getByRole("button", { name: /Workspace 바꾸기/u }).click();
     await page.getByRole("menuitem", { name: shellJson.workspace.new }).click();

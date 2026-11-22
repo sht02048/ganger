@@ -10,7 +10,11 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslations } from "use-intl";
-import { ROW_EDITOR_SELECTOR, blockedEditorField } from "./blocked-editor";
+import {
+  ROW_EDITOR_SELECTOR,
+  blockedEditorField,
+  registerUnsavedEditsHolder,
+} from "./blocked-editor";
 import type { UnsavedGuard } from "./navigation-guard";
 import { ReportUnsavedContext, useReason, type ActionResult } from "./settings-screen";
 
@@ -100,18 +104,32 @@ export function useUnsavedHold(blockedSelector: string) {
       setBlocked(false);
     }
   }, []);
+  const warn = useCallback(() => {
+    warned.current = true;
+    setBlocked(true);
+    showBlockedEditor(blockedSelector);
+  }, [blockedSelector]);
   const guard = useMemo(
     (): UnsavedGuard => ({
       hold: () => {
         if (dirty.current.size === 0) return false;
         if (warned.current) return false;
-        warned.current = true;
-        setBlocked(true);
-        showBlockedEditor(blockedSelector);
+        warn();
         return true;
       },
     }),
-    [blockedSelector],
+    [warn],
+  );
+  useEffect(
+    () =>
+      registerUnsavedEditsHolder({
+        warnIfUnsaved: () => {
+          if (dirty.current.size === 0) return false;
+          warn();
+          return true;
+        },
+      }),
+    [warn],
   );
   return { blocked, report, guard };
 }

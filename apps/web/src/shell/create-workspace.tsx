@@ -6,10 +6,11 @@ import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type { ChangeKind } from "@ganger/db/change-events-model";
 import { createWorkspace, getWorkspaceProjectChoices } from "../server/onboarding-functions";
-import { openEditorField } from "../settings/blocked-editor";
+import { openEditorField, warnAboutUnsavedEdits } from "../settings/blocked-editor";
 import { invalidateChanged } from "../settings/settings-query";
 import { CreateWorkspaceDialog } from "./create-workspace-dialog";
 import { isAtCreatedWorkspace } from "./create-workspace-model";
+import { SHELL_KEY } from "./shell-query";
 import type {
   CreateWorkspaceInput,
   CreateWorkspaceResult,
@@ -50,7 +51,9 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
   const { mutateAsync } = useMutation({
     mutationFn: (data: CreateWorkspaceInput) => createWorkspace({ data }),
     onSuccess: async (result) => {
-      if (result.ok) await invalidateChanged(queryClient, WORKSPACE_CREATED);
+      if (!result.ok) return;
+      void invalidateChanged(queryClient, WORKSPACE_CREATED);
+      await queryClient.refetchQueries({ queryKey: SHELL_KEY });
     },
   });
 
@@ -69,12 +72,14 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
   const create = async (input: CreateWorkspaceInput): Promise<CreateWorkspaceResult> => {
     const result = await mutateAsync(input);
     if (!result.ok) {
-      if (result.reason === "taken") void choicesQuery.refetch();
+      void choicesQuery.refetch();
       return result;
     }
     showToast(t("created", { name: result.name }));
     created.current = true;
+    const keepEditing = warnAboutUnsavedEdits();
     setOpen(false);
+    if (keepEditing) return result;
     void navigate({ to: "/settings", search: { ws: result.id }, hash: "projects" }).then(() => {
       if (isAtCreatedWorkspace(window.location.href, result.id)) {
         document.getElementById(PROJECTS_HEADING_ID)?.focus();
