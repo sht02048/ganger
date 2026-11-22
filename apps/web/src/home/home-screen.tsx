@@ -99,6 +99,7 @@ interface CardHost {
   lastTags: ReadonlyMap<RunId, PillStatus | null>;
   selectedId: RunId | null;
   revealedId: RunId | null;
+  sheetRunId: RunId | null;
   cardRef: (id: RunId) => (element: HTMLButtonElement | null) => void;
   focusCard: (id: RunId) => void;
   onOpen: (run: HomeRun, tagged: boolean, mode: SheetMode) => void;
@@ -172,13 +173,13 @@ export function HomeScreen({
     listKey: `${workspaceScope}:${view}`,
     selectedId: open && target !== null ? target.run.id : null,
     revealedId,
+    sheetRunId: target?.run.id ?? null,
     cardRef: (id) => (element) => {
       if (element === null) cards.current.delete(id);
       else cards.current.set(id, element);
     },
     focusCard: (id) => cards.current.get(id)?.focus(),
     onOpen: (run, tagged, mode) => {
-      setRevealedId(run.id);
       setTarget({ run, tagged, mode });
       setOpen(true);
     },
@@ -493,7 +494,7 @@ function AnimatedCards({
 function SettledCards({ runs, host }: { runs: HomeRun[]; host: CardHost }) {
   const t = useTranslations("home.board");
   const first = runs.slice(0, SETTLED_VISIBLE);
-  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.revealedId);
+  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.sheetRunId);
   const visible = revealed === undefined ? first : [...first, revealed];
   return (
     <div data-settled={runs.length === 0 ? undefined : ""} {...stylex.props(styles.settled)}>

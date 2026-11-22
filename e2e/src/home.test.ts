@@ -139,6 +139,17 @@ function settledCards(target: Page): Locator {
     .locator("[data-settled] li[data-run]");
 }
 
+async function refetchScreen(target: Page): Promise<void> {
+  await target.evaluate(() => {
+    const field = (owner: unknown, name: string): unknown =>
+      typeof owner === "object" && owner !== null ? Reflect.get(owner, name) : undefined;
+    const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
+    const client = field(field(field(router, "options"), "context"), "queryClient");
+    const invalidate = field(client, "invalidateQueries");
+    if (typeof invalidate === "function") Reflect.apply(invalidate, client, []);
+  });
+}
+
 describe("Done 칸 머리 링크(브라우저, 0186)", () => {
   it("머리를 누르면 문서를 다시 불러오지 않고 끝난 런 모두를 보여 주는 Runs 로 간다", async () => {
     await openHome(page);
@@ -198,14 +209,7 @@ describe("Done 칸 머리 링크(브라우저, 0186)", () => {
         prState: "merged",
       }),
     );
-    await page.evaluate(() => {
-      const field = (owner: unknown, name: string): unknown =>
-        typeof owner === "object" && owner !== null ? Reflect.get(owner, name) : undefined;
-      const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
-      const client = field(field(field(router, "options"), "context"), "queryClient");
-      const invalidate = field(client, "invalidateQueries");
-      if (typeof invalidate === "function") Reflect.apply(invalidate, client, []);
-    });
+    await refetchScreen(page);
     await card(page, "ACME-56").waitFor({ state: "attached" });
     expect(await card(page, opened).count()).toBe(1);
     await page.keyboard.press("Escape");
@@ -681,6 +685,29 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
     await page.unroute("**/_serverFn/**");
 
     expect(await input.inputValue()).toBe("half-written answer");
+  });
+});
+
+describe("Done 처리할 일 카드 제한(브라우저, 0186)", () => {
+  it("패널을 열었던 처리할 일 카드가 새 카드에 밀려도 목록을 펼치지 않는다", async () => {
+    await openHome(page);
+    const done = page.getByRole("region", { name: home.column.done });
+    await done.locator("li[data-tag]").nth(3).locator('button[aria-haspopup="dialog"]').click();
+    const panel = page.getByRole("dialog");
+    await panel.waitFor();
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    ok(
+      changeRunState(db, startRun(toTicketKey("ACME-57")), {
+        to: "ended",
+        agentResult: "timed-out",
+        prState: "none",
+      }),
+    );
+    await refetchScreen(page);
+    await card(page, "ACME-57").waitFor();
+    expect(await done.locator("li[data-tag]").count()).toBe(4);
+    await done.getByRole("button", { name: /개 더 보기$/ }).waitFor();
   });
 });
 
