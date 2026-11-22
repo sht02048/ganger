@@ -249,7 +249,10 @@ function RunsBoard(props: RunsScreenProps) {
                 </div>
               </Card>
             </div>
-            <div data-runner-cards {...stylex.props(styles.cards)}>
+            <div
+              data-runner-cards
+              {...stylex.props(styles.cards, styles.cardsWidthCap(Math.max(cards.length, 1)))}
+            >
               {cards.length === 0 ? (
                 <Text variant="meta">
                   {page.runners.length === 0 ? t("now.noRunners") : t("now.noMatch")}
@@ -772,6 +775,12 @@ const styles = stylex.create({
     gap: space.s3,
     minWidth: 0,
   },
+  cardsWidthCap: (cardCount: number) => ({
+    maxWidth: {
+      default: `calc(${cardCount} * ${size.runnerCardMaxWidth} + ${cardCount - 1} * ${space.s3})`,
+      [breakpoints.runsBoardStacked]: "none",
+    },
+  }),
   runnerCard: {
     minWidth: 0,
     maxWidth: { default: size.runnerCardMaxWidth, [breakpoints.runsBoardStacked]: "none" },

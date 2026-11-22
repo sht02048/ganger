@@ -205,6 +205,30 @@ describe("Runs 다듬기(브라우저, 0178)", () => {
     expect(layout.waitingLeft - layout.lastCardRight).toBeLessThan(layout.cardWidth);
     expect(layout.toolsGap).toBeGreaterThan(0);
   });
+
+  it("아주 넓은 화면에서 러너 카드는 최대 폭에서 멈추고 카드 사이가 벌어지지 않는다(0185)", async (context) => {
+    const page = await newPage(context, { width: 2560, height: 900 });
+    await openRuns(page);
+    await page.locator(`[data-runner-card="${idleRunnerId}"]`).waitFor();
+    await waitForScreenQuerySettled(page, ["runs"]);
+
+    const cards = await page.evaluate(() =>
+      [...document.querySelectorAll("[data-runner-card]")]
+        .map((card) => card.getBoundingClientRect())
+        .sort((a, b) => a.left - b.left)
+        .map(({ left, right, width }) => ({ left, right, width })),
+    );
+    const rowGap = await page.evaluate(() => {
+      const grid = document.querySelector("[data-runner-cards]");
+      return grid === null ? 0 : Number.parseFloat(getComputedStyle(grid).columnGap);
+    });
+
+    expect(cards).toHaveLength(3);
+    for (const card of cards) expect(card.width).toBeLessThanOrEqual(560);
+    for (const [index, card] of cards.slice(1).entries()) {
+      expect(card.left - (cards[index]?.right ?? 0)).toBeCloseTo(rowGap, 0);
+    }
+  });
 });
 
 async function newPage(context: TestContext, viewport: { width: number; height: number }) {

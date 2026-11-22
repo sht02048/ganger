@@ -91,7 +91,7 @@ export function PanelListRow({
   href,
   after,
 }: PanelListRowProps) {
-  const hasMeta = meta !== undefined;
+  const hasMeta = meta !== undefined && meta !== null;
   const firstLine = (
     <>
       <span {...stylex.props(styles.marker)}>{marker}</span>
