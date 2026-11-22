@@ -63,6 +63,10 @@ export function isInDoneWeek(endedAt: string, now: Date): boolean {
   return Date.parse(endedAt) >= start.getTime();
 }
 
+function urgency(run: HomeRun): number {
+  return run.state === "waiting-for-input" ? 0 : 1;
+}
+
 function endedAgo(run: HomeRun): number {
   return run.state === "ended" ? run.endedAgoMs : 0;
 }
@@ -76,7 +80,12 @@ export function latestFailedOnly(runs: ReadonlyArray<HomeRun>): HomeRun[] {
 
 export function buildBoard(runs: ReadonlyArray<HomeRun>, now: Date): Board {
   const current = latestFailedOnly(runs);
-  const unfinishedTodo = current.filter((run) => run.state !== "ended" && todoTagOf(run) !== null);
+  const unfinishedTodo = current
+    .flatMap((run, index) =>
+      run.state !== "ended" && todoTagOf(run) !== null ? [{ run, index }] : [],
+    )
+    .toSorted((a, b) => urgency(a.run) - urgency(b.run) || b.index - a.index)
+    .map(({ run }) => run);
   const settled = current
     .filter(
       (run) => run.state === "ended" && todoTagOf(run) === null && isInDoneWeek(run.endedAt, now),

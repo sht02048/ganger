@@ -54,8 +54,8 @@ describe("buildBoard", () => {
   it("Human Check를 Question과 따로 Running 칸 맨 위에 묶는다", () => {
     expect(board.running.humanCheck.map((run) => run.ticketKey)).toEqual(["ACME-142"]);
     expect(board.running.todo.map((run) => run.ticketKey)).toEqual([
-      "ACME-138",
       "ACME-131",
+      "ACME-138",
       "ACME-127",
     ]);
   });
@@ -193,6 +193,15 @@ describe("Queued 이유", () => {
     [{ kind: "blockers-waiting" as const, blockers: [] }, "선행 티켓을 기다려요"],
     [
       { kind: "blockers-stuck" as const, cause: "cycle" as const, blocker: null, blockers: [] },
+      "선행 티켓을 읽지 못했어요",
+    ],
+    [
+      {
+        kind: "blockers-stuck" as const,
+        cause: "cycle" as const,
+        blocker: { key: "A-1", title: "선행", stateName: "Todo", stateCategory: "unstarted" },
+        blockers: [{ key: "A-1", title: "선행", stateName: "Todo", stateCategory: "unstarted" }],
+      },
       "선행 티켓과 서로 기다려요",
     ],
   ])("%j", (reason, text) => {

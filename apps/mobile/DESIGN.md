@@ -30,8 +30,9 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `TodoBadge`     | 처리할 일이 있는 칸에만 붙는 노란 수                                      |
 | `IssueBadge`    | Runners 버튼의 문제 러너 수. 버튼 전체를 빨갛게 하지 않는다               |
 | `StatusPill`    | 점 + 상태 이름. 카드 하나에 상태 하나만 보인다                            |
-| `Chip`          | 선행 티켓과 PR 문제(CI 실패, 충돌, 뒤처짐)                                |
+| `Chip`          | 선행 티켓과 PR 칩. CI 실패·충돌은 `problem`, 뒤처짐은 중립색              |
 | `Button`        | `primary`는 화면의 주 행동 하나, 카드 행동은 `secondary`, 위험은 `danger` |
+| `Meter`         | 러너의 공급자 사용량 막대                                                 |
 | `SwitchRow`     | 이름이 붙은 스위치                                                        |
 | `Sheet`         | 아래에서 올라오는 레이어. 안의 주 행동 하나는 노란 버튼을 쓸 수 있다      |
 | `RestingMascot` | 빈 상태에만 쓴다. 목록 행, 상태 알약, 러너 문제 카드 곁에 두지 않는다     |

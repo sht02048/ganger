@@ -120,6 +120,31 @@ describe("Dashboard 데모", () => {
   });
 });
 
+describe("화면 오가기", () => {
+  it("Runners에 다녀와도 고른 칸과 Workspace가 남는다", () => {
+    const host = mountApp();
+    press(byLabel(host, "Workspace 고르기, 모든 Workspace"));
+    press(byLabel(document.body, "Growth"));
+    press(tab(host, "Queued"));
+    press(byLabel(host, "Runners, 문제 러너 2대"));
+    press(byLabel(host, "뒤로"));
+    expect(tab(host, "Queued")?.getAttribute("aria-selected")).toBe("true");
+    expect(byLabel(host, "Workspace 고르기, Growth")).not.toBeNull();
+  });
+
+  it("설정에서 끈 알림 종류가 다시 들어가도 꺼져 있다", () => {
+    const host = mountApp();
+    press(byLabel(host, "설정"));
+    const permission = () =>
+      host.querySelector<HTMLInputElement>('input[type="checkbox"][aria-label="Permission"]');
+    press(permission());
+    expect(permission()?.checked).toBe(false);
+    press(byLabel(host, "뒤로"));
+    press(byLabel(host, "설정"));
+    expect(permission()?.checked).toBe(false);
+  });
+});
+
 describe("Runners 데모", () => {
   it("문제 러너 수를 배지로 보이고, 화면에서 고치는 곳을 안내한다", () => {
     const host = mountApp();

@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { ScrollView, StyleSheet, View } from "react-native";
 
-import { Button, IssueBadge, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
+import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
 import { Text } from "../design/text";
-import { colors, radius, size, space } from "../design/tokens";
+import { space } from "../design/tokens";
 import type { HomeRun, MobileSnapshot } from "../demo/contract";
 import { dashboardSummary } from "../format";
 import { t } from "../i18n";
@@ -18,7 +18,19 @@ import type { Board, ColumnKey } from "./model";
 import { RunCard, SettledRow } from "./run-card";
 
 const COLUMNS: ReadonlyArray<ColumnKey> = ["queued", "running", "done"];
-const ALL_WORKSPACES = "all";
+export const ALL_WORKSPACES = "all";
+
+export interface DashboardView {
+  workspaceId: string;
+  column: ColumnKey | null;
+  todoOnly: boolean;
+}
+
+export const INITIAL_DASHBOARD_VIEW: DashboardView = {
+  workspaceId: ALL_WORKSPACES,
+  column: null,
+  todoOnly: false,
+};
 
 function countLine(board: Board, column: ColumnKey): string {
   const todo = columnTodoCount(board, column);
@@ -31,11 +43,19 @@ function countLine(board: Board, column: ColumnKey): string {
     : [t("dashboard.countTodo", { count: todo }), rest].join(t("dashboard.countSeparator"));
 }
 
-function RunList({ runs, onAction }: { runs: HomeRun[]; onAction: () => void }) {
+function RunList({
+  runs,
+  showWorkspace,
+  onAction,
+}: {
+  runs: HomeRun[];
+  showWorkspace: boolean;
+  onAction: () => void;
+}) {
   return (
     <>
       {runs.map((run) => (
-        <RunCard key={run.id} run={run} onAction={onAction} />
+        <RunCard key={run.id} run={run} showWorkspace={showWorkspace} onAction={onAction} />
       ))}
     </>
   );
@@ -45,11 +65,13 @@ function ColumnBody({
   board,
   column,
   todoOnly,
+  showWorkspace,
   onAction,
 }: {
   board: Board;
   column: ColumnKey;
   todoOnly: boolean;
+  showWorkspace: boolean;
   onAction: () => void;
 }) {
   const hasTodo = columnTodoCount(board, column) > 0;
@@ -63,9 +85,12 @@ function ColumnBody({
       </View>
     );
   }
+  const list = (runs: HomeRun[]) => (
+    <RunList runs={runs} showWorkspace={showWorkspace} onAction={onAction} />
+  );
   switch (column) {
     case "queued":
-      return <RunList runs={board.queued} onAction={onAction} />;
+      return todoOnly ? null : list(board.queued);
     case "running":
       return (
         <>
@@ -74,22 +99,24 @@ function ColumnBody({
               {t("dashboard.humanCheckGroup")}
             </Text>
           )}
-          <RunList runs={board.running.humanCheck} onAction={onAction} />
-          <RunList runs={board.running.todo} onAction={onAction} />
-          {todoOnly ? null : <RunList runs={board.running.rest} onAction={onAction} />}
+          {list(board.running.humanCheck)}
+          {list(board.running.todo)}
+          {todoOnly ? null : list(board.running.rest)}
         </>
       );
     case "done":
       return (
         <>
-          <RunList runs={board.done.todo} onAction={onAction} />
+          {list(board.done.todo)}
           {todoOnly || board.done.settled.length === 0 ? null : (
             <View>
               <Text variant="meta" tone="secondary" heading>
                 {t("dashboard.settledGroup")}
               </Text>
               {board.done.settled.flatMap((run) =>
-                run.state === "ended" ? [<SettledRow key={run.id} run={run} />] : [],
+                run.state === "ended"
+                  ? [<SettledRow key={run.id} run={run} showWorkspace={showWorkspace} />]
+                  : [],
               )}
             </View>
           )}
@@ -98,47 +125,24 @@ function ColumnBody({
   }
 }
 
-function HeaderButton({
-  label,
-  accessibilityLabel,
-  badge = 0,
-  onPress,
-}: {
-  label: string;
-  accessibilityLabel?: string;
-  badge?: number;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel ?? label}
-      onPress={onPress}
-      style={styles.headerButton}
-    >
-      <Text variant="meta" tone="primary" numberOfLines={1}>
-        {label}
-      </Text>
-      <IssueBadge count={badge} />
-    </Pressable>
-  );
-}
-
 export function DashboardScreen({
   snapshot,
   now,
+  view,
+  onViewChange,
   onOpenRunners,
   onOpenSettings,
 }: {
   snapshot: MobileSnapshot;
   now: Date;
+  view: DashboardView;
+  onViewChange: (next: DashboardView) => void;
   onOpenRunners: () => void;
   onOpenSettings: () => void;
 }) {
-  const [workspaceId, setWorkspaceId] = useState(ALL_WORKSPACES);
   const [picking, setPicking] = useState(false);
   const [demoNotice, setDemoNotice] = useState(false);
-  const [todoOnly, setTodoOnly] = useState(false);
+  const { workspaceId, todoOnly } = view;
   const runs = useMemo(
     () =>
       workspaceId === ALL_WORKSPACES
@@ -147,14 +151,14 @@ export function DashboardScreen({
     [snapshot.runs, workspaceId],
   );
   const board = useMemo(() => buildBoard(runs, now), [runs, now]);
-  const [column, setColumn] = useState<ColumnKey>(() => firstColumn(board));
+  const column = view.column ?? firstColumn(board);
   const issues = runnerIssueCount(snapshot.runners);
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");
   const openDemoNotice = () => setDemoNotice(true);
   const chooseWorkspace = (id: string) => {
-    setWorkspaceId(id);
+    onViewChange({ ...view, workspaceId: id });
     setPicking(false);
   };
 
@@ -162,23 +166,25 @@ export function DashboardScreen({
     <View style={styles.root}>
       <View style={styles.topBar}>
         <View style={styles.workspace}>
-          <HeaderButton
+          <Button
+            compact
             label={workspaceName}
-            accessibilityLabel={`${t("dashboard.chooseWorkspace")}, ${workspaceName}`}
+            accessibilityLabel={t("dashboard.workspaceButton", { name: workspaceName })}
             onPress={() => setPicking(true)}
           />
         </View>
-        <HeaderButton
+        <Button
+          compact
           label={t("dashboard.runners")}
           accessibilityLabel={
             issues === 0
               ? t("dashboard.runners")
               : t("dashboard.runnersWithIssues", { count: issues })
           }
-          badge={issues}
+          issueCount={issues}
           onPress={onOpenRunners}
         />
-        <HeaderButton label={t("dashboard.settings")} onPress={onOpenSettings} />
+        <Button compact label={t("dashboard.settings")} onPress={onOpenSettings} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.heading}>
@@ -199,22 +205,32 @@ export function DashboardScreen({
             <Segment
               options={COLUMNS.map((value) => {
                 const todoCount = columnTodoCount(board, value);
+                const label = t(`dashboard.column.${value}`);
                 return {
                   value,
-                  label: t(`dashboard.column.${value}`),
+                  label,
                   todoCount,
                   todoLabel: t("dashboard.todoCount", { count: todoCount }),
+                  accessibilityLabel:
+                    todoCount === 0
+                      ? label
+                      : t("dashboard.columnWithTodo", { column: label, count: todoCount }),
                 };
               })}
               value={column}
-              onChange={setColumn}
+              onChange={(next) => onViewChange({ ...view, column: next })}
             />
             <Text variant="small">{countLine(board, column)}</Text>
-            <SwitchRow label={t("dashboard.todoOnly")} value={todoOnly} onChange={setTodoOnly} />
+            <SwitchRow
+              label={t("dashboard.todoOnly")}
+              value={todoOnly}
+              onChange={(next) => onViewChange({ ...view, todoOnly: next })}
+            />
             <ColumnBody
               board={board}
               column={column}
               todoOnly={todoOnly}
+              showWorkspace={workspaceId === ALL_WORKSPACES}
               onAction={openDemoNotice}
             />
           </>
@@ -261,15 +277,6 @@ const styles = StyleSheet.create({
     paddingVertical: space.s2,
   },
   workspace: { flex: 1, alignItems: "flex-start" },
-  headerButton: {
-    minHeight: size.touchTarget,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s1,
-    paddingHorizontal: space.s3,
-    borderRadius: radius.button,
-    backgroundColor: colors.bgControl,
-  },
   content: { padding: space.s4, gap: space.s3 },
   heading: { gap: space.s1 },
   columnEmpty: { paddingVertical: space.s8, alignItems: "center" },

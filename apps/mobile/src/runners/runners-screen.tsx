@@ -1,8 +1,8 @@
 import { ScrollView, StyleSheet, View } from "react-native";
 
-import { Card, StatusPill } from "../design/components";
+import { Card, Meter, StatusPill } from "../design/components";
 import { Text } from "../design/text";
-import { colors, radius, size, space } from "../design/tokens";
+import { space } from "../design/tokens";
 import type { RunnerView, UsageLimit, UsageLine } from "../demo/contract";
 import { formatDuration } from "../format";
 import { t } from "../i18n";
@@ -56,23 +56,13 @@ function UsageMeter({ line }: { line: UsageLine }) {
     provider: line.provider,
     window: t(`runners.window.${line.window}`),
   });
-  const percent = Math.min(100, Math.max(0, line.usedPercent));
   return (
     <View style={styles.usage}>
       <View style={styles.usageText}>
         <Text variant="small">{label}</Text>
-        <Text variant="small">{t("runners.usageValue", { percent })}</Text>
+        <Text variant="small">{t("runners.usageValue", { percent: line.usedPercent })}</Text>
       </View>
-      <View
-        accessibilityRole="progressbar"
-        accessibilityLabel={label}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={percent}
-        style={styles.meterTrack}
-      >
-        <View style={[styles.meterFill, { width: `${percent}%` }]} />
-      </View>
+      <Meter label={label} percent={line.usedPercent} />
     </View>
   );
 }
@@ -138,11 +128,4 @@ const styles = StyleSheet.create({
   runnerHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   usage: { gap: space.s1 },
   usageText: { flexDirection: "row", justifyContent: "space-between" },
-  meterTrack: {
-    height: size.meterHeight,
-    borderRadius: radius.full,
-    backgroundColor: colors.meterTrack,
-    overflow: "hidden",
-  },
-  meterFill: { height: size.meterHeight, backgroundColor: colors.meterFill },
 });

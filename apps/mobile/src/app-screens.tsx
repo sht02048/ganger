@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
 
-import { DashboardScreen } from "./dashboard/dashboard-screen";
+import { DashboardScreen, INITIAL_DASHBOARD_VIEW } from "./dashboard/dashboard-screen";
 import { busySnapshot, emptySnapshot } from "./demo/data";
 import { RunnersScreen } from "./runners/runners-screen";
-import { SettingsScreen } from "./settings/settings-screen";
+import { INITIAL_NOTIFICATION_PREFERENCES, SettingsScreen } from "./settings/settings-screen";
 
 type Screen = "dashboard" | "runners" | "settings";
 
 export function AppScreens({ now: fixedNow }: { now?: Date }) {
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [emptyPreview, setEmptyPreview] = useState(false);
+  const [dashboardView, setDashboardView] = useState(INITIAL_DASHBOARD_VIEW);
+  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATION_PREFERENCES);
   const now = useMemo(() => fixedNow ?? new Date(), [fixedNow]);
   const snapshot = useMemo(
     () => (emptyPreview ? emptySnapshot() : busySnapshot(now)),
@@ -19,9 +21,10 @@ export function AppScreens({ now: fixedNow }: { now?: Date }) {
     case "dashboard":
       return (
         <DashboardScreen
-          key={emptyPreview ? "empty" : "busy"}
           snapshot={snapshot}
           now={now}
+          view={dashboardView}
+          onViewChange={setDashboardView}
           onOpenRunners={() => setScreen("runners")}
           onOpenSettings={() => setScreen("settings")}
         />
@@ -32,7 +35,12 @@ export function AppScreens({ now: fixedNow }: { now?: Date }) {
       return (
         <SettingsScreen
           emptyPreview={emptyPreview}
-          onEmptyPreviewChange={setEmptyPreview}
+          onEmptyPreviewChange={(next) => {
+            setEmptyPreview(next);
+            setDashboardView(INITIAL_DASHBOARD_VIEW);
+          }}
+          preferences={notifications}
+          onPreferencesChange={setNotifications}
           onBack={() => setScreen("dashboard")}
         />
       );

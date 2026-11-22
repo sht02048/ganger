@@ -89,8 +89,20 @@ describe("TodoBadge", () => {
 
 describe("Segment", () => {
   const options = [
-    { value: "queued", label: "Queued", todoCount: 0, todoLabel: "처리할 일 0개" },
-    { value: "running", label: "Running", todoCount: 2, todoLabel: "처리할 일 2개" },
+    {
+      value: "queued",
+      label: "Queued",
+      todoCount: 0,
+      todoLabel: "처리할 일 0개",
+      accessibilityLabel: "Queued",
+    },
+    {
+      value: "running",
+      label: "Running",
+      todoCount: 2,
+      todoLabel: "처리할 일 2개",
+      accessibilityLabel: "Running, 처리할 일 2개",
+    },
   ] as const;
 
   it("고른 칸을 알리고 다른 칸을 누르면 값을 넘긴다", () => {

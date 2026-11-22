@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import appConfig from "../../app.json";
@@ -18,6 +17,22 @@ export const NOTIFICATION_KINDS = [
 
 type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
+export interface NotificationPreferences {
+  enabled: boolean;
+  kinds: Record<NotificationKind, boolean>;
+}
+
+export const INITIAL_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  enabled: true,
+  kinds: {
+    question: true,
+    permission: true,
+    humanCheck: true,
+    failedDisconnected: true,
+    runnerIssue: true,
+  },
+};
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <View style={styles.infoRow}>
@@ -32,20 +47,16 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 export function SettingsScreen({
   emptyPreview,
   onEmptyPreviewChange,
+  preferences,
+  onPreferencesChange,
   onBack,
 }: {
   emptyPreview: boolean;
   onEmptyPreviewChange: (next: boolean) => void;
+  preferences: NotificationPreferences;
+  onPreferencesChange: (next: NotificationPreferences) => void;
   onBack: () => void;
 }) {
-  const [notifications, setNotifications] = useState(true);
-  const [kinds, setKinds] = useState<Record<NotificationKind, boolean>>({
-    question: true,
-    permission: true,
-    humanCheck: true,
-    failedDisconnected: true,
-    runnerIssue: true,
-  });
   return (
     <View style={styles.root}>
       <ScreenHeader title={t("settings.title")} onBack={onBack} />
@@ -61,8 +72,8 @@ export function SettingsScreen({
         <Card>
           <SwitchRow
             label={t("settings.notificationsOn")}
-            value={notifications}
-            onChange={setNotifications}
+            value={preferences.enabled}
+            onChange={(enabled) => onPreferencesChange({ ...preferences, enabled })}
           />
           <Text variant="meta">{t("settings.pushNotice")}</Text>
         </Card>
@@ -74,9 +85,14 @@ export function SettingsScreen({
             <SwitchRow
               key={kind}
               label={t(`settings.kind.${kind}`)}
-              value={kinds[kind]}
-              disabled={!notifications}
-              onChange={(next) => setKinds((current) => ({ ...current, [kind]: next }))}
+              value={preferences.kinds[kind]}
+              disabled={!preferences.enabled}
+              onChange={(next) =>
+                onPreferencesChange({
+                  ...preferences,
+                  kinds: { ...preferences.kinds, [kind]: next },
+                })
+              }
             />
           ))}
         </Card>

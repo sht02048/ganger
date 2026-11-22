@@ -29,7 +29,11 @@ function PrChips({ run }: { run: HomeRun }) {
   return (
     <View style={styles.chips}>
       {problems.slice(0, PR_CHIPS_VISIBLE).map((problem) => (
-        <Chip key={problem.kind} label={prProblemLabel(problem)} tone="problem" />
+        <Chip
+          key={problem.kind}
+          label={prProblemLabel(problem)}
+          tone={problem.kind === "behind" ? "neutral" : "problem"}
+        />
       ))}
       {hidden > 0 ? <Chip label={t("card.prChip.more", { count: hidden })} /> : null}
     </View>
@@ -60,11 +64,23 @@ function pillOf(run: HomeRun): PillStatus | null {
   return run.state === "paused" ? "paused" : null;
 }
 
+function firstLineOf(body: string): string {
+  return body.split("\n", 1)[0] ?? "";
+}
+
+function inputHandled(run: HomeRun): boolean {
+  if (run.state !== "waiting-for-input" || run.input === null) return false;
+  return run.input.kind === "permission" ? run.input.denied : run.input.answered;
+}
+
 function detailOf(run: HomeRun): string | null {
   switch (run.state) {
     case "waiting-for-input":
       if (run.input === null) return t("card.inputUnknown");
-      return run.input.kind === "permission" ? run.input.detail : run.input.body;
+      if (inputHandled(run)) {
+        return run.input.kind === "permission" ? t("card.denied") : t("card.answered");
+      }
+      return run.input.kind === "permission" ? run.input.detail : firstLineOf(run.input.body);
     case "disconnected": {
       const runner = run.runner?.name ?? t("card.noRunner");
       return run.unreachableMs === null
@@ -83,13 +99,14 @@ function detailOf(run: HomeRun): string | null {
 
 function noteOf(run: HomeRun): string | null {
   if (run.state === "disconnected") return t("card.disconnected");
-  if (run.state === "waiting-for-input" && run.input?.kind === "permission") {
+  if (run.state === "waiting-for-input" && run.input?.kind === "permission" && !run.input.denied) {
     return t("card.allowOnRunner");
   }
   return null;
 }
 
 function actionOf(run: HomeRun): { key: MessageKey; danger: boolean } | null {
+  if (inputHandled(run)) return null;
   switch (todoTagOf(run)) {
     case "question":
       return { key: "card.answer", danger: false };
@@ -102,7 +119,9 @@ function actionOf(run: HomeRun): { key: MessageKey; danger: boolean } | null {
     case "waiting-for-input":
     case "disconnected":
     case null:
-      return run.state === "paused" ? { key: "card.resume", danger: false } : null;
+      return run.state === "paused" && !run.cancelling
+        ? { key: "card.resume", danger: false }
+        : null;
   }
 }
 
@@ -127,7 +146,15 @@ function isStuck(run: HomeRun): boolean {
   return run.state === "queued" && run.queuedReason.kind === "blockers-stuck";
 }
 
-export function RunCard({ run, onAction }: { run: HomeRun; onAction: () => void }) {
+export function RunCard({
+  run,
+  showWorkspace = false,
+  onAction,
+}: {
+  run: HomeRun;
+  showWorkspace?: boolean;
+  onAction: () => void;
+}) {
   const pill = pillOf(run);
   const detail = detailOf(run);
   const note = noteOf(run);
@@ -140,6 +167,7 @@ export function RunCard({ run, onAction }: { run: HomeRun; onAction: () => void 
   const meta = [
     waitsOnBlockers ? null : (run.runner?.name ?? t("card.noRunner")),
     waitsOnBlockers ? null : run.agent,
+    showWorkspace ? run.workspace.name : null,
     run.cancelling ? t("card.cancelling") : null,
     run.pullRequest === null ? null : t("card.pullRequest", { pr: run.pullRequest.displayId }),
   ]
@@ -154,7 +182,7 @@ export function RunCard({ run, onAction }: { run: HomeRun; onAction: () => void 
       </Text>
       <BlockerChips run={run} />
       {detail === null ? null : (
-        <Text variant="meta" tone={stuck ? "problem" : "secondary"}>
+        <Text variant="meta" tone={stuck ? "problem" : "secondary"} numberOfLines={2}>
           {detail}
         </Text>
       )}
@@ -194,9 +222,19 @@ function settledPrLabel(run: HomeRun & { state: "ended" }): string | null {
   }
 }
 
-export function SettledRow({ run }: { run: HomeRun & { state: "ended" } }) {
+export function SettledRow({
+  run,
+  showWorkspace = false,
+}: {
+  run: HomeRun & { state: "ended" };
+  showWorkspace?: boolean;
+}) {
   const status = run.summary === "canceled" ? "canceled" : "succeeded";
-  const trailing = [settledPrLabel(run), formatAgo(run.endedAt, run.endedAgoMs)]
+  const trailing = [
+    showWorkspace ? run.workspace.name : null,
+    settledPrLabel(run),
+    formatAgo(run.endedAt, run.endedAgoMs),
+  ]
     .filter((part) => part !== null)
     .join(" · ");
   return (
@@ -209,6 +247,7 @@ export function SettledRow({ run }: { run: HomeRun & { state: "ended" } }) {
         <Text variant="small" numberOfLines={1}>
           {trailing}
         </Text>
+        <PrChips run={run} />
       </View>
     </View>
   );

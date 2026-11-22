@@ -68,7 +68,9 @@ export function queuedLine(run: HomeRun & { state: "queued" }): string {
     case "blockers-waiting":
       return t("card.blockerLine.waiting");
     case "blockers-stuck":
-      return t(`card.blockerLine.${reason.cause}`);
+      return reason.blocker === null && reason.blockers.length === 0
+        ? t("card.blockerLine.unreadable")
+        : t(`card.blockerLine.${reason.cause}`);
   }
 }
 

@@ -1,5 +1,12 @@
 import type { ReactNode } from "react";
-import { Modal, Pressable, StyleSheet, Switch as NativeSwitch, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch as NativeSwitch,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
@@ -35,31 +42,39 @@ const buttonTone: Record<ButtonVariant, TextTone> = {
 export function Button({
   label,
   variant = "secondary",
+  compact = false,
+  issueCount = 0,
+  accessibilityLabel,
   disabled = false,
   onPress,
 }: {
   label: string;
   variant?: ButtonVariant;
+  compact?: boolean;
+  issueCount?: number;
+  accessibilityLabel?: string;
   disabled?: boolean;
   onPress?: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
+      accessibilityLabel={accessibilityLabel ?? label}
       aria-disabled={disabled}
       disabled={disabled}
       {...(onPress === undefined ? {} : { onPress })}
       style={({ pressed }) => [
         styles.button,
+        compact ? styles.buttonCompact : null,
         variant === "primary" ? styles.buttonPrimary : styles.buttonSecondary,
         pressed && !disabled ? styles.pressed : null,
         disabled ? styles.disabled : null,
       ]}
     >
-      <Text variant="title" tone={buttonTone[variant]} numberOfLines={1}>
+      <Text variant={compact ? "meta" : "title"} tone={buttonTone[variant]} numberOfLines={1}>
         {label}
       </Text>
+      <IssueBadge count={issueCount} />
     </Pressable>
   );
 }
@@ -88,7 +103,10 @@ export function IssueBadge({ count }: { count: number }) {
 
 export function Chip({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "problem" }) {
   return (
-    <View style={[styles.chip, tone === "problem" ? styles.chipProblem : null]}>
+    <View
+      testID={`chip-${tone}`}
+      style={[styles.chip, tone === "problem" ? styles.chipProblem : null]}
+    >
       <Text variant="small" tone={tone === "problem" ? "problem" : "secondary"} numberOfLines={1}>
         {label}
       </Text>
@@ -101,6 +119,23 @@ export interface SegmentOption<Value extends string> {
   label: string;
   todoCount: number;
   todoLabel: string;
+  accessibilityLabel: string;
+}
+
+export function Meter({ label, percent }: { label: string; percent: number }) {
+  const value = Math.min(100, Math.max(0, percent));
+  return (
+    <View
+      accessibilityRole="progressbar"
+      accessibilityLabel={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={value}
+      style={styles.meterTrack}
+    >
+      <View style={[styles.meterFill, { width: `${value}%` }]} />
+    </View>
+  );
 }
 
 export function Segment<Value extends string>({
@@ -120,9 +155,7 @@ export function Segment<Value extends string>({
           <Pressable
             key={option.value}
             accessibilityRole="tab"
-            accessibilityLabel={
-              option.todoCount > 0 ? `${option.label}, ${option.todoLabel}` : option.label
-            }
+            accessibilityLabel={option.accessibilityLabel}
             aria-selected={selected}
             onPress={() => onChange(option.value)}
             style={[styles.segmentItem, selected ? styles.segmentItemSelected : null]}
@@ -250,7 +283,9 @@ export function Sheet({
           <Text variant="panel" heading>
             {title}
           </Text>
-          {children}
+          <ScrollView style={styles.sheetBody} contentContainerStyle={styles.sheetContent}>
+            {children}
+          </ScrollView>
         </View>
       </View>
     </Modal>
@@ -314,9 +349,12 @@ const styles = StyleSheet.create({
     minHeight: size.touchTarget,
     paddingHorizontal: space.s4,
     borderRadius: radius.button,
+    flexDirection: "row",
+    gap: space.s1,
     alignItems: "center",
     justifyContent: "center",
   },
+  buttonCompact: { paddingHorizontal: space.s3 },
   buttonPrimary: { backgroundColor: colors.accent },
   buttonSecondary: { backgroundColor: colors.bgControl },
   pressed: { opacity: 0.8 },
@@ -382,7 +420,17 @@ const styles = StyleSheet.create({
   switchLabel: { flex: 1 },
   sheetRoot: { flex: 1, justifyContent: "flex-end" },
   sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.backdrop },
+  sheetBody: { flexShrink: 1 },
+  sheetContent: { gap: space.s3 },
+  meterTrack: {
+    height: size.meterHeight,
+    borderRadius: radius.full,
+    backgroundColor: colors.meterTrack,
+    overflow: "hidden",
+  },
+  meterFill: { height: size.meterHeight, backgroundColor: colors.meterFill },
   sheet: {
+    maxHeight: "85%",
     backgroundColor: colors.bgRaised,
     borderTopLeftRadius: radius.sheet,
     borderTopRightRadius: radius.sheet,

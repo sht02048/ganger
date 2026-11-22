@@ -173,7 +173,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       pullRequest: {
         displayId: prDisplayId(203),
         url: "https://example.com/acme/pay/pull/203",
-        signals: null,
+        signals: { ciFailed: false, conflict: false, behindBy: 2 },
       },
       ...ended(5 * HOUR),
     },
