@@ -1,10 +1,10 @@
 # AGENTS.md
 
-트래커의 티켓을 러너에 맡기고 런의 현황과 통계를 보여 주는 셀프호스팅 오케스트레이터 저장소다. 구조와 명령은 [README.md](README.md), 용어는 [GLOSSARY.md](GLOSSARY.md), 주요 결정은 [`docs/adr/`](docs/adr/)를 본다.
+트래커의 티켓을 러너에 맡기고 런의 현황과 통계를 보여 주는 셀프호스팅 오케스트레이터 저장소다. 제품 소개는 [README.md](README.md), 구조와 명령은 [CONTRIBUTING.md](CONTRIBUTING.md), 설치·운영은 [`docs/guide/`](docs/guide/), 출시는 [`docs/releasing.md`](docs/releasing.md), 용어는 [GLOSSARY.md](GLOSSARY.md), 주요 결정은 [`docs/adr/`](docs/adr/)를 본다.
 
 ## 작업 근거
 
-- 작업 전에 README, 대상 코드, 관련 테스트와 ADR을 확인한다. 현재 동작은 코드와 테스트로 확인하고, 설계 의도나 완료 상태를 추측해 단정하지 않는다.
+- 작업 전에 README, CONTRIBUTING, 대상 코드, 관련 테스트와 ADR을 확인한다. 현재 동작은 코드와 테스트로 확인하고, 설계 의도나 완료 상태를 추측해 단정하지 않는다.
 - 용어는 GLOSSARY를 따르고 `_Avoid_`에 적힌 낱말은 쓰지 않는다. 같은 것을 여러 이름으로 부르면 코드와 화면이 어긋난다.
 
 ## 문서 위치
@@ -13,7 +13,7 @@
 - 되돌리기 어려운 결정과 그 이유는 `docs/adr/NNNN-slug.md`에 둔다.
 - 조사·스파이크 결과는 `docs/research/NNNN-slug.md`에 둔다.
 - 일감은 트래커가 아니라 `docs/tickets/NNNN-slug.md` 로컬 티켓으로 관리한다. 형식은 [`docs/tickets/README.md`](docs/tickets/README.md)를 따른다.
-- 내부 설계 문서(GLOSSARY, ADR, 티켓)는 한국어로, README와 사용자 문서는 영어로 쓴다(ADR 0005).
+- 내부 설계 문서(GLOSSARY, ADR, 티켓)는 한국어로, README, CONTRIBUTING과 사용자 문서(`docs/guide/`, `docs/releasing.md`)는 영어로 쓴다(ADR 0005).
 
 ## 공개 저장소
 

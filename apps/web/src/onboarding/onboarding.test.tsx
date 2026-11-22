@@ -341,7 +341,7 @@ describe("확인이 실패한 단계", () => {
     const { settings, html } = await runnerStep(null);
     expect(stepPassed(settings, "runner")).toBe(false);
     expect(isDisabled(nextButton(html, "다음"))).toBe(true);
-    expect(text(html)).toContain("확인하는 중이에요 · 0초째");
+    expect(text(html)).toContain("확인하는 중이에요 · <1 min");
   });
 
   it("Orca 상시 서비스가 없으면 설치 명령을 안내하고 다음으로 갈 수 없다", async () => {
@@ -670,6 +670,8 @@ describe("다섯 단계를 마치기", () => {
       project: { id: "tp-web", name: "Web" },
       mapping: null,
       inProgressStateId: "st-doing",
+      mergedStateId: null,
+      trackerKind: "linear",
       states: { ok: true as const, items: [] },
       labels: { ok: true as const, items: [] },
     };

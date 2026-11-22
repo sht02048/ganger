@@ -43,9 +43,13 @@ import {
 import type { Database, StoredRun } from "@ganger/db";
 import { startWorker } from "@ganger/worker";
 import type { RunningWorker } from "@ganger/worker";
+import { chromium } from "playwright-core";
+import type { Browser } from "playwright-core";
 import type { ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
+import runsJson from "../../apps/web/messages/ko/runs.json" with { type: "json" };
+import { waitForScreenQuerySettled } from "./query-settled.js";
 import { startWebServer } from "./web-server.js";
 
 const fakeKind = "fake";
@@ -98,6 +102,7 @@ let db: Database;
 let worker: RunningWorker;
 let web: ViteDevServer;
 let baseUrl: string;
+let browser: Browser;
 const tracker = new FakeTracker(toTrackerKind(fakeKind));
 const codeHost = new FakeCodeHost(toCodeHostKind(fakeKind));
 const runner = new FakeRunner(toRunnerKind(fakeKind));
@@ -127,9 +132,17 @@ beforeAll(async () => {
     plugins: [],
     cacheDir: join(dir, "vite-cache"),
   }));
-}, 120_000);
+  browser = await chromium.launch({ channel: "chrome" });
+
+  const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
+  warm.setDefaultTimeout(110_000);
+  await warm.goto(`/runs?ws=${workspaceId}`);
+  await waitForScreenQuerySettled(warm, ["runs", "list"]);
+  await warm.close();
+}, 240_000);
 
 afterAll(async () => {
+  await browser?.close();
   await web?.close();
   await worker?.stop();
   db?.$client.close();
@@ -161,20 +174,23 @@ describe("끝에서 끝까지 얇은 경로", () => {
       const records = getRunWithRecords(db, assigned.id)?.records;
       expect(records?.pullRequest?.displayId ?? null).toBe(scenario.pr === null ? null : "#pr");
 
-      const html = await fetchRuns(assigned.id);
-      const [title, meta, pill] = rowCells(html, scenario.key) ?? [];
+      const html = await fetchRuns();
+      const [title, word] = rowCells(html, scenario.key) ?? [];
       expect(title).toBe(`Ticket ${scenario.key}`);
-      expect(pill).toBe(domain.summary[scenario.summary]);
-      expect(meta).toContain(domain.agentResult[scenario.agentResult]);
-      expect(meta?.includes(domain.prState[scenario.prState])).toBe(
-        scenario.pr !== null || scenario.prState !== "none",
+      expect(word).toContain(
+        runsJson.word[scenario.summary === "succeeded" ? "done" : scenario.summary],
       );
-      const panel = panelText(html);
-      expect(panel).toContain(scenario.key);
-      expect(panel).toContain(domain.summary[scenario.summary]);
-      expect(panel).toContain(domain.agentResult[scenario.agentResult]);
-      expect(panel).toContain(domain.prState[scenario.prState]);
-      expect(panel.includes("#pr")).toBe(scenario.pr !== null);
+
+      const panel = await readRenderedPanel(assigned.id);
+      expect(panel.whole).toContain(scenario.key);
+      expect(panel.whole).toContain(domain.summary[scenario.summary]);
+      expect(panel.whole).toContain(domain.agentResult[scenario.agentResult]);
+      expect(panel.prSection).toContain(
+        scenario.prState === "none"
+          ? runsJson.panel.prSection.none
+          : runsJson.panel.prSection.state[scenario.prState],
+      );
+      expect(panel.whole.includes("#pr")).toBe(scenario.pr !== null);
     });
   }
 
@@ -288,13 +304,28 @@ async function waitForRun(
   }
 }
 
-async function fetchRuns(selected: RunId): Promise<string> {
+async function fetchRuns(): Promise<string> {
   const url = new URL("/runs", baseUrl);
   url.searchParams.set("ws", workspaceId);
-  url.searchParams.set("sel", selected);
+  url.searchParams.set("view", "all");
   const response = await fetch(url);
   expect(response.status).toBe(200);
   return response.text();
+}
+
+async function readRenderedPanel(id: RunId): Promise<{ whole: string; prSection: string }> {
+  const page = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
+  page.setDefaultTimeout(30_000);
+  try {
+    await page.goto(`/runs?ws=${workspaceId}&view=all&sel=${id}`);
+    await waitForScreenQuerySettled(page, ["runs", "list", "run", workspaceId, id]);
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
+    const prSection = dialog.getByRole("region", { name: /^PR/ });
+    return { whole: await dialog.innerText(), prSection: await prSection.innerText() };
+  } finally {
+    await page.close();
+  }
 }
 
 function withoutFoldedOnly(html: string): string {
@@ -326,12 +357,7 @@ function rowCells(html: string, key: string): string[] | undefined {
       .split(/<[^>]+>/)
       .map((s) => s.trim())
       .filter((s) => s !== "" && !s.includes("="));
-    if (cells[0] === key) return [cells[1] ?? "", cells[3] ?? "", cells[4] ?? ""];
+    if (cells[0] === key) return [cells[1] ?? "", cells[3] ?? ""];
   }
   return undefined;
-}
-
-function panelText(html: string): string {
-  const panel = html.split("<aside").at(-1)?.split("</aside>")[0] ?? "";
-  return panel.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }

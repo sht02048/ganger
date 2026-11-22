@@ -1,15 +1,83 @@
 {
   "documentTitle": "Runs · Ganger",
   "title": "Runs",
-  "subtitle": "{attention, plural, =0 {런 {total}개, 처리할 일은 없어요.} other {{total}개 중 {attention}개가 처리할 일이에요.}}",
-  "subtitleRecent": "{attention, plural, =0 {최근 런 {total}개, 처리할 일은 없어요.} other {최근 런 {total}개 중 {attention}개가 처리할 일이에요.}}",
-  "filter": {
-    "groupLabel": "묶음으로 거르기",
-    "statusLabel": "상태로 거르기",
+  "situation": {
+    "disconnected": "러너와 끊긴 런이 {count}개 있어요.",
+    "runningAndWaiting": "지금 {running}개가 돌고, {waiting}개가 답을 기다려요.",
+    "running": "지금 {count}개가 돌아요.",
+    "waiting": "지금 {count}개가 답을 기다려요.",
+    "queued": "{count}개는 시작을 기다려요.",
+    "settling": "답을 전하거나 취소하는 중인 런이 {count}개 있어요.",
+    "none": "지금 도는 런이 없어요."
+  },
+  "word": {
+    "running": "도는 중",
+    "question": "답을 기다려요",
+    "permission": "허용을 기다려요",
+    "human-check": "확인을 기다려요",
+    "answer-sent": "답을 보냈어요",
+    "permission-denied": "거절했어요",
+    "cancelling": "취소 중",
+    "paused": "멈춰 있어요",
+    "disconnected": "러너와 끊겼어요",
+    "queued": "기다려요",
+    "done": "끝남",
+    "needs-review": "확인 필요",
+    "failed": "실패",
+    "canceled": "취소됨"
+  },
+  "reason": {
+    "ci-failed": "CI 실패",
+    "conflict": "충돌",
+    "merged": "PR 병합됨"
+  },
+  "now": {
+    "title": "지금",
+    "offline": "꺼져 있어요",
+    "noRuns": "도는 런이 없어요",
+    "noRunners": "아직 러너가 없어요. Runners에서 추가하면 여기에 보여요.",
+    "seats": "자리 {total}개 중 {used}개 사용",
+    "showMore": "{count}개 더 보기",
+    "queueTitle": "기다리는 런",
+    "queueEmpty": "기다리는 런이 없어요",
+    "queueReason": {
+      "starting": "곧 시작해요",
+      "behind": "차례를 기다려요",
+      "no-capacity": "자리를 기다려요",
+      "runner-offline": "러너가 꺼져 있어요",
+      "project-missing": "러너를 다시 골라요",
+      "assignment-blocked": "러너 인증이 깨졌어요",
+      "usage-limit": "사용 한도에 닿았어요",
+      "blockers-waiting": "선행 티켓을 기다려요",
+      "blockers-stuck": "선행 티켓이 막혔어요"
+    },
+    "runnerLabel": "{name} 러너",
+    "noMatch": "이 조건에 맞는 끝나지 않은 런이 없어요.",
+    "otherWorkspace": "다른 Workspace에서 {count}개가 돌아요"
+  },
+  "endedRuns": {
+    "title": "끝난 런",
+    "viewLabel": "끝난 런 거르기",
+    "review": "확인 필요",
     "all": "모두",
-    "attention": "처리할 일",
-    "in-progress": "진행 중",
-    "done": "끝남"
+    "periodLabel": "기간",
+    "period": "{days, plural, =1 {오늘} other {{days}일}}",
+    "periodOther": "{days}일",
+    "runnerLabel": "러너",
+    "allRunners": "모든 러너",
+    "listLabel": "끝난 런 목록",
+    "empty": "이 기간에 끝난 런이 없어요.",
+    "emptyWithConditions": "이 조건에 맞는 끝난 런이 없어요. 조건을 지우면 다른 런도 보여요.",
+    "noRunner": "러너 없음",
+    "loadMore": "더 불러오기",
+    "loaded": "끝난 런 {count}개를 보여요.",
+    "columns": {
+      "key": "키",
+      "title": "제목",
+      "runner": "러너",
+      "state": "상태",
+      "time": "시간"
+    }
   },
   "conditions": {
     "label": "걸린 조건",
@@ -17,67 +85,72 @@
     "noRunner": "러너: 없음",
     "project": "프로젝트: {name}",
     "agent": "에이전트: {name}",
-    "days": "기간: 최근 {days}일",
+    "days": "기간: {days, plural, =1 {오늘} other {최근 {days}일}}",
     "remove": "{condition} 조건 지우기",
-    "clearAll": "조건 모두 지우기"
+    "clearAll": "조건 모두 지우기",
+    "failed": "상태: 실패"
   },
-  "listLabel": "런 목록",
-  "columns": {
-    "key": "키",
-    "title": "제목",
-    "runner": "러너",
-    "result": "에이전트·결과",
-    "status": "상태",
-    "time": "시간"
-  },
-  "empty": "이 조건에 맞는 런이 없어요.",
-  "noRuns": "아직 런이 없어요. 티켓을 할당하면 여기에 보여요.",
-  "noRunsWithConditions": "이 조건에 맞는 런이 없어요. 조건을 지우면 다른 런도 보여요.",
-  "noRunner": "러너 정하기 전",
-  "noRunnerEnded": "러너 없이 끝남",
   "metaSeparator": " · ",
-  "prWithState": "{pr} {state}",
-  "prMarks": {
-    "ciFailed": "CI 실패",
-    "conflict": "충돌",
-    "behind": "base보다 {count}커밋 뒤"
-  },
   "cancelling": "취소 중",
-  "ended": {
-    "partial": "끝난 런은 최근 {count}개까지 보여요. 그보다 오래된 런은 처리할 일만 보여요.",
-    "all": "끝난 런 {count}개를 모두 보여요.",
-    "showMore": "더 보기"
-  },
   "noWorkspace": "아직 Workspace가 없어요. Workspace를 만들면 런이 보여요.",
   "allWorkspaces": {
     "body": "전체에서는 모든 Workspace의 처리할 일만 모아 봐요. 런은 Workspace를 골라야 보여요.",
     "pick": "{name} 보기"
   },
   "panel": {
-    "label": "고른 런 요약",
-    "empty": "보여 줄 런이 없어요. 다른 필터를 골라 보세요.",
-    "noRuns": "런이 생기면 여기에 요약이 보여요.",
-    "subtitle": "{project} · {branch}",
-    "subtitleWithKey": "{key} · {where}",
-    "waitingFor": "{duration}째 기다리는 중",
-    "endedAfter": "{duration} 만에 끝났어요",
-    "state": "상태",
-    "summary": "요약 결과",
+    "label": "고른 런",
+    "where": "{key} · {project}",
+    "whereSeparator": " · ",
+    "endedAgo": "{ago} 끝남 · {duration} 걸림",
+    "runInfo": "런 정보",
+    "prSection": {
+      "title": "PR",
+      "titleWithId": "PR {pr}",
+      "readAt": "{time} 읽음",
+      "none": "아직 PR이 없어요",
+      "state": {
+        "open": "Open",
+        "merged": "Merged",
+        "closed": "Closed",
+        "unknown": "못 읽음"
+      },
+      "ci": "CI",
+      "ciValue": {
+        "success": "통과",
+        "failure": "실패",
+        "failedOf": "{total}개 중 {failed}개 실패",
+        "failedOfAtLeast": "{total}개 중 {failed}개 이상 실패",
+        "pending": "도는 중",
+        "none": "없음",
+        "unavailable": "볼 수 없어요",
+        "unknown": "알 수 없어요"
+      },
+      "failedChecks": "실패한 검사 보기",
+      "conflict": "충돌",
+      "conflictValue": {
+        "none": "없음",
+        "some": "있음",
+        "unknown": "모름"
+      },
+      "base": "base",
+      "baseValue": {
+        "behind": "{count}커밋 뒤",
+        "upToDate": "최신",
+        "unknown": "모름"
+      }
+    },
+    "waitingFor": "{duration} 기다리는 중",
     "agentResult": "에이전트 결과",
-    "prState": "PR 상태",
-    "runner": "러너",
     "agent": "에이전트",
-    "pr": "PR",
-    "none": "없음",
-    "notEnded": "런이 끝나면 기록해요",
-    "noRunner": "아직 정하지 않았어요",
-    "openDetail": "자세히 보기",
-    "openPr": "PR {pr} 열기",
+    "openDetail": "런 상세 열기",
+    "openPr": "PR {pr}",
     "cancelling": "취소 중",
     "cancellingReason": "취소를 요청했어요. 오케스트레이터가 처리하면 런이 끝나요.",
     "reason": {
       "running": "러너에서 에이전트가 티켓을 처리하고 있어요.",
       "waiting-for-input": "에이전트가 사람 입력을 기다리고 있어요. 최대 실행 시간은 이 동안에도 흘러요.",
+      "answerSent": "답을 남겼어요. 에이전트에게 전하면 런이 이어져요.",
+      "permissionDenied": "권한 요청을 거절했어요. 에이전트에게 전하면 런이 이어져요.",
       "paused": "운영자가 멈춰 둔 런이에요. 워크트리와 러너 자리는 그대로이고, 최대 실행 시간도 멈춰 있어요. 자세히 보기에서 재개할 수 있어요.",
       "disconnected": "런 중 러너에 5분 넘게 닿지 않았어요. 다시 닿으면 실제 상태를 확인해요. 최대 실행 시간은 이 동안에도 흘러요.",
       "succeeded": "에이전트가 성공을 보고했어요. PR 정보는 결과와 따로 보여요.",
@@ -85,15 +158,19 @@
       "canceled": "운영자가 취소한 런이에요. 처리할 일에 올리지 않아요.",
       "disconnectedPaused": "멈춰 둔 런인데 러너에 5분 넘게 닿지 않았어요. 다시 닿으면 멈춘 채로 돌아와요. 최대 실행 시간은 멈춰 있어요."
     },
-    "noRunsWithConditions": "조건에 맞는 런이 생기면 여기에 요약이 보여요.",
-    "pausedFor": "{duration}째 멈춰 있어요",
+    "pausedFor": "{duration} 멈춰 있어요",
     "prUnread": {
       "no-access": "PR 정보를 읽지 못했어요. GitHub 토큰이 이 저장소를 볼 수 없어요. 토큰을 고치면 worker가 다시 읽어요.",
       "other": "PR 정보를 읽지 못했어요. worker가 간격을 늘려 가며 다시 읽어요."
     },
-    "reasonWithPrUnread": "{reason} {prUnread}"
-  },
-  "pausedFor": "{elapsed} 멈춤",
-  "prUnread": "PR 못 읽음",
-  "prUnreadWithPr": "{pr} 못 읽음"
+    "reasonWithCiFailed": "{reason} PR의 CI가 실패해서 확인이 필요해요.",
+    "close": "닫기",
+    "todoTitle": "처리할 일",
+    "continue": "런 상세에서 이어서 맡기기",
+    "inDetail": {
+      "question": "런 상세에서 답하기",
+      "human-check": "런 상세에서 확인하기",
+      "paused": "런 상세에서 재개하기"
+    }
+  }
 }

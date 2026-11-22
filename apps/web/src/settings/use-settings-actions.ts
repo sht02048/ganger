@@ -24,10 +24,11 @@ import {
   saveWorkspaceInProgressState,
   saveWorkspaceLabel,
   saveWorkspaceMapping,
+  saveWorkspaceMergedState,
   turnOffTrackerWebhook,
 } from "../server/settings-functions";
 import { invalidateChanged, queryNotificationsDelivered } from "./settings-query";
-import type { ActionResult, SettingsActions } from "./settings-screen";
+import type { ActionResult, ProjectDetailActions, SettingsActions } from "./settings-screen";
 
 export type AfterSave = () => Promise<unknown>;
 
@@ -102,7 +103,7 @@ function useSaveMutation<I, R extends Outcome>(
   return useCallback((input: I) => mutateAsync(input).catch(rejectedOutcome), [mutateAsync]);
 }
 
-export function useSettingsActions(afterChange: AfterChange): SettingsActions {
+export function useSettingsActions(afterChange: AfterChange): ProjectDetailActions {
   const saveGeneral = useSaveMutation(
     (data: Parameters<SettingsActions["saveGeneral"]>[0]) => saveWorkspaceGeneral({ data }),
     WORKSPACE,
@@ -132,6 +133,12 @@ export function useSettingsActions(afterChange: AfterChange): SettingsActions {
   const saveInProgress = useSaveMutation(
     (data: Parameters<SettingsActions["saveInProgress"]>[0]) =>
       saveWorkspaceInProgressState({ data }),
+    SETTINGS,
+    afterChange,
+  );
+  const saveMergedState = useSaveMutation(
+    (data: Parameters<ProjectDetailActions["saveMergedState"]>[0]) =>
+      saveWorkspaceMergedState({ data }),
     SETTINGS,
     afterChange,
   );
@@ -193,13 +200,14 @@ export function useSettingsActions(afterChange: AfterChange): SettingsActions {
     afterChange,
   );
   return useMemo(
-    (): SettingsActions => ({
+    (): ProjectDetailActions => ({
       saveGeneral,
       saveBrief,
       addProject,
       removeProject,
       saveMapping,
       saveInProgress,
+      saveMergedState,
       saveLabel,
       createLabel,
       reloadFromTracker: async () => {
@@ -231,6 +239,7 @@ export function useSettingsActions(afterChange: AfterChange): SettingsActions {
       removeProject,
       saveMapping,
       saveInProgress,
+      saveMergedState,
       saveLabel,
       createLabel,
       saveConnection,

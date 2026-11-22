@@ -1,10 +1,9 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 
 const ROWS_BEFORE_MEASURING = 30;
 const EXTRA_ROWS_EACH_SIDE = 6;
-const ROW_PITCH_BEFORE_MEASURING = 54;
-const ROW_GAP_BEFORE_MEASURING = 2;
+const ROW_HEIGHT_BEFORE_MEASURING = 52;
 
 export interface RowWindow {
   start: number;
@@ -13,98 +12,175 @@ export interface RowWindow {
   spaceAfter: number;
 }
 
-interface WindowState {
-  start: number;
-  end: number;
-  pitch: number;
-  gap: number;
+export function rowOffsets(heights: ReadonlyArray<number>): number[] {
+  const offsets = [0];
+  let total = 0;
+  for (const height of heights) {
+    total += height;
+    offsets.push(total);
+  }
+  return offsets;
 }
+
+function firstRowEndingAfter(offsets: ReadonlyArray<number>, position: number): number {
+  let low = 0;
+  let high = offsets.length - 1;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((offsets[middle + 1] ?? Infinity) <= position) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+export function windowOf(
+  offsets: ReadonlyArray<number>,
+  visibleFrom: number,
+  visibleTo: number,
+  extra = EXTRA_ROWS_EACH_SIDE,
+): RowWindow {
+  const count = offsets.length - 1;
+  const total = offsets[count] ?? 0;
+  const first = firstRowEndingAfter(offsets, visibleFrom);
+  const last = firstRowEndingAfter(offsets, visibleTo);
+  const start = clamp(first - extra, 0, count);
+  const end = clamp(last + 1 + extra, start, count);
+  const before = offsets[start] ?? 0;
+  return { start, end, spaceBefore: before, spaceAfter: total - (offsets[end] ?? total) };
+}
+
+export interface MovingRowWindow extends RowWindow {
+  offsets: ReadonlyArray<number>;
+  collapsed: (RowWindow & { offsets: ReadonlyArray<number>; from: number; to: number }) | null;
+}
+
+const NO_MOVING_KEYS: ReadonlyMap<string, unknown> = new Map();
 
 export function useRowWindow(
   root: RefObject<HTMLElement | null>,
-  rowCount: number,
+  rowKeys: ReadonlyArray<string>,
   indexToKeepInView: number,
-): RowWindow {
-  const [state, setState] = useState<WindowState>(() => ({
-    start: 0,
-    end: Math.min(rowCount, ROWS_BEFORE_MEASURING),
-    pitch: ROW_PITCH_BEFORE_MEASURING,
-    gap: ROW_GAP_BEFORE_MEASURING,
-  }));
+  movingKeys: ReadonlyMap<string, unknown> = NO_MOVING_KEYS,
+): MovingRowWindow {
+  const measured = useRef(new Map<string, number>());
+  const [version, setVersion] = useState(0);
+  const [view, setView] = useState<{ from: number; to: number } | null>(null);
+  const holdScroll = movingKeys.size > 0;
+
+  const offsets = useMemo(
+    () =>
+      rowOffsets(rowKeys.map((key) => measured.current.get(key) ?? ROW_HEIGHT_BEFORE_MEASURING)),
+    [rowKeys, version],
+  );
+  const collapsedOffsets = useMemo(
+    () =>
+      holdScroll
+        ? rowOffsets(
+            rowKeys.map((key) =>
+              movingKeys.has(key) ? 0 : (measured.current.get(key) ?? ROW_HEIGHT_BEFORE_MEASURING),
+            ),
+          )
+        : null,
+    [rowKeys, version, movingKeys, holdScroll],
+  );
+
+  useLayoutEffect(() => {
+    const element = root.current;
+    if (element === null) return;
+    let changed = false;
+    for (const row of element.querySelectorAll<HTMLElement>("[data-row-key]")) {
+      const key = row.dataset["rowKey"];
+      if (key === undefined || row.closest("[data-issue-group-moving]") !== null) continue;
+      const style = getComputedStyle(row);
+      const height =
+        row.getBoundingClientRect().height +
+        Number.parseFloat(style.marginTop) +
+        Number.parseFloat(style.marginBottom);
+      if (height > 0 && measured.current.get(key) !== height) {
+        measured.current.set(key, height);
+        changed = true;
+      }
+    }
+    if (changed) setVersion((current) => current + 1);
+  });
 
   useLayoutEffect(() => {
     const element = root.current;
     if (element === null) return;
     const scroller = scrollParent(element);
     const update = () => {
-      const list = element.querySelector('[role="listbox"]');
+      const list = element.querySelector('[role="list"]');
       if (list === null) return;
-      setState((prev) => {
-        const { pitch, gap } = measureRows(list) ?? prev;
-        const listTop = list.getBoundingClientRect().top;
-        const view = visibleArea(scroller);
-        const visibleFrom = Math.max(0, view.top - listTop);
-        const visibleTo = Math.max(0, view.bottom - listTop);
-        const start = clamp(Math.floor(visibleFrom / pitch) - EXTRA_ROWS_EACH_SIDE, 0, rowCount);
-        const end = clamp(Math.ceil(visibleTo / pitch) + EXTRA_ROWS_EACH_SIDE, start, rowCount);
-        const unchanged =
-          prev.start === start && prev.end === end && prev.pitch === pitch && prev.gap === gap;
-        return unchanged ? prev : { start, end, pitch, gap };
-      });
+      const listTop = list.getBoundingClientRect().top;
+      const area = visibleArea(scroller);
+      const from = Math.max(0, area.top - listTop);
+      const to = Math.max(0, area.bottom - listTop);
+      setView((prev) => (prev?.from === from && prev.to === to ? prev : { from, to }));
+    };
+    const remeasure = () => {
+      measured.current.clear();
+      setVersion((current) => current + 1);
+      update();
     };
     update();
     const scrollTarget: HTMLElement | Window = scroller ?? window;
     scrollTarget.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
+    window.addEventListener("resize", remeasure);
     const observer = new ResizeObserver(update);
     observer.observe(scroller ?? element);
     return () => {
       scrollTarget.removeEventListener("scroll", update);
-      window.removeEventListener("resize", update);
+      window.removeEventListener("resize", remeasure);
       observer.disconnect();
     };
-  }, [root, rowCount]);
+  }, [root, rowKeys.length]);
 
+  const keyToKeepInView = rowKeys[indexToKeepInView];
+  const keptKey = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
+    if (holdScroll || keptKey.current === keyToKeepInView) return;
+    keptKey.current = keyToKeepInView;
     const element = root.current;
     if (element === null || indexToKeepInView < 0) return;
-    const list = element.querySelector('[role="listbox"]');
+    const list = element.querySelector('[role="list"]');
     if (list === null) return;
     const scroller = scrollParent(element);
-    const { pitch, gap } = measureRows(list) ?? {
-      pitch: ROW_PITCH_BEFORE_MEASURING,
-      gap: ROW_GAP_BEFORE_MEASURING,
-    };
-    const rowTop = list.getBoundingClientRect().top + indexToKeepInView * pitch;
-    const rowBottom = rowTop + pitch - gap;
-    const view = visibleArea(scroller);
+    const listTop = list.getBoundingClientRect().top;
+    const rowTop = listTop + (offsets[indexToKeepInView] ?? 0);
+    const rowBottom = listTop + (offsets[indexToKeepInView + 1] ?? 0);
+    const area = visibleArea(scroller);
     let delta = 0;
-    if (rowTop < view.top) delta = rowTop - view.top;
-    else if (rowBottom > view.bottom) delta = rowBottom - view.bottom;
+    if (rowTop < area.top) delta = rowTop - area.top;
+    else if (rowBottom > area.bottom) delta = rowBottom - area.bottom;
     if (delta === 0) return;
     if (scroller === null) window.scrollBy(0, delta);
     else scroller.scrollTop += delta;
-  }, [root, indexToKeepInView]);
+  }, [root, keyToKeepInView, holdScroll]);
 
-  const start = Math.min(state.start, rowCount);
-  const end = clamp(state.end, start, rowCount);
+  if (view === null) {
+    const end = Math.min(rowKeys.length, ROWS_BEFORE_MEASURING);
+    return {
+      start: 0,
+      end,
+      spaceBefore: 0,
+      spaceAfter: (offsets[rowKeys.length] ?? 0) - (offsets[end] ?? 0),
+      offsets,
+      collapsed: null,
+    };
+  }
   return {
-    start,
-    end,
-    spaceBefore: start > 0 ? start * state.pitch - state.gap : 0,
-    spaceAfter: end < rowCount ? (rowCount - end) * state.pitch - state.gap : 0,
+    ...windowOf(offsets, view.from, view.to),
+    offsets,
+    collapsed:
+      collapsedOffsets === null
+        ? null
+        : {
+            ...windowOf(collapsedOffsets, view.from, view.to),
+            offsets: collapsedOffsets,
+            from: view.from,
+            to: view.to,
+          },
   };
-}
-
-function measureRows(list: Element): { pitch: number; gap: number } | null {
-  const rows = list.querySelectorAll('[role="option"]');
-  const first = rows[0];
-  const second = rows[1];
-  if (first === undefined || second === undefined) return null;
-  const firstRect = first.getBoundingClientRect();
-  const pitch = second.getBoundingClientRect().top - firstRect.top;
-  if (pitch <= 0) return null;
-  return { pitch, gap: Math.max(0, pitch - firstRect.height) };
 }
 
 function scrollParent(element: HTMLElement): HTMLElement | null {

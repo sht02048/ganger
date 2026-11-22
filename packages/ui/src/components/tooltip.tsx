@@ -5,10 +5,10 @@ import {
   TooltipShortcut,
   TooltipTrigger,
 } from "@ui-sdk/react/tooltip";
-import type { ReactElement, ReactNode } from "react";
+import type { ReactElement, ReactNode, Ref } from "react";
 import { buttonStyles, type ButtonVariant } from "./button";
 import { cx } from "../cx";
-import { InfoIcon } from "./icons";
+import { ExternalIcon, InfoIcon } from "./icons";
 import {
   colors,
   fontSize,
@@ -24,6 +24,9 @@ export interface TooltipAction {
   variant?: ButtonVariant;
   busy?: boolean;
   onClick: () => void;
+  ref?: Ref<HTMLButtonElement>;
+  expanded?: boolean;
+  label?: string;
 }
 
 export interface TooltipProps {
@@ -87,12 +90,41 @@ export function InfoTip({ label, content, side = "top" }: InfoTipProps) {
   );
 }
 
+export interface ExternalIconLinkProps {
+  href: string;
+  label: string;
+}
+
+export function ExternalIconLink({ href, label }: ExternalIconLinkProps) {
+  return (
+    <Tooltip
+      content={label}
+      labelsTrigger
+      render={
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          aria-label={label}
+          data-variant="ghost"
+          className={cx(...buttonStyles("ghost"), styles.iconAction)}
+        />
+      }
+    >
+      <ExternalIcon />
+    </Tooltip>
+  );
+}
+
 function ActionTrigger({ action, children }: { action: TooltipAction; children: ReactNode }) {
   const variant = action.variant ?? "secondary";
   const busy = action.busy === true;
   return (
     <TooltipTrigger
       data-variant={variant}
+      {...(action.ref === undefined ? {} : { ref: action.ref })}
+      {...(action.expanded === undefined ? {} : { "aria-expanded": action.expanded })}
+      {...(action.label === undefined ? {} : { "aria-label": action.label })}
       {...(busy ? { "aria-disabled": true } : {})}
       onClick={() => {
         if (!busy) action.onClick();

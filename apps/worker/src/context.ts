@@ -20,12 +20,13 @@ import type {
 import {
   changeRunState,
   getRun,
+  getRunWithRecords,
   listRunners,
   setRunnerMailbox,
   worktreeTakenOverBy,
 } from "@ganger/db";
 import type { WorktreeSetupResult } from "@ganger/core";
-import type { Database, StoredRun, StoredRunner } from "@ganger/db";
+import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
 import type { LogContext, Logger } from "@ganger/log";
 import type { WorkerAdapters } from "./adapters.js";
 import type { AutoAssignState } from "./auto-assign.js";
@@ -51,6 +52,8 @@ export interface TickContext {
   agentCheckedAt: Map<RunId, number>;
   unrecordedComments: Map<RunId, { id: CommentId; at: Date }>;
   ticketsGone: Set<RunId>;
+  confirmedMerges: Set<RunId>;
+  unmarkedMerges: Set<RunId>;
   autoAssign: AutoAssignState;
   blockerRefresh: BlockerRefreshState;
 }
@@ -188,9 +191,43 @@ export type PrRead =
   | { kind: "read"; decision: PrStateDecision }
   | { kind: "failed"; error: PrReadError };
 
+export function isNewMerge(
+  stored: RunRecords["pullRequest"],
+  pr: PullRequestSnapshot | null,
+): boolean {
+  if (pr?.state !== "merged") return false;
+  if (stored?.id !== pr.id || stored.signals?.open !== false) return true;
+  return pr.mergedAt !== null && pr.mergedAt.getTime() > stored.checkedAt.getTime();
+}
+
+export function rememberConfirmedMerge(
+  context: TickContext,
+  runId: RunId,
+  pr: PullRequestSnapshot | null,
+): void {
+  if (pr?.state !== "merged" || context.confirmedMerges.has(runId)) return;
+  context.confirmedMerges.add(runId);
+  context.unmarkedMerges.add(runId);
+}
+
+export function rememberMergeAgainstStored(
+  context: TickContext,
+  runId: RunId,
+  pr: PullRequestSnapshot | null,
+): void {
+  const stored = getRunWithRecords(context.db, runId)?.records.pullRequest ?? null;
+  if (isNewMerge(stored, pr)) {
+    rememberConfirmedMerge(context, runId, pr);
+  } else if (pr?.state === "merged") {
+    context.confirmedMerges.add(runId);
+  }
+}
+
 export async function readRunPrState(context: TickContext, run: StartedStoredRun): Promise<PrRead> {
   try {
-    return { kind: "read", decision: await decideRunPrState(context, run) };
+    const decision = await decideRunPrState(context, run);
+    rememberMergeAgainstStored(context, run.id, decision.pr);
+    return { kind: "read", decision };
   } catch (error) {
     const reason = prReadErrorOf(error);
     context.logger.warn("run.pr_read_failed", { runId: run.id, reason, error });

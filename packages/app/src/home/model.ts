@@ -2,11 +2,13 @@ import type { UsageWindowKind } from "@ganger/core";
 import type {
   AgentResult,
   PauseSource,
+  PrReadError,
   PrState,
   RunId,
   SummaryOutcome,
   TicketKey,
 } from "@ganger/core";
+import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { RunnerIssueCause, WorkspaceChoice, WorkspaceSummary } from "../shell/model.js";
@@ -43,7 +45,7 @@ interface HomeRunBase {
   agent: string;
   waitMs: number;
   executionMs: number | null;
-  pullRequest: { displayId: string; url: string } | null;
+  pullRequest: { displayId: string; url: string; signals: PrSignalsView | null } | null;
   cancelling: boolean;
   control: RunControlView | null;
 }
@@ -65,10 +67,28 @@ export type HomeRun =
       state: "ended";
       agentResult: AgentResult;
       prState: PrState;
+      prReadError: PrReadError | null;
       summary: SummaryOutcome;
       endedAt: string;
       endedAgoMs: number;
     });
+
+export const PR_CHIPS_VISIBLE = 2;
+
+export type PrProblem =
+  | { kind: "ci-failed" }
+  | { kind: "conflict" }
+  | { kind: "behind"; commits: number };
+
+export function prProblemsOf(signals: PrSignalsView | null): PrProblem[] {
+  if (signals === null) return [];
+  const behindBy = signals.behindBy ?? 0;
+  return [
+    ...(signals.ciFailed ? [{ kind: "ci-failed" as const }] : []),
+    ...(signals.conflict === true ? [{ kind: "conflict" as const }] : []),
+    ...(behindBy > 0 ? [{ kind: "behind" as const, commits: behindBy }] : []),
+  ];
+}
 
 export interface DashboardUsageLine {
   provider: string;
@@ -155,10 +175,11 @@ export interface HomePage {
   queued: HomeRun[];
   runners: RunnersSummary;
   doneToday: DoneToday;
-  endedToday: HomeRun[];
+  endedRecently: HomeRun[];
 }
 
 export const DONE_TODAY_LIMIT = 5;
+export const DONE_COLUMN_DAYS = 7;
 
 export const TODO_GROUPS = ["check", "answer", "stopped"] as const;
 
@@ -213,7 +234,7 @@ export function partitionHome(input: {
   runs: ReadonlyArray<{ ticket: string; run: HomeRun }>;
   runners: RunnersSummary;
   doneToday: ReadonlyArray<DoneRun>;
-  endedToday: ReadonlyArray<HomeRun>;
+  endedRecently: ReadonlyArray<HomeRun>;
 }): HomePage {
   const { workspace } = input;
   if (workspace.kind === "none")
@@ -224,7 +245,7 @@ export function partitionHome(input: {
       queued: [],
       runners: noRunners,
       doneToday: nothingDone,
-      endedToday: [],
+      endedRecently: [],
     };
 
   const latestByTicket = new Map<string, string>();
@@ -251,7 +272,7 @@ export function partitionHome(input: {
       recent: done.slice(0, DONE_TODAY_LIMIT),
       total: done.length,
     },
-    endedToday: input.endedToday.toSorted((a, b) => endedTime(b) - endedTime(a)),
+    endedRecently: input.endedRecently.toSorted((a, b) => endedTime(b) - endedTime(a)),
   };
 }
 
@@ -306,7 +327,7 @@ export function dashboardBoard(page: HomePage): DashboardBoard {
       todo: todo
         .filter((run) => run.state === "ended")
         .toSorted((a, b) => groupRank(a) - groupRank(b)),
-      rest: page.endedToday.filter((run) => !tagged.has(run.id)),
+      rest: page.endedRecently.filter((run) => !tagged.has(run.id)),
     },
   };
 }

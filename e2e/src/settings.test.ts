@@ -17,6 +17,7 @@ import {
   getAutoAssignLabel,
   getWorkspaceBrief,
   getMapping,
+  getWorkspaceTrackerProject,
   migrate,
   openDatabase,
   recordRunnerCheck,
@@ -38,7 +39,7 @@ import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
 import type { Browser, Locator, Page, Route } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed, vi } from "vitest";
 import settings from "../../apps/web/messages/ko/settings.json" with { type: "json" };
 import runners from "../../apps/web/messages/ko/runners.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
@@ -342,6 +343,29 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await page.getByText(settings.status.saved, { exact: true }).first().waitFor();
   });
 
+  it("머지 때 바꿀 상태는 고른 상태와 바꾸지 않음을 저장한다", async () => {
+    await openSettings(page);
+    await section(settings.sections.projects).getByRole("link", { name: /^Web/ }).click();
+    await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-web/);
+    const merged = page.getByRole("combobox", { name: settings.project.mergedState });
+    expect(await merged.textContent()).toContain(settings.project.mergedStateKeep);
+
+    await pick(page, settings.project.mergedState, "Todo");
+    await vi.waitFor(() => {
+      expect(getWorkspaceTrackerProject(db, connection, trackerProject)?.mergedStateId).toBe(
+        "todo",
+      );
+    });
+
+    await pick(page, settings.project.mergedState, settings.project.mergedStateKeep);
+    await vi.waitFor(() => {
+      expect(getWorkspaceTrackerProject(db, connection, trackerProject)?.mergedStateId).toBeNull();
+    });
+    await page.reload();
+    await merged.waitFor();
+    expect(await merged.textContent()).toContain(settings.project.mergedStateKeep);
+  });
+
   it("MCP 하위 화면은 클라이언트 설정을 탭으로 바꿔 보이고 위험을 도움말로 알린다", async () => {
     await openSettings(page);
     await section(settings.sections.advanced).getByRole("link", { name: /^MCP/ }).click();
@@ -517,7 +541,9 @@ describe("Runners 의 러너 고치기(브라우저, 0119)", () => {
     await page.getByText(settings.runners.capacityInvalid).waitFor();
     await page.keyboard.press("Escape");
     await capacity.waitFor({ state: "detached" });
-    await expect.poll(focused).toBe(runners.panel.edit);
+    await expect
+      .poll(() => page.locator(":focus").getAttribute("aria-label"))
+      .toBe(runners.panel.editLabel.replace("{name}", "runner-a"));
 
     await page.getByRole("button", { name: runners.panel.edit }).click();
     await page.getByRole("textbox", { name: settings.runners.capacity, exact: true }).fill("4");

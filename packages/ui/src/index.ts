@@ -33,7 +33,9 @@ export {
 export {
   CAPACITY_CELLS_MAX,
   CapacityCells,
+  CapacityTrack,
   showsCapacityCells,
+  showsCapacityTrack,
   type CapacityCellsProps,
 } from "./components/capacity-cells";
 export {
@@ -106,10 +108,21 @@ export {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  EditIcon,
   ExternalIcon,
   InfoIcon,
   MoreIcon,
+  UnknownIcon,
 } from "./components/icons";
+export {
+  CheckResultIcon,
+  CheckResultList,
+  CheckResultRow,
+  ExpandableRow,
+  type CheckResultRowProps,
+  type CheckResultState,
+  type ExpandableRowProps,
+} from "./components/check-result";
 export {
   WindowChrome,
   WindowDragFrame,
@@ -181,6 +194,37 @@ export {
   type BlockerChipProps,
   type BlockerChipState,
 } from "./components/blocker-chip";
+export {
+  PrChip,
+  PrChipMore,
+  type PrChipKind,
+  type PrChipMoreProps,
+  type PrChipProps,
+} from "./components/pr-chip";
+export {
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
+  IssueGroupLabel,
+  IssueGroupBody,
+  IssueGroupLine,
+  useIssueGroupMotion,
+  type IssueGroupMotion,
+  type IssueGroupPhase,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
+  ProgressRing,
+  type IconToggleItem,
+  type IssueListMove,
+  type IssueRowIndent,
+  type IssueRowProps,
+  type IssueRowSurface,
+  type IssueStateKind,
+} from "./components/issue-list";
 export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
 export {
   PILL_STATUSES,
@@ -263,8 +307,10 @@ export {
   type ToasterProps,
 } from "./components/toast";
 export {
+  ExternalIconLink,
   InfoTip,
   Tooltip,
+  type ExternalIconLinkProps,
   type InfoTipProps,
   type TooltipAction,
   type TooltipProps,
@@ -292,7 +338,20 @@ export {
 } from "./components/settings-layout";
 export { UsageBar, usageText, type UsageBarProps, type UsageTone } from "./components/usage-bar";
 export { UsageMeter, type UsageMeterProps } from "./components/usage-meter";
-export { PanelRows, PanelSection, type PanelSectionProps } from "./components/panel-section";
+export {
+  PanelList,
+  PanelListRow,
+  PanelRows,
+  PanelSection,
+  type PanelListRowProps,
+  type PanelSectionProps,
+} from "./components/panel-section";
+export {
+  SignalList,
+  SignalRow,
+  type SignalRowProps,
+  type SignalTone,
+} from "./components/signal-list";
 export {
   ResponsiveColumns,
   ResponsiveColumnsHead,

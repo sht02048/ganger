@@ -15,6 +15,9 @@ import {
   markTrackerReadsStale,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
+import { log } from "@ganger/log";
+import { BULK_ASSIGN_LIMIT } from "./bulk-assign.js";
+import type { BulkAssignItemResult } from "./bulk-assign.js";
 import type { AssignRejectReason } from "./model.js";
 import { z } from "zod";
 
@@ -31,6 +34,58 @@ export const assignInput = z.object({
 export type AssignInput = z.infer<typeof assignInput>;
 
 export type AssignResult = { ok: true; runId: string } | { ok: false; reason: AssignRejectReason };
+
+export const bulkAssignInput = z.object({
+  assignments: z
+    .array(
+      assignInput.extend({
+        ticketTitle: z
+          .string()
+          .trim()
+          .transform((title) => title.slice(0, TICKET_TITLE_MAX_LENGTH).trim()),
+        runnerId: z.null(),
+      }),
+    )
+    .min(1)
+    .max(BULK_ASSIGN_LIMIT),
+});
+
+export type BulkAssignInput = z.input<typeof bulkAssignInput>;
+
+export interface BulkAssignResult {
+  results: BulkAssignItemResult[];
+}
+
+function assignOneOfMany(db: Database, input: AssignInput, now: Date): BulkAssignItemResult {
+  const ticket = { connection: input.connection, ticketKey: input.ticketKey };
+  try {
+    const result = submitAssignment(db, input, now);
+    return result.ok
+      ? { ...ticket, ok: true, runId: result.runId }
+      : { ...ticket, ok: false, reason: result.reason };
+  } catch (error) {
+    log().error("run.bulk_assign_failed", {
+      ticketKey: input.ticketKey,
+      trackerConnectionId: input.connection,
+      error,
+    });
+    return { ...ticket, ok: false, reason: "failed" };
+  }
+}
+
+export function submitBulkAssignment(
+  db: Database,
+  input: z.output<typeof bulkAssignInput>,
+  now: Date,
+): BulkAssignResult {
+  const unique = new Map(
+    input.assignments.map((assignment) => [
+      JSON.stringify([assignment.connection, assignment.ticketKey]),
+      assignment,
+    ]),
+  );
+  return { results: [...unique.values()].map((one) => assignOneOfMany(db, one, now)) };
+}
 
 export function submitAssignment(db: Database, input: AssignInput, now: Date): AssignResult {
   const connection = toTrackerConnectionId(input.connection);

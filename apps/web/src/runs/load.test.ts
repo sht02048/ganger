@@ -115,9 +115,11 @@ describe("loadRunsPage", () => {
     const runs = byKey(loadRunsPage(db, undefined, now).runs);
     const ended = runs.get("ACME-2");
     expect(ended?.executionMs).toBe(29 * 60_000);
-    expect(ended?.pullRequest).toEqual({
+    expect(ended?.pullRequest).toMatchObject({
       displayId: "#2",
       url: "https://example.com/acme/web/pull/2",
+      ci: "success",
+      closedOnHost: false,
       signals: null,
     });
     expect(ended?.trackerProject).toBe("Web");

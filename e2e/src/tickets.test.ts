@@ -13,12 +13,16 @@ import {
   toTicketKey,
   toTrackerStateId,
 } from "@ganger/core";
+import type { RunId, TicketKey } from "@ganger/core";
 import { FakeTracker } from "@ganger/core/testing";
 import {
   SecretBox,
+  assignRun,
+  changeRunState,
   listRuns,
   migrate,
   openDatabase,
+  recordRunRelations,
   recordRunnerCheck,
   replaceMapping,
   saveAutoAssignLabel,
@@ -61,6 +65,7 @@ let web: ViteDevServer;
 let baseUrl: string;
 let browser: Browser;
 let page: Page;
+let tracker: FakeTracker;
 const fakeAdapters: Plugin = {
   name: "e2e-tickets-adapters",
   enforce: "pre",
@@ -85,7 +90,7 @@ beforeAll(async () => {
   migrate(db);
   seed(db);
 
-  const tracker = new FakeTracker(fakeKind);
+  tracker = new FakeTracker(fakeKind);
   for (let i = 1; i <= trackerReadLimit + 1; i += 1) {
     tracker.addTicket({
       key: toTicketKey(`ACME-${i}`),
@@ -152,8 +157,8 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
     const allTab = page.getByRole("tab", { name: tickets.filter.all });
     expect(await allTab.textContent()).toContain(String(trackerReadLimit));
 
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    const options = list.getByRole("option");
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    const options = list.getByRole("listitem");
     await options.first().waitFor();
     const viewportHeight = page.viewportSize()?.height ?? 0;
     const rowPitch = 54;
@@ -164,10 +169,10 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
     await options.first().hover();
     await page.mouse.wheel(0, trackerReadLimit * rowPitch);
     await list
-      .getByRole("option", { name: `ACME-${trackerReadLimit} Ticket number ${trackerReadLimit}` })
+      .getByRole("button", { name: `ACME-${trackerReadLimit} Ticket number ${trackerReadLimit}` })
       .waitFor();
     expect(await options.count()).toBeLessThanOrEqual(mostRenderedRows);
-    expect(await list.getByRole("option", { name: `ACME-${trackerReadLimit + 1} ` }).count()).toBe(
+    expect(await list.getByRole("button", { name: `ACME-${trackerReadLimit + 1} ` }).count()).toBe(
       0,
     );
   });
@@ -175,14 +180,16 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
   it("화살표로 그리지 않은 행까지 옮겨 갈 수 있다", async () => {
     await page.goto(`/tickets?ws=${workspaceId}`);
     await hydrated(page);
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    await list.getByRole("option").first().click();
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    await list.getByRole("button", { name: "ACME-1 Ticket number 1", exact: true }).click();
     for (let i = 0; i < 40; i += 1) {
       await page.keyboard.press("ArrowDown");
       await page.waitForTimeout(50);
     }
-    await expect.poll(() => page.locator(":focus").getAttribute("role")).toBe("option");
-    await expect.poll(focused).toBe("ACME-41Ticket number 41할당 전");
+    await expect
+      .poll(() => page.locator(":focus").getAttribute("data-issue-select"))
+      .not.toBeNull();
+    await expect.poll(focused).toBe("Ticket number 41");
   });
 });
 
@@ -193,13 +200,13 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     const heading = page.getByRole("heading", { level: 1, name: tickets.title });
     const tabs = page.getByRole("tablist", { name: tickets.filter.label });
     const columnHead = page.getByText(tickets.columns.lastRun, { exact: true }).first();
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    await list.getByRole("option").first().waitFor();
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    await list.getByRole("listitem").first().waitFor();
     const before = await Promise.all([heading, tabs, columnHead].map((l) => top(l)));
     const scroller = page.locator("[data-more-below]");
     expect(await scroller.getAttribute("data-more-below")).toBe("true");
 
-    await list.getByRole("option").first().hover();
+    await list.getByRole("listitem").first().hover();
     await page.mouse.wheel(0, 54 * 20);
     await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     expect(await Promise.all([heading, tabs, columnHead].map((l) => top(l)))).toEqual(before);
@@ -226,8 +233,8 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     await page.getByText(tickets.empty, { exact: true }).waitFor();
     await page.getByRole("tab", { name: tickets.filter.assignable }).click();
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option")
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
       .first()
       .waitFor();
   });
@@ -237,13 +244,376 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     await hydrated(page);
     const search = page.getByRole("searchbox", { name: tickets.search.label });
     await search.fill("number 1000");
-    const options = page.getByRole("listbox", { name: tickets.listLabel }).getByRole("option");
+    const options = page.getByRole("list", { name: tickets.listLabel }).getByRole("listitem");
     await expect.poll(() => options.count()).toBe(1);
-    expect(await options.first().textContent()).toBe("ACME-1000Ticket number 1000할당 전");
+    expect(await options.first().textContent()).toContain("ACME-1000Ticket number 1000");
     await search.fill("acme-99");
     await expect.poll(() => options.count()).toBe(11);
     await search.fill("없는 티켓");
     await page.getByText(fill(tickets.noMatch, { query: "없는 티켓" }), { exact: true }).waitFor();
+  });
+});
+
+describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
+  const parentKey = "ACME-500";
+  const childKeys = ["ACME-501", "ACME-502"].map((key) => toTicketKey(key));
+
+  async function reread(): Promise<void> {
+    await page.getByRole("button", { name: tickets.reread.action }).click();
+    await page.getByRole("button", { name: tickets.reread.action }).waitFor();
+    await page.waitForLoadState("networkidle");
+  }
+
+  function setParent(hasParent: boolean): void {
+    for (const key of childKeys) {
+      const child = tracker.tickets.get(key);
+      if (child === undefined) throw new Error(`no ${key}`);
+      const { ancestors: _previous, ...plain } = child;
+      tracker.tickets.set(
+        key,
+        hasParent
+          ? {
+              ...plain,
+              ancestors: [
+                {
+                  id: "issue-500",
+                  key: toTicketKey(parentKey),
+                  title: "Ticket number 500",
+                  url: "https://tracker.example.com/ACME-500",
+                  state: { name: "Todo", category: "unstarted" },
+                },
+              ],
+            }
+          : plain,
+      );
+    }
+  }
+
+  it("보기를 바꿔도 거르기와 찾는 말이 남고, 펼치기 버튼과 좁은 화면의 런 줄이 동작한다", async () => {
+    setParent(true);
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}&f=assignable`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      const child = list.getByRole("button", { name: "ACME-501 Ticket number 501" });
+      await child.waitFor();
+
+      const scroller = page.locator("[data-more-below]");
+      await scroller.evaluate((el) => el.scrollTo({ top: 52 * 54 }));
+      await list.getByRole("button", { name: "ACME-55 Ticket number 55", exact: true }).click();
+      await scroller.evaluate((el) => el.scrollTo({ top: 0 }));
+      await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(0);
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
+      await child.click();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      await list.getByRole("button", { name: "ACME-1 Ticket number 1", exact: true }).focus();
+      await page.keyboard.press("ArrowDown");
+      await expect.poll(focused).toBe("Ticket number 2");
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
+      const search = page.getByRole("searchbox", { name: tickets.search.label });
+      await search.fill("number 501");
+      await child.waitFor();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+      await page.getByRole("button", { name: tickets.view.flat }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("flat");
+      expect(new URL(page.url()).searchParams.get("f")).toBe("assignable");
+      expect(await search.inputValue()).toBe("number 501");
+      await list.getByText(`↳ ${parentKey} Ticket number 500`).first().waitFor();
+
+      await page.getByRole("button", { name: tickets.view.grouped }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.has("view")).toBe(false);
+      expect(await search.inputValue()).toBe("number 501");
+
+      const row = list.getByRole("listitem").filter({ hasText: "ACME-501" });
+      await expect.poll(() => row.locator("[data-run-cell]").isVisible()).toBe(true);
+      await page.setViewportSize({ width: 420, height: 720 });
+      await expect.poll(() => row.locator("[data-run-cell]").isVisible()).toBe(false);
+      await expect.poll(() => row.locator("[data-run-below]").isVisible()).toBe(true);
+      await page.setViewportSize({ width: 1280, height: 720 });
+    } finally {
+      setParent(false);
+      await reread();
+    }
+  });
+
+  it("펼치고 접으면 움직이고, 도중에 다시 누르면 되돌아가며 선택 줄을 지킨다(0175)", async () => {
+    setParent(true);
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}&f=assignable`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      const child = list.getByRole("button", { name: "ACME-501 Ticket number 501" });
+      await child.waitFor();
+      const moving = page.locator("[data-issue-group-moving]");
+      expect(await moving.count()).toBe(0);
+
+      await child.click();
+      await expect.poll(() => child.getAttribute("aria-current")).toBe("true");
+      const toggle = list
+        .getByRole("listitem")
+        .filter({ hasText: parentKey })
+        .locator("button[aria-expanded]");
+      expect(await toggle.getAttribute("aria-expanded")).toBe("true");
+
+      const seen = await toggle.evaluate(async (button) => {
+        const body = () => document.querySelector("[data-issue-group-moving]");
+        const heightTransitions = (element: Element | null) =>
+          element
+            ?.getAnimations()
+            .filter(
+              (animation) =>
+                animation instanceof CSSTransition &&
+                animation.transitionProperty === "grid-template-rows",
+            ) ?? [];
+        const clipHeight = (element: Element | null) =>
+          element?.firstElementChild?.getBoundingClientRect().height ?? 0;
+        if (!(button instanceof HTMLElement)) throw new Error("no button");
+        const fullHeight = clipHeight(document.querySelector("[data-issue-group-body]"));
+        button.click();
+        await Promise.resolve();
+        const closingBody = body();
+        const closingTransitions = heightTransitions(closingBody);
+        const closing = {
+          phase: closingBody?.getAttribute("data-issue-group-moving"),
+          expanded: button.getAttribute("aria-expanded"),
+          transitions: closingTransitions.length,
+        };
+        for (const transition of closingTransitions) {
+          transition.pause();
+          transition.currentTime = 40;
+        }
+        const heightAtTurn = clipHeight(closingBody);
+        button.click();
+        await Promise.resolve();
+        const openingBody = body();
+        const openingTransitions = heightTransitions(openingBody);
+        const heightAfterTurn = clipHeight(openingBody);
+        return {
+          closing,
+          opening: {
+            phase: openingBody?.getAttribute("data-issue-group-moving"),
+            expanded: button.getAttribute("aria-expanded"),
+            transitions: openingTransitions.length,
+            sameBody: openingBody === closingBody,
+          },
+          turnedInPlace:
+            heightAtTurn > 0 &&
+            heightAtTurn < fullHeight &&
+            Math.abs(heightAfterTurn - heightAtTurn) < 1,
+        };
+      });
+      expect(seen.closing).toEqual({ phase: "closing", expanded: "false", transitions: 1 });
+      expect(seen.opening).toEqual({
+        phase: "opening",
+        expanded: "true",
+        transitions: 1,
+        sameBody: true,
+      });
+      expect(seen.turnedInPlace).toBe(true);
+      await expect.poll(() => moving.count()).toBe(0);
+      await child.waitFor();
+      expect(await child.getAttribute("aria-current")).toBe("true");
+
+      await toggle.press("Enter");
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("false");
+      await child.waitFor({ state: "detached" });
+      await expect.poll(() => moving.count()).toBe(0);
+      await toggle.press("Enter");
+      await child.waitFor();
+      await expect.poll(() => moving.count()).toBe(0);
+      expect(await child.getAttribute("aria-current")).toBe("true");
+      await expect.poll(() => child.isVisible()).toBe(true);
+
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("number 501");
+      await child.waitFor();
+      expect(await moving.count()).toBe(0);
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("");
+      await child.waitFor();
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("true");
+
+      const narrowedMidMotion = await toggle.evaluate(async (button) => {
+        const search = document.querySelector('input[type="search"]');
+        if (!(button instanceof HTMLElement) || !(search instanceof HTMLInputElement))
+          throw new Error("no controls");
+        const movingCount = () => document.querySelectorAll("[data-issue-group-moving]").length;
+        button.click();
+        await Promise.resolve();
+        const beforeNarrowing = movingCount();
+        Reflect.set(HTMLInputElement.prototype, "value", "number 501", search);
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+        await Promise.resolve();
+        const afterNarrowing = movingCount();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return { beforeNarrowing, afterNarrowing, afterTimers: movingCount() };
+      });
+      expect(narrowedMidMotion).toEqual({ beforeNarrowing: 1, afterNarrowing: 0, afterTimers: 0 });
+      await child.waitFor();
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("");
+      await child.waitFor();
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("true");
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const reduced = await toggle.evaluate(async (button) => {
+        if (!(button instanceof HTMLElement)) throw new Error("no button");
+        button.click();
+        await Promise.resolve();
+        return {
+          moving: document.querySelectorAll("[data-issue-group-moving]").length,
+          expanded: button.getAttribute("aria-expanded"),
+        };
+      });
+      expect(reduced).toEqual({ moving: 0, expanded: "false" });
+      await child.waitFor({ state: "detached" });
+    } finally {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      setParent(false);
+      await reread();
+    }
+  });
+
+  it("상위 이슈에서 하위 2개를 한 번에 할당하면 두 런이 Queued가 되고 포커스가 패널 제목으로 간다(0172)", async () => {
+    setParent(true);
+    const otherChildKey = toTicketKey("ACME-601");
+    const otherChild = tracker.tickets.get(otherChildKey);
+    if (otherChild === undefined) throw new Error("no ACME-601");
+    tracker.tickets.set(otherChildKey, {
+      ...otherChild,
+      ancestors: [
+        {
+          id: "issue-600",
+          key: toTicketKey("ACME-600"),
+          title: "Ticket number 600",
+          url: "https://tracker.example.com/ACME-600",
+          state: { name: "Todo", category: "unstarted" },
+        },
+      ],
+    });
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      await list.getByRole("button", { name: "ACME-600 Ticket number 600", exact: true }).click();
+      await page
+        .getByRole("region", { name: tickets.panel.label })
+        .getByRole("heading", { name: "Ticket number 600" })
+        .waitFor();
+      const label = `하위 2개 할당, ${parentKey}`;
+      await list.getByRole("button", { name: label }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      await expect
+        .poll(() => choices.getByRole("checkbox", { checked: true }).count())
+        .toBe(childKeys.length);
+      await dialog.getByRole("button", { name: "2개 할당하기" }).click();
+
+      await page
+        .getByRole("region", { name: shell.toastRegion })
+        .getByText("2개 할당했어요.")
+        .waitFor();
+      await dialog.waitFor({ state: "hidden" });
+      await expect.poll(focused).toContain("Ticket number 500");
+      for (const key of childKeys) {
+        const runs = listRuns(db, { ticket: { connection, key } });
+        expect(runs.map((run) => run.state)).toEqual(["queued"]);
+      }
+      await expect.poll(() => list.getByRole("button", { name: label }).count()).toBe(0);
+    } finally {
+      for (const key of childKeys) {
+        for (const run of listRuns(db, { ticket: { connection, key } })) {
+          if (run.state !== "ended") endCanceled(run.id, new Date());
+        }
+      }
+      tracker.tickets.set(otherChildKey, otherChild);
+      setParent(false);
+      await reread();
+    }
+  });
+
+  it("선행 티켓이 취소된 하위 티켓은 체크되지 않은 채 남아 할당되지 않는다(0176)", async () => {
+    const blockedKey = toTicketKey("ACME-801");
+    const freeKey = toTicketKey("ACME-802");
+    const originals = [blockedKey, freeKey].map((key) => {
+      const original = tracker.tickets.get(key);
+      if (original === undefined) throw new Error(`no ${key}`);
+      tracker.tickets.set(key, {
+        ...original,
+        ancestors: [
+          {
+            id: "issue-800",
+            key: toTicketKey("ACME-800"),
+            title: "Ticket number 800",
+            url: "https://tracker.example.com/ACME-800",
+            state: { name: "Todo", category: "unstarted" },
+          },
+        ],
+      });
+      return { key, original };
+    });
+    tracker.relations.set(blockedKey, {
+      priority: "none",
+      blockers: [
+        {
+          key: toTicketKey("ACME-700"),
+          title: "Ticket number 700",
+          state: { id: toTrackerStateId("canceled"), name: "Canceled", category: "canceled" },
+        },
+      ],
+    });
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      await list.getByRole("button", { name: "하위 2개 할당, ACME-800" }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      await dialog.getByText("ACME-700 티켓이 취소돼서 할당하면 Queued에 멈춰요").waitFor();
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      await expect.poll(() => choices.getByRole("checkbox", { checked: true }).count()).toBe(1);
+      await dialog.getByRole("button", { name: "1개 할당하기" }).click();
+
+      await dialog.waitFor({ state: "hidden" });
+      expect(listRuns(db, { ticket: { connection, key: blockedKey } })).toEqual([]);
+      expect(
+        listRuns(db, { ticket: { connection, key: freeKey } }).map((run) => run.state),
+      ).toEqual(["queued"]);
+    } finally {
+      tracker.relations.delete(blockedKey);
+      for (const run of listRuns(db, { ticket: { connection, key: freeKey } })) {
+        if (run.state !== "ended") endCanceled(run.id, new Date());
+      }
+      for (const { key, original } of originals) tracker.tickets.set(key, original);
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+    }
   });
 });
 
@@ -266,8 +636,10 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await dialog.waitFor({ state: "hidden" });
     await expect.poll(focused).toBe(tickets.panel.openRun);
     await panel.getByRole("heading", { name: "Ticket number 1", exact: true }).waitFor();
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    expect(await list.getByRole("option", { name: `${key} Ticket number 1` }).count()).toBe(0);
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    expect(
+      await list.getByRole("button", { name: `${key} Ticket number 1`, exact: true }).count(),
+    ).toBe(0);
     expect(new URL(page.url()).searchParams.get("sel")).not.toBeNull();
   });
 
@@ -276,8 +648,8 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await hydrated(page);
     const key = `ACME-${labeledTicket}`;
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${key} Ticket number ${labeledTicket}` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${key} Ticket number ${labeledTicket}` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();
@@ -315,8 +687,8 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await hydrated(page);
     const key = "ACME-2";
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${key} Ticket number 2` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${key} Ticket number 2` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();
@@ -338,7 +710,98 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await dialog.waitFor({ state: "hidden" });
     await expect.poll(focused).toBe(tickets.panel.openRun);
   });
+
+  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행과 모두 보기는 Runs로 간다(0164)", async () => {
+    const waiter = toTicketKey("ACME-900");
+    const blockerKey = toTicketKey("ACME-901");
+    const manyRuns = toTicketKey("ACME-902");
+    const waiting = assignQueued(waiter);
+    recordRunRelations(
+      db,
+      waiting,
+      {
+        priority: "high",
+        blockers: [
+          {
+            key: blockerKey,
+            title: "Ticket number 901",
+            state: { id: toTrackerStateId("todo"), name: "Todo", category: "unstarted" },
+          },
+        ],
+        inCycle: new Set(),
+      },
+      new Date(),
+    );
+    const minuteOf = (minute: number) => new Date(Date.UTC(2026, 10, 17) + minute * 60_000);
+    let newest = assignQueued(manyRuns, minuteOf(0));
+    for (let i = 1; i < 6; i += 1) {
+      endCanceled(newest, minuteOf(i));
+      newest = assignQueued(manyRuns, minuteOf(i));
+    }
+    endCanceled(newest, minuteOf(6));
+
+    const panel = page.getByRole("region", { name: tickets.panel.label });
+    await page.goto(ticketUrl(waiter));
+    await hydrated(page);
+    await panel
+      .getByRole("group", { name: tickets.panel.blockers })
+      .getByRole("button", { name: /ACME-901/ })
+      .click();
+    await panel.getByRole("heading", { name: "Ticket number 901", exact: true }).waitFor();
+    await expect.poll(focused).toBe("Ticket number 901");
+    expect(new URL(page.url()).searchParams.get("sel")).toContain("ACME-901");
+    await panel
+      .getByRole("group", { name: tickets.panel.waiting })
+      .getByRole("button", { name: /ACME-900.*Queued/ })
+      .waitFor();
+
+    await page.goto(ticketUrl(manyRuns));
+    await hydrated(page);
+    const runs = panel.getByRole("region", { name: tickets.panel.runs, exact: true });
+    await expect.poll(() => runs.getByRole("listitem").count()).toBe(5);
+    await runs
+      .getByRole("button", { name: /Canceled/ })
+      .first()
+      .click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    expect(new URL(page.url()).searchParams.get("sel")).toBe(newest);
+
+    await page.goto(ticketUrl(manyRuns));
+    await hydrated(page);
+    await runs.getByRole("button", { name: tickets.panel.runsAll }).click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    expect(new URL(page.url()).searchParams.get("project")).toContain(trackerProject);
+  });
 });
+
+function ticketUrl(key: string): string {
+  const sel = encodeURIComponent(JSON.stringify(JSON.stringify([connection, key])));
+  return `/tickets?ws=${workspaceId}&sel=${sel}`;
+}
+
+function assignQueued(key: TicketKey, now?: Date): RunId {
+  const assigned = assignRun(db, {
+    ticket: { connection, key },
+    trackerProject,
+    runnerProject,
+    agent,
+    runnerId,
+    ...(now === undefined ? {} : { now }),
+  });
+  if (!assigned.ok) throw new Error(`assign ${key} failed: ${assigned.reason}`);
+  return assigned.run.id;
+}
+
+function endCanceled(id: RunId, now: Date): void {
+  const ended = changeRunState(
+    db,
+    id,
+    { to: "ended", agentResult: "canceled", prState: "none" },
+    now,
+  );
+  if (!ended.ok) throw new Error(`end ${id} failed`);
+}
+
 function holdNextServerCall(target: Page): {
   arrived: Promise<void>;
   release: () => Promise<void>;

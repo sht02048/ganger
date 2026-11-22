@@ -9,8 +9,10 @@ export interface RunWorkspace {
 export interface OccupyingRun {
   id: string;
   ticketKey: string;
+  ticketTitle: string | null;
   workspace: RunWorkspace;
   state: "running" | "waiting-for-input" | "paused" | "disconnected";
+  waitingFor: "question" | "permission" | "human-check" | null;
   executionMs: number;
 }
 
@@ -79,6 +81,17 @@ export interface RunnerView {
 
 export interface RunnersPage {
   runners: RunnerView[];
+}
+
+export function runnerRunsWorkspace(
+  runner: Pick<RunnerView, "occupying" | "queued">,
+  current: string | undefined,
+): string | undefined {
+  const workspaces = new Set(
+    [...runner.occupying, ...runner.queued].map((run) => run.workspace.id),
+  );
+  const [only] = workspaces;
+  return workspaces.size === 1 ? only : current;
 }
 
 export type RunnerRowStatus = "offline" | "runner-issue" | "online";

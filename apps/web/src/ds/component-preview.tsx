@@ -11,7 +11,19 @@ import {
   Dialog,
   DialogClose,
   Field,
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
   Input,
+  IssueGroupLabel,
+  IssueGroupBody,
+  IssueGroupLine,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
   Menu,
   MenuItem,
   MenuRadio,
@@ -22,6 +34,7 @@ import {
   PanelHeader,
   PILL_STATUSES,
   PinnedToast,
+  ProgressRing,
   Row,
   RowActionSlot,
   RowReason,
@@ -48,6 +61,7 @@ import {
   showToast,
   statusTone,
   type PillStatus,
+  useIssueGroupMotion,
 } from "@ganger/ui";
 import { colors, fontWeight, radius, space } from "@ganger/ui/tokens.stylex";
 import { useState, type ReactNode } from "react";
@@ -149,6 +163,9 @@ export function ComponentSections() {
               <Button>{t("buttons.secondary")}</Button>
               <Button variant="danger">{t("buttons.danger")}</Button>
               <Button variant="ghost">{t("buttons.ghost")}</Button>
+              <Button compact outlined>
+                {t("buttons.outlined")}
+              </Button>
               <Button disabled>{t("buttons.disabled")}</Button>
               <Button busy={{ active: true, label: t("buttons.busyLabel") }}>
                 {t("buttons.busy")}
@@ -518,6 +535,12 @@ export function ComponentSections() {
         </Section>
       </div>
 
+      <div id="issue-list">
+        <Section title={t("nav.issueList")} note={t("issueList.note")}>
+          <IssueListPreview />
+        </Section>
+      </div>
+
       <div id="dialog">
         <Section title={t("nav.dialog")} note={t("dialog.note")}>
           <Demo>
@@ -540,6 +563,7 @@ export function ComponentSections() {
               title={t("dialog.title")}
               actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
             />
+            <TriggerlessDialogPreview />
           </Demo>
         </Section>
       </div>
@@ -566,6 +590,115 @@ export function ComponentSections() {
           </Demo>
         </Section>
       </div>
+    </>
+  );
+}
+
+function TriggerlessDialogPreview() {
+  const t = useTranslations("ds");
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>{t("dialog.triggerless")}</Button>
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t("dialog.title")}
+        description={t("dialog.description")}
+        actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
+      />
+    </>
+  );
+}
+
+function IssueListPreview() {
+  const t = useTranslations("ds.issueList");
+  const [view, setView] = useState<"grouped" | "flat">("grouped");
+  const [expanded, setExpanded] = useState(true);
+  const [selected, setSelected] = useState("child");
+  const indented = view === "grouped";
+  const groupMotion = useIssueGroupMotion(view);
+  const phase = groupMotion.phases.get("parent");
+  const showChild = expanded || phase === "closing";
+  const childRow = (
+    <IssueRow
+      rowKey="child"
+      label={`ACME-11 ${t("childTitle")}`}
+      selected={selected === "child"}
+      tabbable={selected === "child"}
+      onSelect={() => setSelected("child")}
+      indent={indented ? "child" : "none"}
+      surface={indented ? (phase === undefined ? "last" : "middle") : "none"}
+      icon={<IssueStateIcon kind="in-progress" label={t("state.in-progress")} />}
+      ticketKey="ACME-11"
+      title={t("childTitle")}
+      {...(indented ? {} : { below: `↳ ACME-10 ${t("parentTitle")}` })}
+      run={t("runChild")}
+      action={<Button compact>{t("action")}</Button>}
+    />
+  );
+  return (
+    <>
+      <Demo>
+        {ISSUE_STATE_KINDS.map((kind) => (
+          <IssueStateIcon key={kind} kind={kind} label={t(`state.${kind}`)} />
+        ))}
+        <ProgressRing done={2} total={5} label={t("progress")} />
+        <IconToggleGroup
+          label={t("viewLabel")}
+          value={view}
+          onValueChange={setView}
+          items={[
+            { value: "grouped", label: t("grouped"), icon: <GroupedViewIcon /> },
+            { value: "flat", label: t("flat"), icon: <FlatViewIcon /> },
+          ]}
+        />
+      </Demo>
+      <IssueListFrame>
+        <IssueListHead
+          keyLabel={t("key")}
+          titleLabel={t("title")}
+          runLabel={t("run")}
+          indented={indented}
+        />
+        <IssueList label={t("listLabel")} onMove={() => {}}>
+          <IssueRow
+            rowKey="parent"
+            label={`ACME-10 ${t("parentTitle")}`}
+            selected={selected === "parent"}
+            tabbable={selected === "parent"}
+            onSelect={() => setSelected("parent")}
+            indent={indented ? "top" : "none"}
+            surface={indented ? (showChild ? "first" : "only") : "none"}
+            {...(indented
+              ? {
+                  toggle: {
+                    expanded,
+                    label: t(expanded ? "collapse" : "expand"),
+                    moving: phase !== undefined,
+                    onToggle: () => {
+                      groupMotion.toggle("parent", !expanded, 1);
+                      setExpanded(!expanded);
+                    },
+                  },
+                }
+              : {})}
+            icon={<ProgressRing done={2} total={5} label={t("progress")} />}
+            ticketKey="ACME-10"
+            title={t("parentTitle")}
+            strong
+            titleAfter="2/5"
+            run={t("runSummary")}
+          />
+          {!indented ? childRow : null}
+          {indented && showChild ? (
+            <IssueGroupBody phase={phase} childCount={1}>
+              <IssueGroupLine index={0}>{childRow}</IssueGroupLine>
+            </IssueGroupBody>
+          ) : null}
+          <IssueGroupLabel rowKey="loose" name={t("noParent")} count={1} />
+        </IssueList>
+      </IssueListFrame>
     </>
   );
 }

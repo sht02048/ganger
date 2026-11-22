@@ -74,6 +74,15 @@ export interface TrackerTicket {
   state: TrackerState;
   updatedAt: Date;
   priority?: TicketPriority;
+  ancestors?: ReadonlyArray<TrackerTicketAncestor>;
+}
+
+export interface TrackerTicketAncestor {
+  id: string;
+  key: TicketKey;
+  title: string;
+  url: string;
+  state: { name: string; category: TrackerStateCategory };
 }
 
 export interface TrackerComment {
@@ -317,7 +326,7 @@ export type RunProgress =
 
 export type WorktreeWork =
   | { kind: "gone" }
-  | { kind: "checked"; uncommittedChanges: boolean; unpushedCommits: boolean };
+  | { kind: "checked"; uncommittedChanges: boolean; unpushedCommits: boolean; headCommit: string };
 
 export type AgentSendResult =
   | { kind: "delivered" }

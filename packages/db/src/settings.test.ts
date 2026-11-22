@@ -1,4 +1,10 @@
-import { toLabelId, toRunnerProjectId, toTicketKey, toTrackerProjectId } from "@ganger/core";
+import {
+  toLabelId,
+  toRunnerProjectId,
+  toTicketKey,
+  toTrackerProjectId,
+  toTrackerStateId,
+} from "@ganger/core";
 import { describe, expect, it } from "vitest";
 import { toWorkspaceId } from "./ids.js";
 import { assignRun, changeRunState, getRun, listRuns } from "./runs.js";
@@ -8,6 +14,7 @@ import {
   getWorkspaceBrief,
   listWorkspaces,
   getMapping,
+  getWorkspaceTrackerProject,
   listRunnerSnapshots,
   listRunners,
   listWorkspaceTrackerProjects,
@@ -58,9 +65,38 @@ describe("listWorkspaceTrackerProjects", () => {
         projectId: otherProject,
         name: "Lab",
         inProgressStateId: null,
+        mergedStateId: null,
       },
-      { workspaceId, connection, projectId: trackerProject, name: "Web", inProgressStateId: null },
+      {
+        workspaceId,
+        connection,
+        projectId: trackerProject,
+        name: "Web",
+        inProgressStateId: null,
+        mergedStateId: null,
+      },
     ]);
+  });
+
+  it("머지 때 상태는 고른 값과 null을 저장하고, 값을 주지 않은 저장은 그대로 둔다", () => {
+    const db = seedTwoWorkspaces();
+    const project = {
+      workspaceId,
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: null,
+    };
+    const mergedStateOf = () =>
+      getWorkspaceTrackerProject(db, connection, trackerProject)?.mergedStateId;
+    const done = toTrackerStateId("st-done");
+
+    saveWorkspaceTrackerProject(db, { ...project, mergedStateId: done });
+    expect(mergedStateOf()).toBe(done);
+    saveWorkspaceTrackerProject(db, { ...project, name: "Web 2" });
+    expect(mergedStateOf()).toBe(done);
+    saveWorkspaceTrackerProject(db, { ...project, mergedStateId: null });
+    expect(mergedStateOf()).toBeNull();
   });
 
   it("Workspace를 주면 그 Workspace 것만 돌려준다", () => {

@@ -40,6 +40,7 @@ import {
   useReason,
   useSubmit,
   withCurrent,
+  type ProjectDetailActions,
   type SettingsActions,
 } from "./settings-screen";
 import { plainSettingsLink, type RenderSettingsLink } from "./settings-page";
@@ -49,7 +50,7 @@ export interface ProjectDetailScreenProps {
   connectionId: string;
   projectId: string;
   ws: string | undefined;
-  actions: SettingsActions;
+  actions: ProjectDetailActions;
   onRemoved: () => void;
   renderLink?: RenderSettingsLink;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
@@ -108,6 +109,7 @@ export function ProjectDetailScreen({
     );
   }
   const label = workspace.labels.find((l) => l.connection.id === connectionId) ?? null;
+  const tracker = t("trackerName", { kind: bound.trackerKind ?? "other" });
   return (
     <ScreenLayout
       header={
@@ -155,12 +157,26 @@ export function ProjectDetailScreen({
               </>
             )}
           />
-          <SettingsSection id="assign" title={t("assign")}>
-            <SettingsGroup>
-              {label === null ? null : (
+          {label === null ? null : (
+            <SettingsSection id="assign" title={t("assign")}>
+              <SettingsGroup>
                 <LabelRow ws={workspace.general.id} label={label} actions={actions} />
-              )}
+              </SettingsGroup>
+            </SettingsSection>
+          )}
+          <SettingsSection
+            id="ticket-state"
+            title={t("ticketState")}
+            detail={t("ticketStateDetail", { tracker })}
+          >
+            <SettingsGroup>
               <StateRow ws={workspace.general.id} bound={bound} actions={actions} />
+              <MergedStateRow
+                ws={workspace.general.id}
+                bound={bound}
+                tracker={tracker}
+                actions={actions}
+              />
             </SettingsGroup>
           </SettingsSection>
           <SettingsGroup>
@@ -236,12 +252,7 @@ function StateRow({
   return (
     <SettingsRow
       label={t("project.state")}
-      info={
-        <InfoTip
-          label={t("infoLabel", { label: t("project.state") })}
-          content={t("project.stateInfo")}
-        />
-      }
+      detail={t("project.stateDetail")}
       status={<AutoSaveStatusText status={autoSave.status} />}
       wideControl
       control={
@@ -252,6 +263,71 @@ function StateRow({
             value={autoSave.value}
             onValueChange={autoSave.change}
             placeholder={t("project.stateChoose")}
+          />
+        </span>
+      }
+      message={
+        bound.states.ok ? (
+          <RevertedMessage error={autoSave.error} />
+        ) : (
+          <Text variant="meta" as="p" tone="problem">
+            {t("project.statesFailed", { reason: reason(bound.states.error) })}
+          </Text>
+        )
+      }
+    />
+  );
+}
+
+const KEEP_TICKET_STATE = "";
+
+function MergedStateRow({
+  ws,
+  bound,
+  tracker,
+  actions,
+}: {
+  ws: string;
+  bound: BoundProject;
+  tracker: string;
+  actions: ProjectDetailActions;
+}) {
+  const t = useTranslations("settings");
+  const reason = useReason();
+  const autoSave = useAutoSave(bound.mergedStateId, (stateId: string | null) =>
+    actions.saveMergedState({
+      ws,
+      connectionId: bound.connection.id,
+      projectId: bound.project.id,
+      stateId,
+    }),
+  );
+  const options = [
+    { value: KEEP_TICKET_STATE, label: t("project.mergedStateKeep") },
+    ...withCurrent(
+      bound.states.ok ? bound.states.items.map((s) => ({ value: s.id, label: s.name })) : [],
+      bound.mergedStateId,
+    ),
+  ];
+  return (
+    <SettingsRow
+      label={t("project.mergedState")}
+      detail={t("project.mergedStateDetail", { tracker })}
+      info={
+        <InfoTip
+          label={t("infoLabel", { label: t("project.mergedState") })}
+          content={t("project.mergedStateInfo")}
+        />
+      }
+      status={<AutoSaveStatusText status={autoSave.status} />}
+      wideControl
+      control={
+        <span {...stylex.props(styles.select)}>
+          <Select
+            aria-label={t("project.mergedState")}
+            options={options}
+            value={autoSave.value ?? KEEP_TICKET_STATE}
+            onValueChange={(value) => autoSave.change(value === KEEP_TICKET_STATE ? null : value)}
           />
         </span>
       }

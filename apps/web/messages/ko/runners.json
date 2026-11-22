@@ -25,7 +25,7 @@
   },
   "row": {
     "offline": "오케스트레이터가 이 러너에 닿지 않아요.",
-    "offlineFor": "오케스트레이터가 이 러너에 {duration}째 닿지 않아요.",
+    "offlineFor": "오케스트레이터가 이 러너에 {duration} 닿지 않아요.",
     "assignmentBlocked": "러너 확인 항목이 깨져 새 할당에서 빠졌어요.",
     "full": "꽉 찼어요.",
     "fullWaiting": "꽉 찼어요. 런 {count}개가 자리를 기다려요.",
@@ -35,9 +35,12 @@
   "panel": {
     "label": "고른 러너",
     "empty": "러너를 고르면 여기에 자세히 보여요.",
-    "checkedAgo": "{time} 확인했어요",
+    "checkedAgo": "{time} 확인",
     "neverChecked": "아직 확인하지 않았어요",
     "fix": {
+      "brokenTitle": "{name} 항목이 깨졌어요",
+      "pushImpact": "{projects} 티켓은 이 러너에 맡기지 않아요. 다른 저장소 티켓은 그대로 맡겨요.",
+      "pushAlsoBlocked": "이 항목을 고쳐도 {projects} 티켓은 push를 고칠 때까지 맡기지 않아요.",
       "offline": {
         "title": "오케스트레이터가 이 러너에 닿지 않아요",
         "body": "다시 닿을 때까지 이 러너에서 런을 시작하지 않아요.",
@@ -66,10 +69,10 @@
       "silent": "2분이 지나도 결과가 오지 않았어요. worker가 돌고 있는지 확인하고 다시 확인해 주세요."
     },
     "capacity": "자리",
-    "noRuns": "지금 하는 런이 없어요.",
-    "queuedFor": "{duration}째 기다려요",
+    "queuedWaiting": "이 러너를 기다리는 Queued 런 {count} · {keys}",
     "checksTitle": "확인 항목",
-    "checksPassed": "{passed}/{total} 통과",
+    "checksCount": "{passed}/{total}",
+    "checksAllPassed": "{count}개 모두 통과",
     "unreachable": "ssh로 닿지 않아요",
     "noChecks": "아직 확인하지 않았어요",
     "check": {
@@ -78,15 +81,14 @@
       "unknown": "모르겠어요"
     },
     "leftWorktrees": "남은 워크트리",
-    "leftWorktreesCount": "{count}개",
     "worktree": {
       "keep-until-pr-settles": "PR이 병합되거나 닫힐 때까지 남겨요",
       "operator-decides": "사람이 지워야 해요"
     },
-    "worktreeMeta": "{workspace} · {reason}",
     "usage": {
-      "title": "공급자 사용량",
-      "readAgo": "{time} 읽었어요",
+      "title": "사용량",
+      "privacyLabel": "사용량 정보 안내",
+      "readAgo": "{time} 읽음",
       "notRead": "아직 사용량을 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
       "unreadable": "사용량을 읽지 못했어요. 다음 점검 때 다시 읽어요.",
       "resetsAt": "{time}에 초기화돼요",
@@ -101,6 +103,7 @@
     },
     "edit": "고치기",
     "editLabel": "{name} 러너 고치기",
-    "unsavedBlocked": "고친 값을 저장하지 않았어요. 저장하거나 닫아 주세요. 버리고 옮기려면 한 번 더 누르면 돼요."
+    "unsavedBlocked": "고친 값을 저장하지 않았어요. 저장하거나 닫아 주세요. 버리고 옮기려면 한 번 더 누르면 돼요.",
+    "viewRuns": "Runs에서 보기"
   }
 }

@@ -3,6 +3,20 @@ import { describe, expect, it } from "vitest";
 import { sectionScrollTop } from "./components/settings-layout";
 
 import {
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
+  IssueGroupLabel,
+  IssueGroupBody,
+  IssueGroupLine,
+  useIssueGroupMotion,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
+  ProgressRing,
   InfoTip,
   SectionNav,
   SettingsGroup,
@@ -15,6 +29,9 @@ import {
   CAPACITY_CELLS_MAX,
   CapacityBar,
   CapacityCells,
+  CapacityTrack,
+  CheckResultRow,
+  ExpandableRow,
   Card,
   Checkbox,
   DefinitionItem,
@@ -34,6 +51,8 @@ import {
   BlockerChips,
   KanbanCard,
   KanbanCards,
+  PrChip,
+  PrChipMore,
   KanbanColumn,
   KanbanSubheading,
   Popover,
@@ -67,7 +86,11 @@ import {
   UsageBar,
   UsageMeter,
   PanelRows,
+  PanelHeader,
+  PanelListRow,
   PanelSection,
+  SignalList,
+  SignalRow,
   PinnedToast,
   Toaster,
   ResponsiveColumns,
@@ -378,14 +401,14 @@ describe("서버 렌더", () => {
 
   it("TimeSlot 은 시간 글을 같은 폭 칸에 두고, dateTime 을 주면 time 요소다(티켓 0091)", () => {
     const classOf = (html: string) => /class="([^"]*)"/.exec(html)?.[1] ?? "";
-    const short = renderToString(<TimeSlot>42초째</TimeSlot>);
-    const long = renderToString(<TimeSlot>1시간 3분째</TimeSlot>);
+    const short = renderToString(<TimeSlot>{"<1 min"}</TimeSlot>);
+    const long = renderToString(<TimeSlot>1 hr 3 min</TimeSlot>);
     expect(short).toMatch(/^<span data-slot="time"/);
     expect(classOf(short)).toBe(classOf(long));
     const time = renderToString(<TimeSlot dateTime="2026-11-17T09:00:00.000Z">11월 17일</TimeSlot>);
     expect(time).toMatch(/^<time dateTime="2026-11-17T09:00:00.000Z" data-slot="time"/);
     expect(classOf(time)).toBe(classOf(short));
-    expect(renderToString(<TimeSlot>123시간 45분째</TimeSlot>)).toContain(">123시간 45분째<");
+    expect(renderToString(<TimeSlot>12345 days</TimeSlot>)).toContain(">12345 days<");
   });
 
   it("RowActionSlot 은 버튼이 없어도 같은 폭 칸을 남긴다(티켓 0091)", () => {
@@ -455,6 +478,18 @@ describe("서버 렌더", () => {
       "danger",
       "danger",
     ]);
+  });
+
+  it("Button 의 outlined 는 고른 버튼에만 표시되고 기본 버튼은 그대로다(0172)", () => {
+    expect(renderToString(<Button outlined>할당</Button>)).toContain("data-outlined");
+    expect(renderToString(<Button>할당</Button>)).not.toContain("data-outlined");
+  });
+
+  it("Dialog 는 trigger 를 주지 않으면 트리거 버튼을 그리지 않는다(0172)", () => {
+    const html = renderToString(
+      <Dialog open={false} title="지울까요?" actions={<DialogClose>취소</DialogClose>} />,
+    );
+    expect(html).not.toContain("<button");
   });
 
   it("Dialog 의 triggerBusy 는 트리거를 막힌 상태로 드러내고, 없으면 그대로 둔다(0156)", () => {
@@ -605,7 +640,7 @@ describe("서버 렌더", () => {
         title="ACME-1"
         detail="질문"
         meta="runner-a"
-        time="12분째"
+        time="12 min"
         action={<Button>답하기</Button>}
         selected
         onOpen={noop}
@@ -615,7 +650,7 @@ describe("서버 렌더", () => {
     const open = html.slice(html.indexOf("<button"), html.indexOf("</button>") + 9);
     expect(open).toContain("Question");
     expect(open).toContain("ACME-1");
-    expect(open).toContain("12분째");
+    expect(open).toContain("12 min");
     expect(open).not.toContain("답하기");
     expect(html.indexOf("답하기")).toBeGreaterThan(html.indexOf("</button>"));
     const named = /aria-labelledby="([^"]+)" aria-describedby="([^"]+)"/.exec(html);
@@ -647,7 +682,7 @@ describe("서버 렌더", () => {
         stuck
         meta="선행 티켓이 취소됐어요"
         metaTone="problem"
-        time="2시간째"
+        time="2 hr"
         onOpen={noop}
       />,
     );
@@ -666,12 +701,50 @@ describe("서버 렌더", () => {
     expect(classOfButton(html)).not.toBe(classOfButton(calm));
   });
 
+  it("KanbanCard prChips 는 선행 칩 뒤, 바닥 줄 위에 두고 설명에 들어간다(티켓 0167)", () => {
+    const html = renderToString(
+      <KanbanCard
+        ticketKey="ACME-15"
+        title="알림 묶기"
+        detail="기본값을 거절로 둘까요?"
+        blockers={
+          <BlockerChips>
+            <BlockerChip state="active" ticketKey="ACME-9" stateName="In Progress" />
+          </BlockerChips>
+        }
+        prChips={
+          <>
+            <PrChip kind="ci-failed">CI 실패</PrChip>
+            <PrChip kind="behind">3커밋 뒤</PrChip>
+            <PrChipMore hiddenLabel="충돌">+1</PrChipMore>
+          </>
+        }
+        meta="runner-a"
+        onOpen={noop}
+      />,
+    );
+    const order = ["기본값을", "data-blocker-state", 'data-pr-chip="ci-failed"', "runner-a"].map(
+      (part) => html.indexOf(part),
+    );
+    expect(order).toEqual(order.toSorted((a, b) => a - b));
+    expect(order).not.toContain(-1);
+    expect(/aria-describedby="([^"]+)"/.exec(html)?.[1]?.split(" ")).toHaveLength(3);
+    expect(html).toMatch(/<span aria-hidden="true">\+1<\/span>/);
+    expect(html).toContain("충돌");
+
+    const onlyPr = renderToString(
+      <KanbanCard title="ACME-2" prChips={<PrChip kind="conflict">충돌</PrChip>} onOpen={noop} />,
+    );
+    const describedId = /aria-describedby="([^"]+)"/.exec(onlyPr)?.[1] ?? "";
+    expect(onlyPr).toContain(`id="${describedId}"`);
+  });
+
   it("KanbanCard 의 menu 는 카드 버튼 밖에 두고, 아이콘 메뉴 단추는 label 을 이름으로 가진다(티켓 0118)", () => {
     const html = renderToString(
       <KanbanCard
         title="ACME-1"
         meta="runner-a"
-        time="24분째"
+        time="24 min"
         menu={
           <Menu variant="icon" label="ACME-1 런 메뉴" trigger={<MoreIcon />}>
             <MenuItem value="pause">멈추기</MenuItem>
@@ -1016,6 +1089,87 @@ describe("새 컴포넌트(티켓 0073)", () => {
     expect(renderToString(<PanelSection title="t">x</PanelSection>)).not.toMatch(/<\/h3><span/);
   });
 
+  it("PanelSection 의 detail 은 제목 바로 옆, meta 는 줄 끝에 둔다", () => {
+    const html = renderToString(
+      <PanelSection title="PR #1" detail="Open" meta="방금">
+        x
+      </PanelSection>,
+    );
+    expect(html).toMatch(/>PR #1<\/h3><span[^>]*>Open<\/span><\/span><span[^>]*>방금<\/span>/);
+  });
+
+  it("PanelHeader 에 eyebrow 를 주면 첫 줄이 그 글이고 상태는 제목 아래로 온다", () => {
+    const html = renderToString(<PanelHeader eyebrow="ACME-1" status="상태" title="제목" />);
+    expect(html.indexOf("ACME-1")).toBeLessThan(html.indexOf("제목"));
+    expect(html.indexOf("제목")).toBeLessThan(html.indexOf("상태"));
+    const plain = renderToString(<PanelHeader status="상태" title="제목" />);
+    expect(plain.indexOf("상태")).toBeLessThan(plain.indexOf("제목"));
+  });
+
+  it("SignalRow 는 이름·값을 dt·dd 로 두고 톤마다 아이콘 모양이 다르다", () => {
+    const tones = ["pass", "problem", "warning", "neutral"] as const;
+    const paths = tones.map((tone) => {
+      const html = renderToString(
+        <SignalList>
+          <SignalRow label="CI" tone={tone} action={<a href="/x">보기</a>}>
+            값
+          </SignalRow>
+        </SignalList>,
+      );
+      expect(html).toMatch(/^<dl /);
+      expect(html).toContain(`data-signal-tone="${tone}"`);
+      expect(html).toMatch(/<dt[^>]*>CI<\/dt><dd/);
+      expect(html).toContain(">보기</a>");
+      return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
+    });
+    expect(new Set(paths).size).toBe(tones.length);
+  });
+
+  it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {
+    const html = renderToString(<CapacityTrack used={2} total={3} label="3자리 중 2자리 사용" />);
+    expect(html).toContain('role="img" aria-label="3자리 중 2자리 사용"');
+    expect(html.match(/data-cell="used"/g)).toHaveLength(2);
+    expect(html.match(/data-cell="free"/g)).toHaveLength(1);
+    expect(renderToString(<CapacityTrack used={0} total={0} label="x" />)).toBe("");
+    expect(renderToString(<CapacityTrack used={1} total={33} label="x" />)).toBe("");
+  });
+
+  it("CheckResultRow 는 상태를 아이콘 모양과 화면 읽기 글로 함께 보인다", () => {
+    const shape = (state: "ok" | "broken" | "unknown") =>
+      /<path d="([^"]+)"/.exec(
+        renderToString(<CheckResultRow state={state} stateLabel="상태" name="항목" />),
+      )?.[1];
+    expect(new Set([shape("ok"), shape("broken"), shape("unknown")]).size).toBe(3);
+    const html = renderToString(
+      <CheckResultRow state="broken" stateLabel="깨졌어요" name="GitHub push" reason="인증 실패" />,
+    );
+    expect(html).toContain('data-check="broken"');
+    expect(html).toContain("깨졌어요");
+    expect(html).toContain("인증 실패");
+  });
+
+  it("ExpandableRow 는 처음에 접혀 있고 내용을 그리지 않는다", () => {
+    const html = renderToString(<ExpandableRow summary="4개 모두 통과">내용</ExpandableRow>);
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"/);
+    expect(html).toContain("4개 모두 통과");
+    expect(html).not.toContain("내용");
+  });
+
+  it("PanelListRow 는 href 를 주면 행 전체가 링크다", () => {
+    const html = renderToString(<PanelListRow href="/runs/1" ticketKey="ACME-1" title="제목" />);
+    expect(html).toMatch(/<li[^>]*><a href="\/runs\/1"/);
+    expect(html).not.toContain("<button");
+  });
+
+  it("PanelSection 은 count 와 info 를 제목 옆에, meta 를 오른쪽에 둔다", () => {
+    const html = renderToString(
+      <PanelSection title="자리" count="2/3" info={<i>도움말</i>} meta="3분 전">
+        본문
+      </PanelSection>,
+    );
+    expect(html).toMatch(/<h3[^>]*>자리<\/h3><span[^>]*>2\/3<\/span><i>도움말<\/i><\/span><span/);
+  });
+
   it("CapacityCells 는 자리 하나를 칸 하나로 그리고 칸 묶음을 이름 하나로 읽는다", () => {
     const html = renderToString(<CapacityCells used={2} total={3} label="3자리 중 2자리 사용" />);
     expect(html).toMatch(/^<span role="img" aria-label="3자리 중 2자리 사용" data-tone="progress"/);
@@ -1053,6 +1207,19 @@ describe("새 컴포넌트(티켓 0073)", () => {
     const none = renderToString(<CapacityCells used={0} total={0} label="x" />);
     expect(none).toContain('data-cells="number-only"');
     expect(none).toMatch(/>0\/0</);
+  });
+
+  it('CapacityCells 는 overflow="meter" 면 8자리까지 칸, 넘으면 막대와 숫자로 보인다(0173)', () => {
+    const atMax = renderToString(<CapacityCells used={8} total={8} label="x" overflow="meter" />);
+    expect(atMax).toContain('data-cells="shown"');
+    expect(atMax).not.toContain("data-capacity-meter");
+    const over = renderToString(<CapacityCells used={9} total={12} label="x" overflow="meter" />);
+    expect(over).toContain('data-cells="meter"');
+    expect(over).toContain("data-capacity-meter");
+    expect(over).not.toContain("data-cell=");
+    expect(over).toMatch(/aria-hidden="true"[^>]*>9\/12</);
+    const none = renderToString(<CapacityCells used={0} total={0} label="x" overflow="meter" />);
+    expect(none).toContain('data-cells="number-only"');
   });
 
   it("CapacityCells 는 쓰는 자리가 capacity 보다 많아도 칸은 capacity 만큼 채우고 숫자는 그대로 보인다", () => {
@@ -1260,5 +1427,105 @@ describe("설정 한 페이지 부품(티켓 0119)", () => {
     expect(sectionScrollTop({ ...base, sectionTop: 2000 })).toBe(784);
     expect(sectionScrollTop({ ...base, sectionTop: -500 })).toBe(0);
     expect(sectionScrollTop({ ...base, sectionTop: 400, maxScrollTop: -10 })).toBe(0);
+  });
+});
+
+describe("IssueList(티켓 0171)", () => {
+  it("상태 아이콘은 모양을 분류로 고르고 이름을 접근 이름으로 둔다", () => {
+    for (const kind of ISSUE_STATE_KINDS) {
+      const html = renderToString(<IssueStateIcon kind={kind} label="In Review" />);
+      expect(html).toContain(`data-issue-state="${kind}"`);
+      expect(html).toContain('aria-label="In Review"');
+    }
+  });
+
+  it("진행 고리는 0개 분모에도 그려지고 이름을 가진다", () => {
+    const html = renderToString(<ProgressRing done={0} total={0} label="없음" />);
+    expect(html).toContain('data-progress="0/0"');
+    expect(html).toContain('aria-label="없음"');
+  });
+
+  it("보기 토글은 고른 단추만 눌림이다", () => {
+    const html = renderToString(
+      <IconToggleGroup
+        label="보기"
+        value="b"
+        onValueChange={() => {}}
+        items={[
+          { value: "a", label: "가", icon: <GroupedViewIcon /> },
+          { value: "b", label: "나", icon: <FlatViewIcon /> },
+        ]}
+      />,
+    );
+    expect(html).toMatch(/aria-label="가"[^>]*aria-pressed="false"/);
+    expect(html).toMatch(/aria-label="나"[^>]*aria-pressed="true"/);
+  });
+
+  it("행의 고르기·펼치기·할 일은 서로 안에 들어가지 않은 단추다", () => {
+    const html = renderToString(
+      <IssueListFrame>
+        <IssueListHead keyLabel="키" titleLabel="제목" runLabel="런" indented />
+        <IssueList label="목록" onMove={() => {}}>
+          <IssueGroupLabel rowKey="head" name="상위 이슈 없음" count={1} />
+          <IssueRow
+            rowKey="a"
+            label="A-1 제목"
+            selected
+            tabbable
+            onSelect={() => {}}
+            indent="top"
+            toggle={{ expanded: true, label: "접기", onToggle: () => {} }}
+            icon={<IssueStateIcon kind="todo" label="Todo" />}
+            ticketKey="A-1"
+            title="제목"
+            run="Running"
+            action={<button type="button">할당</button>}
+          />
+        </IssueList>
+      </IssueListFrame>,
+    );
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).not.toMatch(/<button(?:(?!<\/button>)[\s\S])*<button/);
+  });
+
+  it("단계 없이 그린 묶음 본문은 움직임 표시가 없다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase={undefined} childCount={1}>
+        <IssueGroupLine index={0}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).not.toContain("data-issue-group-moving");
+    expect(html).toContain('data-issue-line="still"');
+    expect(html).not.toContain("transition-delay");
+  });
+
+  it("처음 그릴 때 움직임 단계가 없다(0175)", () => {
+    function FirstRender() {
+      const { phases } = useIssueGroupMotion("all");
+      return <span>{phases.size}</span>;
+    }
+    expect(renderToString(<FirstRender />)).toContain(">0<");
+  });
+
+  it("접히는 묶음 본문은 포커스를 받지 않고 줄이 흐려진다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase="closing" childCount={1}>
+        <IssueGroupLine index={0}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).toContain('data-issue-group-moving="closing"');
+    expect(html).toContain("inert");
+    expect(html).toContain('data-issue-line="fading"');
+  });
+
+  it("하위가 30개를 넘는 묶음은 줄 효과 없이 높이만 움직인다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase="opening" childCount={31}>
+        <IssueGroupLine index={3}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).toContain('data-issue-group-moving="opening"');
+    expect(html).toContain('data-issue-line="still"');
   });
 });

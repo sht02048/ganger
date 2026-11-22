@@ -23,6 +23,7 @@
     "menu": "Menu",
     "form": "Field·Input·Select·Checkbox",
     "tooltip": "Tooltip",
+    "issueList": "IssueList",
     "dialog": "Dialog",
     "toast": "Toast",
     "surfaces": "면 역할",
@@ -95,7 +96,7 @@
     "sampleTitle": "주문 목록 필터가 새로고침 뒤 사라짐",
     "sampleBody": "PR이 열려 있지만 병합되지 않았어요. CI는 통과했고 리뷰를 기다려요.",
     "sampleUi": "runner-a에서 Claude Code가 처리했어요",
-    "sampleMeta": "ACME-123 · 12분 전",
+    "sampleMeta": "ACME-123 · 12 min ago",
     "sampleLabel": "열 머리글",
     "fontSize": "크기 fontSize",
     "fontWeight": "굵기 fontWeight",
@@ -129,6 +130,7 @@
     "secondary": "ssh 연결 확인",
     "danger": "런 취소",
     "ghost": "연결 확인",
+    "outlined": "하위 2개 할당",
     "disabled": "할당하기",
     "busy": "Linear에서 다시 읽기",
     "busyLabel": "읽는 중…"
@@ -157,9 +159,9 @@
     "timeNote": "시간은 TimeSlot, 버튼은 RowActionSlot에 둬요. 글 길이가 달라도, 버튼이 없어도 시간과 버튼이 같은 자리에 서요.",
     "timeLabel": "시간 칸 예시",
     "answer": "답하기",
-    "timeSeconds": "42초째",
-    "timeMinutes": "12분째",
-    "timeHours": "1시간 3분째",
+    "timeSeconds": "<1 min",
+    "timeMinutes": "12 min",
+    "timeHours": "1 hr 3 min",
     "timeDate": "11월 17일"
   },
   "tabs": {
@@ -254,6 +256,31 @@
     "checkMobile": "Mobile",
     "checkMobileHint": "Acme Labs에 있어 고를 수 없어요"
   },
+  "issueList": {
+    "note": "상위 이슈와 하위 티켓을 같은 다섯 칸으로 보여요. 고르기·펼치기·할 일은 서로 안에 들어가지 않은 단추예요. 상태 아이콘은 트래커 상태 분류를 모양으로만 보이고 색은 중립색이에요. 런 상태는 런 칸에 둬요.",
+    "state": {
+      "todo": "Todo",
+      "in-progress": "In Review",
+      "done": "Done",
+      "canceled": "Canceled"
+    },
+    "progress": "하위 티켓 5개 중 2개 Done",
+    "viewLabel": "보기 방식",
+    "grouped": "상위 이슈로 묶어 보기",
+    "flat": "티켓 하나씩 보기",
+    "key": "키",
+    "title": "제목",
+    "run": "런",
+    "listLabel": "티켓 목록 예시",
+    "parentTitle": "결제 화면 개편",
+    "childTitle": "결제 수단 고르기 고치기",
+    "expand": "하위 티켓 펼치기",
+    "collapse": "하위 티켓 접기",
+    "runSummary": "Running 1 · Question 1",
+    "runChild": "Running · runner-a",
+    "action": "답하기",
+    "noParent": "상위 이슈 없음"
+  },
   "tooltip": {
     "note": "아이콘 버튼의 이름, 잘린 값의 전체, 보이는 이름에 없는 상태(Runner Issue 수 같은)를 보일 때만 써요. 보이는 글을 그대로 되풀이하지 않아요. 아이콘 버튼은 action 을 주면 Tooltip 트리거가 곧 버튼이에요(버튼 안에 버튼을 두지 않아요). 링크가 트리거면 render 로 넘겨요. 키가 묶인 동작은 shortcut 으로 키를 함께 보여요(맥은 ⌘, 그 밖은 Ctrl). shortcut 은 키를 묶지 않아서 키가 실제로 동작하는 곳에만 줘요(레일은 데스크톱 앱 안에서만).",
     "trigger": "capacity 2/3",
@@ -266,6 +293,7 @@
     "note": "되돌릴 수 없는 행동을 확인할 때만 써요.",
     "trigger": "Mapping 지우기",
     "busyTrigger": "지우는 중",
+    "triggerless": "화면이 여는 Dialog",
     "title": "Mapping을 지울까요?",
     "description": "acme/web으로 들어오던 티켓은 더 할당되지 않아요. 이미 도는 런은 그대로 끝나요.",
     "cancel": "취소",
@@ -295,9 +323,9 @@
     "waiting": "주문 목록 필터 유지",
     "queued": "헬스 체크 엔드포인트 추가",
     "sectionTitle": "In progress",
-    "runningTime": "25분째",
-    "waitingTime": "3분째",
-    "queuedTime": "방금"
+    "runningTime": "25 min",
+    "waitingTime": "3 min",
+    "queuedTime": "<1 min"
   },
   "sections": {
     "note": "제목 역할로 구역의 무게를 골라요. 오른쪽에 링크를 둘 수 있어요.",
@@ -330,23 +358,53 @@
     "note": "쓰는 칸과 전체 칸이에요. 문제 있는 러너는 빨간 막대예요.",
     "label": "작업 칸"
   },
+  "signals": {
+    "title": "PR #12",
+    "detail": "Open",
+    "meta": "5 min ago 읽음",
+    "ci": "CI",
+    "ciValue": "7개 중 2개 실패",
+    "conflict": "충돌",
+    "conflictValue": "없음",
+    "base": "base",
+    "baseValue": "3커밋 뒤",
+    "unknown": "상태",
+    "unknownValue": "모름"
+  },
   "usage": {
     "note": "공급자 사용량 창의 쓴 비율이에요. 90% 이상이면 빨간 막대예요.",
     "label": "사용량",
     "session": "Claude 5시간",
     "weekly": "Claude 주간",
     "panelTitle": "공급자 사용량",
-    "panelMeta": "3분 전 읽었어요",
+    "panelMeta": "3 min ago 읽었어요",
     "panelRow": "PanelRows는 Row의 안쪽 여백만큼 밖으로 내어 글자를 블록 제목 선에 맞춰요.",
+    "listTitle": "관계",
+    "listInfoLabel": "관계 안내",
+    "listInfo": "PanelSection은 제목 옆에 개수와 도움말을 두고, PanelListRow는 점·번호·제목·상태를 한 줄에 둬요.",
+    "listAction": "다시 읽기",
+    "listOpen": "트래커에서 열기 (새 탭에서 열려요)",
+    "listRow": "시계 adapter 하나로 합치기",
+    "listRowDone": "세션 정리 타이머",
     "columnsLead": "ResponsiveColumns 행",
     "columnsUsage": "사용량",
     "panelBody": "UsageMeter는 이름과 %를 한 줄에 두고 막대를 아래에 둬요. PanelSection은 블록 제목 줄 끝에 숫자·시각을 둬요."
   },
   "capacityCells": {
     "title": "Runners",
-    "note": "칸 하나가 자리 하나예요. 쓰는 자리는 채우고 빈자리는 테두리만 그려요. 문제 있는 러너는 빨간 칸이고, 자리가 8개보다 많으면 숫자만 보여요.",
+    "note": "칸 하나가 자리 하나예요. 쓰는 자리는 채우고 빈자리는 테두리만 그려요. 문제 있는 러너는 빨간 칸이고, 자리가 8개보다 많으면 숫자만 보여요. overflow=\"meter\"면 막대와 숫자로 보여요.",
     "label": "{total}자리 중 {used}자리 사용",
     "free": "새 런 받을 자리 {count}"
+  },
+  "checkResult": {
+    "ok": "통과",
+    "broken": "깨졌어요",
+    "unknown": "모르겠어요",
+    "push": "GitHub push · acme/web",
+    "reason": "인증 실패",
+    "service": "Orca 상시 서비스",
+    "agent": "Claude Code",
+    "allPassed": "4개 모두 통과"
   },
   "problem": {
     "note": "문제와 해결 순서를 한 상자에 보여요. 단계와 행동은 고를 수 있어요.",
@@ -356,7 +414,7 @@
     "step2": "다시 확인을 눌러요",
     "recheck": "다시 확인",
     "offlineTitle": "runner-c가 Offline이에요",
-    "offlineBody": "10분 전부터 응답이 없어요."
+    "offlineBody": "10 min 동안 응답이 없어요."
   },
   "statTile": {
     "note": "큰 숫자와 뜻, 앞 기간과 비교한 줄이에요. 좋아지면 초록, 나빠지면 빨강이에요.",
@@ -366,7 +424,7 @@
     "failedDetail": "앞 7일보다 2개 늘었어요",
     "wait": "사람을 기다린 시간",
     "waitDetail": "앞 7일과 같아요",
-    "waitValue": "12분"
+    "waitValue": "12 min"
   },
   "brand": {
     "note": "제품 기호와 반장 마스코트예요. 레일에는 취구가 노란 브랜드판을 쓰고, 마스코트는 빈 상태·로딩·404에만 둬요. 마스코트는 장식이라 화면 읽기 프로그램이 건너뛰어요.",
@@ -511,7 +569,7 @@
       "title": "ACME-11 재시도 간격 바꾸기",
       "detail": "재시도 간격을 바꿀까요?",
       "meta": "runner-a · Claude Code",
-      "time": "12분째",
+      "time": "12 min",
       "action": "답하기",
       "plainTitle": "ACME-10 결제 실패 재시도",
       "blockedKey": "ACME-15",
@@ -523,6 +581,10 @@
       "blockerDoneState": "Done",
       "blockerCanceled": "ACME-13",
       "blockerCanceledState": "취소",
+      "prCiFailed": "CI 실패",
+      "prConflict": "충돌",
+      "prBehind": "3커밋 뒤",
+      "prMore": "+1",
       "menuLabel": "ACME-10 런 메뉴",
       "pause": "멈추기",
       "subheading": "처리할 일 없이 끝났어요"

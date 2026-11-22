@@ -45,7 +45,6 @@ import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, afterEach, beforeAll, describe, expect, it, onTestFailed } from "vitest";
 import type { TestContext } from "vitest";
 import home from "../../apps/web/messages/ko/home.json" with { type: "json" };
-import runs from "../../apps/web/messages/ko/runs.json" with { type: "json" };
 import shell from "../../apps/web/messages/ko/shell.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
 import { serverFnName, waitForRouterIdle } from "./navigation-timing.js";
@@ -656,132 +655,46 @@ describe("Dashboard 움직임(브라우저, 0153)", () => {
 });
 
 describe("Runs 움직임(브라우저, 0153)", () => {
-  it("Workspace 를 바꿨다 돌아오면 그사이 바뀐 상태와 새 행이 움직이지 않는다", async (context) => {
-    const changed = assign();
-    const page = await newPage(context);
-    await open(page, runsPath, "/runs");
-    await runRow(page, changed.key).waitFor();
+  const finish = (id: RunId, agentResult: "canceled" | "reported-failure" = "canceled") => {
+    const ended = changeRunState(db, id, { to: "ended", agentResult, prState: "none" });
+    if (!ended.ok) throw new Error(`end failed: ${JSON.stringify(ended.error)}`);
+  };
 
-    await switchWorkspace(page, "Acme", otherWorkspaceName);
-    await expect.poll(() => runRow(page, changed.key).count()).toBe(0);
-    start(changed.id);
-    const added = assign();
-    await page.waitForTimeout(QUIET_MS);
-    await clearCalls(page);
-
-    await switchWorkspace(page, otherWorkspaceName, "Acme");
-
-    await runRow(page, changed.key).locator('[data-status="running"]').waitFor();
-    await runRow(page, added.key).waitFor();
-    await expectQuiet(page);
-  });
-
-  it("첫 렌더와 필터 바꾸기에서는 움직이지 않는다", async (context) => {
+  it("첫 렌더에서는 움직이지 않는다", async (context) => {
     assign();
     const page = await newPage(context);
     await open(page, runsPath, "/runs");
     await expectQuiet(page);
-
-    await tab(page, runs.filter["in-progress"]).click();
-    await expect
-      .poll(() => tab(page, runs.filter["in-progress"]).getAttribute("aria-selected"))
-      .toBe("true");
-    await expectQuiet(page);
+    expect(await motionCalls(page)).toEqual([]);
   });
 
-  it("SSE 로 생긴 행은 들어오고 상태가 바뀐 행의 알약은 한 번 커진다", async (context) => {
-    const existing = assign();
-    const page = await newPage(context);
-    await open(page, runsPath, "/runs");
-    await runRow(page, existing.key).waitFor();
-    await clearCalls(page);
-
-    const fresh = assign();
-    await runRow(page, fresh.key).waitFor({ timeout: CHANGE_VISIBLE_MS });
-    const entered = await callsFor(page, fresh.id);
-    expect(entered.some((call) => call.properties.includes("gridTemplateRows"))).toBe(true);
-
-    await clearCalls(page);
-    start(existing.id);
-    await runRow(page, existing.key)
-      .locator('[data-status="running"]')
-      .waitFor({ timeout: CHANGE_VISIBLE_MS });
-    const changed = await callsFor(page, existing.id);
-    expect(changed.some((call) => call.pill)).toBe(true);
-  });
-
-  it("비어 있던 필터 목록에 처음 생긴 행도 들어온다", async (context) => {
+  it("SSE 로 끝난 런의 행은 끝난 런 표에 들어온다", async (context) => {
     const run = assign();
     start(run.id);
     const page = await newPage(context);
-    await open(page, `${runsPath}&f=canceled`, "/runs");
-    await page.getByText(runs.empty, { exact: true }).waitFor();
+    await open(page, `${runsPath}&view=all`, "/runs");
+    await page.locator("[data-runner-cards]").getByRole("button", { name: run.key }).waitFor();
     await clearCalls(page);
 
-    const ended = changeRunState(db, run.id, {
-      to: "ended",
-      agentResult: "canceled",
-      prState: "none",
-    });
-    if (!ended.ok) throw new Error(`end failed: ${JSON.stringify(ended.error)}`);
+    finish(run.id);
 
     await runRow(page, run.key).waitFor({ timeout: CHANGE_VISIBLE_MS });
-    const calls = await callsFor(page, run.id);
-    expect(calls.some((call) => call.properties.includes("gridTemplateRows"))).toBe(true);
-  });
-
-  it("빠지는 행은 방향키가 건너뛰어 선택되지 않는다", async (context) => {
-    const upper = assign();
-    const lower = assign();
-    start(upper.id);
-    start(lower.id);
-    const page = await newPage(context);
-    await open(page, `${runsPath}&f=in-progress`, "/runs");
-    await runRow(page, upper.key).waitFor();
-    await runRow(page, lower.key).waitFor();
-    const upperFirst = await runRow(page, upper.key).evaluate((node, lowerId) => {
-      const other = document.querySelector(`[data-motion-key="${lowerId}"]`);
-      return (
-        other !== null &&
-        (node.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
-      );
-    }, lower.id);
-    const leaving = upperFirst ? lower : upper;
-    const above = page
-      .locator(`[data-motion-key="${leaving.id}"]`)
-      .locator("xpath=preceding-sibling::*[1]")
-      .getByRole("option");
-    await above.click();
-    await expect.poll(() => above.getAttribute("aria-selected")).toBe("true");
-    await page.evaluate(() => {
-      globalThis.screenMotionRate = 0.05;
-    });
-
-    const ended = changeRunState(db, leaving.id, {
-      to: "ended",
-      agentResult: "reported-success",
-      prState: "none",
-    });
-    if (!ended.ok) throw new Error(`end failed: ${JSON.stringify(ended.error)}`);
-    await page
-      .locator(`[data-motion-key="${leaving.id}"][inert]`)
-      .waitFor({ state: "attached", timeout: CHANGE_VISIBLE_MS });
-
-    await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(QUIET_MS);
-
-    expect(new URL(page.url()).searchParams.get("sel")).not.toBe(leaving.id);
+    const entered = await callsFor(page, run.id);
+    expect(entered.some((call) => call.properties.includes("gridTemplateRows"))).toBe(true);
   });
 
   it("움직임 줄이기에서는 새 행이 흐려지며 들어온다", async (context) => {
+    const run = assign();
+    start(run.id);
     const page = await newPage(context, "reduce");
-    await open(page, runsPath, "/runs");
+    await open(page, `${runsPath}&view=all`, "/runs");
+    await page.locator("[data-runner-cards]").getByRole("button", { name: run.key }).waitFor();
     await clearCalls(page);
 
-    const fresh = assign();
+    finish(run.id);
 
-    await runRow(page, fresh.key).waitFor({ timeout: CHANGE_VISIBLE_MS });
-    const calls = await callsFor(page, fresh.id);
+    await runRow(page, run.key).waitFor({ timeout: CHANGE_VISIBLE_MS });
+    const calls = await callsFor(page, run.id);
     expect(calls.every((call) => call.properties.join() === "opacity")).toBe(true);
   });
 });

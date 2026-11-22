@@ -2,17 +2,25 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Button,
   buttonStyles,
+  capacityText,
   CapacityCells,
+  CapacityTrack,
+  CheckResultIcon,
+  CheckResultList,
+  CheckResultRow,
   DetailPanel,
+  EditIcon,
+  ExpandableRow,
   focusStyles,
+  InfoTip,
   MascotMessage,
   PageHeader,
-  PanelRows,
+  PanelList,
+  PanelListRow,
   PanelSection,
   ResponsiveColumns,
   ResponsiveColumnsHead,
   ProblemCallout,
-  Row,
   RowTitle,
   ScreenLayout,
   SplitView,
@@ -22,26 +30,40 @@ import {
   TableRow,
   TableRows,
   Text,
+  TextLink,
   textStyles,
+  Tooltip,
   UsageBar,
   UsageMeter,
 } from "@ganger/ui";
+import type { CheckResultState } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
-import { breakpoints, fonts, size, space } from "@ganger/ui/tokens.stylex";
+import type { PrerequisiteFailureKind } from "@ganger/core";
+import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { usePrerequisiteName, useUsageNames } from "../labels";
-import { PushProblems, useCheckingText, usePushSummaryText } from "../push-check";
+import { useCheckingText } from "../push-check";
 import type { UnsavedGuard } from "../settings/navigation-guard";
 import { useUnsavedHold } from "../settings/row-state";
 import { ReportUnsavedContext, useRunnerCheckPolling } from "../settings/settings-screen";
 import type { ActionResult } from "../settings/settings-screen";
+import { runnerRunsHref } from "../runs/hrefs";
 import { useStatusName } from "../status";
-import { failedChecksFirst, problemRunnersFirst, runnerRowStatus } from "@ganger/app/runners/model";
-import { runnerWideChecks, summarizePushChecks } from "@ganger/app/prerequisites";
-import type { PushSummary } from "@ganger/app/prerequisites";
+import {
+  failedChecksFirst,
+  problemRunnersFirst,
+  runnerRowStatus,
+  runnerRunsWorkspace,
+} from "@ganger/app/runners/model";
+import {
+  isPushCheck,
+  prerequisiteKind,
+  runnerWideChecks,
+  summarizePushChecks,
+} from "@ganger/app/prerequisites";
 import type {
   ProviderUsageView,
   RunnerCheckItem,
@@ -192,6 +214,7 @@ export function RunnersScreen({
                   <RunnerPanel
                     key={selected.id}
                     runner={selected}
+                    ws={ws}
                     actions={actions}
                     renderEdit={renderEdit}
                     blocked={blocked}
@@ -292,11 +315,13 @@ function RowSentence({ runner }: { runner: RunnerView }) {
 
 function RunnerPanel({
   runner,
+  ws,
   actions,
   renderEdit,
   blocked,
 }: {
   runner: RunnerView;
+  ws: string | undefined;
   actions: RunnerActions;
   renderEdit: RenderRunnerEdit | undefined;
   blocked: boolean;
@@ -307,17 +332,12 @@ function RunnerPanel({
   const status = runnerRowStatus(runner);
   const recheck = useRecheck(runner.id, actions);
   const edit = useRunnerEdit();
+  const checkingText = useCheckingText(recheck.checking ? 0 : null, "elapsed");
+  const needsFix = status !== "online" || runner.pushBlockedProjects.length > 0;
+  const target = needsFix ? fixTarget(runner) : null;
   return (
     <DetailPanel>
       <div {...stylex.props(styles.panelHead)}>
-        <div {...stylex.props(styles.statusLine)}>
-          <StatusPill status={status}>{statusName(status)}</StatusPill>
-          <Text variant="meta">
-            {runner.checked === null
-              ? t("neverChecked")
-              : t("checkedAgo", { time: ago(runner.checked.at, runner.checked.agoMs) })}
-          </Text>
-        </div>
         <div {...stylex.props(styles.nameLine)}>
           <div {...stylex.props(styles.wrap)}>
             <Text variant="heading">{runner.name}</Text>
@@ -328,16 +348,45 @@ function RunnerPanel({
             )}
           </div>
           {renderEdit === undefined || edit.open ? null : (
-            <Button
-              ref={edit.triggerRef}
-              aria-label={t("editLabel", { name: runner.name })}
-              aria-expanded={false}
-              onClick={edit.show}
+            <Tooltip
+              content={t("editLabel", { name: runner.name })}
+              labelsTrigger
+              action={{
+                variant: "ghost",
+                onClick: edit.show,
+                ref: edit.triggerRef,
+                expanded: false,
+                label: t("editLabel", { name: runner.name }),
+              }}
             >
-              {t("edit")}
-            </Button>
+              <EditIcon />
+            </Tooltip>
           )}
         </div>
+        <div {...stylex.props(styles.statusLine)}>
+          <StatusPill status={status}>{statusName(status)}</StatusPill>
+          <span {...stylex.props(styles.statusTime)}>
+            <Text variant="meta" numeric>
+              {runner.checked === null
+                ? t("neverChecked")
+                : t("checkedAgo", { time: ago(runner.checked.at, runner.checked.agoMs) })}
+            </Text>
+          </span>
+          {checkingText === null ? null : (
+            <Text variant="meta" numeric>
+              {checkingText}
+            </Text>
+          )}
+          {needsFix ? null : <RecheckButton recheck={recheck} variant="secondary" />}
+        </div>
+        <p
+          ref={recheck.statusRef}
+          role="status"
+          tabIndex={-1}
+          {...stylex.props(textStyles("meta"))}
+        >
+          {recheck.message === null ? null : t(`recheckStatus.${recheck.message}`)}
+        </p>
         {renderEdit !== undefined && edit.open ? (
           <div
             ref={edit.formRef}
@@ -351,27 +400,33 @@ function RunnerPanel({
             {renderEdit(runner, { onDone: edit.close, onClose: edit.close })}
           </div>
         ) : null}
-        <p
-          ref={recheck.statusRef}
-          role="status"
-          tabIndex={-1}
-          {...stylex.props(textStyles("meta"))}
-        >
-          {recheck.message === null ? null : t(`recheckStatus.${recheck.message}`)}
-        </p>
       </div>
-      {status === "online" ? null : (
-        <FixCallout
-          cause={status === "offline" ? "offline" : "assignmentBlocked"}
-          checking={recheck.checking}
-          onRecheck={recheck.request}
-        />
-      )}
-      <CapacityRuns runner={runner} />
+      {needsFix ? <FixCard runner={runner} target={target} recheck={recheck} /> : null}
+      {needsFix ? <CheckList runner={runner} target={target} /> : null}
+      <CapacityRuns runner={runner} ws={ws} />
       <ProviderUsage runner={runner} />
-      <CheckList runner={runner} recheck={recheck} showRecheck={status === "online"} />
+      {needsFix ? null : <CheckList runner={runner} target={target} />}
       <LeftWorktrees runner={runner} />
     </DetailPanel>
+  );
+}
+
+function RecheckButton({
+  recheck,
+  variant,
+}: {
+  recheck: Recheck;
+  variant: "primary" | "secondary";
+}) {
+  const t = useTranslations("runners.panel");
+  return (
+    <Button
+      variant={variant}
+      busy={{ active: recheck.checking, label: t("checking") }}
+      onClick={recheck.request}
+    >
+      {t("recheck")}
+    </Button>
   );
 }
 
@@ -472,214 +527,223 @@ function recheckMessage(phase: RecheckPhase, silent: boolean): RecheckMessage | 
   }
 }
 
-function FixCallout({
-  cause,
-  checking,
-  onRecheck,
+function orderedChecks(checks: ReadonlyArray<RunnerCheckItem>): RunnerCheckItem[] {
+  return failedChecksFirst([
+    ...runnerWideChecks(checks),
+    ...checks.filter((check) => isPushCheck(check)),
+  ]);
+}
+
+function fixTarget(runner: RunnerView): RunnerCheckItem | null {
+  if (!runner.online) return null;
+  const broken = orderedChecks(runner.checks ?? []).filter((check) => check.satisfied === false);
+  const cause = runner.assignmentBlocked
+    ? (broken.find((check) => check.blocksAssignment) ?? broken[0])
+    : broken.find((check) => isPushCheck(check));
+  return cause ?? null;
+}
+
+function FixCard({
+  runner,
+  target,
+  recheck,
 }: {
-  cause: "offline" | "assignmentBlocked";
-  checking: boolean;
-  onRecheck: () => void;
+  runner: RunnerView;
+  target: RunnerCheckItem | null;
+  recheck: Recheck;
 }) {
   const t = useTranslations("runners.panel");
-  const code = (chunks: ReactNode) => <code {...stylex.props(styles.code)}>{chunks}</code>;
+  const tPush = useTranslations("domain.pushCheck");
+  const prerequisiteName = usePrerequisiteName();
+  const projectList = new Intl.ListFormat(useLocale(), { type: "conjunction", style: "short" });
+  const code = (chunks: ReactNode) => (
+    <Text variant="meta" as="span" mono wrap="anywhere">
+      {chunks}
+    </Text>
+  );
+  const actions = <RecheckButton recheck={recheck} variant="primary" />;
+  if (target === null) {
+    const cause = runner.online ? "assignmentBlocked" : "offline";
+    return (
+      <ProblemCallout
+        title={t(`fix.${cause}.title`)}
+        steps={(["1", "2", "3"] as const).map((step) =>
+          t.rich(`fix.${cause}.steps.${step}`, { code }),
+        )}
+        actions={actions}
+      >
+        {t(`fix.${cause}.body`)}
+      </ProblemCallout>
+    );
+  }
+  const push = summarizePushChecks(runner.checks ?? []);
+  const name = isPushCheck(target) ? tPush("name") : prerequisiteName(target);
+  const blockedProjects = projectList.format(runner.pushBlockedProjects);
   return (
-    <ProblemCallout
-      title={t(`fix.${cause}.title`)}
-      steps={(["1", "2", "3"] as const).map((step) =>
-        t.rich(`fix.${cause}.steps.${step}`, { code }),
-      )}
-      actions={
-        <Button disabled={checking} onClick={onRecheck}>
-          {checking ? t("checking") : t("recheck")}
-        </Button>
-      }
-    >
-      {t(`fix.${cause}.body`)}
+    <ProblemCallout title={t("fix.brokenTitle", { name })} actions={actions}>
+      <div {...stylex.props(styles.fixBody)}>
+        <Text variant="body">
+          {runner.assignmentBlocked
+            ? t("fix.assignmentBlocked.body")
+            : t("fix.pushImpact", { projects: blockedProjects })}
+        </Text>
+        {runner.assignmentBlocked && runner.pushBlockedProjects.length > 0 ? (
+          <Text variant="body">{t("fix.pushAlsoBlocked", { projects: blockedProjects })}</Text>
+        ) : null}
+        {target.hint === null ? null : (
+          <Text variant="meta" as="span" mono wrap="anywhere">
+            {target.hint}
+          </Text>
+        )}
+        {isPushCheck(target)
+          ? push.failedKinds.map((kind) => (
+              <Text key={kind} variant="ui" as="p">
+                {tPush.rich(`fix.${kind}`, { code })}
+              </Text>
+            ))
+          : null}
+      </div>
     </ProblemCallout>
   );
 }
 
-function CapacityRuns({ runner }: { runner: RunnerView }) {
+function CapacityRuns({ runner, ws }: { runner: RunnerView; ws: string | undefined }) {
   const t = useTranslations("runners.panel");
-  const statusName = useStatusName();
-  const { elapsed, duration } = useTime();
-  const empty = runner.occupying.length === 0 && runner.queued.length === 0;
+  const tRunners = useTranslations("runners");
+  const used = runner.occupying.length;
   return (
-    <PanelSection title={t("capacity")} meta={<RunnerCapacity runner={runner} />}>
-      {empty ? (
-        <Text variant="ui">{t("noRuns")}</Text>
-      ) : (
-        <PanelRows ordered>
-          {runner.occupying.map((run) => (
-            <li key={run.id}>
-              <Row
-                href={runHref(run.workspace.id, run.id)}
-                leading={<StatusPill status={run.state}>{statusName(run.state)}</StatusPill>}
-                trailing={elapsed(run.executionMs)}
-              >
-                <RunLabel ticketKey={run.ticketKey} meta={run.workspace.name} />
-              </Row>
-            </li>
-          ))}
-          {runner.queued.map((run) => (
-            <li key={run.id}>
-              <Row
-                href={runHref(run.workspace.id, run.id)}
-                leading={<StatusPill status="queued">{statusName("queued")}</StatusPill>}
-                trailing={t("queuedFor", { duration: duration(run.waitMs) })}
-              >
-                <RunLabel ticketKey={run.ticketKey} meta={run.workspace.name} />
-              </Row>
-            </li>
-          ))}
-        </PanelRows>
+    <PanelSection
+      titleRole="subheading"
+      title={t("capacity")}
+      count={capacityText(used, runner.capacity)}
+    >
+      <CapacityTrack
+        used={used}
+        total={runner.capacity}
+        label={tRunners("capacityCellsLabel", { used, total: runner.capacity })}
+      />
+      <TextLink href={runnerRunsHref(runnerRunsWorkspace(runner, ws), runner.id)}>
+        {t("viewRuns")}
+      </TextLink>
+      {runner.queued.length === 0 ? null : (
+        <Text variant="meta" as="p" numeric>
+          {t("queuedWaiting", {
+            count: runner.queued.length,
+            keys: runner.queued.map((run) => run.ticketKey).join(", "),
+          })}
+        </Text>
       )}
     </PanelSection>
   );
 }
 
-function RunLabel({ ticketKey, meta }: { ticketKey: string; meta: string }) {
-  return (
-    <span {...stylex.props(styles.runLabel)}>
-      <Text variant="title" numeric>
-        {ticketKey}
-      </Text>
-      <Text variant="meta" truncate>
-        {meta}
-      </Text>
-    </span>
-  );
-}
-
-function CheckList({
-  runner,
-  recheck,
-  showRecheck,
-}: {
-  runner: RunnerView;
-  recheck: Recheck;
-  showRecheck: boolean;
-}) {
+function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheckItem | null }) {
   const t = useTranslations("runners.panel");
-  const prerequisiteName = usePrerequisiteName();
-  const pushText = usePushSummaryText();
   const tPush = useTranslations("domain.pushCheck");
-  const checkingText = useCheckingText(recheck.checking ? 0 : null, "elapsed");
-  const footer = !showRecheck ? null : (
-    <div {...stylex.props(styles.checkFooter)}>
-      <Button variant="secondary" disabled={recheck.checking} onClick={recheck.request}>
-        {recheck.checking ? t("checking") : t("recheck")}
-      </Button>
-      <Text variant="meta" as="span" numeric>
-        {checkingText}
-      </Text>
-    </div>
-  );
+  const prerequisiteName = usePrerequisiteName();
   if (!runner.online) {
     return (
-      <PanelSection title={t("checksTitle")}>
-        <ul {...stylex.props(styles.list)}>
-          <CheckLine state="broken">{t("unreachable")}</CheckLine>
-        </ul>
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
+        <CheckResultList>
+          <CheckResultRow state="broken" stateLabel={t("check.broken")} name={t("unreachable")} />
+        </CheckResultList>
       </PanelSection>
     );
   }
   const checks = runner.checks;
   if (checks === null || checks.length === 0) {
     return (
-      <PanelSection title={t("checksTitle")}>
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
         <Text variant="ui">{t("noChecks")}</Text>
-        {footer}
       </PanelSection>
     );
   }
-  const push = summarizePushChecks(checks);
-  const lines: Array<{ satisfied: boolean | null; line: ReactNode }> = runnerWideChecks(checks).map(
-    (check) => ({
-      satisfied: check.satisfied,
-      line: (
-        <CheckLine
-          key={check.id}
-          state={checkState(check)}
-          hint={check.satisfied === false ? check.hint : null}
-        >
-          {prerequisiteName(check)}
-        </CheckLine>
-      ),
-    }),
+  const ordered = orderedChecks(checks);
+  const passed = ordered.filter((check) => check.satisfied === true).length;
+  const fixesInRows = target !== null && !isPushCheck(target);
+  const shownFixKinds = new Set<PrerequisiteFailureKind>();
+  const firstRowOfKind = (kind: PrerequisiteFailureKind) => {
+    if (shownFixKinds.has(kind)) return null;
+    shownFixKinds.add(kind);
+    return kind;
+  };
+  const code = (chunks: ReactNode) => (
+    <Text variant="meta" as="span" mono wrap="anywhere">
+      {chunks}
+    </Text>
   );
-  if (push.total > 0) {
-    const satisfied = pushSatisfied(push);
-    lines.push({
-      satisfied,
-      line: (
-        <CheckLine
-          key="github-push"
-          state={checkState({ satisfied })}
-          detail={<PushProblems summary={push} />}
+  const rows = ordered.map((check) => {
+    const state = checkState(check);
+    const push = prerequisiteKind(check.id);
+    const failureKind = check.failure?.kind ?? (state === "broken" ? "other" : null);
+    const showsHint = state === "broken" && check.hint !== null && check.id !== target?.id;
+    const rawReason = push.kind === "github-push" ? (check.failure?.reason ?? null) : null;
+    const fixKind =
+      fixesInRows && push.kind === "github-push" && state === "broken"
+        ? firstRowOfKind(failureKind ?? "other")
+        : null;
+    return (
+      <CheckResultRow
+        key={check.id}
+        state={state}
+        stateLabel={t(`check.${state}`)}
+        name={
+          push.kind === "github-push"
+            ? `${tPush("name")} · ${check.project ?? push.projectId}`
+            : prerequisiteName(check)
+        }
+        {...(push.kind === "github-push" && failureKind !== null && state !== "ok"
+          ? { reason: tPush(`failure.${failureKind}`) }
+          : {})}
+      >
+        {showsHint || rawReason !== null || fixKind !== null ? (
+          <>
+            {showsHint ? (
+              <Text variant="meta" mono>
+                {check.hint}
+              </Text>
+            ) : null}
+            {rawReason === null || state === "ok" ? null : (
+              <Text variant="meta" mono wrap="anywhere">
+                {rawReason}
+              </Text>
+            )}
+            {fixKind === null ? null : (
+              <Text variant="meta" as="p">
+                {tPush.rich(`fix.${fixKind}`, { code })}
+              </Text>
+            )}
+          </>
+        ) : undefined}
+      </CheckResultRow>
+    );
+  });
+  if (passed === ordered.length) {
+    return (
+      <PanelSection titleRole="subheading" title={t("checksTitle")}>
+        <ExpandableRow
+          leading={<CheckResultIcon state="ok" />}
+          summary={t("checksAllPassed", { count: ordered.length })}
         >
-          {tPush("name")} · {pushText(push)}
-        </CheckLine>
-      ),
-    });
+          <CheckResultList>{rows}</CheckResultList>
+        </ExpandableRow>
+      </PanelSection>
+    );
   }
   return (
     <PanelSection
+      titleRole="subheading"
       title={t("checksTitle")}
-      meta={t("checksPassed", {
-        passed: lines.filter((line) => line.satisfied === true).length,
-        total: lines.length,
-      })}
+      count={t("checksCount", { passed, total: ordered.length })}
     >
-      <ul {...stylex.props(styles.list)}>{failedChecksFirst(lines).map((item) => item.line)}</ul>
-      {footer}
+      <CheckResultList>{rows}</CheckResultList>
     </PanelSection>
   );
 }
 
-function pushSatisfied(push: PushSummary): boolean | null {
-  if (push.failed.length > 0) return false;
-  return push.unknown.length > 0 ? null : true;
-}
-
-type CheckState = "ok" | "broken" | "unknown";
-
-function checkState(check: Pick<RunnerCheckItem, "satisfied">): CheckState {
+function checkState(check: Pick<RunnerCheckItem, "satisfied">): CheckResultState {
   if (check.satisfied === null) return "unknown";
   return check.satisfied ? "ok" : "broken";
-}
-
-function CheckLine({
-  state,
-  hint = null,
-  detail = null,
-  children,
-}: {
-  state: CheckState;
-  hint?: string | null;
-  detail?: ReactNode;
-  children: ReactNode;
-}) {
-  const t = useTranslations("runners.panel.check");
-  return (
-    <li data-check={state} {...stylex.props(styles.labelGrid)}>
-      <Text variant="ui" tone={state === "broken" ? "problem" : "muted"}>
-        {t(state)}
-      </Text>
-      <span {...stylex.props(styles.checkText, styles.wrap)}>
-        <Text variant="ui" tone="strong" as="span">
-          {children}
-        </Text>
-        {hint === null ? null : (
-          <Text variant="meta" mono>
-            {hint}
-          </Text>
-        )}
-        {detail}
-      </span>
-    </li>
-  );
 }
 
 function LeftWorktrees({ runner }: { runner: RunnerView }) {
@@ -687,24 +751,20 @@ function LeftWorktrees({ runner }: { runner: RunnerView }) {
   if (runner.leftWorktrees.length === 0) return null;
   return (
     <PanelSection
+      titleRole="subheading"
       title={t("leftWorktrees")}
-      meta={t("leftWorktreesCount", { count: runner.leftWorktrees.length })}
+      count={runner.leftWorktrees.length}
     >
-      <PanelRows>
+      <PanelList>
         {runner.leftWorktrees.map((run) => (
-          <li key={run.id}>
-            <Row href={runHref(run.workspace.id, run.id)}>
-              <RunLabel
-                ticketKey={run.ticketKey}
-                meta={t("worktreeMeta", {
-                  workspace: run.workspace.name,
-                  reason: t(`worktree.${run.worktree}`),
-                })}
-              />
-            </Row>
-          </li>
+          <PanelListRow
+            key={run.id}
+            href={runHref(run.workspace.id, run.id)}
+            ticketKey={run.ticketKey}
+            title={t(`worktree.${run.worktree}`)}
+          />
         ))}
-      </PanelRows>
+      </PanelList>
     </PanelSection>
   );
 }
@@ -743,8 +803,10 @@ function ProviderUsage({ runner }: { runner: RunnerView }) {
   const usage = runner.usage;
   return (
     <PanelSection
+      titleRole="subheading"
       title={t("title")}
-      meta={usage === null ? undefined : t("readAgo", { time: ago(usage.readAt, usage.agoMs) })}
+      info={<InfoTip label={t("privacyLabel")} content={t("privacy")} />}
+      {...(usage === null ? {} : { meta: t("readAgo", { time: ago(usage.readAt, usage.agoMs) }) })}
     >
       {usage === null ? (
         <Text variant="ui">{t("notRead")}</Text>
@@ -753,7 +815,6 @@ function ProviderUsage({ runner }: { runner: RunnerView }) {
       ) : (
         <ProviderUsageList runner={runner} usage={usage} />
       )}
-      <Text variant="meta">{t("privacy")}</Text>
     </PanelSection>
   );
 }
@@ -898,6 +959,8 @@ const styles = stylex.create({
   },
   panelHead: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   statusLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
+  statusTime: { flexGrow: 1, flexBasis: 0, minWidth: 0 },
+  fixBody: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   wrap: { minWidth: 0, overflowWrap: "anywhere" },
   guardFrame: { display: "contents" },
   nameLine: {
@@ -927,15 +990,5 @@ const styles = stylex.create({
   },
   windowGrid: { alignItems: "center" },
   labelGridRest: { gridColumn: "2 / -1", minWidth: 0 },
-  runLabel: { display: "flex", alignItems: "baseline", gap: space.s2, minWidth: 0 },
-  checkText: { display: "flex", flexDirection: "column", gap: space.px2 },
-  checkFooter: {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: space.s3,
-    rowGap: space.s2,
-  },
-  code: { fontFamily: fonts.mono },
   provider: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
 });

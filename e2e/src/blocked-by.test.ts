@@ -123,9 +123,12 @@ describe("먼저 끝나야 하는 티켓 화면(0160)", () => {
     expect(reads).toBe(0);
 
     await readButton.click();
-    await panel.getByText(tickets.panel.blockersNone).waitFor();
+    await panel
+      .getByRole("group", { name: tickets.panel.blockers })
+      .getByText(tickets.panel.blockersNone)
+      .waitFor();
     expect(reads).toBe(1);
-    expect(await readButton.isVisible()).toBe(true);
+    await panel.getByRole("button", { name: tickets.panel.blockersReread }).waitFor();
 
     await page.getByRole("button", { name: tickets.reread.action }).click();
     await expect.poll(() => reads).toBe(2);
@@ -168,16 +171,25 @@ describe("먼저 끝나야 하는 티켓 화면(0160)", () => {
     ]);
 
     await open(`/tickets?ws=${workspaceId}`);
-    const row = page.getByRole("option", { name: new RegExp(unassignedTicket.key) });
+    const row = page
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
+      .filter({ hasText: unassignedTicket.key });
     await row.locator('[data-blocker-state="active"]').waitFor();
-    await row.click();
+    await row.getByRole("button", { name: new RegExp(`^${unassignedTicket.key} `) }).click();
 
     const panel = page.getByRole("region", { name: tickets.panel.label });
-    await panel.getByRole("heading", { name: tickets.panel.blockers }).waitFor();
-    await panel.getByText("ACME-50", { exact: true }).waitFor();
-    await panel.getByRole("heading", { name: tickets.panel.waiting }).waitFor();
-    await panel.getByText(waiter, { exact: true }).waitFor();
-    expect(await panel.getByText(tickets.panel.relationsNote).count()).toBe(1);
+    await panel.getByRole("heading", { name: tickets.panel.relations }).waitFor();
+    await panel
+      .getByRole("group", { name: tickets.panel.blockers })
+      .getByText("ACME-50", { exact: true })
+      .waitFor();
+    await panel
+      .getByRole("group", { name: tickets.panel.waiting })
+      .getByText(waiter, { exact: true })
+      .waitFor();
+    await panel.getByRole("button", { name: tickets.panel.relationsInfo }).waitFor();
+    expect(await panel.getByText(tickets.panel.relationsNote).isVisible()).toBe(false);
   });
 
   it("기다리지 않고 시작은 확인을 받고 보내는 동안 버튼을 막는다", async () => {

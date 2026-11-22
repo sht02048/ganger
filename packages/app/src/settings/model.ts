@@ -54,9 +54,11 @@ export interface MappingView {
 
 export interface BoundProject {
   connection: Choice;
+  trackerKind: string | null;
   project: Choice;
   mapping: MappingView | null;
   inProgressStateId: string | null;
+  mergedStateId: string | null;
   states: Remote<Choice>;
   labels: Remote<Choice>;
 }

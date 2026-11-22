@@ -47,6 +47,7 @@ const longRunner = toRunnerId("runner-long");
 const longProject = "acme/a-very-long-repository-name-that-does-not-fit-in-one-card-line";
 const longProjectId = toRunnerProjectId(`github:${longProject}`);
 const selectedRunner = toRunnerId("runner-z");
+const passingRunner = toRunnerId("runner-pass");
 const fillerCount = 8;
 
 let dir: string;
@@ -134,13 +135,14 @@ describe("Runners 목록 + 패널(브라우저, 0057·0071)", () => {
     await hydrated(page);
 
     const panel = page.getByRole("region", { name: runners.panel.label });
-    const checkName = panel.getByText(longProject, { exact: true });
+    const longCheckName = `GitHub push · ${longProject}`;
+    const checkName = panel.getByText(longCheckName, { exact: true });
     const title = panel.getByRole("heading", { name: longRunnerName, exact: true });
     await checkName.waitFor();
 
     const panelBox = await panel.boundingBox();
     for (const [target, text] of [
-      [checkName, longProject],
+      [checkName, longCheckName],
       [title, longRunnerName],
     ] as const) {
       const layout = await textLayout(page, "aside", text);
@@ -168,6 +170,26 @@ describe("Runners 목록 + 패널(브라우저, 0057·0071)", () => {
       .toBe(runners.panel.recheckStatus.requested);
   });
 
+  it("모두 통과한 확인 항목은 한 줄로 접혀 있고 눌러 펼치고 접는다(0165)", async (context) => {
+    const page = await openPage(context.task.name, { width: 1440, height: 900 });
+    await page.goto(`/runners?ws=${workspaceId}&sel=${passingRunner}`);
+    await hydrated(page);
+
+    const panel = page.getByRole("region", { name: runners.panel.label });
+    const summary = panel.getByRole("button", {
+      name: runners.panel.checksAllPassed.replace("{count}", "2"),
+    });
+    const line = panel.getByText("Orca 상시 서비스", { exact: true });
+    expect(await summary.getAttribute("aria-expanded")).toBe("false");
+    expect(await line.count()).toBe(0);
+    await summary.click();
+    await line.waitFor();
+    expect(await summary.getAttribute("aria-expanded")).toBe("true");
+    await summary.click();
+    await line.waitFor({ state: "detached" });
+    expect(await summary.getAttribute("aria-expanded")).toBe("false");
+  });
+
   it("확인 항목의 다시 확인을 누르면 결과가 올 때까지 확인 중과 경과 시간을 보인다 (0096)", async (context) => {
     const page = await openPage(context.task.name, { width: 1280, height: 800 });
     await page.goto(`/runners?ws=${workspaceId}&sel=${longRunner}`);
@@ -175,10 +197,7 @@ describe("Runners 목록 + 패널(브라우저, 0057·0071)", () => {
 
     const panel = page.getByRole("region", { name: runners.panel.label });
     await panel.getByRole("button", { name: runners.panel.recheck }).click();
-    const checking = panel.getByText(/^\d+초째$/);
-    await checking.waitFor();
-    const first = await checking.textContent();
-    await expect.poll(async () => checking.textContent(), { timeout: 5_000 }).not.toBe(first);
+    await panel.getByText("<1 min", { exact: true }).waitFor();
     expect(await panel.getByRole("button", { name: runners.panel.checking }).isDisabled()).toBe(
       true,
     );
@@ -212,17 +231,13 @@ describe("Runners 다시 그리기(브라우저, 0092)", () => {
     expect(listBox?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(900);
   });
 
-  it("패널의 사용량 막대와 확인 항목 이름이 같은 x에서 시작한다", async (context) => {
+  it("한도에 닿은 창은 막대 아래 작은 글로 초기화 시각과 함께 알린다(0165)", async (context) => {
     const page = await openPage(context.task.name, { width: 1280, height: 1000 });
     await page.goto(`/runners?ws=${workspaceId}&sel=${longRunner}`);
     await hydrated(page);
 
     const panel = page.getByRole("region", { name: runners.panel.label });
-    const bar = panel.getByRole("meter").first();
-    const check = panel.getByText("GitHub push · 1개 중 0개 통과", { exact: true });
-    await check.waitFor();
-    const [barBox, checkBox] = await Promise.all([bar.boundingBox(), check.boundingBox()]);
-    expect(Math.round(barBox?.x ?? -1)).toBe(Math.round(checkBox?.x ?? -2));
+    await panel.getByRole("meter").first().waitFor();
     expect(await panel.getByText(runners.panel.usage.atLimit, { exact: false }).count()).toBe(1);
   });
 
@@ -421,6 +436,38 @@ function seed(db: Database): void {
         },
       ],
     },
+  });
+
+  saveRunner(db, {
+    id: passingRunner,
+    kind: toRunnerKind("fake"),
+    name: "runner-pass",
+    config: {},
+    capacity: 2,
+  });
+  recordRunnerCheck(db, {
+    runnerId: passingRunner,
+    online: true,
+    checkedAt: new Date(),
+    error: null,
+    projects: null,
+    assignmentBlocked: false,
+    prerequisites: [
+      {
+        id: "orca-service",
+        name: "Orca service",
+        satisfied: true,
+        hint: null,
+        blocksAssignment: false,
+      },
+      {
+        id: "claude-code",
+        name: "Claude Code",
+        satisfied: true,
+        hint: null,
+        blocksAssignment: false,
+      },
+    ],
   });
 
   for (let i = 0; i < fillerCount; i += 1) {

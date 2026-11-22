@@ -192,6 +192,247 @@ describe("트래커 갱신", () => {
   });
 });
 
+describe("PR 머지 때 티켓 상태 바꾸기", () => {
+  const mergedState = toTrackerStateId("done");
+
+  function chooseMergedState(stateId: typeof mergedState | null = mergedState): void {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: null,
+      mergedStateId: stateId,
+    });
+  }
+
+  it("머지를 확인하면 한 번 바꾸고 다음 바퀴에는 다시 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+    expect(recordsOf(run).mergedStateSetAt).toEqual(h.now);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toHaveLength(1);
+  });
+
+  it("런이 끝난 뒤 열린 PR이 머지되면 그때 바꾼다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "open");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    await settlePullRequest(run, "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("런이 끝나기 전에 PR이 머지돼도 확인한 때 바꾼다", async () => {
+    chooseMergedState();
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("PR이 머지 없이 닫히면 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "open");
+    report(run, runnerId);
+    await worker.tick();
+    await settlePullRequest(run, "closed");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+
+  it("PR이 없으면 바꾸지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    report(run, runnerId);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("바꾸지 않음이면 머지돼도 바꾸지 않는다", async () => {
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+
+  it("상태를 나중에 골라도 이미 머지된 지난 런의 티켓은 바꾸지 않는다", async () => {
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    await worker.tick();
+    chooseMergedState();
+    await worker.tick();
+    await h.worker().tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("도는 런의 PR이 이미 머지된 것을 본 뒤 상태를 골라도 바꾸지 않는다", async () => {
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    chooseMergedState();
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("닫힌 것으로 읽은 PR이 다시 열려 머지되면 새 머지로 친다", async () => {
+    chooseMergedState();
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "closed");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    h.advance(PR_POLL_INTERVAL_MS);
+    await settlePullRequest(run, "merged");
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("설정 전에 본 머지는 worker를 다시 띄워도 새 머지로 치지 않는다", async () => {
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    chooseMergedState();
+    h.advance(PR_POLL_INTERVAL_MS);
+    await h.worker().tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  function chooseBothStates(): void {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: inProgress,
+      mergedStateId: mergedState,
+    });
+  }
+
+  it("시작 상태가 not-found여도 머지 상태는 바꾼다", async () => {
+    chooseBothStates();
+    vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("머지 상태가 not-found여도 머지된 티켓을 시작 상태로 되돌리지 않는다", async () => {
+    chooseBothStates();
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("바꾸지 않음이면 머지를 본 뒤에도 실패했던 시작 상태를 다시 시도한다", async () => {
+    chooseInProgress();
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: inProgress }]);
+  });
+
+  it("머지 상태로 바꾼 뒤에는 실패했던 시작 상태로 되돌리지 않는다", async () => {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: inProgress,
+      mergedStateId: mergedState,
+    });
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("상태 바꾸기가 not-found여도 런이 끝날 때 결과 댓글은 단다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    report(run, runnerId);
+    await worker.tick();
+    expect(recordsOf(run).trackerComment).not.toBeNull();
+  });
+
+  it("트래커 호출이 실패하면 다음 바퀴에 다시 하고 워크트리 정리는 막지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    const worktree = worktreeOf(run);
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    const spy = vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new Error("network"));
+    await worker.tick();
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+    expect(recordsOf(run).worktreeRemovedAt).toEqual(h.now);
+    expect(await h.runner(runnerId).worktreeExists(worktree)).toBe(false);
+    await worker.tick();
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(recordsOf(run).mergedStateSetAt).toEqual(h.now);
+  });
+
+  it("티켓이 트래커에서 사라졌으면 기록 없이 더 시도하지 않는다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    report(run, runnerId);
+    const spy = vi
+      .spyOn(h.tracker, "setState")
+      .mockRejectedValue(new AdapterError({ kind: "not-found" }));
+    await worker.tick();
+    await worker.tick();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(recordsOf(run).mergedStateSetAt).toBeNull();
+  });
+});
+
 describe("워크트리 정리", () => {
   it("바로 지움인 런(Merged)은 끝난 바퀴에 워크트리를 지우고 지운 시각을 기록한다", async () => {
     const { run, runnerId, worker } = await startOne();
@@ -443,6 +684,112 @@ describe("일을 잃지 않는 워크트리 정리 (0145 R7)", () => {
     await worker.tick();
     expect(h.runner(runnerId).removed).toEqual([]);
     expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+  });
+
+  describe("머지된 PR의 head와 워크트리 HEAD (R8)", () => {
+    const PR_HEAD = "abc123";
+    const unpushedAt = (headCommit: string) => ({
+      uncommittedChanges: false,
+      unpushedCommits: true,
+      headCommit,
+    });
+
+    it("런이 끝날 때 이미 squash 머지됐고 HEAD가 PR head면 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+      expect(recordsOf(run).worktreeKept).toBeNull();
+    });
+
+    it("런이 끝난 뒤 squash 머지되고 HEAD가 PR head면 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      await settlePullRequest(run, "merged");
+      h.advance(PR_POLL_INTERVAL_MS);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+      expect(recordsOf(run).worktreeKept).toBeNull();
+    });
+
+    it("머지 뒤 더 커밋해 HEAD가 PR head와 다르면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt("def456"));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("HEAD가 PR head와 같아도 커밋하지 않은 변경이 있으면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), {
+        ...unpushedAt(PR_HEAD),
+        uncommittedChanges: true,
+      });
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("uncommitted-changes");
+    });
+
+    it("PR이 머지되지 않고 닫혔으면 HEAD가 같아도 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      await settlePullRequest(run, "closed");
+      h.advance(PR_POLL_INTERVAL_MS);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("머지됐지만 기록에 head 커밋이 없으면 남긴다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      h.putPullRequest(current(run), "open");
+      report(run, runnerId);
+      await worker.tick();
+      expect(recordsOf(run).pullRequest?.signals ?? null).toBeNull();
+      updateRunRecords(h.db, run.id, { laterPrState: { state: "merged", at: h.now } });
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
+
+    it("일반 머지로 원격에 없는 커밋이 없으면 HEAD와 상관없이 지운다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), {
+        uncommittedChanges: false,
+        unpushedCommits: false,
+        headCommit: "def456",
+      });
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([worktreeOf(run)]);
+    });
+
+    it("이미 push하지 않은 커밋으로 남긴 런은 다시 판정하지 않는다", async () => {
+      const { run, runnerId, worker } = await startOne();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt("def456"));
+      h.putPullRequest(current(run), "merged");
+      report(run, runnerId);
+      await worker.tick();
+      h.runner(runnerId).worktreeWork.set(worktreeOf(run), unpushedAt(PR_HEAD));
+      await worker.tick();
+      expect(h.runner(runnerId).removed).toEqual([]);
+      expect(recordsOf(run).worktreeKept).toBe("unpushed-commits");
+    });
   });
 
   it("Succeeded인데 PR이 없으면 확인하지 않고 운영자가 보게 남긴다 (R7-2)", async () => {

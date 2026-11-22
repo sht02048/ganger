@@ -12,7 +12,7 @@ import type { RunnerSettingsView } from "@ganger/app/settings/model";
 import { loadStatsPage } from "@ganger/app/stats/load";
 import { DEFAULT_STATS_PERIOD_DAYS, statsPeriodDaysSchema } from "@ganger/app/stats/model";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
-import { TICKET_FILTERS, matchesFilter } from "@ganger/app/tickets/model";
+import { TICKET_FILTERS, matchesRunFilter } from "@ganger/app/tickets/model";
 import type { AdapterRegistry } from "@ganger/core";
 import { toRunId, toTicketKey } from "@ganger/core";
 import { listRunners, runTimeline, ticketTimeline } from "@ganger/db";
@@ -204,8 +204,7 @@ export function createMcpServer(context: McpContext): GangerMcp {
     "list_tickets",
     {
       title: "List tickets",
-      description:
-        "Tickets of the workspace's tracker projects, read from the tracker, with their runs and whether they can be assigned.",
+      description: `Tickets of the workspace's tracker projects, read from the tracker, with their runs, their parent issue ("parentIssue", null when there is none), and whether they can be assigned.`,
       inputSchema: {
         workspace: workspaceArg,
         filter: z.enum(TICKET_FILTERS).optional().describe("Defaults to all."),
@@ -216,11 +215,17 @@ export function createMcpServer(context: McpContext): GangerMcp {
     ({ workspace, filter, limit }) =>
       inWorkspace(context, workspace, async (picked) => {
         const page = await loadTicketsPage(context, picked.id, context.now());
-        const tickets = page.tickets.filter((ticket) => matchesFilter(ticket, filter ?? "all"));
+        const tickets = page.tickets.filter((ticket) => matchesRunFilter(ticket, filter ?? "all"));
         return result(context, {
           workspace: picked,
           total: tickets.length,
-          tickets: tickets.slice(0, limit ?? 100),
+          tickets: tickets.slice(0, limit ?? 100).map(({ ancestors, ...ticket }) => ({
+            ...ticket,
+            parentIssue:
+              ancestors[0] === undefined
+                ? null
+                : { key: ancestors[0].key, title: ancestors[0].title },
+          })),
           trackerErrors: page.errors,
           truncated: page.truncated,
         });

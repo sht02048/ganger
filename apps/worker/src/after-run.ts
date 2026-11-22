@@ -20,10 +20,13 @@ import {
 import type { RunRecords, StoredRun, StoredRunner } from "@ganger/db";
 import {
   decideRunPrState,
+  isNewMerge,
   mailboxFor,
   prReadDue,
   pullRequestRecord,
   readRunPrState,
+  rememberConfirmedMerge,
+  rememberMergeAgainstStored,
   rememberPrReadFailure,
   runLogContext,
   runnerErrorDetail,
@@ -65,6 +68,7 @@ async function afterRun(
       markInProgress(context, run, records),
     );
     await attempt(context, run, "run.pr_poll_failed", () => pollActivePullRequest(context, run));
+    await attempt(context, run, "run.tracker_update_failed", () => markMerged(context, run));
     return;
   }
   await attempt(context, run, "run.result_comment_failed", () =>
@@ -77,6 +81,7 @@ async function afterRun(
   } else {
     context.prPolledAt.delete(run.id);
   }
+  await attempt(context, run, "run.tracker_update_failed", () => markMerged(context, run));
 }
 
 async function attempt(
@@ -97,11 +102,18 @@ async function markInProgress(
   run: ActiveRun,
   records: RunRecords,
 ): Promise<void> {
-  if (records.trackerStateSetAt !== null || context.ticketsGone.has(run.id)) return;
-  const stateId =
-    getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
-      ?.inProgressStateId ?? null;
+  if (
+    records.trackerStateSetAt !== null ||
+    records.mergedStateSetAt !== null ||
+    context.ticketsGone.has(run.id)
+  ) {
+    return;
+  }
+  const project = getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject);
+  const stateId = project?.inProgressStateId ?? null;
   if (stateId === null) return;
+  const mergedStateChosen = (project?.mergedStateId ?? null) !== null;
+  if (mergedStateChosen && context.confirmedMerges.has(run.id)) return;
   const tracker = trackerFor(context, run);
   if (tracker === null) return;
   try {
@@ -117,6 +129,36 @@ async function markInProgress(
       markTrackerChanged(context.db, run.ticket.connection);
     }),
   );
+}
+
+async function markMerged(context: TickContext, run: StoredRun): Promise<void> {
+  if (!context.unmarkedMerges.has(run.id)) return;
+  const records = getRunWithRecords(context.db, run.id)?.records;
+  const stateId =
+    getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
+      ?.mergedStateId ?? null;
+  if (records === undefined || records.mergedStateSetAt !== null || stateId === null) {
+    context.unmarkedMerges.delete(run.id);
+    return;
+  }
+  const tracker = trackerFor(context, run);
+  if (tracker === null) return;
+  try {
+    await tracker.setState(run.ticket.key, stateId);
+  } catch (error) {
+    if (!isTicketGone(error)) throw error;
+    context.logger.warn("run.tracker_update_failed", { runId: run.id, error });
+    context.unmarkedMerges.delete(run.id);
+    return;
+  }
+  const recorded = tryWrite(context, run.id, () =>
+    inTransaction(context.db, () => {
+      updateRunRecords(context.db, run.id, { mergedStateSetAt: context.now() });
+      markTrackerChanged(context.db, run.ticket.connection);
+      return true;
+    }),
+  );
+  if (recorded === true) context.unmarkedMerges.delete(run.id);
 }
 
 async function commentResult(
@@ -215,6 +257,7 @@ function forgetGoneTicket(context: TickContext, run: StoredRun): void {
 async function pollActivePullRequest(context: TickContext, run: ActiveRun): Promise<void> {
   if (!pollDue(context, run)) return;
   const decision = await decideRunPrState(context, run);
+  rememberMergeAgainstStored(context, run.id, decision.pr);
   if (decision.pr === null) return;
   recordPullRequest(context, run, decision.pr);
 }
@@ -371,10 +414,12 @@ async function recordSettledPullRequest(
   if (!pollDue(context, run)) return false;
   const pr = await currentPullRequest(context, run, records);
   if (pr === null) return false;
+  const mergeIsNew = isNewMerge(records.pullRequest, pr);
   recordPullRequest(context, run, pr);
   const state = pr.state === "merged" ? "merged" : pr.state === "closed" ? "closed" : null;
   if (state === null) return false;
   if (settledAfterNextRunStarted(context, run, pr)) return false;
+  if (mergeIsNew) rememberConfirmedMerge(context, run.id, pr);
   const recorded = tryWrite(context, run.id, () =>
     updateRunRecords(context.db, run.id, { laterPrState: { state, at: context.now() } }),
   );
@@ -453,7 +498,9 @@ async function unsavedWorkIn(
     const work = await context.adapters.runner(stored).checkWorktreeWork(run.worktree);
     if (work.kind === "gone") return null;
     if (work.uncommittedChanges) return "uncommitted-changes";
-    if (work.unpushedCommits) return "unpushed-commits";
+    if (work.unpushedCommits && work.headCommit !== mergedPullRequestHead(context, run)) {
+      return "unpushed-commits";
+    }
     return null;
   } catch (error) {
     if (runnerErrorDetail(error)?.kind === "unreachable") {
@@ -463,6 +510,16 @@ async function unsavedWorkIn(
     context.logger.warn("run.worktree_check_failed", { runId: run.id, error });
     return "check-failed";
   }
+}
+
+function mergedPullRequestHead(context: TickContext, run: StartedEndedRun): string | null {
+  const found = getRunWithRecords(context.db, run.id);
+  if (found === null || found.run.state !== "ended") return null;
+  const { prState } = found.run;
+  const { laterPrState, pullRequest } = found.records;
+  if (prState !== "merged" && laterPrState?.state !== "merged") return null;
+  const signals = pullRequest?.signals;
+  return signals === undefined || signals === null || signals.open ? null : signals.headCommit;
 }
 
 async function removeWorktree(

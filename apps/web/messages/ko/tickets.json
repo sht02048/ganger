@@ -27,7 +27,7 @@
     "title": "제목",
     "trackerProject": "트래커 프로젝트",
     "priority": "우선순위",
-    "lastRun": "마지막 런"
+    "lastRun": "런"
   },
   "priority": {
     "urgent": "Urgent",
@@ -36,6 +36,29 @@
     "low": "Low"
   },
   "listLabel": "티켓 목록",
+  "view": {
+    "label": "티켓 보기 방식",
+    "grouped": "상위 이슈로 묶어 보기",
+    "flat": "티켓 하나씩 보기"
+  },
+  "group": {
+    "expand": "{key} 하위 티켓 펼치기",
+    "collapse": "{key} 하위 티켓 접기",
+    "noParent": "상위 이슈 없음",
+    "progress": "하위 티켓 {total, number}개 중 {done, number}개 Done",
+    "count": "{done, number}/{total, number}",
+    "noActiveRuns": "도는 런 없음",
+    "ownRun": "{status} · 상위",
+    "parentLine": "↳ {key} {title}"
+  },
+  "row": {
+    "merged": "PR {pr} 머지",
+    "mergedNoNumber": "PR 머지",
+    "assign": "할당",
+    "newRun": "새 런",
+    "answer": "답하기",
+    "openRun": "런 보기"
+  },
   "empty": "이 조건에 맞는 티켓이 없어요.",
   "noMatch": "‘{query}’와 맞는 티켓이 없어요.",
   "noTickets": "아직 티켓이 없어요. 트래커 프로젝트에 티켓을 만들면 여기에 보여요.",
@@ -57,13 +80,23 @@
   },
   "panel": {
     "label": "고른 티켓 요약",
+    "parentIssue": "상위 이슈",
+    "parentLink": "상위 이슈",
+    "childrenTitle": "하위 티켓",
+    "childrenProgress": "{total, number}개 중 {done, number}개 Done · {inProgress, number}개 진행 중 · {remaining, number}개 남았어요",
+    "outOfScope": "다른 트래커 프로젝트에 있거나 읽은 범위 밖의 이슈예요. 자세한 내용은 Linear에서 확인해 주세요.",
+    "openInLinear": "Linear에서 열기",
+    "ticketInfo": "티켓 정보",
+    "priority": "우선순위",
     "lastRun": "마지막 런",
-    "runner": "{runner} · {time}",
-    "noRunner": "러너 정하기 전 · {time}",
+    "noRun": "아직 런이 없어요",
+    "noRunnerName": "러너 정하기 전",
     "pullRequest": "PR {pr} {state}",
     "prState": "PR {state}",
     "next": {
-      "unassigned": "아직 런이 없어요. 할당하면 Mapping이 정한 저장소와 에이전트로 처리해요.",
+      "parent-issue": "상위 이슈는 이 화면에서 할당하지 않아요. 하위 티켓을 할당해 주세요.",
+      "unassigned": "할당하면 Mapping이 정한 저장소와 에이전트로 처리해요.",
+      "unassignedBlocked": "할당하면 {key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요.",
       "no-mapping": "이 트래커 프로젝트에 Mapping이 없어 할당할 수 없어요. Settings에서 Mapping을 만들면 할당할 수 있어요.",
       "queued": "러너에 자리가 나기를 기다려요. 시작하면 진행 중으로 바뀌어요.",
       "running": "에이전트가 작업하고 있어요. 끝나면 결과가 여기에 보여요.",
@@ -83,13 +116,20 @@
     "mappingValue": "{project} · {agent}",
     "none": "없음",
     "noMapping": "Mapping이 없어요",
-    "runCount": "런 수",
-    "runCountValue": "{count, number}개",
+    "setup": "할당 설정",
+    "runs": "런",
+    "runsAll": "Runs에서 모두 보기",
     "openInTracker": "트래커에서 열기",
     "newTab": "새 탭에서 열려요",
+    "relations": "관계",
+    "relationsInfo": "관계 안내",
     "blockers": "먼저 끝나야 하는 티켓",
-    "blockersNone": "먼저 끝나야 하는 티켓이 없어요.",
+    "blockersNone": "없어요",
+    "blockersUnread": "아직 읽지 않았어요",
+    "blockersReadingNote": "트래커에서 읽고 있어요",
+    "blockersLoaded": "먼저 끝나야 하는 티켓 {count, number}개를 읽었어요.",
     "blockersRead": "선행 티켓 읽기",
+    "blockersReread": "다시 읽기",
     "blockersReading": "읽는 중…",
     "blockersFailed": {
       "unauthorized": "선행 티켓을 읽지 못했어요. 트래커가 API 키를 받지 않았어요. Settings에서 연결을 확인해 주세요.",
@@ -100,8 +140,35 @@
       "failed": "먼저 끝나야 하는 티켓을 읽지 못했어요."
     },
     "waiting": "이 티켓을 기다리는 티켓",
-    "waitingNone": "이 티켓을 기다리는 런이 없어요.",
+    "waitingNone": "없어요",
     "relationsNote": "관계는 Linear의 blocked by에서 읽어요. 바꾸려면 Linear에서 고쳐요."
+  },
+  "bulkAssign": {
+    "trigger": "하위 {count, number}개 할당",
+    "triggerLabel": "하위 {count, number}개 할당, {key}",
+    "title": "하위 티켓 할당하기",
+    "description": "{key} {title}의 하위 티켓을 맡겨요. 러너 자리가 나는 순서대로 시작해요.",
+    "listLabel": "할당할 하위 티켓",
+    "submit": "{count, number}개 할당하기",
+    "submitting": "할당하는 중…",
+    "checkingBlockers": "선행 티켓 확인 중…",
+    "close": "닫기",
+    "hint": {
+      "waiting": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요",
+      "blocker-canceled": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 취소돼서 할당하면 Queued에 멈춰요",
+      "blocker-unread": "선행 티켓을 읽지 못했어요",
+      "runAndBlocker": "{run} · {blocker}",
+      "failed": "지난 런이 Failed예요",
+      "canceled": "지난 런이 Canceled예요",
+      "succeeded": "지난 런이 Succeeded예요. 새 런은 티켓 패널에서 시작해요",
+      "done": "이미 끝난 티켓이에요",
+      "no-mapping": "Mapping이 없어요"
+    },
+    "result": {
+      "assigned": "{count, number}개 할당했어요.",
+      "failedTicket": "{key} 티켓은 할당하지 못했어요. {reason}",
+      "retry": "다시 시도해 주세요."
+    }
   },
   "assign": {
     "title": "{key} 티켓을 할당할까요?",

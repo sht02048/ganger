@@ -18,6 +18,8 @@ function ticket(key: string, title: string, runs: TicketRun[]): TicketView {
     trackerProject: { id: "web", name: "Web" },
     trackerState: { name: "Todo", category: "unstarted" },
     priority: "none",
+    ancestors: [],
+    isParentIssue: false,
     blockerWait: null,
     waitingTickets: [],
     labels: [],
@@ -28,7 +30,7 @@ function ticket(key: string, title: string, runs: TicketRun[]): TicketView {
 }
 
 function active(state: "queued" | "running" | "waiting-for-input" | "disconnected"): TicketRun {
-  return { id: `run-${state}`, runnerName: null, state, elapsedMs: 0 };
+  return { id: `run-${state}`, runnerName: null, state, elapsedMs: 0, waitingOn: null };
 }
 
 function ended(summary: SummaryOutcome, prState: PrState = "open"): TicketRun {

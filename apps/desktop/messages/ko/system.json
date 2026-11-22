@@ -43,17 +43,17 @@
     "question": {
       "title": "Question",
       "body": "{ticket} 에이전트가 답을 기다려요.",
-      "reminder": "{ticket} 에이전트가 10분째 답을 기다려요."
+      "reminder": "{ticket} 에이전트가 10 min 답을 기다려요."
     },
     "permission": {
       "title": "Permission",
       "body": "{ticket} 에이전트가 허용을 기다려요. 러너 화면에서 허용해 주세요.",
-      "reminder": "{ticket} 에이전트가 10분째 허용을 기다려요. 러너 화면에서 허용해 주세요."
+      "reminder": "{ticket} 에이전트가 10 min 허용을 기다려요. 러너 화면에서 허용해 주세요."
     },
     "humanCheck": {
       "title": "Human Check",
       "body": "{ticket} 에이전트가 확인을 기다려요.",
-      "reminder": "{ticket} 에이전트가 10분째 확인을 기다려요."
+      "reminder": "{ticket} 에이전트가 10 min 확인을 기다려요."
     },
     "failed": {
       "title": "Failed",

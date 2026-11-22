@@ -40,11 +40,15 @@ let status: ServerStatus;
 let problem: string | null;
 let listChanges: number;
 
-async function connect(clientName = "hermes", syncBeforeMessages = true): Promise<void> {
+async function connect(
+  clientName = "hermes",
+  syncBeforeMessages = true,
+  registry = fakeRegistry(),
+): Promise<void> {
   const context: McpContext = {
     db: seeded.db,
     secretBox: new SecretBox(KEY),
-    registry: fakeRegistry(),
+    registry,
     home,
     mcpLaunch: { located: true, command: "/opt/node", args: ["/opt/cli.js", "mcp"], env: {} },
     version: "0.0.0-test",
@@ -422,6 +426,12 @@ describe("MCP 쓰기 도구", () => {
     expect(assigned.isError).toBe(false);
     const runId = z.string().parse(assigned.json["runId"]);
     expect(listRunMcpActions(seeded.db, toRunId(runId))).toHaveLength(1);
+  });
+
+  it("상위 이슈도 MCP로는 지금처럼 할당한다(0171)", async () => {
+    await connect("hermes", true, fakeRegistry({ parentLoaded: true }));
+    const assigned = await call("assign_ticket", { ticket: "ACME-8" });
+    expect(assigned.isError).toBe(false);
   });
 
   it("러너를 넘겨 할당한 런은 그 러너에 고정된다", async () => {

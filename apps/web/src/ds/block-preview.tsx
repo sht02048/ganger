@@ -31,6 +31,7 @@ import {
   DataTableHeader,
   DataTableRow,
   DataTableRowHeader,
+  Card,
   Disclosure,
   DividedItem,
   DividedList,
@@ -41,6 +42,8 @@ import {
   BlockerChips,
   KanbanCard,
   KanbanCards,
+  PrChip,
+  PrChipMore,
   Menu,
   MenuItem,
   MoreIcon,
@@ -502,6 +505,11 @@ export function BlockSections() {
               <Disclosure summary={t("disclosure.summary")}>
                 <Text variant="body">{t("disclosure.body")}</Text>
               </Disclosure>
+              <Card>
+                <Disclosure flat summary={t("disclosure.summary")}>
+                  <Text variant="body">{t("disclosure.body")}</Text>
+                </Disclosure>
+              </Card>
             </div>
           </Demo>
         </Section>
@@ -583,6 +591,15 @@ export function BlockSections() {
                         />
                       </BlockerChips>
                     }
+                    prChips={
+                      <>
+                        <PrChip kind="ci-failed">{t("kanban.prCiFailed")}</PrChip>
+                        <PrChip kind="conflict">{t("kanban.prConflict")}</PrChip>
+                        <PrChipMore hiddenLabel={t("kanban.prBehind")}>
+                          {t("kanban.prMore")}
+                        </PrChipMore>
+                      </>
+                    }
                     meta={t("kanban.blockedMeta")}
                     metaTone="problem"
                     time={t("kanban.time")}
@@ -592,6 +609,7 @@ export function BlockSections() {
                 <li>
                   <KanbanCard
                     title={t("kanban.plainTitle")}
+                    prChips={<PrChip kind="behind">{t("kanban.prBehind")}</PrChip>}
                     meta={t("kanban.meta")}
                     time={t("kanban.time")}
                     menu={

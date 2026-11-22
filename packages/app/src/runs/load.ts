@@ -1,4 +1,4 @@
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
 import {
   AGENT_RESULTS,
   PR_STATES,
@@ -24,6 +24,7 @@ import { DEFAULT_TIME_ZONE } from "../time-zone.js";
 import { parseTrackerProjectKey, toRunsFilter } from "./conditions.js";
 import type { RunConditions } from "./conditions.js";
 import { ENDED_RUNS_PAGE_SIZE } from "./model.js";
+import type { RunBoardDays } from "./board.js";
 import type { QueuedReason, RunCondition, RunView, RunsPage } from "./model.js";
 import { withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "./queue-reasons.js";
@@ -43,31 +44,7 @@ export function loadRunsPage(
   if (workspace.kind !== "one")
     return { workspace, runs: [], recentEnded: 0, moreEnded: false, conditions: [] };
 
-  const runners = new Map(listRunners(db).map((r) => [r.id, r]));
-  const cancelling = new Set<RunId>(listPendingCancelRequests(db).map((r) => r.runId));
-  const takenOver = listTakenOverRunIds(db);
-  const queueReasons = loadQueueReasons(db, now);
-
-  const projectNames = new Map<string, string>();
-  const projectName = (run: StoredRun): string => {
-    const key = `${run.ticket.connection}\u0000${run.trackerProject}`;
-    let name = projectNames.get(key);
-    if (name === undefined) {
-      name =
-        getWorkspaceTrackerProject(db, run.ticket.connection, run.trackerProject)?.name ??
-        run.trackerProject;
-      projectNames.set(key, name);
-    }
-    return name;
-  };
-
-  const queuedReason = (id: RunId): QueuedReason =>
-    describeQueuedReason(
-      queueReasons.get(id) ?? { kind: "behind" },
-      (runnerId) => runners.get(runnerId)?.name ?? runnerId,
-      now,
-    );
-
+  const { runners, toView } = runViewBuilder(db, now);
   const workspaceId = toWorkspaceId(workspace.workspace.id);
   const filter = toRunsFilter(conditions, now, timeZone);
   const { endedBetween, ...scope } = filter;
@@ -105,7 +82,56 @@ export function loadRunsPage(
   for (const { run } of stored.toReversed())
     latestByTicket.set(`${run.ticket.connection}\u0000${run.ticket.key}`, run.id);
 
-  const runs = stored.map(({ run, records }): RunView => {
+  const runs = stored.map((entry) => {
+    const { run } = entry;
+    const latest =
+      unresolvedLatestIds === null
+        ? latestByTicket.get(`${run.ticket.connection}\u0000${run.ticket.key}`) === run.id
+        : unresolvedLatestIds.has(run.id);
+    return toView(entry, latest && isUnresolvedEndedRun(run));
+  });
+
+  return {
+    workspace,
+    runs,
+    recentEnded: recentEnded.length,
+    moreEnded,
+    conditions: describeConditions(db, conditions, runners),
+  };
+}
+
+export function runViewBuilder(db: Database, now: Date) {
+  const runners = new Map(listRunners(db).map((r) => [r.id, r]));
+  const cancelling = new Set<RunId>(listPendingCancelRequests(db).map((r) => r.runId));
+  const takenOver = listTakenOverRunIds(db);
+  let queueReasons: ReturnType<typeof loadQueueReasons> | null = null;
+  const queueReasonCode = (id: RunId) =>
+    (queueReasons ??= loadQueueReasons(db, now)).get(id) ?? { kind: "behind" as const };
+
+  const projectNames = new Map<string, string>();
+  const projectName = (run: StoredRun): string => {
+    const key = `${run.ticket.connection}\u0000${run.trackerProject}`;
+    let name = projectNames.get(key);
+    if (name === undefined) {
+      name =
+        getWorkspaceTrackerProject(db, run.ticket.connection, run.trackerProject)?.name ??
+        run.trackerProject;
+      projectNames.set(key, name);
+    }
+    return name;
+  };
+
+  const queuedReason = (id: RunId): QueuedReason =>
+    describeQueuedReason(
+      queueReasonCode(id),
+      (runnerId) => runners.get(runnerId)?.name ?? runnerId,
+      now,
+    );
+
+  const toView = (
+    { run, records }: { run: StoredRun; records: RunRecords },
+    endedAttention: boolean,
+  ): RunView => {
     const runner = run.runnerId === null ? undefined : runners.get(run.runnerId);
     const startedAt = run.state === "queued" ? null : run.startedAt;
     const durations = runDurations({
@@ -115,6 +141,11 @@ export function loadRunsPage(
       now,
     });
     const pr = records.pullRequest;
+    const signals =
+      pr === null || pr === undefined || takenOver.has(run.id)
+        ? null
+        : prSignalsViewOf(run, records);
+    const readAt = signals?.checkedAt ?? pr?.checkedAt.toISOString() ?? "";
     const base = {
       id: run.id,
       ticketKey: run.ticket.key,
@@ -131,7 +162,11 @@ export function loadRunsPage(
           : {
               displayId: pr.displayId,
               url: pr.url,
-              signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+              ci: toCiView(pr.ci),
+              signals,
+              checkedAt: readAt,
+              checkedAgoMs: now.getTime() - Date.parse(readAt),
+              closedOnHost: pr.signals?.open === false,
             },
       attention: false,
     };
@@ -171,10 +206,6 @@ export function loadRunsPage(
         };
       case "ended": {
         const summary = summarizeRunOutcome(run).outcome;
-        const latest =
-          unresolvedLatestIds === null
-            ? latestByTicket.get(`${run.ticket.connection}\u0000${run.ticket.key}`) === run.id
-            : unresolvedLatestIds.has(run.id);
         return {
           ...base,
           state: run.state,
@@ -185,24 +216,17 @@ export function loadRunsPage(
           laterPrState: records.laterPrState?.state ?? null,
           prReadError: records.prReadError,
           summary,
-          attention: latest && isUnresolvedEndedRun(run),
+          attention: endedAttention,
         };
       }
     }
-  });
-
-  return {
-    workspace,
-    runs,
-    recentEnded: recentEnded.length,
-    moreEnded,
-    conditions: describeConditions(db, conditions, runners),
   };
+  return { runners, toView };
 }
 
-function describeConditions(
+export function describeConditions(
   db: Database,
-  conditions: RunConditions,
+  conditions: Omit<RunConditions, "days"> & { days?: RunBoardDays },
   runners: ReadonlyMap<string, { name: string }>,
 ): RunCondition[] {
   const described: RunCondition[] = [];
@@ -247,7 +271,13 @@ const UNRESOLVED_ENDED_AXES: ReadonlyArray<EndedAxesFilter> = AGENT_RESULTS.flat
   }),
 );
 
-const ACTIVE_STATES = ["queued", "running", "waiting-for-input", "paused", "disconnected"] as const;
+export const ACTIVE_STATES = [
+  "queued",
+  "running",
+  "waiting-for-input",
+  "paused",
+  "disconnected",
+] as const;
 
 function newestFirst(
   a: { run: StoredRun; records: RunRecords },

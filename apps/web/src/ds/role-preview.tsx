@@ -4,12 +4,23 @@ import {
   Button,
   CapacityBar,
   CapacityCells,
+  CapacityTrack,
+  CheckResultIcon,
+  CheckResultList,
+  CheckResultRow,
+  EditIcon,
+  ExpandableRow,
+  UnknownIcon,
   Card,
+  ExternalIconLink,
   GangerMark,
   GroupHeader,
+  InfoTip,
   Mascot,
   MASCOT_MOODS,
   MascotMessage,
+  PanelList,
+  PanelListRow,
   PanelRows,
   PanelSection,
   ResponsiveColumns,
@@ -18,6 +29,8 @@ import {
   Row,
   Section,
   SegmentedTabs,
+  SignalList,
+  SignalRow,
   StatTile,
   StatusDot,
   StatusPill,
@@ -267,6 +280,26 @@ export function RoleSections() {
                   tone="problem"
                 />
               </span>
+              <PanelSection
+                title={t("signals.title")}
+                detail={t("signals.detail")}
+                meta={t("signals.meta")}
+              >
+                <SignalList>
+                  <SignalRow label={t("signals.ci")} tone="problem">
+                    {t("signals.ciValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.conflict")} tone="pass">
+                    {t("signals.conflictValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.base")} tone="warning">
+                    {t("signals.baseValue")}
+                  </SignalRow>
+                  <SignalRow label={t("signals.unknown")} tone="neutral">
+                    {t("signals.unknownValue")}
+                  </SignalRow>
+                </SignalList>
+              </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>
                 <PanelRows>
@@ -276,6 +309,38 @@ export function RoleSections() {
                     </Row>
                   </li>
                 </PanelRows>
+              </PanelSection>
+              <PanelSection
+                title={t("usage.listTitle")}
+                titleRole="subheading"
+                count={2}
+                info={<InfoTip label={t("usage.listInfoLabel")} content={t("usage.listInfo")} />}
+                meta={
+                  <span {...stylex.props(styles.listActions)}>
+                    <Button compact>{t("usage.listAction")}</Button>
+                    <ExternalIconLink
+                      href="https://example.com/acme/ACME-12"
+                      label={t("usage.listOpen")}
+                    />
+                  </span>
+                }
+              >
+                <PanelList>
+                  <PanelListRow
+                    marker={<StatusDot status="running" />}
+                    ticketKey="ACME-12"
+                    title={t("usage.listRow")}
+                    trailing={statusName("running")}
+                    onClick={() => {}}
+                  />
+                  <PanelListRow
+                    marker={<StatusDot status="succeeded" />}
+                    ticketKey="ACME-9"
+                    title={t("usage.listRowDone")}
+                    trailing={statusName("succeeded")}
+                    done
+                  />
+                </PanelList>
               </PanelSection>
               <ResponsiveColumnsHead
                 lead={t("usage.columnsLead")}
@@ -319,6 +384,7 @@ export function RoleSections() {
                         total={sample.total}
                         label={t("capacityCells.label", { used: sample.used, total: sample.total })}
                         tone={sample.status === "online" ? "progress" : "problem"}
+                        overflow="meter"
                       />
                     }
                   >
@@ -327,6 +393,51 @@ export function RoleSections() {
                 ))}
               </Section>
             </div>
+          </Demo>
+          <Demo>
+            <div {...stylex.props(styles.usageMeter)}>
+              <CapacityTrack
+                used={2}
+                total={3}
+                label={t("capacityCells.label", { used: 2, total: 3 })}
+              />
+            </div>
+            <div {...stylex.props(styles.usageMeter)}>
+              <CheckResultList>
+                <CheckResultRow
+                  state="broken"
+                  stateLabel={t("checkResult.broken")}
+                  name={t("checkResult.push")}
+                  reason={t("checkResult.reason")}
+                />
+                <CheckResultRow
+                  state="unknown"
+                  stateLabel={t("checkResult.unknown")}
+                  name={t("checkResult.service")}
+                />
+                <CheckResultRow
+                  state="ok"
+                  stateLabel={t("checkResult.ok")}
+                  name={t("checkResult.agent")}
+                />
+              </CheckResultList>
+            </div>
+            <div {...stylex.props(styles.usageMeter)}>
+              <ExpandableRow
+                leading={<CheckResultIcon state="ok" />}
+                summary={t("checkResult.allPassed")}
+              >
+                <CheckResultList>
+                  <CheckResultRow
+                    state="ok"
+                    stateLabel={t("checkResult.ok")}
+                    name={t("checkResult.agent")}
+                  />
+                </CheckResultList>
+              </ExpandableRow>
+            </div>
+            <EditIcon />
+            <UnknownIcon />
           </Demo>
         </Section>
       </div>
@@ -418,6 +529,7 @@ export function RoleSections() {
 }
 
 const styles = stylex.create({
+  listActions: { display: "inline-flex", alignItems: "center", gap: space.s2 },
   demo: {
     display: "flex",
     flexDirection: "column",

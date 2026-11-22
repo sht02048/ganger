@@ -14,19 +14,21 @@ import {
   listRunPlacements,
   listRunners,
   listRunsWithRecords,
+  listTakenOverRunIds,
   listWorkspaces,
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
+import { prSignalsViewOf } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
 import { resolveWorkspace, runnerIssueCause } from "../shell/model.js";
-import { calendarDay } from "../time-zone.js";
+import { calendarDay, DAY_MS } from "../time-zone.js";
 import { ticketId } from "../tickets/load.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { DashboardRunner, DoneRun, HomePage, HomeRun, InputWait } from "./model.js";
-import { partitionHome } from "./model.js";
+import { DONE_COLUMN_DAYS, partitionHome } from "./model.js";
 
 export function loadHomePage(
   db: Database,
@@ -42,7 +44,7 @@ export function loadHomePage(
       runs: [],
       runners: { list: [] },
       doneToday: [],
-      endedToday: [],
+      endedRecently: [],
     });
 
   const workspaceNames = new Map(workspaces.map((w) => [w.id, w]));
@@ -56,6 +58,7 @@ export function loadHomePage(
   const placements = listRunPlacements(db);
   const queueReasons = loadQueueReasons(db, now);
   const cancelling = new Set<string>(listPendingCancelRequests(db).map((r) => r.runId));
+  const takenOver = listTakenOverRunIds(db);
 
   const queuedReason = (id: RunId): QueuedReason =>
     describeQueuedReason(
@@ -101,7 +104,13 @@ export function loadHomePage(
       waitMs: durations.waitMs ?? 0,
       executionMs: withoutPauses(durations.executionMs, records, now),
       pullRequest:
-        pr === null || !isWebUrl(pr.url) ? null : { displayId: pr.displayId, url: pr.url },
+        pr === null || !isWebUrl(pr.url)
+          ? null
+          : {
+              displayId: pr.displayId,
+              url: pr.url,
+              signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+            },
       cancelling: cancelling.has(run.id),
       control:
         run.state === "running" || run.state === "paused" ? runControlOf(db, run, now) : null,
@@ -143,6 +152,7 @@ export function loadHomePage(
           state: run.state,
           agentResult: run.agentResult,
           prState: run.prState,
+          prReadError: records.prReadError,
           summary: summarizeRunOutcome(run).outcome,
           endedAt: run.endedAt.toISOString(),
           endedAgoMs: Math.max(0, now.getTime() - run.endedAt.getTime()),
@@ -172,15 +182,21 @@ export function loadHomePage(
     .toSorted((a, b) => Number(a.cause === null) - Number(b.cause === null));
   const endedToday = (run: StoredRun): boolean =>
     run.state === "ended" && calendarDay(run.endedAt, timeZone) === today;
+  const firstDoneDay = today - (DONE_COLUMN_DAYS - 1) * DAY_MS;
+  const endedRecently = (run: StoredRun): boolean => {
+    if (run.state !== "ended") return false;
+    const day = calendarDay(run.endedAt, timeZone);
+    return day >= firstDoneDay && day <= today;
+  };
   const views = runsWithRecords.map(({ run, records }) => ({
     ticket: `${run.ticket.connection}\u0000${run.ticket.key}`,
     run: toView(run, records),
-    endedToday: endedToday(run),
+    endedRecently: endedRecently(run),
   }));
   return partitionHome({
     workspace,
     runs: views,
-    endedToday: views.flatMap((view) => (view.endedToday ? [view.run] : [])),
+    endedRecently: views.flatMap((view) => (view.endedRecently ? [view.run] : [])),
     runners: { list: dashboardRunners },
     doneToday: runs.flatMap((run): DoneRun[] =>
       run.state === "ended" && endedToday(run)

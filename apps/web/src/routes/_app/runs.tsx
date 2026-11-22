@@ -1,18 +1,25 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useDeferredValue } from "react";
 import { createTranslator } from "use-intl";
 import { z } from "zod";
 import { ScreenMessages, defaultLocale } from "../../i18n";
-import { pickConditions, runConditionsSearch } from "@ganger/app/runs/conditions";
-import type { ConditionKey } from "@ganger/app/runs/conditions";
+import {
+  DEFAULT_ENDED_DAYS,
+  ENDED_VIEWS,
+  pickBoardConditions,
+  runBoardDaysSchema,
+} from "@ganger/app/runs/board";
+import type { RunBoardDays } from "@ganger/app/runs/board";
+import { runConditionsSearch } from "@ganger/app/runs/conditions";
 import { runsMessages } from "../../runs/messages";
-import { ENDED_RUNS_PAGE_SIZE, MAX_ENDED_RUNS, RUN_FILTERS } from "@ganger/app/runs/model";
+import { ENDED_RUNS_PAGE_SIZE, MAX_ENDED_RUNS } from "@ganger/app/runs/model";
 import { RunsScreen } from "../../runs/runs-screen";
+import type { ClearableCondition } from "../../runs/runs-screen";
 import { useFirstDrawKey } from "../../query/first-draw";
 import { requestTimeZone, useRequestTimeZone } from "../../query/request-time-zone";
 import { loadRouteQuery } from "../../query/route-query";
-import { runsListQuery } from "../../runs/queries";
+import { runsBoardRunQuery, runsListQuery } from "../../runs/queries";
 import { useShell } from "../../shell/shell-query";
 import { ScreenError } from "../../shell/screen-error";
 
@@ -21,15 +28,19 @@ const t = createTranslator({ locale: defaultLocale, messages: runsMessages, name
 export const Route = createFileRoute("/_app/runs")({
   errorComponent: ScreenError,
   validateSearch: z.object({
-    f: z.enum(RUN_FILTERS).optional().catch(undefined),
+    f: z.literal("failed").optional().catch(undefined),
+    view: z.enum(ENDED_VIEWS).optional().catch(undefined),
     sel: z.string().optional(),
     ended: z.number().int().min(1).max(MAX_ENDED_RUNS).optional().catch(undefined),
     ...runConditionsSearch,
+    days: runBoardDaysSchema.optional().catch(undefined),
   }),
   loaderDeps: ({ search }) => ({
     ws: search.ws,
     ended: search.ended,
-    ...pickConditions(search),
+    ...(search.view === undefined ? {} : { view: search.view }),
+    ...(search.f === undefined ? {} : { failedOnly: true }),
+    ...pickBoardConditions(search),
   }),
   loader: (load) =>
     loadRouteQuery(
@@ -51,26 +62,39 @@ function RunsRoute() {
   );
   const drawKey = useFirstDrawKey(deps.ws, isFetching);
   const shell = useShell();
-  const { f, sel, ws, ended } = Route.useSearch();
+  const { sel, ws, ended, runner } = Route.useSearch();
   const navigate = Route.useNavigate();
   const nextEnded = (ended ?? ENDED_RUNS_PAGE_SIZE) + ENDED_RUNS_PAGE_SIZE;
+  const { data: selectedRun } = useQuery({
+    ...runsBoardRunQuery(ws, sel ?? ""),
+    enabled: sel !== undefined,
+  });
+  const narrow = (change: {
+    view?: (typeof ENDED_VIEWS)[number];
+    days?: RunBoardDays | undefined;
+    runner?: string | undefined;
+  }) => {
+    void navigate({
+      search: (prev) => ({ ...prev, ...change, ended: undefined }),
+      replace: true,
+      resetScroll: false,
+    });
+  };
   return (
     <ScreenMessages messages={runsMessages}>
       <RunsScreen
         page={page}
         drawKey={drawKey}
         workspaces={shell.workspaces}
-        filter={f ?? "all"}
-        endedLimit={ended ?? ENDED_RUNS_PAGE_SIZE}
         selectedId={sel}
-        onFilterChange={(next) => {
-          void navigate({
-            search: (prev) => ({ ...prev, f: next === "all" ? undefined : next, sel: undefined }),
-            replace: true,
-          });
-        }}
+        selectedRun={selectedRun ?? null}
+        runnerId={runner}
         onSelect={(id) => {
-          void navigate({ search: (prev) => ({ ...prev, sel: id }), replace: true });
+          void navigate({
+            search: (prev) => ({ ...prev, sel: id }),
+            replace: true,
+            resetScroll: false,
+          });
         }}
         onOpen={(id) => {
           void navigate({ to: "/runs/$runId", params: { runId: id }, search: { ws } });
@@ -82,12 +106,19 @@ function RunsRoute() {
               ws: next,
               sel: undefined,
               ended: undefined,
-              runner: undefined,
+              view: undefined,
+              f: undefined,
               project: undefined,
               agent: undefined,
             }),
           });
         }}
+        onOpenRunnerRuns={(workspaceId, runnerId) => {
+          void navigate({ search: { ws: workspaceId, runner: runnerId } });
+        }}
+        onEndedViewChange={(view) => narrow({ view })}
+        onPeriodChange={(days) => narrow({ days: days === DEFAULT_ENDED_DAYS ? undefined : days })}
+        onRunnerChange={(next) => narrow({ runner: next })}
         {...(nextEnded > MAX_ENDED_RUNS
           ? {}
           : {
@@ -99,7 +130,7 @@ function RunsRoute() {
                 });
               },
             })}
-        onClearConditions={(keys: ReadonlyArray<ConditionKey>) => {
+        onClearConditions={(keys: ReadonlyArray<ClearableCondition>) => {
           void navigate({
             search: (prev) => ({
               ...prev,

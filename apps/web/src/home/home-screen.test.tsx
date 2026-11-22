@@ -15,6 +15,7 @@ import type { DashboardView } from "./home-screen";
 import { loadHomePage } from "@ganger/app/home/load";
 import { homeMessages } from "./messages";
 import type { HomePage, HomeRun, InputWait } from "@ganger/app/home/model";
+import type { PrSignalsView } from "@ganger/app/pr-signals-view";
 
 const reject = () => Promise.reject(new Error("unused"));
 
@@ -184,9 +185,9 @@ describe("Dashboard 한 줄 머리(ADR 0010 8번, 0113 갱신)", () => {
 });
 
 describe("Dashboard 칸반(티켓 0100)", () => {
-  it("Queued·Running·Done today 칸과 Runners 열이 이 순서이고 칸 제목은 h2 다", () => {
+  it("Queued·Running·Done 칸과 Runners 열이 이 순서이고 칸 제목은 h2 다", () => {
     const html = render(seededPage());
-    const names = ["Queued", "Running", "Done today", "Runners"];
+    const names = ["Queued", "Running", "Done", "Runners"];
     const order = names.map((name) => html.indexOf(`<section aria-label="${name}"`));
     expect(order.every((at) => at >= 0)).toBe(true);
     expect(order).toEqual(order.toSorted((a, b) => a - b));
@@ -200,7 +201,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(rows(queued)).toHaveLength(page.queued.length);
     expect(pillsOf(queued)).toEqual([]);
     expect(text(row(queued, "ACME-14"))).toContain(homeJson.card.queuedAnyOffline);
-    expect(text(row(queued, "ACME-14"))).toMatch(/째$/);
+    expect(text(row(queued, "ACME-14"))).toMatch(/(<1 min|\d+ (min|hr|days?))$/);
   });
 
   it("Running 칸은 꼬리표 카드(Question·Permission·Disconnected)를 맨 위에, 그 아래 Running 런을 둔다", () => {
@@ -224,7 +225,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     const running = section(render(withInput(seededPage(), question)), "Running");
     const card = row(running, "ACME-11");
     expect(text(card)).toContain(question.body);
-    expect(text(card)).toContain("25분째");
+    expect(text(card)).toContain("25 min");
     expect(actionsOf(card)).toEqual([{ variant: "secondary", label: homeJson.card.answer }]);
     expect(card).not.toContain('type="radio"');
   });
@@ -246,13 +247,13 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       ),
     });
     expect(text(row(section(html, "Running"), "ACME-12"))).toContain(
-      "runner-a에 7분째 닿지 않아요",
+      "runner-a에 7 min 닿지 않아요",
     );
   });
 
-  it("Done today 칸은 꼬리표 카드(Failed)를 앞 4장만 보이고 N개 더 보기를 둔다. Succeeded 런은 PR 이 열려 있어도 꼬리표가 없다 (0145)", () => {
+  it("Done 칸은 꼬리표 카드(Failed)를 앞 4장만 보이고 N개 더 보기를 둔다. Succeeded 런은 PR 이 열려 있어도 꼬리표가 없다 (0145)", () => {
     const page = seededPage();
-    const done = section(render(page), "Done today");
+    const done = section(render(page), "Done");
     const tagged = tagsOf(done).filter((tag) => tag !== null);
     expect(tagged).toEqual(["failed", "failed", "failed", "failed"]);
     expect(DONE_TODO_VISIBLE).toBe(4);
@@ -261,11 +262,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     const succeeded = row(done, "ACME-7");
     expect(succeeded).not.toContain("data-tag=");
     expect(text(succeeded)).toContain("Succeeded · PR #7");
-    expect(text(succeeded)).toContain("1시간 전");
+    expect(text(succeeded)).toContain("1 hr ago");
   });
 
   it("처리할 일 없이 끝난 카드는 소제목 아래에 꼬리표 없이 상태 이름과 함께 모은다", () => {
-    const done = section(render(seededPage()), "Done today");
+    const done = section(render(seededPage()), "Done");
     const subheading = done.indexOf(homeJson.board.settled);
     expect(subheading).toBeGreaterThan(0);
     const merged = row(done, "ACME-1");
@@ -278,7 +279,7 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
   it("처리할 일 없이 끝난 카드가 3장을 넘으면 3장만 보이고 Runs 링크를 둔다", () => {
     const page = seededPage();
-    const merged = page.endedToday.find((run) => run.ticketKey === "ACME-1");
+    const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
     if (merged === undefined) throw new Error("no ACME-1");
     const extra = [1, 2, 3, 4].map((n) => ({
       ...merged,
@@ -286,12 +287,45 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       ticketKey: toTicketKey(`ACME-${40 + n}`),
     }));
     const done = section(
-      render({ ...page, endedToday: [...page.endedToday, ...extra] }),
-      "Done today",
+      render({ ...page, endedRecently: [...page.endedRecently, ...extra] }),
+      "Done",
     );
     const settled = done.slice(done.indexOf(homeJson.board.settled));
     expect(rows(settled)).toHaveLength(SETTLED_VISIBLE);
     expect(settled).toMatch(/<a href="\/runs\?ws=ws-commerce"[^>]*>Runs에서 모두 보기<\/a>/);
+  });
+
+  it("Done 칸 머리 개수는 보이는 카드 수 제한과 상관없이 칸에 든 런 전체다 (0163)", () => {
+    const page = seededPage();
+    const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
+    if (merged === undefined) throw new Error("no ACME-1");
+    const extra = [1, 2, 3, 4].map((n) => ({
+      ...merged,
+      id: toRunId(`run-count-${n}`),
+      ticketKey: toTicketKey(`ACME-${80 + n}`),
+    }));
+    const done = section(
+      render({ ...page, endedRecently: [...page.endedRecently, ...extra] }),
+      "Done",
+    );
+    expect(done).toMatch(/<\/h2><span[^>]*>11<\/span>/);
+  });
+
+  it("7일보다 오래된 꼬리표 카드도 Done 칸 머리 개수에 든다 (0163)", () => {
+    const page = seededPage();
+    const onlyOldTagged = section(render({ ...page, endedRecently: [] }), "Done");
+    expect(onlyOldTagged).toMatch(/<\/h2><span[^>]*>5<\/span>/);
+    expect(row(onlyOldTagged, "ACME-6")).toContain("data-tag=");
+
+    const oldTaggedAndRecent = section(
+      render({
+        ...page,
+        endedRecently: page.endedRecently.filter((run) => run.ticketKey !== "ACME-6"),
+      }),
+      "Done",
+    );
+    expect(oldTaggedAndRecent).toMatch(/<\/h2><span[^>]*>7<\/span>/);
+    expect(row(oldTaggedAndRecent, "ACME-6")).toContain("data-tag=");
   });
 
   it("Queued·Running 칸은 6장이 넘으면 앞 6장과 N개 더 보기를 보인다", () => {
@@ -310,10 +344,10 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
   it("빈 칸은 칸마다 한 줄로 알린다", () => {
     const page = seededPage();
-    const html = render({ ...page, attention: [], queued: [], running: [], endedToday: [] });
+    const html = render({ ...page, attention: [], queued: [], running: [], endedRecently: [] });
     expect(text(section(html, "Queued"))).toContain(homeJson.columnEmpty.queued);
     expect(text(section(html, "Running"))).toContain(homeJson.columnEmpty.running);
-    expect(text(section(html, "Done today"))).toContain(homeJson.columnEmpty.done);
+    expect(text(section(html, "Done"))).toContain(homeJson.columnEmpty.done);
   });
 
   it("처리할 일만 보기는 꼬리표 카드만 남기고, 꼬리표 카드가 없는 칸은 처리할 일이 없다고 한다", () => {
@@ -456,11 +490,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 describe("모든 Workspace 보기(0066)", () => {
   it("칸과 Runners 열을 모두 보이고 카드에 Workspace 이름을 붙인다", () => {
     const html = render(seededPage("all"));
-    for (const name of ["Queued", "Running", "Done today", "Runners"])
+    for (const name of ["Queued", "Running", "Done", "Runners"])
       expect(section(html, name)).not.toBe("");
-    expect(text(row(section(html, "Done today"), "ACME-6"))).toContain("Acme Commerce");
+    expect(text(row(section(html, "Done"), "ACME-6"))).toContain("Acme Commerce");
     expect(text(row(section(html, "Running"), "ACME-10"))).toContain("Acme Commerce");
-    expect(text(row(section(html, "Done today"), "ACME-1"))).toContain("Acme Commerce");
+    expect(text(row(section(html, "Done"), "ACME-1"))).toContain("Acme Commerce");
   });
 });
 
@@ -544,7 +578,7 @@ describe("Runners", () => {
 
     expect([...html.matchAll(/<section aria-labelledby/g)]).toHaveLength(1);
     expect(html).toMatch(/<h3[^>]*>러너 1대에 문제가 있어요<\/h3>/);
-    expect(text(html)).toContain("Offline이에요: runner-b(2시간째)");
+    expect(text(html)).toContain("Offline이에요: runner-b(2 hr)");
     expect(html).toMatch(
       /<a href="\/runners" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
     );
@@ -794,10 +828,10 @@ describe("Runners 공급자 사용량(0086)", () => {
     const runners = section(html, "Runners");
     expect(text(runners)).toContain("러너 1대에 문제가 있어요");
     expect(text(runners)).toContain(
-      "Claude 5시간 한도에 닿았어요: runner-c · 1시간 12분 뒤 한도가 풀리면 다시 런을 받아요",
+      "Claude 5시간 한도에 닿았어요: runner-c · 1 hr 12 min 뒤 한도가 풀리면 다시 런을 받아요",
     );
     expect(text(html)).toContain(
-      "한도에 닿은 러너 1대는 1시간 12분 뒤 한도가 풀리면 다시 런을 받아요.",
+      "한도에 닿은 러너 1대는 1 hr 12 min 뒤 한도가 풀리면 다시 런을 받아요.",
     );
   });
 
@@ -807,6 +841,158 @@ describe("Runners 공급자 사용량(0086)", () => {
       runners: { list: [{ ...base, id: "r-a", name: "runner-a", usage: null }] },
     });
     expect(text(html)).not.toContain("한도");
+  });
+});
+
+describe("Dashboard 카드의 PR 칩(0167)", () => {
+  const openPr = (over: Partial<PrSignalsView>): PrSignalsView => ({
+    ciFailed: false,
+    checkTotal: 4,
+    failedCount: 0,
+    failedChecks: [],
+    checksTruncated: false,
+    conflict: false,
+    behindBy: 0,
+    checkedAt: now.toISOString(),
+    ...over,
+  });
+
+  const withSignals = (page: HomePage, key: string, signals: PrSignalsView): HomePage => {
+    const patch = (run: HomeRun): HomeRun =>
+      run.ticketKey === key
+        ? {
+            ...run,
+            pullRequest: {
+              displayId: "#42",
+              url: "https://code.example.com/acme/web/pull/420",
+              signals,
+            },
+          }
+        : run;
+    return {
+      ...page,
+      attention: page.attention.map((item) => ({ ...item, run: patch(item.run) })),
+      running: page.running.map(patch),
+      queued: page.queued.map(patch),
+      endedRecently: page.endedRecently.map(patch),
+    };
+  };
+
+  const chipsOf = (card: string) =>
+    [...card.matchAll(/data-pr-chip="([^"]+)"/g)].map((match) => match[1]);
+
+  const questionPage = () => withInput(seededPage(), question);
+
+  it("PR이 없는 카드에는 칩이 없다", () => {
+    expect(chipsOf(row(render(questionPage()), "ACME-11"))).toEqual([]);
+  });
+
+  it("Open PR의 CI 실패는 칩 하나로 보인다", () => {
+    const page = withSignals(questionPage(), "ACME-11", openPr({ ciFailed: true }));
+    const card = row(render(page), "ACME-11");
+    expect(chipsOf(card)).toEqual(["ci-failed"]);
+    expect(text(card)).toContain(homeJson.card.prChip.ciFailed);
+  });
+
+  it.each([
+    ["충돌 없음·최신", { conflict: false, behindBy: 0 }],
+    ["아직 모름", { conflict: null, behindBy: null }],
+  ])("CI 통과에 %s이면 칩을 만들지 않는다", (_name, over) => {
+    const page = withSignals(questionPage(), "ACME-11", openPr(over));
+    expect(chipsOf(row(render(page), "ACME-11"))).toEqual([]);
+  });
+
+  it("문제가 셋이면 급한 순서로 둘을 보이고 나머지는 +1 로 묶는다", () => {
+    const page = withSignals(
+      questionPage(),
+      "ACME-11",
+      openPr({ ciFailed: true, conflict: true, behindBy: 4 }),
+    );
+    const card = row(render(page), "ACME-11");
+    expect(chipsOf(card)).toEqual(["ci-failed", "conflict", "more"]);
+    expect(text(card)).toContain("+1");
+  });
+
+  it("선행 티켓 칩이 먼저, PR 칩이 뒤에 온다", () => {
+    const page = seededPage();
+    const first = page.queued[0];
+    if (first === undefined) throw new Error("no queued run");
+    const blocked: HomePage = {
+      ...page,
+      queued: page.queued.map((run) =>
+        run.id === first.id && run.state === "queued"
+          ? {
+              ...run,
+              queuedReason: {
+                kind: "blockers-waiting" as const,
+                blockers: [
+                  {
+                    key: "ACME-90",
+                    title: "앞 티켓",
+                    stateName: "In Progress",
+                    stateCategory: "started",
+                  },
+                ],
+              },
+            }
+          : run,
+      ),
+    };
+    const card = row(
+      render(withSignals(blocked, first.ticketKey, openPr({ ciFailed: true }))),
+      first.ticketKey,
+    );
+    expect(card.indexOf("data-blocker-state")).toBeGreaterThan(-1);
+    expect(card.indexOf("data-blocker-state")).toBeLessThan(card.indexOf("data-pr-chip"));
+  });
+
+  it("Question 카드에서 칩은 질문 문장 아래, 바닥 줄 위에 있다", () => {
+    const page = withSignals(questionPage(), "ACME-11", openPr({ ciFailed: true }));
+    const card = row(render(page), "ACME-11");
+    const chip = card.indexOf("data-pr-chip");
+    expect(card.indexOf(question.body)).toBeLessThan(chip);
+    const runnerName = runOf(page, "ACME-11").runner?.name;
+    if (runnerName === undefined) throw new Error("no runner");
+    expect(chip).toBeLessThan(card.indexOf(runnerName));
+  });
+
+  it("칩 글은 카드 버튼의 설명에 들어가고, +N 은 묶인 문제를 읽어 준다", () => {
+    const page = withSignals(
+      questionPage(),
+      "ACME-11",
+      openPr({ ciFailed: true, conflict: true, behindBy: 4 }),
+    );
+    const card = row(render(page), "ACME-11");
+    const described = /aria-describedby="([^"]+)"/.exec(card)?.[1]?.split(" ") ?? [];
+    const chipsId = described.find((id) => {
+      const start = card.indexOf(`<span id="${id}"`);
+      return start >= 0 && balanced(card, start, "span").includes("data-pr-chip");
+    });
+    if (chipsId === undefined) throw new Error("칩 줄이 설명에 없다");
+    const chips = text(balanced(card, card.indexOf(`<span id="${chipsId}"`), "span"));
+    expect(chips).toContain(homeJson.card.prChip.ciFailed);
+    expect(chips).toContain(homeJson.card.prChip.conflict);
+    expect(chips).toContain(homeJson.card.prChip.behind.replace("{count}", "4"));
+  });
+
+  it.each([
+    ["처리할 일 없이 끝난 카드", "reported-success"],
+    ["Failed 카드", "timed-out"],
+  ] as const)("PR을 못 읽은 %s는 칩 없이 바닥 줄에 쓴다", (_name, agentResult) => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("seed");
+    expect(
+      changeRunState(
+        db,
+        id,
+        { to: "ended", agentResult, prState: "unknown", prReadError: "other" },
+        minutes(110),
+      ).ok,
+    ).toBe(true);
+    const card = row(render(loadHomePage(db, "ws-commerce", now, "UTC")), "ACME-10");
+    expect(chipsOf(card)).toEqual([]);
+    expect(text(card)).toContain(homeJson.card.prUnread);
   });
 });
 
@@ -830,7 +1016,7 @@ describe("Dashboard 멈추기·재개(0118)", () => {
     expect(pillsOf(paused)).toEqual([{ status: "paused", label: domain.runState.paused }]);
     expect(buttonsOf(paused).map((button) => button.label)).toContain(homeJson.card.resume);
     expect(paused).not.toContain(homeJson.card.menu.replace("{key}", "ACME-10"));
-    expect(text(paused)).toContain("20분째");
+    expect(text(paused)).toContain("20 min");
     expect(text(paused)).toContain(domain.pauseSource.operator);
   });
 

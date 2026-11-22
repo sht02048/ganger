@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { Button as SdkButton } from "@ui-sdk/react/button";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import { cx, type StyleArg } from "../cx";
-import { colors, fontWeight, motion, radius, size, space } from "../tokens.stylex";
+import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
 
@@ -23,9 +23,19 @@ export interface ButtonProps {
   "aria-disabled"?: boolean;
   ref?: Ref<HTMLButtonElement>;
   busy?: { active: boolean; label: ReactNode };
+  compact?: boolean;
+  outlined?: boolean;
 }
 
-export function Button({ variant = "secondary", children, onClick, busy, ...props }: ButtonProps) {
+export function Button({
+  variant = "secondary",
+  children,
+  onClick,
+  busy,
+  compact,
+  outlined,
+  ...props
+}: ButtonProps) {
   const busyNow = busy?.active === true;
   const disabled = props["aria-disabled"] === true || busyNow;
   const busyProps =
@@ -38,8 +48,15 @@ export function Button({ variant = "secondary", children, onClick, busy, ...prop
       {...props}
       {...busyProps}
       data-variant={variant}
+      {...(outlined === true ? { "data-outlined": "" } : {})}
       {...(handleClick === undefined ? {} : { onClick: handleClick })}
-      className={(s) => cx(...buttonStyles(variant, s.disabled || disabled))}
+      className={(s) =>
+        cx(
+          ...buttonStyles(variant, s.disabled || disabled),
+          outlined === true && !(s.disabled || disabled) && styles.outlined,
+          compact === true && styles.compact,
+        )
+      }
     >
       {busy === undefined ? children : <BusyLabels busy={busy}>{children}</BusyLabels>}
     </SdkButton>
@@ -82,6 +99,7 @@ export function buttonStyles(variant: ButtonVariant, disabled = false): Readonly
 }
 
 const styles = stylex.create({
+  compact: { height: size.controlCompact, paddingInline: space.s2, fontSize: fontSize.small },
   labels: { display: "grid" },
   label: { gridArea: "1 / 1" },
   labelHidden: { visibility: "hidden" },
@@ -133,6 +151,19 @@ const styles = stylex.create({
     },
     color: colors.textOnAccent,
   },
+  outlined: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": { default: null, "@media (hover: hover)": colors.bgHover },
+    },
+    boxShadow: {
+      default: `inset 0 0 0 1px ${colors.borderDefault}`,
+      ":hover": {
+        default: null,
+        "@media (hover: hover)": `inset 0 0 0 1px ${colors.borderStrong}`,
+      },
+    },
+  },
   danger: { color: colors.problem },
   ghost: {
     backgroundColor: {
@@ -158,3 +189,5 @@ const styles = stylex.create({
     transform: { default: null, ":active": null },
   },
 });
+
+export const compactButtonStyle: StyleArg = styles.compact;

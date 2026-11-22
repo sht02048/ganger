@@ -182,11 +182,19 @@ export interface TableRowProps {
   value: string;
   label?: string;
   onOpen?: () => void;
+  onActivate?: () => void;
   disabled?: boolean;
   children: ReactNode;
 }
 
-export function TableRow({ value, label, onOpen, disabled = false, children }: TableRowProps) {
+export function TableRow({
+  value,
+  label,
+  onOpen,
+  onActivate,
+  disabled = false,
+  children,
+}: TableRowProps) {
   const { columns } = use(ColumnsContext);
   return (
     <ListboxItem<string>
@@ -199,6 +207,18 @@ export function TableRow({ value, label, onOpen, disabled = false, children }: T
             onDoubleClick: onOpen,
             onKeyDown: (event: { key: string }) => {
               if (event.key === "Enter") onOpen();
+            },
+          })}
+      {...(onActivate === undefined
+        ? {}
+        : {
+            onClick: () => {
+              if (!disabled) onActivate();
+            },
+            onKeyDown: (event: { key: string; preventDefault: () => void }) => {
+              if (disabled || (event.key !== "Enter" && event.key !== " ")) return;
+              event.preventDefault();
+              onActivate();
             },
           })}
       {...columnsStyle(columns)}

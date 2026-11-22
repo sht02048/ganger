@@ -22,4 +22,4 @@
 - release-bot 앱 권한이 넓어진다. Workflows read and write가 더해진다(워크플로 파일이 바뀐 `main`을 `develop`에 합치려면 필요하다). 앱은 `develop` 보호 ruleset의 bypass에 들어가, PR 없이 `develop`에 머지 커밋을 넣을 수 있다. `release-bot` environment는 `main`과 `develop` 둘에서 쓸 수 있다. 그래서 `develop`에 머지할 수 있으면 앱 토큰에 닿는다. `develop`도 `main`처럼 PR과 `check`로만 바뀌게 보호한다.
 - 0087의 신뢰 경계("`main`에 머지할 수 있으면 서명할 수 있다")는 그대로다. 서명 secret은 `v*` 태그만 쓰는 `release` environment에 남는다.
 - `main-pr`은 PR이 열릴 때, 새 커밋이 올 때, 베이스를 바꾸는 등 PR을 고칠 때 돈다. `develop`으로 연 PR의 베이스를 `main`으로 바꿔도 다시 돈다. PR이 열린 동안 `main`이 움직이는 경우는 `main` 보호의 "branches up to date"가 그 브랜치에 `main`을 합치게 한다.
-- 저장소 설정(기본 브랜치, `develop` 보호, `main` required check에 `main-pr`과 up to date 요구, 앱 권한, environment 배포 브랜치)은 README "Automatic releases"의 단계로 운영자가 한다.
+- 저장소 설정(기본 브랜치, `develop` 보호, `main` required check에 `main-pr`과 up to date 요구, 앱 권한, environment 배포 브랜치)은 [`docs/releasing.md`](../releasing.md) "Automatic releases"의 단계로 운영자가 한다.

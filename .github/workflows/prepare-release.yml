@@ -48,7 +48,7 @@ jobs:
           APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
         run: |
           if [ -z "$APP_ID" ] || [ -z "$APP_PRIVATE_KEY" ]; then
-            echo "::error::RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY are not set in the release-bot environment. Follow \"Automatic releases\" in README.md to set up the release app."
+            echo "::error::RELEASE_APP_ID and RELEASE_APP_PRIVATE_KEY are not set in the release-bot environment. Follow \"Automatic releases\" in docs/releasing.md to set up the release app."
             exit 1
           fi
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510

@@ -1,4 +1,6 @@
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
+
+export { toCiView };
 import {
   acceptsAgentMessage,
   isAgentMessageFailure,
@@ -6,7 +8,7 @@ import {
   summarizeRunOutcome,
   toRunId,
 } from "@ganger/core";
-import type { CiState, RunId, WorktreeDisposition } from "@ganger/core";
+import type { RunId, WorktreeDisposition } from "@ganger/core";
 import {
   getLogTailRequest,
   getRun,
@@ -43,7 +45,6 @@ import type { QueuedReason } from "../runs/model.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import type {
   AgentMessageDelivery,
-  CiView,
   ContinueOffer,
   KeptWorktree,
   KeptWorktreeReason,
@@ -106,7 +107,8 @@ export function loadRunDetail(db: Database, runId: string, now: Date): RunDetail
     workspace: { id: run.workspaceId, name: workspace?.name ?? run.workspaceId },
     branch: run.state === "queued" ? null : run.branch,
     worktree: run.state === "queued" ? null : run.worktree,
-    runner: runner === undefined ? null : { name: runner.name, online: runner.online },
+    runner:
+      runner === undefined ? null : { id: runner.id, name: runner.name, online: runner.online },
     agent: run.agent,
     model: run.model,
     assignedAt: run.assignedAt.toISOString(),
@@ -267,7 +269,7 @@ function statusOf(
   }
 }
 
-function keptWorktreeOf(
+export function keptWorktreeOf(
   run: Extract<StoredRun, { state: "ended" }>,
   records: RunRecords,
   disposition: WorktreeDisposition,
@@ -468,11 +470,6 @@ function otherRunsOf(db: Database, run: StoredRun): OtherRun[] {
           }
         : { id: other.id, assignedAt, state: other.state };
     });
-}
-
-export function toCiView(ci: CiState): CiView {
-  const known: ReadonlyArray<CiView> = ["success", "failure", "pending", "none", "unavailable"];
-  return known.find((value) => value === ci) ?? "unknown";
 }
 
 function isWebUrl(value: string): boolean {

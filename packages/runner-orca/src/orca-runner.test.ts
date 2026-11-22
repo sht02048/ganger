@@ -1171,32 +1171,43 @@ describe("worktreeExists and removeWorktree", () => {
 describe("checkWorktreeWork", () => {
   const STATUS = "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' status";
   const REV_LIST = "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' rev-list";
+  const REV_PARSE = "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' rev-parse";
+  const HEAD_COMMIT = "a".repeat(40);
   const shown = (): ScriptedExec =>
     new ScriptedExec().orca("worktree show", stdout(own("worktree-show.json")));
 
-  test("reads git status and commits missing from every remote in the worktree", async () => {
-    const exec = shown().on(STATUS, stdout("")).on(REV_LIST, stdout("0\n"));
+  test("reads git status, commits missing from every remote and HEAD in the worktree", async () => {
+    const exec = shown()
+      .on(STATUS, stdout(""))
+      .on(REV_LIST, stdout("0\n"))
+      .on(REV_PARSE, stdout(`${HEAD_COMMIT}\n`));
     expect(await runnerWith(exec).checkWorktreeWork(WORKTREE)).toEqual({
       kind: "checked",
       uncommittedChanges: false,
       unpushedCommits: false,
+      headCommit: HEAD_COMMIT,
     });
     expect(exec.commands()).toEqual([
       `/Applications/Orca.app/Contents/Resources/bin/orca worktree show --worktree 'id:${WORKTREE}' --json`,
       "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' status --porcelain '--untracked-files=all'",
       "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' rev-list --count HEAD --not --remotes",
+      "git -C '<path>/workspaces/sandbox/fo-t0013-probe1' rev-parse --verify HEAD",
     ]);
   });
 
   test("tracked or untracked changes and unpushed commits count as work", async () => {
     const changed = shown()
       .on(STATUS, stdout("?? notes.md\n M src/a.ts\n"))
-      .on(REV_LIST, stdout("0"));
+      .on(REV_LIST, stdout("0"))
+      .on(REV_PARSE, stdout(HEAD_COMMIT));
     expect(await runnerWith(changed).checkWorktreeWork(WORKTREE)).toMatchObject({
       uncommittedChanges: true,
       unpushedCommits: false,
     });
-    const ahead = shown().on(STATUS, stdout("")).on(REV_LIST, stdout("2\n"));
+    const ahead = shown()
+      .on(STATUS, stdout(""))
+      .on(REV_LIST, stdout("2\n"))
+      .on(REV_PARSE, stdout(HEAD_COMMIT));
     expect(await runnerWith(ahead).checkWorktreeWork(WORKTREE)).toMatchObject({
       uncommittedChanges: false,
       unpushedCommits: true,
@@ -1228,6 +1239,13 @@ describe("checkWorktreeWork", () => {
     });
     const odd = shown().on(STATUS, stdout("")).on(REV_LIST, stdout("many"));
     expect(await adapterError(runnerWith(odd).checkWorktreeWork(WORKTREE))).toMatchObject({
+      kind: "malformed-output",
+    });
+    const oddHead = shown()
+      .on(STATUS, stdout(""))
+      .on(REV_LIST, stdout("1"))
+      .on(REV_PARSE, stdout("not-a-commit"));
+    expect(await adapterError(runnerWith(oddHead).checkWorktreeWork(WORKTREE))).toMatchObject({
       kind: "malformed-output",
     });
   });

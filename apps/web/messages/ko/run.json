@@ -13,18 +13,20 @@
     "back": "Runs로 가기"
   },
   "when": {
-    "waitingFor": "{duration}째 기다리는 중",
-    "endedAfter": "{duration} 만에 끝났어요",
+    "waitingFor": "{duration} 기다리는 중",
+    "endedAgo": "{time} 끝남",
+    "took": "{duration} 걸림",
     "endedBeforeStart": "시작하지 않고 {duration} 기다린 뒤 끝났어요",
-    "pausedFor": "{duration}째 멈춰 있어요"
+    "pausedFor": "{duration} 멈춰 있어요"
   },
   "cancelPending": "취소 중",
   "reason": {
+    "cancelling": "취소를 요청했어요. 오케스트레이터가 처리하면 런이 끝나요.",
     "running": "러너에서 에이전트가 티켓을 처리하고 있어요.",
-    "question": "에이전트가 질문했어요. 답하면 worker가 에이전트에게 보내요. 최대 실행 시간은 이 동안에도 흘러요.",
-    "permission": "에이전트가 권한 허용을 기다리고 있어요. 최대 실행 시간은 이 동안에도 흘러요.",
-    "human-check": "에이전트가 사람의 확인을 기다리고 있어요. 답하면 worker가 에이전트에게 보내요. 최대 실행 시간은 이 동안에도 흘러요.",
-    "waiting-unknown": "에이전트가 사람 입력을 기다리고 있어요. 최대 실행 시간은 이 동안에도 흘러요.",
+    "question": "답하면 worker가 에이전트에게 보내요. 최대 실행 시간은 이 동안에도 흘러요.",
+    "permission": "허용하지 않으려면 아래에서 거절할 수 있어요. 최대 실행 시간은 이 동안에도 흘러요.",
+    "human-check": "답하면 worker가 에이전트에게 보내요. 최대 실행 시간은 이 동안에도 흘러요.",
+    "waiting-unknown": "worker가 무엇을 기다리는지 확인하고 있어요. 최대 실행 시간은 이 동안에도 흘러요.",
     "disconnected": "런 중 러너에 5분 넘게 닿지 않았어요. 다시 닿으면 실제 상태를 확인해요. 최대 실행 시간은 이 동안에도 흘러요.",
     "disconnectedSince": "{time}부터 러너에 닿지 않아요. 다시 닿으면 실제 상태를 확인해요. 최대 실행 시간은 이 동안에도 흘러요.",
     "succeeded": "에이전트가 성공을 보고했어요.",
@@ -36,23 +38,25 @@
     "disconnectedPaused": "멈춰 둔 런인데 러너에 5분 넘게 닿지 않았어요. 다시 닿으면 멈춘 채로 돌아와요. 최대 실행 시간은 멈춰 있어요.",
     "disconnectedPausedSince": "멈춰 둔 런인데 {time}부터 러너에 닿지 않아요. 다시 닿으면 멈춘 채로 돌아와요. 최대 실행 시간은 멈춰 있어요."
   },
-  "next": {
-    "queued": "할 일이 없어요. 러너가 비면 worker가 시작해요.",
-    "running": "할 일이 없어요. 에이전트가 끝나면 결과를 기록해요.",
-    "question": "아래에서 질문에 답해 주세요.",
-    "permission": "러너 화면에서 허용해 주세요. 허용하지 않으려면 여기서 거절할 수 있어요.",
-    "human-check": "아래 내용을 확인하고 답해 주세요.",
-    "waiting-unknown": "worker가 무엇을 기다리는지 확인하고 있어요.",
-    "disconnected": "러너가 켜져 있고 ssh로 닿는지 확인해 주세요.",
-    "succeeded": "할 일이 없어요.",
-    "failed": "원인을 확인하고, 필요하면 티켓을 다시 할당해 주세요.",
-    "canceled": "할 일이 없어요. 필요하면 티켓을 다시 할당해 주세요.",
-    "answered": "할 일이 없어요. worker가 답을 보내요.",
-    "denied": "할 일이 없어요. worker가 거절을 보내요.",
-    "paused": "이어서 하려면 재개하기를 눌러 주세요. 같은 러너와 워크트리에서 이어서 해요."
+  "pr": {
+    "title": "PR",
+    "titleWithId": "PR {pr}",
+    "readAt": "{time} 읽음",
+    "open": "GitHub에서 열기",
+    "checksLink": "검사 보기",
+    "later": "이후 PR 상태: {state} · {time}",
+    "ci": "CI",
+    "checks": "검사 {total}개",
+    "failedChecks": "검사 {total}개 중 {failed}개 실패: {names}",
+    "failedChecksPartial": "검사 {total}개 중 앞 100개에서 {failed}개 실패: {names}",
+    "someChecksFailed": "검사 {total}개 중 일부 실패",
+    "conflict": "충돌",
+    "hasConflict": "base와 충돌해요",
+    "noConflict": "없어요",
+    "base": "base",
+    "behindBy": "base보다 {count}커밋 뒤",
+    "upToDate": "뒤처지지 않았어요"
   },
-  "prInfo": "PR {pr} {state}",
-  "prStateInfo": "PR {state}",
   "keptWorktree": {
     "no-pr": "PR이 없어 워크트리를 남겼어요.",
     "uncommitted-changes": "커밋하지 않은 변경이 있어 워크트리를 남겼어요.",
@@ -78,7 +82,6 @@
     "dismiss": "닫기",
     "pending": "워크트리 지우는 중"
   },
-  "openPr": "PR {pr} 열기",
   "question": {
     "title": "에이전트 질문",
     "sent": "답을 남겼어요. worker가 보내요."
@@ -190,7 +193,7 @@
     "continued-by": "런 #{number}에 이어서 맡김"
   },
   "report": {
-    "title": "완료 보고",
+    "label": "완료 보고",
     "none": "에이전트가 보낸 완료 보고가 없어요."
   },
   "brief": {
@@ -214,41 +217,14 @@
   },
   "props": {
     "label": "런 정보",
-    "agentResult": "에이전트 결과",
-    "prState": "PR 상태",
-    "laterPrState": "이후 PR 상태",
     "runner": "러너",
-    "agent": "에이전트",
-    "model": "모델",
-    "waited": "대기 시간",
-    "executed": "실행 시간",
-    "pr": "PR",
-    "ci": "CI",
-    "checks": "검사 {total}개",
-    "failedChecks": "검사 {total}개 중 {failed}개 실패: {names}",
-    "failedChecksPartial": "검사 {total}개 중 앞 100개에서 {failed}개 실패: {names}",
-    "someChecksFailed": "검사 {total}개 중 일부 실패",
-    "conflict": "충돌",
-    "hasConflict": "base와 충돌해요",
-    "noConflict": "없어요",
-    "behind": "뒤처짐",
-    "behindBy": "base보다 {count}커밋 뒤",
-    "upToDate": "뒤처지지 않았어요",
-    "prReadAt": "PR 읽은 때",
-    "branch": "브랜치",
+    "agentModel": "에이전트·모델",
+    "waitedExecuted": "대기·실행",
     "worktree": "워크트리",
-    "workspace": "Workspace",
     "notStarted": "아직 시작하지 않았어요",
-    "none": "없음",
     "noRunner": "아직 정하지 않았어요",
     "defaultModel": "러너 기본값을 써요",
-    "runnerOffline": "Offline",
-    "laterPr": "{state} · {time}",
-    "started": "시작",
-    "prUnreadReason": {
-      "no-access": "토큰이 이 저장소를 볼 수 없음",
-      "other": "GitHub에서 읽지 못함"
-    }
+    "runnerOffline": "Offline"
   },
   "ci": {
     "success": "통과",
