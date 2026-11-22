@@ -37,7 +37,15 @@ export type AssignResult = { ok: true; runId: string } | { ok: false; reason: As
 
 export const bulkAssignInput = z.object({
   assignments: z
-    .array(assignInput.extend({ runnerId: z.null() }))
+    .array(
+      assignInput.extend({
+        ticketTitle: z
+          .string()
+          .trim()
+          .transform((title) => title.slice(0, TICKET_TITLE_MAX_LENGTH).trim()),
+        runnerId: z.null(),
+      }),
+    )
     .min(1)
     .max(BULK_ASSIGN_LIMIT),
 });

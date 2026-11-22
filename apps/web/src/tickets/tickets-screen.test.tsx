@@ -93,6 +93,7 @@ describe("하위 티켓 한 번에 할당 버튼(0172)", () => {
     expect(list).toContain(trigger(1, "ACME-6"));
     const button = new RegExp(`<button[^>]*${trigger(1, "ACME-6")}[^>]*>`).exec(list)?.[0] ?? "";
     expect(button).toContain('data-variant="secondary"');
+    expect(button).toContain("data-outlined");
   });
 
   it("상위 이슈 패널 머리에 같은 보조 버튼을 둔다", async () => {
@@ -104,6 +105,7 @@ describe("하위 티켓 한 번에 할당 버튼(0172)", () => {
     const panel = html.split("<aside")[1] ?? "";
     const button = new RegExp(`<button[^>]*${trigger(1, "ACME-6")}[^>]*>`).exec(panel)?.[0] ?? "";
     expect(button).toContain('data-variant="secondary"');
+    expect(button).not.toContain("data-outlined");
   });
 
   it("할당할 수 있는 하위가 없으면 버튼을 두지 않고, 모든 티켓 보기의 줄에도 두지 않는다", async () => {

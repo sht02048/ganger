@@ -24,6 +24,7 @@ export interface ButtonProps {
   ref?: Ref<HTMLButtonElement>;
   busy?: { active: boolean; label: ReactNode };
   compact?: boolean;
+  outlined?: boolean;
 }
 
 export function Button({
@@ -32,6 +33,7 @@ export function Button({
   onClick,
   busy,
   compact,
+  outlined,
   ...props
 }: ButtonProps) {
   const busyNow = busy?.active === true;
@@ -46,9 +48,14 @@ export function Button({
       {...props}
       {...busyProps}
       data-variant={variant}
+      {...(outlined === true ? { "data-outlined": "" } : {})}
       {...(handleClick === undefined ? {} : { onClick: handleClick })}
       className={(s) =>
-        cx(...buttonStyles(variant, s.disabled || disabled), compact === true && styles.compact)
+        cx(
+          ...buttonStyles(variant, s.disabled || disabled),
+          outlined === true && !(s.disabled || disabled) && styles.outlined,
+          compact === true && styles.compact,
+        )
       }
     >
       {busy === undefined ? children : <BusyLabels busy={busy}>{children}</BusyLabels>}
@@ -143,6 +150,19 @@ const styles = stylex.create({
       ":hover": { default: null, "@media (hover: hover)": colors.accentHover },
     },
     color: colors.textOnAccent,
+  },
+  outlined: {
+    backgroundColor: {
+      default: "transparent",
+      ":hover": { default: null, "@media (hover: hover)": colors.bgHover },
+    },
+    boxShadow: {
+      default: `inset 0 0 0 1px ${colors.borderDefault}`,
+      ":hover": {
+        default: null,
+        "@media (hover: hover)": `inset 0 0 0 1px ${colors.borderStrong}`,
+      },
+    },
   },
   danger: { color: colors.problem },
   ghost: {

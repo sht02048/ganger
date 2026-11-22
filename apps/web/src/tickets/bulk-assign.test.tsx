@@ -1,4 +1,5 @@
-import { listRuns } from "@ganger/db";
+import type { ComponentProps } from "react";
+import { TICKET_TITLE_MAX_LENGTH, listRuns } from "@ganger/db";
 import { toTicketKey } from "@ganger/core";
 import { describe, expect, it } from "vitest";
 import { bulkAssignInput, submitBulkAssignment } from "@ganger/app/tickets/assign";
@@ -13,7 +14,7 @@ import type { BulkAssignment } from "@ganger/app/tickets/bulk-assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
 import type { TicketRun, TicketView } from "@ganger/app/tickets/model";
 import { renderWithMessages } from "../testing/render";
-import { BulkAssignOutcome, BulkChoiceList } from "./bulk-assign-dialog";
+import { BulkAssignAnnouncement, BulkAssignOutcome, BulkChoiceList } from "./bulk-assign-dialog";
 import { ticketsMessages } from "./messages";
 import { connection, docsProject, now, setupTickets, webProject, webRepo } from "./test-fixtures";
 
@@ -226,6 +227,19 @@ describe("한 번에 할당(0172)", () => {
     expect(listRuns(db, { ticket: { connection, key: toTicketKey("ACME-77") } })).toHaveLength(1);
   });
 
+  it("제목이 상한보다 긴 티켓이 있어도 요청 전체를 거부하지 않고 잘라 할당한다", () => {
+    const { db } = setupTickets();
+    const long = "가".repeat(TICKET_TITLE_MAX_LENGTH + 1);
+    const { results } = submitBulkAssignment(
+      db,
+      parsed([assignment("ACME-6", { ticketTitle: long }), assignment("ACME-77")]),
+      now,
+    );
+    expect(results).toMatchObject([{ ok: true }, { ok: true }]);
+    const [run] = listRuns(db, { ticket: { connection, key: toTicketKey("ACME-6") } });
+    expect(run?.ticketTitle).toHaveLength(TICKET_TITLE_MAX_LENGTH);
+  });
+
   it("빈 요청과 러너를 직접 고른 요청은 받지 않는다", () => {
     expect(bulkAssignInput.safeParse({ assignments: [] }).success).toBe(false);
     expect(
@@ -298,27 +312,31 @@ describe("하위 티켓 할당 대화상자(0172)", () => {
   });
 
   it("결과를 role=status로 티켓별로 알리고 단일 할당 오류 문구를 다시 쓴다", () => {
-    const html = renderWithMessages(
-      <BulkAssignOutcome
-        outcome={{
-          kind: "results",
-          results: [
-            { connection, ticketKey: "ACME-21", ok: true, runId: "r1" },
-            { connection, ticketKey: "ACME-22", ok: false, reason: "active-run" },
-          ],
-        }}
-      />,
+    const outcome = {
+      kind: "results",
+      results: [
+        { connection, ticketKey: "ACME-21", ok: true, runId: "r1" },
+        { connection, ticketKey: "ACME-22", ok: false, reason: "active-run" },
+      ],
+    } as const satisfies ComponentProps<typeof BulkAssignOutcome>["outcome"];
+    const expected = "ACME-22 티켓은 할당하지 못했어요. 그사이 이 티켓에 진행 중인 런이 생겼어요.";
+    const announced = renderWithMessages(
+      <BulkAssignAnnouncement outcome={{ ...outcome, results: [...outcome.results] }} />,
       ticketsMessages,
     );
-    expect(html).toContain('role="status"');
-    expect(text(html)).toContain("1개 할당했어요.");
-    expect(text(html)).toContain(
-      "ACME-22 티켓은 할당하지 못했어요. 그사이 이 티켓에 진행 중인 런이 생겼어요.",
+    expect(announced).toContain('role="status"');
+    expect(text(announced)).toContain("1개 할당했어요.");
+    expect(text(announced)).toContain(expected);
+    const visible = renderWithMessages(
+      <BulkAssignOutcome outcome={{ ...outcome, results: [...outcome.results] }} />,
+      ticketsMessages,
     );
+    expect(visible).not.toContain('role="status"');
+    expect(text(visible)).toContain(expected);
   });
 
   it("결과가 없으면 알림 자리만 비워 둔다", () => {
-    const html = renderWithMessages(<BulkAssignOutcome outcome={null} />, ticketsMessages);
+    const html = renderWithMessages(<BulkAssignAnnouncement outcome={null} />, ticketsMessages);
     expect(html).toContain('role="status"');
     expect(text(html).trim()).toBe("");
   });

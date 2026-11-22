@@ -477,6 +477,11 @@ describe("서버 렌더", () => {
     ]);
   });
 
+  it("Button 의 outlined 는 고른 버튼에만 표시되고 기본 버튼은 그대로다(0172)", () => {
+    expect(renderToString(<Button outlined>할당</Button>)).toContain("data-outlined");
+    expect(renderToString(<Button>할당</Button>)).not.toContain("data-outlined");
+  });
+
   it("Dialog 는 trigger 를 주지 않으면 트리거 버튼을 그리지 않는다(0172)", () => {
     const html = renderToString(
       <Dialog open={false} title="지울까요?" actions={<DialogClose>취소</DialogClose>} />,

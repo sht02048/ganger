@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { Button, Checkbox, Dialog, DialogClose, Text, showToast } from "@ganger/ui";
+import { Button, Checkbox, Dialog, DialogClose, Text, VisuallyHidden, showToast } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
@@ -134,6 +134,7 @@ export function BulkAssignDialog({
         if (!next && pending) return;
         onOpenChange(next);
       }}
+      {...(outcome === null ? {} : { status: <BulkAssignOutcome outcome={outcome} /> })}
       actions={
         <>
           <DialogClose>{t("close")}</DialogClose>
@@ -143,22 +144,20 @@ export function BulkAssignDialog({
         </>
       }
     >
-      <div {...stylex.props(styles.body)}>
-        <BulkChoiceList
-          choices={choices}
-          selected={selected}
-          disabled={pending}
-          onToggle={(id, checked) => {
-            setSelected((current) => {
-              const next = new Set(current);
-              if (checked) next.add(id);
-              else next.delete(id);
-              return next;
-            });
-          }}
-        />
-        <BulkAssignOutcome outcome={outcome} />
-      </div>
+      <BulkChoiceList
+        choices={choices}
+        selected={selected}
+        disabled={pending}
+        onToggle={(id, checked) => {
+          setSelected((current) => {
+            const next = new Set(current);
+            if (checked) next.add(id);
+            else next.delete(id);
+            return next;
+          });
+        }}
+      />
+      <BulkAssignAnnouncement outcome={outcome} />
     </Dialog>
   );
 }
@@ -235,7 +234,7 @@ function useOutcomeLines(outcome: Outcome): string[] {
 export function BulkAssignOutcome({ outcome }: { outcome: Outcome }) {
   const lines = useOutcomeLines(outcome);
   return (
-    <div role="status" {...stylex.props(styles.outcome, lines.length > 0 && styles.outcomeShown)}>
+    <div aria-hidden="true" {...stylex.props(styles.outcome)}>
       {lines.map((line) => (
         <Text key={line} variant="ui" as="p">
           {line}
@@ -245,9 +244,16 @@ export function BulkAssignOutcome({ outcome }: { outcome: Outcome }) {
   );
 }
 
+export function BulkAssignAnnouncement({ outcome }: { outcome: Outcome }) {
+  const lines = useOutcomeLines(outcome);
+  return (
+    <VisuallyHidden>
+      <span role="status">{lines.join(" ")}</span>
+    </VisuallyHidden>
+  );
+}
+
 const styles = stylex.create({
   list: { display: "flex", flexDirection: "column", gap: space.px2 },
-  body: { display: "flex", flexDirection: "column" },
   outcome: { display: "flex", flexDirection: "column", gap: space.s1 },
-  outcomeShown: { paddingTop: space.s3 },
 });

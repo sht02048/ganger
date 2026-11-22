@@ -550,9 +550,11 @@ function TicketsList({
 
 function BulkAssignButton({
   group,
+  inRow = false,
   onBulkAssign,
 }: {
   group: TicketGroup;
+  inRow?: boolean;
   onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
 }) {
   const t = useTranslations("tickets.bulkAssign");
@@ -561,6 +563,7 @@ function BulkAssignButton({
   return (
     <Button
       compact
+      outlined={inRow}
       aria-label={t("triggerLabel", { count, key: group.root.key })}
       onClick={(event) => onBulkAssign(group, event.currentTarget)}
     >
@@ -704,7 +707,7 @@ function ParentRow({
         : { below: t("parentLine", { key: parentLine.key, title: parentLine.title }) })}
       run={<GroupRunSummary group={group} />}
       {...(showBulk
-        ? { action: <BulkAssignButton group={group} onBulkAssign={onBulkAssign} /> }
+        ? { action: <BulkAssignButton group={group} inRow onBulkAssign={onBulkAssign} /> }
         : rootTicket === null
           ? {}
           : {
@@ -786,7 +789,7 @@ function TicketRow({
             onAssigned={onAssigned}
           />
         ) : (
-          <BulkAssignButton group={bulkGroup} onBulkAssign={onBulkAssign} />
+          <BulkAssignButton group={bulkGroup} inRow onBulkAssign={onBulkAssign} />
         )
       }
     />

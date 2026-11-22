@@ -130,6 +130,7 @@
     "secondary": "ssh 연결 확인",
     "danger": "런 취소",
     "ghost": "연결 확인",
+    "outlined": "하위 2개 할당",
     "disabled": "할당하기",
     "busy": "Linear에서 다시 읽기",
     "busyLabel": "읽는 중…"
