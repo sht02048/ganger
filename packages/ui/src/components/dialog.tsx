@@ -20,6 +20,7 @@ import {
   motion,
   radius,
   shadow,
+  size,
   space,
 } from "../tokens.stylex";
 
@@ -37,6 +38,7 @@ export interface DialogProps {
   onOpenChange?: (open: boolean) => void;
   scrollBody?: boolean;
   status?: ReactNode;
+  wide?: boolean;
 }
 
 export function Dialog({
@@ -53,6 +55,7 @@ export function Dialog({
   scrollBody = false,
   status,
   finalFocus,
+  wide = false,
 }: DialogProps) {
   return (
     <SdkDialog
@@ -91,7 +94,7 @@ export function Dialog({
       <DialogContent
         {...windowRegion("no-drag")}
         {...(finalFocus === undefined ? {} : { finalFocus })}
-        className={cx(styles.content, scrollBody && styles.contentFits)}
+        className={cx(styles.content, scrollBody && styles.contentFits, wide && styles.contentWide)}
       >
         <div {...stylex.props(styles.head)}>
           <DialogTitle className={cx(styles.title)}>{title}</DialogTitle>
@@ -185,6 +188,7 @@ const styles = stylex.create({
     transitionTimingFunction: motion.easeOut,
   },
   contentFits: { maxHeight: "calc(100dvh - 32px)" },
+  contentWide: { width: `min(${size.noticeWidth}, calc(100vw - 32px))` },
   body: {
     display: "flex",
     flexDirection: "column",

@@ -17,6 +17,12 @@ import { ticketsMessages } from "./messages";
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 Object.assign(Element.prototype, { getAnimations: () => [] });
 Object.assign(Element.prototype, { scrollIntoView: () => {} });
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    observe() {}
+    disconnect() {}
+  },
+});
 
 const CHECKING = ticketsMessages.tickets.bulkAssign.checkingBlockers;
 const UNREAD = ticketsMessages.tickets.bulkAssign.hint["blocker-unread"];
@@ -174,7 +180,7 @@ afterEach(async () => {
 });
 
 describe("선행 티켓을 읽는 동안(0176)", () => {
-  it("다 읽을 때까지 할당 버튼을 막고, 체크 상자는 계속 바꿀 수 있다", async () => {
+  it("다 읽을 때까지 관계도를 그리지 않고 할당 버튼을 막으며, 다 읽으면 한 번에 그린다(0182)", async () => {
     const read = deferred<TicketBlockersResult>();
     const onAssignMany = vi.fn<(input: BulkAssignInput) => Promise<BulkAssignResult>>(() =>
       Promise.resolve({ results: [] }),
@@ -192,11 +198,14 @@ describe("선행 티켓을 읽는 동안(0176)", () => {
     await settle(() => submitButton().click());
     expect(onAssignMany).not.toHaveBeenCalled();
 
-    await settle(() => checkbox("ACME-2").click());
-    expect(isChecked("ACME-2")).toBe(false);
+    expect(document.querySelectorAll('[role="checkbox"]')).toHaveLength(0);
+    expect(document.querySelector("[data-spinner]")).not.toBeNull();
 
     await settle(() => read.resolve(noBlockers));
     expect(isBusy(submitButton())).toBe(false);
+    expect(document.querySelectorAll('[role="checkbox"]')).toHaveLength(2);
+    expect(document.querySelector("[data-spinner]")).toBeNull();
+    await settle(() => checkbox("ACME-2").click());
     await settle(() => submitButton().click());
     expect(onAssignMany.mock.calls[0]?.[0].assignments.map((one) => one.ticketKey)).toEqual([
       "ACME-1",
@@ -216,6 +225,8 @@ describe("선행 티켓을 읽는 동안(0176)", () => {
     await settle();
     expect(onReadBlockers.mock.calls.map(([ticket]) => ticket.key)).toEqual(["ACME-1", "ACME-2"]);
     expect(isBusy(submitButton())).toBe(true);
+    expect(isChecked("ACME-1")).toBe(true);
+    expect(document.querySelector("[data-spinner]")).toBeNull();
 
     await settle(() => late.resolve(blockedBy("ACME-9", "canceled")));
     expect(isBusy(submitButton())).toBe(false);
@@ -264,9 +275,88 @@ describe("선행 티켓 읽기 결과(0176)", () => {
     });
     await settle();
     expect(isChecked("ACME-1")).toBe(false);
-    expect(document.body.textContent).toContain(
-      "지난 런이 Failed예요 · ACME-9 티켓이 끝날 때까지 Queued로 남아요",
+    expect(document.body.textContent).toContain("지난 런이 Failed예요 · ACME-9 뒤에 시작해요");
+  });
+});
+
+describe("관계도(0182)", () => {
+  const chain = (ticket: TicketView): Promise<TicketBlockersResult> => {
+    if (ticket.key === "ACME-2") return Promise.resolve(blockedBy("ACME-1", "unstarted"));
+    if (ticket.key === "ACME-3") return Promise.resolve(blockedBy("ACME-2", "unstarted"));
+    return Promise.resolve(noBlockers);
+  };
+  const nodeTone = (key: string) =>
+    checkbox(key).closest("[data-graph-node]")?.getAttribute("data-tone");
+  const descriptionOf = (key: string) => {
+    const id = checkbox(key).getAttribute("aria-describedby");
+    return id === null ? null : document.getElementById(id)?.textContent;
+  };
+
+  it("앞 티켓 체크를 풀면 뒤 티켓의 체크는 그대로 두고 여러 단계 모두 빨간 테두리로 바꾼다", async () => {
+    await mount({
+      group: groupOf([child("ACME-1"), child("ACME-2"), child("ACME-3")]),
+      onReadBlockers: chain,
+    });
+    await settle();
+    expect(nodeTone("ACME-3")).toBe("default");
+    expect(descriptionOf("ACME-2")).toBe("ACME-1 뒤에 시작해요");
+
+    await settle(() => checkbox("ACME-1").click());
+    expect(isChecked("ACME-2")).toBe(true);
+    expect(isChecked("ACME-3")).toBe(true);
+    expect(nodeTone("ACME-2")).toBe("problem");
+    expect(nodeTone("ACME-3")).toBe("problem");
+    expect(descriptionOf("ACME-3")).toContain("할당해도 시작하지 못해요");
+    expect(document.querySelectorAll('svg [data-edge-tone="problem"]')).toHaveLength(2);
+  });
+
+  it("Tab 순서는 1열 위에서 아래, 그다음 2열이고 화살표는 화면 읽기에서 숨긴다", async () => {
+    await mount({
+      group: groupOf([child("ACME-2"), child("ACME-1"), child("ACME-4")]),
+      onReadBlockers: (ticket) =>
+        ticket.key === "ACME-2"
+          ? Promise.resolve(blockedBy("ACME-1", "unstarted"))
+          : Promise.resolve(noBlockers),
+    });
+    await settle();
+    const order = [...document.querySelectorAll('[role="checkbox"]')].map(
+      (box) => box.closest("label")?.textContent,
     );
+    expect(order.map((text) => text?.slice(0, 6))).toEqual(["ACME-1", "ACME-4", "ACME-2"]);
+    expect(
+      document.querySelector("[data-edge-tone]")?.closest("svg")?.getAttribute("aria-hidden"),
+    ).toBe("true");
+  });
+
+  it("일부만 할당돼도 할당한 앞 티켓 때문에 뒤 티켓을 빨갛게 바꾸지 않는다", async () => {
+    await mount({
+      group: groupOf([child("ACME-1"), child("ACME-2")]),
+      onReadBlockers: chain,
+      onAssignMany: () =>
+        Promise.resolve({
+          results: [
+            { connection: "conn-acme", ticketKey: "ACME-1", ok: true, runId: "r1" },
+            { connection: "conn-acme", ticketKey: "ACME-2", ok: false, reason: "active-run" },
+          ],
+        }),
+    });
+    await settle();
+    await settle(() => submitButton().click());
+    expect(isChecked("ACME-1")).toBe(false);
+    expect(nodeTone("ACME-2")).toBe("default");
+  });
+
+  it("고를 수 없는 하위 티켓은 관계도에서 빼고 개수만 한 줄로 보인다", async () => {
+    await mount({
+      group: groupOf([
+        child("ACME-1"),
+        child("ACME-2", { trackerState: { name: "Done", category: "completed" } }),
+        child("ACME-3", { mapping: null, assignability: { kind: "no-mapping" } }),
+      ]),
+    });
+    await settle();
+    expect(document.querySelectorAll('[role="checkbox"]')).toHaveLength(1);
+    expect(document.body.textContent).toContain("고를 수 없는 하위 티켓 2개");
   });
 });
 

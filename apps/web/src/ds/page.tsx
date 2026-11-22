@@ -30,6 +30,7 @@ const componentLinks = [
   "form",
   "tooltip",
   "dialog",
+  "dependencyGraph",
   "toast",
   ...roleSectionIds,
   ...blockSectionIds,
