@@ -35,6 +35,7 @@ import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } from "vitest";
+import home from "../../apps/web/messages/ko/home.json" with { type: "json" };
 import run from "../../apps/web/messages/ko/run.json" with { type: "json" };
 import tickets from "../../apps/web/messages/ko/tickets.json" with { type: "json" };
 import {
@@ -151,6 +152,10 @@ describe("먼저 끝나야 하는 티켓 화면(0160)", () => {
       "line-through",
     );
     await stuckCard.locator('[data-blocker-state="canceled"]').getByText("취소").waitFor();
+    await waitingCard.getByText(home.card.blockerLine.waiting, { exact: true }).waitFor();
+    await stuckCard.getByText(home.card.blockerLine.canceled, { exact: true }).waitFor();
+    expect(await waitingCard.getByText("ACME-11을 기다려요").count()).toBe(0);
+    expect(await stuckCard.getByText("선행 티켓 ACME-10이 취소됐어요").count()).toBe(0);
     const ringOf = (card: typeof waitingCard) =>
       card
         .getByRole("button")
