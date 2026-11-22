@@ -52,6 +52,7 @@ const resultsDir = fileURLToPath(new URL("../test-results", import.meta.url));
 
 const runnerId = toRunnerId("runner-a");
 const otherRunnerId = toRunnerId("runner-b");
+const idleRunnerId = toRunnerId("runner-c");
 const otherWorkspace = toWorkspaceId("ws-other");
 const otherProject = toTrackerProjectId("tp-other");
 const runnerProject = toRunnerProjectId("fake:acme/web");
@@ -172,6 +173,38 @@ describe("Runs 다듬기(브라우저, 0178)", () => {
     );
     expect(inWaitingCard).toBe(true);
   });
+
+  it("넓은 화면에서 러너 카드가 남는 폭을 나누고 거르기 줄과 표 사이가 띄어진다(0185)", async (context) => {
+    const page = await newPage(context, { width: 1600, height: 900 });
+    await openRuns(page);
+    await page.locator(`[data-runner-card="${idleRunnerId}"]`).waitFor();
+    await waitForScreenQuerySettled(page, ["runs"]);
+
+    const layout = await page.evaluate(() => {
+      const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+      const cards = [...document.querySelectorAll("[data-runner-card]")].map((card) =>
+        card.getBoundingClientRect(),
+      );
+      const grid = document.querySelector("[data-runner-cards]");
+      const tools = document.querySelector("[data-ended-tools]");
+      return {
+        cardCount: cards.length,
+        trackCount:
+          grid === null ? 0 : getComputedStyle(grid).gridTemplateColumns.trim().split(/\s+/).length,
+        lastCardRight: Math.max(...cards.map((card) => card.right)),
+        cardWidth: cards[0]?.width ?? 0,
+        waitingLeft: box("[data-waiting-card]")?.left ?? 0,
+        toolsGap:
+          (tools?.nextElementSibling?.getBoundingClientRect().top ?? 0) -
+          (tools?.getBoundingClientRect().bottom ?? 0),
+      };
+    });
+
+    expect(layout.cardCount).toBe(3);
+    expect(layout.trackCount).toBe(3);
+    expect(layout.waitingLeft - layout.lastCardRight).toBeLessThan(layout.cardWidth);
+    expect(layout.toolsGap).toBeGreaterThan(0);
+  });
 });
 
 async function newPage(context: TestContext, viewport: { width: number; height: number }) {
@@ -275,6 +308,21 @@ function seed(db: Database): string {
   });
   recordRunnerCheck(db, {
     runnerId: otherRunnerId,
+    online: true,
+    checkedAt: new Date(),
+    error: null,
+    projects: [{ id: runnerProject, displayName: "acme/web", setupState: "ready" as const }],
+    assignmentBlocked: false,
+  });
+  saveRunner(db, {
+    id: idleRunnerId,
+    kind: toRunnerKind("fake"),
+    name: "runner-c",
+    config: {},
+    capacity: 1,
+  });
+  recordRunnerCheck(db, {
+    runnerId: idleRunnerId,
     online: true,
     checkedAt: new Date(),
     error: null,

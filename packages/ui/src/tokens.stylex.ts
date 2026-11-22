@@ -223,7 +223,8 @@ export const size = stylex.defineVars({
   repoSelectWidth: "240px",
   saveStatusColumn: "88px",
   runsQueueWidth: "360px",
-  runnerCardMinWidth: "256px",
+  runnerCardMinWidth: "320px",
+  runnerCardMaxWidth: "560px",
   runsMenuWidth: "160px",
 });
 
