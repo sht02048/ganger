@@ -168,8 +168,8 @@ describe("운영자 핵심 동작(브라우저)", () => {
     await page.goto(`/tickets?ws=${workspaceId}`);
     await hydrated(page);
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: unassignedTicket.title })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: unassignedTicket.title })
       .click();
     await page.getByRole("button", { name: tickets.panel.assign }).click();
     const dialog = page.getByRole("dialog", { name: fill(tickets.assign.title, { key }) });

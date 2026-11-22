@@ -74,6 +74,15 @@ export interface TrackerTicket {
   state: TrackerState;
   updatedAt: Date;
   priority?: TicketPriority;
+  ancestors?: ReadonlyArray<TrackerTicketAncestor>;
+}
+
+export interface TrackerTicketAncestor {
+  id: string;
+  key: TicketKey;
+  title: string;
+  url: string;
+  state: { name: string; category: TrackerStateCategory };
 }
 
 export interface TrackerComment {

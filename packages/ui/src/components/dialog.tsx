@@ -11,7 +11,7 @@ import {
 import type { MouseEvent, ReactNode } from "react";
 import { cx } from "../cx";
 import { windowRegion } from "../window-frame";
-import { BusyLabels, buttonStyles, type ButtonVariant } from "./button";
+import { BusyLabels, buttonStyles, compactButtonStyle, type ButtonVariant } from "./button";
 import {
   colors,
   fontSize,
@@ -27,6 +27,7 @@ export interface DialogProps {
   trigger: ReactNode;
   triggerVariant?: ButtonVariant;
   triggerBusy?: { active: boolean; label: ReactNode };
+  triggerCompact?: boolean;
   title: ReactNode;
   description?: ReactNode;
   children?: ReactNode;
@@ -41,6 +42,7 @@ export function Dialog({
   trigger,
   triggerVariant = "secondary",
   triggerBusy,
+  triggerCompact = false,
   title,
   description,
   children,
@@ -70,7 +72,10 @@ export function Dialog({
             }
           : {})}
         data-variant={triggerVariant}
-        className={cx(...buttonStyles(triggerVariant, triggerBusy?.active === true))}
+        className={cx(
+          ...buttonStyles(triggerVariant, triggerBusy?.active === true),
+          triggerCompact && compactButtonStyle,
+        )}
       >
         {triggerBusy === undefined ? (
           trigger

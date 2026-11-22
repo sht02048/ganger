@@ -6,6 +6,7 @@ import { z } from "zod";
 import { trackerProjectKey } from "@ganger/app/runs/conditions";
 import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
 import { mergeTicketsPage } from "@ganger/app/tickets/merge";
+import { TICKET_VIEWS } from "@ganger/app/tickets/groups";
 import { ASSIGN_REJECT_REASONS, TICKET_FILTERS } from "@ganger/app/tickets/model";
 import type { AssignRejectReason } from "@ganger/app/tickets/model";
 import { INVALIDATED_KEYS } from "../../change-events/invalidation";
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/_app/tickets")({
   errorComponent: ScreenError,
   validateSearch: z.object({
     f: z.enum(TICKET_FILTERS).optional().catch(undefined),
+    view: z.enum(TICKET_VIEWS).optional().catch(undefined),
     sel: z.string().optional(),
   }),
   loaderDeps: ({ search }) => ({ ws: search.ws }),
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/_app/tickets")({
 });
 
 function TicketsRoute() {
-  const { f, sel, ws } = Route.useSearch();
+  const { f, view, sel, ws } = Route.useSearch();
   const queryClient = useQueryClient();
   const { data: runs } = useSuspenseQuery(ticketRunsQuery(ws));
   const { data: tracker } = useSuspenseQuery(trackerTicketsQuery(queryClient, ws));
@@ -70,6 +72,14 @@ function TicketsRoute() {
         page={page}
         workspaces={shell.workspaces}
         filter={f ?? "all"}
+        view={view ?? "grouped"}
+        onViewChange={(next) => {
+          void navigate({
+            search: (prev) => ({ ...prev, view: next === "grouped" ? undefined : next }),
+            replace: true,
+            resetScroll: false,
+          });
+        }}
         selectedId={sel}
         onFilterChange={(next) => {
           void navigate({

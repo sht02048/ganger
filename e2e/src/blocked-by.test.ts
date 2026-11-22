@@ -171,9 +171,12 @@ describe("먼저 끝나야 하는 티켓 화면(0160)", () => {
     ]);
 
     await open(`/tickets?ws=${workspaceId}`);
-    const row = page.getByRole("option", { name: new RegExp(unassignedTicket.key) });
+    const row = page
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
+      .filter({ hasText: unassignedTicket.key });
     await row.locator('[data-blocker-state="active"]').waitFor();
-    await row.click();
+    await row.getByRole("button", { name: new RegExp(`^${unassignedTicket.key} `) }).click();
 
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("heading", { name: tickets.panel.relations }).waitFor();

@@ -498,6 +498,8 @@ query {
 
 페이지 나누기 **[문서]** (https://linear.app/developers/pagination): Relay 방식 `first`/`after`, `last`/`before`. 인자가 없으면 50개를 준다. `pageInfo { hasNextPage endCursor }`. 최대 페이지 크기는 문서에 없다. 필터는 `eq`, `neq`, `in`, `nin` 등을 쓴다 **[문서]** (https://linear.app/developers/filtering).
 
+상위 이슈(티켓 0171). 공개 스키마(`linear/linear`의 `packages/sdk/src/schema.graphql`, 2026-11-22 확인)에서 `Issue.parent`는 null이 될 수 있는 `Issue`다 **[스키마]**. 프로젝트 티켓 목록은 `parent`를 3단계까지 중첩해 `id identifier title url state { name type }`을 읽는다. 티켓 하나를 읽는 쿼리와 라벨 쿼리에는 넣지 않는다. 실제 Linear 응답과 복잡도 점수는 이 조사에서 재지 않았다.
+
 ### B.4 Rate limit
 
 **[문서]** https://linear.app/developers/rate-limiting

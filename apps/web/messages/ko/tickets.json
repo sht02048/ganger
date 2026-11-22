@@ -27,7 +27,7 @@
     "title": "제목",
     "trackerProject": "트래커 프로젝트",
     "priority": "우선순위",
-    "lastRun": "마지막 런"
+    "lastRun": "런"
   },
   "priority": {
     "urgent": "Urgent",
@@ -36,6 +36,28 @@
     "low": "Low"
   },
   "listLabel": "티켓 목록",
+  "view": {
+    "label": "티켓 보기 방식",
+    "grouped": "상위 이슈로 묶어 보기",
+    "flat": "티켓 하나씩 보기"
+  },
+  "group": {
+    "expand": "{key} 하위 티켓 펼치기",
+    "collapse": "{key} 하위 티켓 접기",
+    "noParent": "상위 이슈 없음",
+    "progress": "하위 티켓 {total, number}개 중 {done, number}개 Done",
+    "count": "{done, number}/{total, number}",
+    "noActiveRuns": "도는 런 없음",
+    "parentLine": "↳ {key} {title}"
+  },
+  "row": {
+    "merged": "PR {pr} 머지",
+    "mergedNoNumber": "PR 머지",
+    "assign": "할당",
+    "newRun": "새 런",
+    "answer": "답하기",
+    "openRun": "런 보기"
+  },
   "empty": "이 조건에 맞는 티켓이 없어요.",
   "noMatch": "‘{query}’와 맞는 티켓이 없어요.",
   "noTickets": "아직 티켓이 없어요. 트래커 프로젝트에 티켓을 만들면 여기에 보여요.",
@@ -57,12 +79,21 @@
   },
   "panel": {
     "label": "고른 티켓 요약",
+    "parentIssue": "상위 이슈",
+    "parentLink": "상위 이슈",
+    "childrenTitle": "하위 티켓",
+    "childrenProgress": "{total, number}개 중 {done, number}개 Done · {inProgress, number}개 진행 중 · {remaining, number}개 남았어요",
+    "outOfScope": "다른 트래커 프로젝트에 있거나 읽은 범위 밖의 이슈예요. 자세한 내용은 Linear에서 확인해 주세요.",
+    "openInLinear": "Linear에서 열기",
+    "ticketInfo": "티켓 정보",
+    "priority": "우선순위",
     "lastRun": "마지막 런",
     "noRun": "아직 런이 없어요",
     "noRunnerName": "러너 정하기 전",
     "pullRequest": "PR {pr} {state}",
     "prState": "PR {state}",
     "next": {
+      "parent-issue": "하위 티켓이 있는 상위 이슈라 직접 할당하지 않아요. 하위 티켓을 할당해 주세요.",
       "unassigned": "할당하면 Mapping이 정한 저장소와 에이전트로 처리해요.",
       "unassignedBlocked": "할당하면 {key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요.",
       "no-mapping": "이 트래커 프로젝트에 Mapping이 없어 할당할 수 없어요. Settings에서 Mapping을 만들면 할당할 수 있어요.",
@@ -135,6 +166,7 @@
       "unknown-agent": "Mapping에 쓰인 에이전트만 고를 수 있어요. 다른 에이전트를 골라 주세요.",
       "unknown-runner": "고른 러너가 없어졌거나 그 러너에서 이 저장소가 빠졌어요. 다른 러너를 골라 주세요.",
       "runner-assignment-blocked": "고른 러너가 이 저장소에 push할 수 없거나 GitHub 인증이 깨졌어요. 다른 러너를 골라 주세요.",
+      "parent-issue": "하위 티켓이 있는 상위 이슈는 할당할 수 없어요. 하위 티켓을 할당해 주세요.",
       "failed": "할당하지 못했어요. 다시 시도해 주세요."
     },
     "repoDefault": "기본",

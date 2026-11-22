@@ -9,12 +9,15 @@ import type { BlockerReason, BlockerView } from "../runs/model.js";
 import type { Remote } from "../settings/model.js";
 import type { WorkspaceChoice } from "../shell/model.js";
 
+export type TicketRunWait = "question" | "permission" | "human-check";
+
 export type TicketRun =
   | {
       id: string;
       runnerName: string | null;
       state: "queued" | "running" | "waiting-for-input" | "paused" | "disconnected";
       elapsedMs: number;
+      waitingOn: TicketRunWait | null;
     }
   | {
       id: string;
@@ -45,7 +48,8 @@ export interface AssignDefaults {
 export type Assignability =
   | { kind: "ready"; defaults: AssignDefaults }
   | { kind: "active-run"; runId: string }
-  | { kind: "no-mapping" };
+  | { kind: "no-mapping" }
+  | { kind: "parent-issue" };
 
 export interface WaitingTicket {
   key: string;
@@ -56,6 +60,13 @@ export type TicketBlockersResult =
   | { ok: true; blockers: BlockerView[] }
   | { ok: false; reason: TrackerLoadError["reason"] };
 
+export interface TicketIssueRef {
+  key: string;
+  title: string;
+  url: string | null;
+  state: { name: string; category: TrackerStateCategory };
+}
+
 export interface TicketView {
   id: string;
   connection: string;
@@ -65,6 +76,7 @@ export interface TicketView {
   trackerProject: { id: string; name: string };
   trackerState: { name: string; category: TrackerStateCategory };
   priority: TicketPriority;
+  ancestors: ReadonlyArray<TicketIssueRef>;
   blockerWait: BlockerReason | null;
   waitingTickets: ReadonlyArray<WaitingTicket>;
   labels: ReadonlyArray<{ name: string; autoAssign: boolean }>;
@@ -166,6 +178,7 @@ export interface TrackerTicketView {
   state: { name: string; category: TrackerStateCategory };
   priority: TicketPriority;
   labels: ReadonlyArray<TrackerLabel>;
+  ancestors: ReadonlyArray<TicketIssueRef>;
 }
 
 export interface TrackerProjectLabels {
@@ -189,6 +202,7 @@ export const ASSIGN_REJECT_REASONS = [
   "unknown-agent",
   "unknown-runner",
   "runner-assignment-blocked",
+  "parent-issue",
 ] as const;
 
 export type AssignRejectReason = (typeof ASSIGN_REJECT_REASONS)[number];
@@ -232,8 +246,9 @@ export function matchesFilter(ticket: TicketView, filter: TicketFilter): boolean
       return true;
     case "assignable":
       return (
-        run === undefined ||
-        (run.state === "ended" && (run.summary === "failed" || run.summary === "canceled"))
+        ticket.assignability.kind !== "parent-issue" &&
+        (run === undefined ||
+          (run.state === "ended" && (run.summary === "failed" || run.summary === "canceled")))
       );
     case "todo":
       return run !== undefined && isTodo(run);
@@ -244,7 +259,7 @@ export function matchesFilter(ticket: TicketView, filter: TicketFilter): boolean
   }
 }
 
-export function matchesSearch(ticket: TicketView, query: string): boolean {
+export function matchesSearch(ticket: Pick<TicketView, "key" | "title">, query: string): boolean {
   const needle = query.trim().toLocaleLowerCase();
   if (needle === "") return true;
   return (

@@ -204,8 +204,7 @@ export function createMcpServer(context: McpContext): GangerMcp {
     "list_tickets",
     {
       title: "List tickets",
-      description:
-        "Tickets of the workspace's tracker projects, read from the tracker, with their runs and whether they can be assigned.",
+      description: `Tickets of the workspace's tracker projects, read from the tracker, with their runs, their parent issue ("parentIssue", null when there is none), and whether they can be assigned. A parent issue with sub-tickets cannot be assigned.`,
       inputSchema: {
         workspace: workspaceArg,
         filter: z.enum(TICKET_FILTERS).optional().describe("Defaults to all."),
@@ -220,7 +219,13 @@ export function createMcpServer(context: McpContext): GangerMcp {
         return result(context, {
           workspace: picked,
           total: tickets.length,
-          tickets: tickets.slice(0, limit ?? 100),
+          tickets: tickets.slice(0, limit ?? 100).map(({ ancestors, ...ticket }) => ({
+            ...ticket,
+            parentIssue:
+              ancestors[0] === undefined
+                ? null
+                : { key: ancestors[0].key, title: ancestors[0].title },
+          })),
           trackerErrors: page.errors,
           truncated: page.truncated,
         });

@@ -25,6 +25,7 @@ import type {
   TrackerState,
   TrackerStateId,
   TrackerTicket,
+  TrackerTicketAncestor,
 } from "@ganger/core";
 import { z } from "zod";
 import { LinearApiError, LinearClient, LinearTrackerError, connectionSchema } from "./client.js";
@@ -80,6 +81,21 @@ fragment TicketFields on Issue {
   labels(first: ${LABELS_PER_TICKET}) { nodes { id name } }
 }`;
 
+const ANCESTOR_FIELDS = "id identifier title url state { name type }";
+
+const PROJECT_TICKET_FIELDS = `
+fragment ProjectTicketFields on Issue {
+  ...TicketFields
+  parent {
+    ${ANCESTOR_FIELDS}
+    parent {
+      ${ANCESTOR_FIELDS}
+      parent { ${ANCESTOR_FIELDS} }
+    }
+  }
+}
+${TICKET_FIELDS}`;
+
 const PAGE_INFO = "pageInfo { hasNextPage endCursor }";
 
 const QUERY_CONNECTION = "query Connection { viewer { id } }";
@@ -107,11 +123,11 @@ const QUERY_TICKET_RELATIONS = `query TicketRelations($id: String!, $first: Int!
 
 const QUERY_PROJECT_TICKETS = `query ProjectTickets($projectId: ID!, $first: Int!, $after: String) {
   issues(filter: { project: { id: { eq: $projectId } } }, first: $first, after: $after) {
-    nodes { ...TicketFields }
+    nodes { ...ProjectTicketFields }
     ${PAGE_INFO}
   }
 }
-${TICKET_FIELDS}`;
+${PROJECT_TICKET_FIELDS}`;
 
 const QUERY_LABELED_TICKETS = `query LabeledTickets($labelId: ID!, $updatedSince: DateTimeOrDuration!, $first: Int!, $after: String) {
   issues(filter: { labels: { id: { eq: $labelId } }, updatedAt: { gte: $updatedSince } }, first: $first, after: $after) {
@@ -197,19 +213,20 @@ const ticketRelationsSchema = z.object({
   }),
 });
 
-const ticketSchema = z
-  .object({
-    identifier: idSchema,
-    title: z.string(),
-    description: z.string().nullable(),
-    url: z.string(),
-    updatedAt: dateSchema,
-    priority: prioritySchema,
-    state: stateSchema,
-    project: z.object({ id: idSchema, name: z.string() }).nullable(),
-    labels: z.object({ nodes: z.array(z.object({ id: idSchema, name: z.string() })) }),
-  })
-  .transform((issue): TrackerTicket => ({
+const issueSchema = z.object({
+  identifier: idSchema,
+  title: z.string(),
+  description: z.string().nullable(),
+  url: z.string(),
+  updatedAt: dateSchema,
+  priority: prioritySchema,
+  state: stateSchema,
+  project: z.object({ id: idSchema, name: z.string() }).nullable(),
+  labels: z.object({ nodes: z.array(z.object({ id: idSchema, name: z.string() })) }),
+});
+
+function toTicket(issue: z.output<typeof issueSchema>): TrackerTicket {
+  return {
     key: toTicketKey(issue.identifier),
     title: issue.title,
     body: issue.description ?? "",
@@ -222,9 +239,59 @@ const ticketSchema = z
     state: toState(issue.state),
     updatedAt: issue.updatedAt,
     priority: issue.priority,
+  };
+}
+
+const ticketSchema = issueSchema.transform(toTicket);
+
+const ancestorFieldsSchema = z.object({
+  id: idSchema,
+  identifier: idSchema,
+  title: z.string(),
+  url: z.string(),
+  state: z.object({ name: z.string(), type: z.string() }),
+});
+
+type AncestorFields = z.output<typeof ancestorFieldsSchema>;
+
+const thirdAncestorSchema = ancestorFieldsSchema;
+const secondAncestorSchema = ancestorFieldsSchema.extend({
+  parent: thirdAncestorSchema.nullish(),
+});
+const firstAncestorSchema = ancestorFieldsSchema.extend({
+  parent: secondAncestorSchema.nullish(),
+});
+
+function toAncestor(fields: AncestorFields): TrackerTicketAncestor {
+  return {
+    id: fields.id,
+    key: toTicketKey(fields.identifier),
+    title: fields.title,
+    url: fields.url,
+    state: { name: fields.state.name, category: fields.state.type },
+  };
+}
+
+function ancestorsOf(
+  parent: z.output<typeof firstAncestorSchema> | null | undefined,
+): TrackerTicketAncestor[] {
+  if (parent === null || parent === undefined) return [];
+  const second = parent.parent ?? null;
+  const third = second?.parent ?? null;
+  return [parent, second, third]
+    .filter((fields) => fields !== null)
+    .map((fields) => toAncestor(fields));
+}
+
+const projectTicketSchema = issueSchema
+  .extend({ parent: firstAncestorSchema.nullish() })
+  .transform((issue): TrackerTicket => ({
+    ...toTicket(issue),
+    ancestors: ancestorsOf(issue.parent),
   }));
 
 const ticketConnectionSchema = z.object({ issues: connectionSchema(ticketSchema) });
+const projectTicketConnectionSchema = z.object({ issues: connectionSchema(projectTicketSchema) });
 
 const commentSchema = z
   .object({
@@ -394,7 +461,7 @@ export class LinearTracker implements Tracker {
     const data = await this.client.request(
       QUERY_PROJECT_TICKETS,
       { projectId, first: pageSize(page), after: page?.after ?? null },
-      ticketConnectionSchema,
+      projectTicketConnectionSchema,
     );
     return toPaged(data.issues);
   }

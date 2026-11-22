@@ -34,6 +34,7 @@ import type {
 } from "@ganger/db";
 import { z } from "zod";
 import { isWebUrl } from "../format/url.js";
+import { pendingInput } from "../home/load.js";
 import type { BlockerReason } from "../runs/model.js";
 import { loadQueueReasons } from "../runs/queue-reasons.js";
 import type { QueuedReasonCode } from "../runs/queue-reasons.js";
@@ -125,7 +126,7 @@ export function loadTicketRuns(db: Database, ws: string | undefined, now: Date):
   const runsByTicket: Record<string, TicketRunFacts> = {};
   const waitingByBlocker: Record<string, WaitingTicket[]> = {};
   for (const [id, runs] of groupRuns(listRunsWithRecords(db, { workspaceId }))) {
-    const facts = runFacts(runs, runnerNames, queueReasons, now);
+    const facts = runFacts(db, runs, runnerNames, queueReasons, now);
     runsByTicket[id] = facts;
     const ticket = runs[0]?.run;
     if (ticket === undefined || facts.blockerWait === null) continue;
@@ -198,6 +199,7 @@ function mappingFacts(
 }
 
 function runFacts(
+  db: Database,
   runs: ReadonlyArray<RunWithRecords>,
   runnerNames: ReadonlyMap<RunnerId, string>,
   queueReasons: ReadonlyMap<RunId, QueuedReasonCode>,
@@ -211,7 +213,7 @@ function runFacts(
   const last = stored.at(-1);
   return {
     blockerWait: active?.state === "queued" ? blockerWaitOf(queueReasons.get(active.id)) : null,
-    runs: runs.toReversed().map((run) => toTicketRun(run, runnerNames, now)),
+    runs: runs.toReversed().map((run) => toTicketRun(db, run, runnerNames, now)),
     activeRunId: check.ok ? null : (active?.id ?? ""),
     retryRepo:
       last !== undefined &&
@@ -285,6 +287,12 @@ export async function loadTrackerTickets(
       state: { name: ticket.state.name, category: ticket.state.category },
       priority: ticket.priority ?? "none",
       labels: ticket.labels.map((label) => ({ id: label.id, name: label.name })),
+      ancestors: (ticket.ancestors ?? []).map((ancestor) => ({
+        key: ancestor.key,
+        title: ancestor.title,
+        url: isWebUrl(ancestor.url) ? ancestor.url : null,
+        state: ancestor.state,
+      })),
     }));
 
   errors.sort((a, b) => a.trackerProject.localeCompare(b.trackerProject));
@@ -375,6 +383,7 @@ function groupRuns(runs: ReadonlyArray<RunWithRecords>): Map<string, RunWithReco
 }
 
 function toTicketRun(
+  db: Database,
   { run, records }: RunWithRecords,
   runnerNames: ReadonlyMap<RunnerId, string>,
   now: Date,
@@ -386,6 +395,8 @@ function toTicketRun(
       runnerName,
       state: run.state,
       elapsedMs: msSince(run.state === "queued" ? run.assignedAt : run.startedAt, now),
+      waitingOn:
+        run.state === "waiting-for-input" ? (pendingInput(db, run.id)?.kind ?? null) : null,
     };
   return {
     id: run.id,

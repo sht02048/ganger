@@ -350,6 +350,14 @@ export function registerWriteTools(
             extra: { trackerErrors: page.errors },
           });
         }
+        if (found.assignability.kind === "parent-issue") {
+          return rejected({
+            target: ticket,
+            runId: null,
+            reason: "parent-issue",
+            error: `"${ticket}" has sub-tickets. Assign its sub-tickets instead.`,
+          });
+        }
         let runnerId: string | null = null;
         if (runner !== undefined) {
           const { found: picked, runners } = findRunner(runner);

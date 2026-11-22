@@ -246,8 +246,8 @@ async function assignFromTickets(page: Page): Promise<void> {
   await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
   await page.waitForLoadState("networkidle");
   await page
-    .getByRole("listbox", { name: tickets.listLabel })
-    .getByRole("option", { name: unassignedTicket.title })
+    .getByRole("list", { name: tickets.listLabel })
+    .getByRole("button", { name: unassignedTicket.title })
     .click();
   await page.getByRole("button", { name: tickets.panel.assign }).click();
   const dialog = page.getByRole("dialog", { name: fill(tickets.assign.title, { key }) });

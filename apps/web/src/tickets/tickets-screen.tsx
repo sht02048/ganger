@@ -10,28 +10,30 @@ import {
   DefinitionList,
   DetailPanel,
   ExternalIconLink,
+  FlatViewIcon,
+  GroupedViewIcon,
+  IconToggleGroup,
   InfoTip,
   Input,
+  IssueGroupLabel,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
   MascotMessage,
   NoticeLayout,
   PageHeader,
   PanelList,
   PanelListRow,
   PanelSection,
+  ProgressRing,
   ScreenLayout,
-  RowTitle,
   SegmentedTabs,
   SplitView,
   StatusDot,
   StatusPill,
-  Table,
-  TableCell,
   TableEmpty,
-  TableFoldedOnly,
-  TableHead,
-  TableHeader,
-  TableRow,
-  TableRows,
   Text,
   TimeSlot,
   VisuallyHidden,
@@ -40,6 +42,7 @@ import {
 import { size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
+import type { IssueListMove, PillStatus } from "@ganger/ui";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { currentPrState } from "@ganger/app/runs/model";
@@ -48,13 +51,7 @@ import { runStatus, useStatusName } from "../status";
 import type { AssignInput, AssignResult } from "@ganger/app/tickets/assign";
 import { ticketId } from "@ganger/app/tickets/merge";
 import { AssignDialog } from "./assign-dialog";
-import {
-  TICKET_FILTERS,
-  countByFilter,
-  lastRun,
-  matchesFilter,
-  matchesSearch,
-} from "@ganger/app/tickets/model";
+import { TICKET_FILTERS, countByFilter, lastRun } from "@ganger/app/tickets/model";
 import type {
   TicketBlockersResult,
   TicketFilter,
@@ -68,11 +65,17 @@ import { isBlockerFinished } from "@ganger/core";
 import { blockerChipState } from "../blockers";
 import { useAgentName, useQueuedReasonText } from "../labels";
 import { useRowWindow } from "./row-window";
+import { groupTickets } from "@ganger/app/tickets/groups";
+import type { TicketGroup, TicketListView } from "@ganger/app/tickets/groups";
+import { isSelectableRow, issueStateKind, listRows, rowActionOf } from "./ticket-rows";
+import type { TicketListRow } from "./ticket-rows";
 
 export interface TicketsScreenProps {
   page: TicketsPage;
   workspaces: ReadonlyArray<WorkspaceSummary>;
   filter: TicketFilter;
+  view?: TicketListView;
+  onViewChange?: (view: TicketListView) => void;
   selectedId: string | undefined;
   onFilterChange: (filter: TicketFilter) => void;
   onSelect: (ticketId: string) => void;
@@ -206,26 +209,11 @@ function RereadButton({ result, onStart }: { result: RereadResult; onStart: () =
   );
 }
 
-const foldedToLastRun = [size.ticketKeyColumn, "minmax(0, 1fr)", size.lastRunColumn].join(" ");
-const withoutTrackerProject = [
-  size.ticketKeyColumn,
-  "minmax(0, 1fr)",
-  size.priorityColumn,
-  size.lastRunColumn,
-].join(" ");
-const withTrackerProject = [
-  size.ticketKeyColumn,
-  "minmax(0, 1fr)",
-  size.projectColumn,
-  size.priorityColumn,
-  size.lastRunColumn,
-].join(" ");
-const trackerProjectFolded = { first: withTrackerProject, second: foldedToLastRun };
-const priorityFolded = { first: withoutTrackerProject, second: foldedToLastRun };
-
 function TicketsList({
   page,
   filter,
+  view = "grouped",
+  onViewChange,
   selectedId,
   onFilterChange,
   onSelect,
@@ -239,26 +227,73 @@ function TicketsList({
   const t = useTranslations("tickets");
   const reread = useReread(onReread, page);
   const [query, setQuery] = useState("");
-  const visible = useMemo(
+  const [expansion, setExpansion] = useState<ReadonlyMap<string, boolean>>(new Map());
+  const grouping = useMemo(() => groupTickets(page.tickets), [page.tickets]);
+  const rows = useMemo(
     () =>
-      page.tickets.filter(
-        (ticket) => matchesFilter(ticket, filter) && matchesSearch(ticket, query),
-      ),
-    [page.tickets, filter, query],
+      listRows({
+        view,
+        tickets: page.tickets,
+        grouping,
+        filter,
+        query,
+        overrides: expansion,
+        selectedId,
+      }),
+    [view, page.tickets, grouping, filter, query, expansion, selectedId],
   );
+  const selectableRows = useMemo(() => rows.filter(isSelectableRow), [rows]);
   const counts = useMemo(() => countByFilter(page.tickets), [page.tickets]);
-  const selected =
-    visible.find((ticket) => ticket.id === selectedId) ??
-    page.tickets.find((ticket) => ticket.id === selectedId) ??
-    visible[0];
-  const selectedIndex = selected === undefined ? -1 : visible.indexOf(selected);
+  const selectionExists =
+    selectedId !== undefined &&
+    (page.tickets.some((ticket) => ticket.id === selectedId) ||
+      grouping.groups.some((group) => group.id === selectedId));
+  const effectiveId = selectionExists ? selectedId : selectableRows[0]?.id;
+  const selectedGroup = grouping.groups.find((group) => group.id === effectiveId) ?? null;
+  const selectedTicket = page.tickets.find((ticket) => ticket.id === effectiveId);
+  const selectedIndex = rows.findIndex((row) => row.id === effectiveId);
+  const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const rows = useRowWindow(listRef, visible.length, selectedIndex);
-  const moreBelow = useMoreBelow(scrollRef, listRef, visible.length);
+  const rowWindow = useRowWindow(listRef, rowKeys, selectedIndex);
+  const moreBelow = useMoreBelow(scrollRef, listRef, rows.length);
   const [assignedId, setAssignedId] = useState<string | null>(null);
   const [relationPickedId, setRelationPickedId] = useState<string | null>(null);
-  const showTrackerProject = page.trackerProjectCount > 1;
+  const pendingRowFocus = useRef<string | null>(null);
+
+  useLayoutEffect(() => {
+    const id = pendingRowFocus.current;
+    if (id === null) return;
+    const row = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-row-key]") ?? [])].find(
+      (candidate) => candidate.dataset["rowKey"] === id,
+    );
+    const button = row?.querySelector<HTMLElement>("[data-issue-select]");
+    if (button === undefined || button === null) return;
+    button.focus();
+    pendingRowFocus.current = null;
+  });
+
+  const moveSelection = (move: IssueListMove) => {
+    const index = selectableRows.findIndex((row) => row.id === effectiveId);
+    const last = selectableRows.length - 1;
+    const nextIndex =
+      move === "first"
+        ? 0
+        : move === "last"
+          ? last
+          : Math.min(Math.max(index + (move === "next" ? 1 : -1), 0), last);
+    const next = selectableRows[nextIndex];
+    if (next === undefined) return;
+    pendingRowFocus.current = next.id;
+    onSelect(next.id);
+  };
+  const toggleGroup = (id: string, expanded: boolean) => {
+    setExpansion((current) => new Map(current).set(id, !expanded));
+  };
+  const assignedFromList = (id: string) => {
+    setAssignedId(id);
+    onAssigned(id);
+  };
 
   let empty: string;
   const filtered = counts[filter] > 0;
@@ -331,30 +366,32 @@ function TicketsList({
                     autoComplete="off"
                   />
                 </div>
+                <IconToggleGroup<TicketListView>
+                  label={t("view.label")}
+                  value={view}
+                  onValueChange={(next) => onViewChange?.(next)}
+                  items={[
+                    { value: "grouped", label: t("view.grouped"), icon: <GroupedViewIcon /> },
+                    { value: "flat", label: t("view.flat"), icon: <FlatViewIcon /> },
+                  ]}
+                />
               </div>
             </div>
             <div {...stylex.props(styles.tableFrame)}>
-              <Table
-                columns={showTrackerProject ? withTrackerProject : withoutTrackerProject}
-                foldedColumns={showTrackerProject ? trackerProjectFolded : priorityFolded}
-                narrowColumns="minmax(0, 1fr)"
-              >
-                <TableHead>
-                  <TableHeader>{t("columns.key")}</TableHeader>
-                  <TableHeader>{t("columns.title")}</TableHeader>
-                  {showTrackerProject ? (
-                    <TableHeader hideWhen="second">{t("columns.trackerProject")}</TableHeader>
-                  ) : null}
-                  <TableHeader hideWhen="second">{t("columns.priority")}</TableHeader>
-                  <TableHeader>{t("columns.lastRun")}</TableHeader>
-                </TableHead>
+              <IssueListFrame>
+                <IssueListHead
+                  keyLabel={t("columns.key")}
+                  titleLabel={t("columns.title")}
+                  runLabel={t("columns.lastRun")}
+                  indented={view === "grouped"}
+                />
                 <div
                   ref={scrollRef}
                   data-more-below={moreBelow}
                   {...stylex.props(styles.scroll, moreBelow && styles.fadeBottom)}
                 >
                   <div ref={listRef}>
-                    {visible.length === 0 ? (
+                    {rows.length === 0 ? (
                       <TableEmpty>
                         {page.tickets.length === 0 && page.errors.length === 0 ? (
                           <MascotMessage mood="resting" size="small">
@@ -365,38 +402,58 @@ function TicketsList({
                         )}
                       </TableEmpty>
                     ) : (
-                      <TableRows
-                        label={t("listLabel")}
-                        value={visible[selectedIndex]?.id ?? null}
-                        onValueChange={onSelect}
-                      >
-                        {rows.spaceBefore > 0 ? (
-                          <div aria-hidden="true" style={{ height: rows.spaceBefore }} />
+                      <IssueList label={t("listLabel")} onMove={moveSelection}>
+                        {rowWindow.spaceBefore > 0 ? (
+                          <div aria-hidden="true" style={{ height: rowWindow.spaceBefore }} />
                         ) : null}
-                        {visible.slice(rows.start, rows.end).map((ticket) => (
-                          <TicketRow
-                            key={ticket.id}
-                            ticket={ticket}
-                            showTrackerProject={showTrackerProject}
+                        {rows.slice(rowWindow.start, rowWindow.end).map((row) => (
+                          <TicketListRowView
+                            key={row.id}
+                            row={row}
+                            page={page}
+                            selected={row.id === effectiveId}
+                            tabbable={
+                              row.id === (selectedIndex < 0 ? selectableRows[0]?.id : effectiveId)
+                            }
+                            onSelect={onSelect}
+                            onToggle={toggleGroup}
+                            onOpenRun={onOpenRun}
+                            onAssign={onAssign}
+                            onAssigned={assignedFromList}
                           />
                         ))}
-                        {rows.spaceAfter > 0 ? (
-                          <div aria-hidden="true" style={{ height: rows.spaceAfter }} />
+                        {rowWindow.spaceAfter > 0 ? (
+                          <div aria-hidden="true" style={{ height: rowWindow.spaceAfter }} />
                         ) : null}
-                      </TableRows>
+                      </IssueList>
                     )}
                   </div>
                 </div>
-              </Table>
+              </IssueListFrame>
             </div>
           </div>
         }
         panel={
-          selected === undefined ? null : (
+          selectedGroup !== null ? (
+            <section aria-label={t("panel.label")}>
+              <ParentIssuePanel
+                key={selectedGroup.id}
+                group={selectedGroup}
+                onSelectTicket={(id) => {
+                  setRelationPickedId(id);
+                  onSelect(id);
+                }}
+                onOpenRun={onOpenRun}
+                onOpenRuns={onOpenRuns}
+                focusTitle={relationPickedId === selectedGroup.id}
+                onFocusedTitle={() => setRelationPickedId(null)}
+              />
+            </section>
+          ) : selectedTicket === undefined ? null : (
             <section aria-label={t("panel.label")}>
               <TicketPanel
-                key={selected.id}
-                ticket={selected}
+                key={selectedTicket.id}
+                ticket={selectedTicket}
                 page={page}
                 onOpenRun={onOpenRun}
                 onOpenRuns={onOpenRuns}
@@ -404,16 +461,16 @@ function TicketsList({
                   setRelationPickedId(id);
                   onSelect(id);
                 }}
-                focusTitle={relationPickedId === selected.id}
+                focusTitle={relationPickedId === selectedTicket.id}
                 onFocusedTitle={() => setRelationPickedId(null)}
                 onAssign={onAssign}
                 onReadBlockers={onReadBlockers}
                 rereads={reread.rereads}
                 onAssigned={() => {
-                  setAssignedId(selected.id);
-                  onAssigned(selected.id);
+                  setAssignedId(selectedTicket.id);
+                  onAssigned(selectedTicket.id);
                 }}
-                focusOpenRun={assignedId === selected.id}
+                focusOpenRun={assignedId === selectedTicket.id}
                 onFocusedOpenRun={() => setAssignedId(null)}
               />
             </section>
@@ -449,51 +506,366 @@ function useMoreBelow(
   return moreBelow;
 }
 
+interface TicketListRowViewProps {
+  row: TicketListRow;
+  page: TicketsPage;
+  selected: boolean;
+  tabbable: boolean;
+  onSelect: (id: string) => void;
+  onToggle: (id: string, expanded: boolean) => void;
+  onOpenRun: (runId: string) => void;
+  onAssign: TicketsScreenProps["onAssign"];
+  onAssigned: (id: string) => void;
+}
+
+function TicketListRowView({ row, ...props }: TicketListRowViewProps) {
+  const t = useTranslations("tickets.group");
+  switch (row.kind) {
+    case "loose-head":
+      return <IssueGroupLabel rowKey={row.id} name={t("noParent")} count={row.count} />;
+    case "parent":
+      return (
+        <ParentRow
+          rowKey={row.id}
+          group={row.group}
+          toggle={{
+            expanded: row.expanded,
+            label: t(row.expanded ? "collapse" : "expand", { key: row.group.root.key }),
+            onToggle: () => props.onToggle(row.id, row.expanded),
+          }}
+          surface={row.surface}
+          indent="top"
+          {...props}
+        />
+      );
+    case "child":
+      return <TicketRow ticket={row.ticket} indent="child" surface={row.surface} {...props} />;
+    case "loose":
+      return <TicketRow ticket={row.ticket} indent="top" {...props} />;
+    case "flat":
+      return row.group === null ? (
+        <TicketRow ticket={row.ticket} indent="none" showParentLine {...props} />
+      ) : (
+        <ParentRow rowKey={row.id} group={row.group} indent="none" showParentLine {...props} />
+      );
+  }
+}
+
+type RowCommon = Omit<TicketListRowViewProps, "row" | "onToggle">;
+
+function ParentRow({
+  rowKey,
+  group,
+  toggle,
+  surface,
+  indent,
+  showParentLine = false,
+  selected,
+  tabbable,
+  onSelect,
+}: RowCommon & {
+  rowKey: string;
+  group: TicketGroup;
+  toggle?: { expanded: boolean; label: string; onToggle: () => void };
+  surface?: "none" | "first" | "middle" | "last" | "only";
+  indent: "none" | "top";
+  showParentLine?: boolean;
+}) {
+  const t = useTranslations("tickets.group");
+  const { progress, root, rootTicket } = group;
+  const parentLine = showParentLine ? rootTicket?.ancestors[0] : undefined;
+  return (
+    <IssueRow
+      rowKey={rowKey}
+      label={`${root.key} ${root.title}`}
+      selected={selected}
+      tabbable={tabbable}
+      onSelect={() => onSelect(group.id)}
+      indent={indent}
+      {...(surface === undefined ? {} : { surface })}
+      {...(toggle === undefined ? {} : { toggle })}
+      icon={
+        <ProgressRing
+          done={progress.done}
+          total={progress.total}
+          label={t("progress", { done: progress.done, total: progress.total })}
+        />
+      }
+      ticketKey={root.key}
+      title={root.title}
+      strong
+      titleAfter={t("count", { done: progress.done, total: progress.total })}
+      {...(parentLine === undefined
+        ? {}
+        : { below: t("parentLine", { key: parentLine.key, title: parentLine.title }) })}
+      run={<GroupRunSummary group={group} />}
+    />
+  );
+}
+
 function TicketRow({
   ticket,
-  showTrackerProject,
+  indent,
+  surface,
+  showParentLine = false,
+  page,
+  selected,
+  tabbable,
+  onSelect,
+  onOpenRun,
+  onAssign,
+  onAssigned,
+}: RowCommon & {
+  ticket: TicketView;
+  indent: "none" | "top" | "child";
+  surface?: "none" | "first" | "middle" | "last" | "only";
+  showParentLine?: boolean;
+}) {
+  const t = useTranslations("tickets.group");
+  const parent = showParentLine ? ticket.ancestors[0] : undefined;
+  return (
+    <IssueRow
+      rowKey={ticket.id}
+      label={`${ticket.key} ${ticket.title}`}
+      selected={selected}
+      tabbable={tabbable}
+      onSelect={() => onSelect(ticket.id)}
+      indent={indent}
+      {...(surface === undefined ? {} : { surface })}
+      icon={
+        <IssueStateIcon
+          kind={issueStateKind(ticket.trackerState.category)}
+          label={ticket.trackerState.name}
+        />
+      }
+      ticketKey={ticket.key}
+      title={ticket.title}
+      {...(ticket.blockerWait === null
+        ? {}
+        : { titleAfter: <WaitMark wait={ticket.blockerWait} /> })}
+      {...(parent === undefined
+        ? {}
+        : { below: t("parentLine", { key: parent.key, title: parent.title }) })}
+      run={<TicketRunCell ticket={ticket} />}
+      action={
+        <TicketRowActionButton
+          ticket={ticket}
+          page={page}
+          onOpenRun={onOpenRun}
+          onAssign={onAssign}
+          onAssigned={onAssigned}
+        />
+      }
+    />
+  );
+}
+
+function runDisplayStatus(run: TicketRun): PillStatus {
+  return run.state !== "ended" && run.waitingOn !== null ? run.waitingOn : runStatus(run);
+}
+
+function TicketRunCell({ ticket }: { ticket: TicketView }) {
+  const t = useTranslations("tickets");
+  const statusName = useStatusName();
+  const run = lastRun(ticket);
+  if (run === undefined) return <Text variant="meta">{t("unassigned")}</Text>;
+  if (run.state === "ended" && run.summary === "succeeded" && currentPrState(run) === "merged")
+    return (
+      <Text variant="meta" tone="muted">
+        {run.pullRequest === null
+          ? t("row.mergedNoNumber")
+          : t("row.merged", { pr: run.pullRequest })}
+      </Text>
+    );
+  const status = runDisplayStatus(run);
+  const name = statusName(status);
+  return (
+    <span {...stylex.props(styles.runLine)}>
+      <StatusDot status={status} />
+      <Text variant="meta">
+        {run.state === "running" && run.runnerName !== null ? `${name} · ${run.runnerName}` : name}
+      </Text>
+    </span>
+  );
+}
+
+function GroupRunSummary({ group }: { group: TicketGroup }) {
+  const t = useTranslations("tickets.group");
+  const statusName = useStatusName();
+  const counts = new Map<PillStatus, number>();
+  for (const child of group.children) {
+    const run = lastRun(child);
+    if (run === undefined) continue;
+    if (run.state === "ended" && run.summary !== "failed") continue;
+    const status = runDisplayStatus(run);
+    counts.set(status, (counts.get(status) ?? 0) + 1);
+  }
+  if (counts.size === 0)
+    return (
+      <Text variant="meta" tone="muted">
+        {t("noActiveRuns")}
+      </Text>
+    );
+  return (
+    <Text variant="meta">
+      {[...counts].map(([status, count]) => `${statusName(status)} ${count}`).join(" · ")}
+    </Text>
+  );
+}
+
+function TicketRowActionButton({
+  ticket,
+  page,
+  onOpenRun,
+  onAssign,
+  onAssigned,
 }: {
   ticket: TicketView;
-  showTrackerProject: boolean;
+  page: TicketsPage;
+  onOpenRun: (runId: string) => void;
+  onAssign: TicketsScreenProps["onAssign"];
+  onAssigned: (id: string) => void;
 }) {
-  const t = useTranslations("tickets");
+  const t = useTranslations("tickets.row");
+  const action = rowActionOf(ticket);
   const run = lastRun(ticket);
-  const priority = ticket.priority === "none" ? null : t(`priority.${ticket.priority}`);
-  const foldedLine = [showTrackerProject ? ticket.trackerProject.name : null, priority]
-    .filter((part) => part !== null)
+  if (action === null) return null;
+  if (action === "answer" || action === "open-run") {
+    if (run === undefined) return null;
+    return (
+      <Button compact onClick={() => onOpenRun(run.id)}>
+        {action === "answer" ? t("answer") : t("openRun")}
+      </Button>
+    );
+  }
+  if (ticket.assignability.kind !== "ready") return null;
+  return (
+    <AssignDialog
+      ticket={ticket}
+      defaults={ticket.assignability.defaults}
+      runners={page.runners}
+      agents={page.agents}
+      triggerLabel={action === "assign" ? t("assign") : t("newRun")}
+      triggerInRow
+      onAssign={onAssign}
+      onAssigned={() => onAssigned(ticket.id)}
+    />
+  );
+}
+
+function ParentIssuePanel({
+  group,
+  onSelectTicket,
+  onOpenRun,
+  onOpenRuns,
+  focusTitle,
+  onFocusedTitle,
+}: {
+  group: TicketGroup;
+  onSelectTicket: (id: string) => void;
+  onOpenRun: (runId: string) => void;
+  onOpenRuns: (ticket: TicketView) => void;
+  focusTitle: boolean;
+  onFocusedTitle: () => void;
+}) {
+  const t = useTranslations("tickets.panel");
+  const tTickets = useTranslations("tickets");
+  const statusName = useStatusName();
+  const titleRef = useRef<HTMLElement>(null);
+  const { root, rootTicket, progress, children } = group;
+  useEffect(() => {
+    if (!focusTitle) return;
+    titleRef.current?.focus();
+    onFocusedTitle();
+  }, [focusTitle, onFocusedTitle]);
+  const meta = [root.key, rootTicket?.trackerProject.name, t("parentIssue")]
+    .filter((part) => part !== undefined)
     .join(" · ");
   return (
-    <TableRow value={ticket.id} label={`${ticket.key} ${ticket.title}`}>
-      <TableCell>
-        <Text variant="meta" numeric>
-          {ticket.key}
+    <DetailPanel>
+      <div {...stylex.props(styles.panelHead)}>
+        <div {...stylex.props(styles.panelMeta)}>
+          <Text variant="meta" numeric wrap="anywhere">
+            {meta}
+          </Text>
+          {root.url === null ? null : (
+            <ExternalIconLink href={root.url} label={`${t("openInLinear")} (${t("newTab")})`} />
+          )}
+        </div>
+        <Text ref={titleRef} tabIndex={-1} variant="heading">
+          {root.title}
         </Text>
-      </TableCell>
-      <TableCell>
-        <span {...stylex.props(styles.titleLine)}>
-          <span {...stylex.props(styles.titleText)}>
-            <RowTitle fullText={ticket.title}>{ticket.title}</RowTitle>
-          </span>
-          {ticket.blockerWait === null ? null : <WaitMark wait={ticket.blockerWait} />}
+        <div {...stylex.props(styles.chips)}>
+          <Chip wrapText>{root.state.name}</Chip>
+        </div>
+        {rootTicket === null ? <Text variant="body">{t("outOfScope")}</Text> : null}
+      </div>
+      <PanelSection title={t("childrenTitle")} titleRole="subheading" count={children.length}>
+        <span {...stylex.props(styles.runLine)}>
+          <ProgressRing
+            done={progress.done}
+            total={progress.total}
+            label={tTickets("group.progress", { done: progress.done, total: progress.total })}
+          />
+          <Text variant="meta">
+            {t("childrenProgress", {
+              total: progress.total,
+              done: progress.done,
+              inProgress: progress.inProgress,
+              remaining: progress.remaining,
+            })}
+          </Text>
         </span>
-        {foldedLine === "" ? null : (
-          <TableFoldedOnly when="second" block>
-            <Text variant="meta">{foldedLine}</Text>
-          </TableFoldedOnly>
-        )}
-      </TableCell>
-      {showTrackerProject ? (
-        <TableCell hideWhen="second">
-          <Text variant="meta">{ticket.trackerProject.name}</Text>
-        </TableCell>
-      ) : null}
-      <TableCell hideWhen="second">
-        {priority === null ? null : <Text variant="meta">{priority}</Text>}
-      </TableCell>
-      <TableCell>
-        <LastRunStatus run={run} />
-      </TableCell>
-    </TableRow>
+        <PanelList>
+          {children.map((child) => {
+            const run = lastRun(child);
+            return (
+              <PanelListRow
+                key={child.id}
+                marker={
+                  <IssueStateIcon
+                    kind={issueStateKind(child.trackerState.category)}
+                    label={child.trackerState.name}
+                  />
+                }
+                ticketKey={child.key}
+                title={child.title}
+                done={child.trackerState.category === "completed"}
+                {...(run === undefined ? {} : { trailing: statusName(runDisplayStatus(run)) })}
+                onClick={() => onSelectTicket(child.id)}
+              />
+            );
+          })}
+        </PanelList>
+      </PanelSection>
+      {rootTicket === null ? null : (
+        <>
+          <PanelSection title={t("ticketInfo")} titleRole="subheading">
+            <DefinitionList>
+              <DefinitionItem label={t("priority")} empty={rootTicket.priority === "none"}>
+                {rootTicket.priority === "none"
+                  ? t("none")
+                  : tTickets(`priority.${rootTicket.priority}`)}
+              </DefinitionItem>
+              <DefinitionItem label={t("labels")} empty={rootTicket.labels.length === 0}>
+                {rootTicket.labels.length === 0 ? (
+                  t("none")
+                ) : (
+                  <span {...stylex.props(styles.chips)}>
+                    {rootTicket.labels.map((label) => (
+                      <Chip key={label.name} wrapText>
+                        {label.name}
+                      </Chip>
+                    ))}
+                  </span>
+                )}
+              </DefinitionItem>
+            </DefinitionList>
+          </PanelSection>
+          <TicketRuns ticket={rootTicket} onOpenRun={onOpenRun} onOpenRuns={onOpenRuns} />
+        </>
+      )}
+    </DetailPanel>
   );
 }
 
@@ -818,6 +1190,7 @@ function LastRunStatus({ run }: { run: TicketRun | undefined }) {
 }
 
 type NextStep =
+  | "parent-issue"
   | "unassigned"
   | "no-mapping"
   | "queued"
@@ -831,6 +1204,7 @@ type NextStep =
 
 function nextStepOf(ticket: TicketView): NextStep {
   const run = lastRun(ticket);
+  if (ticket.assignability.kind === "parent-issue") return "parent-issue";
   if (ticket.assignability.kind === "no-mapping") return "no-mapping";
   if (run === undefined) return "unassigned";
   if (run.state !== "ended") return run.state;
@@ -903,6 +1277,12 @@ function TicketPanel({
   }, [focusTitle, onFocusedTitle]);
 
   const openRunId = assignability.kind === "active-run" ? assignability.runId : run?.id;
+  const parentIssue = ticket.ancestors[0];
+  const parentId = parentIssue === undefined ? "" : ticketId(ticket.connection, parentIssue.key);
+  const topIssue = ticket.ancestors.at(-1);
+  const parentIsKnown =
+    page.tickets.some((candidate) => candidate.id === parentId) ||
+    (topIssue !== undefined && parentIssue?.key === topIssue.key);
   return (
     <DetailPanel>
       <div {...stylex.props(styles.panelHead)}>
@@ -923,6 +1303,18 @@ function TicketPanel({
             <Chip>{tTickets(`priority.${ticket.priority}`)}</Chip>
           )}
         </div>
+        {parentIssue === undefined ? null : (
+          <Text variant="meta" wrap="anywhere">
+            {`${t("parentLink")} `}
+            {parentIsKnown ? (
+              <Button variant="ghost" compact onClick={() => onSelectTicket(parentId)}>
+                {`${parentIssue.key} ${parentIssue.title}`}
+              </Button>
+            ) : (
+              `${parentIssue.key} ${parentIssue.title}`
+            )}
+          </Text>
+        )}
       </div>
       <Card label={t("lastRun")}>
         <div {...stylex.props(styles.lastRun)}>
@@ -1055,7 +1447,6 @@ const styles = stylex.create({
   },
   chips: { display: "flex", flexWrap: "wrap", gap: space.px6, minWidth: 0 },
   relationGroup: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
-  titleLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
-  titleText: { display: "grid", flexShrink: 1, minWidth: 0 },
   waitMark: { display: "inline-flex", flexShrink: 0, alignItems: "center", gap: space.s1 },
+  runLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
 });

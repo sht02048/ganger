@@ -201,6 +201,25 @@ export {
   type PrChipMoreProps,
   type PrChipProps,
 } from "./components/pr-chip";
+export {
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
+  IssueGroupLabel,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
+  ProgressRing,
+  type IconToggleItem,
+  type IssueListMove,
+  type IssueRowIndent,
+  type IssueRowProps,
+  type IssueRowSurface,
+  type IssueStateKind,
+} from "./components/issue-list";
 export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
 export {
   PILL_STATUSES,

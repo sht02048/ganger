@@ -169,3 +169,5 @@ const styles = stylex.create({
     transform: { default: null, ":active": null },
   },
 });
+
+export const compactButtonStyle: StyleArg = styles.compact;
