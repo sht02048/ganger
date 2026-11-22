@@ -46,6 +46,7 @@ import { runMessages } from "./messages";
 import type { RunDetail, RunDetailPage } from "@ganger/app/run-detail/model";
 import { RunDetailScreen, timelineRows } from "./run-detail-screen";
 import { addExtraEnded, assign, extraEndedCases, startedOn, walk } from "./testing";
+import { nextStepInputOfDetail, runNextStep } from "@ganger/app/run-next-step";
 import { answerInput, submitAnswer } from "@ganger/app/home/actions";
 import {
   cancelRunRequest,
@@ -63,6 +64,7 @@ function render(page: RunDetailPage, timeZone?: string): string {
       page={page}
       runsHref="/runs"
       runHref={(id) => `/runs/${id}`}
+      runnerHref={(id) => `/runs?runner=${id}`}
       onAnswer={resolved}
       onHumanCheck={resolved}
       onDeny={resolved}
@@ -133,7 +135,7 @@ describe("Run 상세의 먼저 끝나야 하는 티켓 (0160)", () => {
     expect(body).toContain("ACME-11");
     expect(body).toContain("ACME-9");
     expect(labels(html)).toContain(runJson.blockerWait.trigger);
-    expect(body).not.toContain(runJson.next.queued);
+    expect(body).not.toContain("러너가 비면");
   });
 
   it("멈춘 기다림은 까닭에 맞는 안내를 보인다", () => {
@@ -158,7 +160,7 @@ describe("Run 상세의 먼저 끝나야 하는 티켓 (0160)", () => {
     const html = queuedWith({ state: "queued", queuedReason: { kind: "behind" } });
 
     expect(labels(html)).not.toContain(runJson.blockerWait.trigger);
-    expect(text(html)).toContain(runJson.next.queued);
+    expect(text(html)).not.toContain(runJson.blockerWait.title);
   });
 });
 
@@ -308,6 +310,284 @@ describe("Run 상세의 받은 지시서 (0146)", () => {
   });
 });
 
+describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
+  const prUrl = "https://code.example.com/acme/web/pull/70";
+  const endedWithPr = (ciFailed: boolean, conflict: boolean) => {
+    const { db } = seedDatabase();
+    const id = assign(db, "ACME-70", 400);
+    walk(db, id, 400, [
+      startedOn("ACME-70"),
+      { to: "ended", agentResult: "reported-success", prState: "open" },
+    ]);
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("70"),
+        displayId: "#70",
+        url: prUrl,
+        ci: ciFailed ? "failure" : "success",
+        checkedAt: minutes(403),
+        signals: {
+          open: true,
+          headCommit: "abc",
+          ciFailed,
+          checkTotal: 4,
+          failedCount: ciFailed ? 1 : 0,
+          failedChecks: ciFailed ? ["lint"] : [],
+          checksTruncated: false,
+          conflict,
+          behindBy: 0,
+        },
+      },
+    });
+    return render({
+      kind: "found",
+      run: { ...found(db, id), report: "시계 adapter를 합쳤어요." },
+    });
+  };
+  const primaryLinks = (html: string): string[] =>
+    [...html.matchAll(/<a [^>]*data-variant="primary"[^>]*>/g)].map(
+      (match) => /href="([^"]+)"/.exec(match[0])?.[1] ?? "",
+    );
+
+  it("PR CI 가 실패한 끝난 런은 띠의 노란 버튼이 실패한 검사로 가고 할 일이 없다고 하지 않는다", () => {
+    const html = endedWithPr(true, false);
+    expect(text(html)).toContain(domain.runNextStep.body["pr-ci-failed"]);
+    expect(text(html)).toContain(domain.runNextStep.action["pr-ci-failed"]);
+    expect(primaryLinks(html)).toEqual([`${prUrl}/checks`]);
+    expect(buttonsOf(html).filter((b) => b.variant === "primary")).toEqual([]);
+    expect(text(html)).not.toContain("할 일이 없어요");
+  });
+
+  it("충돌한 PR 은 띠의 노란 버튼이 PR 로 간다", () => {
+    const html = endedWithPr(false, true);
+    expect(text(html)).toContain(domain.runNextStep.body["pr-conflict"]);
+    expect(primaryLinks(html)).toEqual([prUrl]);
+  });
+
+  it("Question 은 띠의 답하기가 보조 버튼이고 노란 버튼은 보내기 하나다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-11");
+    if (id === undefined) throw new Error("no ACME-11");
+    recordRunQuestions(db, id, [
+      { id: toQuestionId("q-1"), body: "계속할까요?", options: ["네"], askedAt: minutes(50) },
+    ]);
+    const buttons = buttonsOf(render(page(db, id)));
+    expect(buttons.find((b) => b.label === domain.runNextStep.action.question)?.variant).toBe(
+      "secondary",
+    );
+    expect(buttons.filter((b) => b.variant === "primary").map((b) => b.label)).toEqual([
+      questionJson.send,
+    ]);
+  });
+
+  it("Permission 은 띠에 허용 안내만 두고 노란 버튼이 없다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-11");
+    if (id === undefined) throw new Error("no ACME-11");
+    recordPermissionWaits(db, id, [
+      { id: toPermissionRequestId("perm-1"), detail: "Bash: ls", requestedAt: minutes(50) },
+    ]);
+    const html = render(page(db, id));
+    expect(text(html)).toContain(domain.runNextStep.body.permission);
+    expect(buttonsOf(html).filter((b) => b.variant === "primary")).toEqual([]);
+  });
+
+  it("Paused 런의 재개하기는 띠에 하나만 있다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("no ACME-10");
+    changeRunState(db, id, { to: "paused" }, minutes(90));
+    const resumes = buttonsOf(render(page(db, id))).filter(
+      (b) => b.label === runJson.control.resume,
+    );
+    expect(resumes).toEqual([{ variant: "primary", label: runJson.control.resume }]);
+  });
+
+  it("Disconnected 와 Failed 는 띠에 문장을 보이고 노란 버튼이 없다", () => {
+    const { db, ids } = seedDatabase();
+    const disconnected = render(page(db, ids.get("ACME-12")));
+    expect(text(disconnected)).toContain(domain.runNextStep.body.disconnected);
+    expect(buttonsOf(disconnected).filter((b) => b.variant === "primary")).toEqual([]);
+    const extra = addExtraEnded(db);
+    const failed = render(page(db, extra.get("ACME-24")));
+    expect(text(failed)).toContain(domain.runNextStep.body.failed);
+    expect(buttonsOf(failed).filter((b) => b.variant === "primary")).toEqual([]);
+  });
+
+  it("처리할 일이 없는 Running 런은 띠 없이 조용한 한 줄만 둔다", () => {
+    const { db, ids } = seedDatabase();
+    const html = render(page(db, ids.get("ACME-10")));
+    expect(text(html)).toContain(runJson.reason.running);
+    for (const body of Object.values(domain.runNextStep.body)) {
+      expect(text(html)).not.toContain(body);
+    }
+    expect(primaryLinks(html)).toEqual([]);
+  });
+
+  it("CI 가 도는 중이면 PR 구역에 그 상태와 검사 수를 함께 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        pullRequest: {
+          ...run.pullRequest,
+          ci: "pending",
+          signals: {
+            ciFailed: false,
+            checkTotal: 4,
+            failedCount: 0,
+            failedChecks: [],
+            checksTruncated: false,
+            conflict: false,
+            behindBy: 0,
+            checkedAt: minutes(100).toISOString(),
+          },
+        },
+      },
+    });
+    expect(valueOf(html, runJson.pr.ci)).toBe(
+      `${runJson.ci.pending} · ${runJson.pr.checks.replace("{total}", "4")}`,
+    );
+  });
+
+  it("CI 를 못 읽어도 마지막으로 아는 실패는 PR 구역에 실패로 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        pullRequest: {
+          ...run.pullRequest,
+          ci: "unavailable",
+          signals: {
+            ciFailed: true,
+            checkTotal: null,
+            failedCount: 0,
+            failedChecks: [],
+            checksTruncated: false,
+            conflict: null,
+            behindBy: null,
+            checkedAt: minutes(100).toISOString(),
+          },
+        },
+      },
+    });
+    expect(valueOf(html, runJson.pr.ci)).toContain(runJson.ci.failure);
+    expect(valueOf(html, runJson.pr.ci)).not.toContain(runJson.ci.unavailable);
+  });
+
+  it("지우는 중인 워크트리에는 지워 달라는 안내를 보이지 않는다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-3");
+    if (id === undefined) throw new Error("no ACME-3");
+    updateRunRecords(db, id, { worktreeKept: "unpushed-commits" });
+    removeWorktreeRequest(db, id, minutes(110));
+    expect(text(render(page(db, id)))).not.toContain(runJson.keptWorktreeNext["unpushed-commits"]);
+  });
+
+  it("새 런이 생긴 옛 런도 워크트리를 남긴 이유와 다음 행동을 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-3");
+    if (id === undefined) throw new Error("no ACME-3");
+    updateRunRecords(db, id, { worktreeKept: "uncommitted-changes" });
+    const run = found(db, id);
+    const newer = new Date(Date.parse(run.assignedAt) + 60_000).toISOString();
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        otherRuns: [{ id: "run-new", assignedAt: newer, state: "running" }],
+      },
+    });
+    expect(text(html)).toContain(
+      `${runJson.keptWorktree["uncommitted-changes"]} ${runJson.keptWorktreeNext["uncommitted-changes"]}`,
+    );
+    expect(labels(html)).toContain(runJson.removeWorktree.trigger);
+  });
+
+  it("다음 런으로 넘긴 PR 은 지난 CI 실패를 문제로 보이지 않는다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        prHandedOver: true,
+        pullRequest: { ...run.pullRequest, ci: "failure", signals: null },
+      },
+    });
+    expect(text(html)).not.toContain(runJson.pr.checksLink);
+    expect(html).not.toContain('data-signal-tone="problem"');
+  });
+
+  it("끝난 런의 이어서 맡기기는 보조 버튼이다", () => {
+    const { db } = seedDatabase();
+    const id = assign(db, "ACME-71", 400);
+    walk(db, id, 400, [
+      startedOn("ACME-71"),
+      { to: "ended", agentResult: "reported-success", prState: "none" },
+    ]);
+    const run = found(db, id);
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        continueOffer: {
+          sourceNumber: 1,
+          nextNumber: 2,
+          runnerName: "runner-a",
+          place: "same-worktree",
+          hasReport: false,
+          hasWorkspaceBrief: false,
+          agent: "gone",
+          agentStopRequested: false,
+        },
+      },
+    });
+    expect(buttonsOf(html).find((b) => b.label === runJson.continue.trigger)?.variant).toBe(
+      "secondary",
+    );
+  });
+
+  it("PR 정보는 PR 구역 한 곳에만 있고 머리에 PR 버튼이 없다", () => {
+    const html = endedWithPr(true, false);
+    expect(html.match(/aria-label="PR #70"/g)).toHaveLength(1);
+    expect(text(html).split("PR #70")).toHaveLength(2);
+    expect(html.split(`href="${prUrl}"`)).toHaveLength(2);
+  });
+
+  it("완료 보고는 지나온 일의 종료 항목 안에 있고 따로 있던 카드는 없다", () => {
+    const html = endedWithPr(false, false);
+    const body = text(html);
+    const timelineAt = body.indexOf(runJson.timeline.title);
+    const endedAt = body.indexOf(runJson.timeline.ended, timelineAt);
+    const reportAt = body.indexOf("시계 adapter를 합쳤어요.");
+    expect(timelineAt).toBeGreaterThan(-1);
+    expect(reportAt).toBeGreaterThan(endedAt);
+    expect(html).not.toMatch(/<h2[^>]*>완료 보고<\/h2>/);
+  });
+
+  it("런 정보는 네 줄이고 러너는 Runs 의 러너 조건으로 가며 받은 지시서는 그 안에 접혀 있다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("no ACME-10");
+    const run = { ...found(db, id), brief: "지시서 본문" };
+    const html = render({ kind: "found", run });
+    const card = html.split(`aria-label="${runJson.props.label}"`)[1]?.split("</section>")[0] ?? "";
+    expect(card.match(/<dt/g)).toHaveLength(4);
+    expect(card).toContain(`href="/runs?runner=${run.runner?.id ?? ""}"`);
+    expect(card).toContain("<details");
+    expect(card).not.toMatch(/<details[^>]* open/);
+    expect(card).toContain("지시서 본문");
+  });
+});
+
 describe("Run 상세 화면", () => {
   it("에이전트 결과 아홉과 PR 상태 넷이 각각의 칸에, 요약 결과(Canceled 포함)가 계산 표대로 보인다", () => {
     const { db, ids } = seedDatabase();
@@ -318,19 +598,15 @@ describe("Run 상세 화면", () => {
     ];
     for (const c of cases) {
       const html = render(page(db, c.id));
+      const body = text(html);
+      const quiet = runNextStep(nextStepInputOfDetail(found(db, c.id))) === "none";
       expect({
         key: c.key,
-        agent: valueOf(html, runJson.props.agentResult),
-        pr: valueOf(html, runJson.props.prState),
-        summary: text(html).includes(domain.summary[c.summary]),
-        reason: text(html).includes(runJson.reason[c.summary]),
-      }).toEqual({
-        key: c.key,
-        agent: domain.agentResult[c.agentResult],
-        pr: domain.prState[c.prState],
-        summary: true,
-        reason: true,
-      });
+        agent: body.includes(domain.agentResult[c.agentResult]),
+        pr: c.prState === "none" || body.includes(domain.prState[c.prState]),
+        summary: body.includes(domain.summary[c.summary]),
+        reason: !quiet || body.includes(runJson.reason[c.summary]),
+      }).toEqual({ key: c.key, agent: true, pr: true, summary: true, reason: true });
     }
   });
 
@@ -350,13 +626,9 @@ describe("Run 상세 화면", () => {
       ]);
       expect(found(db, id).status).toMatchObject({ prState: "unknown", prReadError: reason });
       const html = render(page(db, id));
-      expect(valueOf(html, runJson.props.prState)).toBe(
-        `${domain.prState.unknown} ${runJson.props.prUnreadReason[reason]}`,
-      );
       const body = text(html);
       expect(body).toContain(`${runJson.prUnread.title} ${runJson.prUnread[reason]}`);
-      expect(body).toContain(runJson.reason.succeeded);
-      expect(body).toContain(`${domain.summary.succeeded} PR ${domain.prState.unknown}`);
+      expect(body).toContain(`PR ${domain.prState.unknown}`);
       expect(pillsOf(html).map((pill) => pill.label)).toEqual([domain.summary.succeeded]);
     },
   );
@@ -389,17 +661,15 @@ describe("Run 상세 화면", () => {
       },
     });
     const html = render(page(db, id));
-    expect(valueOf(html, runJson.props.ci)).toBe(
-      `${runJson.ci.failure} ${runJson.props.failedChecks
+    expect(valueOf(html, runJson.pr.ci)).toContain(
+      runJson.pr.failedChecks
         .replace("{total}", "4")
         .replace("{failed}", "2")
-        .replace("{names}", "lint, e2e")}`,
+        .replace("{names}", "lint, e2e"),
     );
-    expect(valueOf(html, runJson.props.conflict)).toBe(runJson.props.hasConflict);
-    expect(valueOf(html, runJson.props.behind)).toBe(
-      runJson.props.behindBy.replace("{count}", "3"),
-    );
-    expect(valueOf(html, runJson.props.prReadAt)).toBeDefined();
+    expect(valueOf(html, runJson.pr.conflict)).toBe(runJson.pr.hasConflict);
+    expect(valueOf(html, runJson.pr.base)).toBe(runJson.pr.behindBy.replace("{count}", "3"));
+    expect(text(html)).toContain(runJson.pr.readAt.replace("{time} ", ""));
     expect(pillsOf(html).map((pill) => pill.label)).toEqual([domain.summary.succeeded]);
     expect(text(html)).not.toContain("CI 다시");
   });
@@ -428,13 +698,13 @@ describe("Run 상세 화면", () => {
         },
       },
     });
-    expect(valueOf(render(page(db, id)), runJson.props.conflict)).toBe(runJson.props.hasConflict);
+    expect(valueOf(render(page(db, id)), runJson.pr.conflict)).toBe(runJson.pr.hasConflict);
 
     walk(db, id, 410, [{ to: "ended", agentResult: "reported-success", prState: "open" }]);
-    expect(valueOf(render(page(db, id)), runJson.props.conflict)).toBe(runJson.props.hasConflict);
+    expect(valueOf(render(page(db, id)), runJson.pr.conflict)).toBe(runJson.pr.hasConflict);
 
     updateRunRecords(db, id, { worktreeRemovedAt: minutes(420) });
-    expect(valueOf(render(page(db, id)), runJson.props.conflict)).toBeUndefined();
+    expect(valueOf(render(page(db, id)), runJson.pr.conflict)).toBeUndefined();
   });
 
   it("같은 커밋에서 PR 정보만 못 읽으면 지난 검사 결과 대신 새 CI 값을 따른다 (0150)", () => {
@@ -557,8 +827,8 @@ describe("Run 상세 화면", () => {
       },
     });
     const html = render(page(db, id));
-    expect(valueOf(html, runJson.props.conflict)).toBeUndefined();
-    expect(valueOf(html, runJson.props.behind)).toBeUndefined();
+    expect(valueOf(html, runJson.pr.conflict)).toBeUndefined();
+    expect(valueOf(html, runJson.pr.base)).toBeUndefined();
   });
 
   it("제목은 할당 때 저장한 티켓 제목이고, 회색 줄에 키를 함께 보인다(ADR 0010 9번, 0064)", () => {
@@ -575,16 +845,18 @@ describe("Run 상세 화면", () => {
 
   it("에이전트는 ID 대신 공용 에이전트 이름으로 보인다", () => {
     const { db, ids } = seedDatabase();
-    expect(valueOf(render(page(db, ids.get("ACME-2"))), runJson.props.agent)).toBe("Claude Code");
+    expect(valueOf(render(page(db, ids.get("ACME-2"))), runJson.props.agentModel)).toContain(
+      "Claude Code",
+    );
   });
 
   it("런에 적은 모델을 보이고, 정하지 않았으면 러너 기본값을 쓴다고 보인다(0043)", () => {
     const { db, ids } = seedDatabase();
-    expect(valueOf(render(page(db, ids.get("ACME-2"))), runJson.props.model)).toBe(
+    expect(valueOf(render(page(db, ids.get("ACME-2"))), runJson.props.agentModel)).toContain(
       runJson.props.defaultModel,
     );
     const id = assign(db, "ACME-90", 500, "sonnet");
-    expect(valueOf(render(page(db, id)), runJson.props.model)).toBe("sonnet");
+    expect(valueOf(render(page(db, id)), runJson.props.agentModel)).toContain("sonnet");
   });
 
   it("러너에 닿지 못한 채 끝난 취소 런은 워크트리를 남긴 이유와 지우기 버튼을 보인다", () => {
@@ -598,16 +870,16 @@ describe("Run 상세 화면", () => {
     expect(labels(removed)).not.toContain(runJson.removeWorktree.trigger);
   });
 
-  it("결과 곁에 PR 번호와 지금 PR 상태를 보이고, 이후 PR 상태가 있으면 그것을 보인다 (0145)", () => {
+  it("PR 구역에 PR 번호와 지금 PR 상태를 보이고, 이후 PR 상태가 있으면 그것을 보인다 (0145, 0174)", () => {
     const { db, ids } = seedDatabase();
     const id = ids.get("ACME-2");
     if (id === undefined) throw new Error("no ACME-2");
-    const stateLine = (): string => text(render(page(db, id)));
-    expect(stateLine()).toContain(`${domain.summary.failed} PR #2 ${domain.prState.open}`);
+    const body = (): string => text(render(page(db, id)));
+    expect(body()).toContain(`PR #2 ${domain.prState.open}`);
     updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(110) } });
-    expect(stateLine()).toContain(`${domain.summary.failed} PR #2 ${domain.prState.merged}`);
+    expect(body()).toContain(`PR #2 ${domain.prState.merged}`);
     const noPr = text(render(page(db, ids.get("ACME-4"))));
-    expect(noPr).not.toContain(`${domain.summary.failed} PR `);
+    expect(noPr).not.toContain(runJson.pr.open);
   });
 
   it("Succeeded 인데 PR 이 없으면 워크트리를 남겼다고 보이고 워크트리 지우기를 둔다 (0145 R7-2·R7-3)", () => {
@@ -620,7 +892,7 @@ describe("Run 상세 화면", () => {
     const html = render(page(db, id));
     const body = text(html);
     expect(body).toContain(`${runJson.keptWorktree["no-pr"]} ${runJson.keptWorktreeNext["no-pr"]}`);
-    expect(body).not.toContain(runJson.next.succeeded);
+    expect(body).not.toContain("할 일이 없어요");
     expect(labels(html)).toContain(runJson.removeWorktree.trigger);
     expect(html).toMatch(/data-variant="danger"[^>]*>워크트리 지우기|워크트리 지우기/);
   });
@@ -800,7 +1072,7 @@ describe("Run 상세 화면", () => {
     expect(pillsOf(html)).toContainEqual({ status: "paused", label: domain.runState.paused });
     expect(buttonsOf(html)).toContainEqual({ variant: "primary", label: runJson.control.resume });
     expect(labels(html)).not.toContain(runJson.control.pause);
-    expect(text(html)).toContain(runJson.next.paused);
+    expect(text(html)).toContain(domain.runNextStep.body.paused);
     expect(text(html)).toContain(
       runJson.reason.paused.replace("{source}", domain.pauseSource.operator),
     );
@@ -833,7 +1105,7 @@ describe("Run 상세 화면", () => {
     expect(body).toContain("돌려 주세요");
     expect(body).toContain(questionJson.send);
     expect(html).toMatch(/<input type="radio"[^>]*value="0"/);
-    expect(body).toContain(runJson.next.question);
+    expect(body).toContain(domain.runNextStep.body.question);
     expect(body).not.toContain(runJson.permission.deny);
   });
 
@@ -872,7 +1144,7 @@ describe("Run 상세 화면", () => {
     );
     const html = render(page(db, id));
     expect(html).not.toContain('name="answer"');
-    expect(text(html)).toContain(runJson.next.answered);
+    expect(text(html)).toContain(runJson.reason.answered);
     expect(html).toMatch(new RegExp(`role="status"[^>]*>${runJson.question.sent}<`));
   });
 
@@ -900,6 +1172,7 @@ describe("Run 상세 화면", () => {
         page={page(db, id)}
         runsHref="/runs"
         runHref={(other) => `/runs/${other}`}
+        runnerHref={(runner) => `/runs?runner=${runner}`}
         logStalled
         onAnswer={resolved}
         onHumanCheck={resolved}

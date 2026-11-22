@@ -276,8 +276,11 @@ describe("Runs 화면(브라우저, 0056)", () => {
     expect(await overflow(page)).toBe(0);
 
     await page.goto(`/runs/${id}`);
-    await page.getByText(runJson.props.hasConflict).waitFor();
-    await page.getByText(/browser-shard-with-a-long-check-name/).waitFor();
+    await page.getByText(runJson.pr.hasConflict, { exact: true }).waitFor();
+    await page
+      .getByText(/browser-shard-with-a-long-check-name/)
+      .first()
+      .waitFor();
     expect(await overflow(page)).toBe(0);
   });
 

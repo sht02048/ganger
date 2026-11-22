@@ -31,6 +31,7 @@ import {
   DataTableHeader,
   DataTableRow,
   DataTableRowHeader,
+  Card,
   Disclosure,
   DividedItem,
   DividedList,
@@ -504,6 +505,11 @@ export function BlockSections() {
               <Disclosure summary={t("disclosure.summary")}>
                 <Text variant="body">{t("disclosure.body")}</Text>
               </Disclosure>
+              <Card>
+                <Disclosure flat summary={t("disclosure.summary")}>
+                  <Text variant="body">{t("disclosure.body")}</Text>
+                </Disclosure>
+              </Card>
             </div>
           </Demo>
         </Section>

@@ -76,6 +76,9 @@ function RunDetail({ runId }: { runId: string }) {
         page={page}
         runsHref={`/runs${search}`}
         runHref={(id) => `/runs/${encodeURIComponent(id)}${search}`}
+        runnerHref={(id) =>
+          `/runs${search === "" ? "?" : `${search}&`}runner=${encodeURIComponent(id)}`
+        }
         logStalled={!controlPending(page) && fetchCount() - logPollsFrom >= LOG_POLL_LIMIT}
         {...actions}
       />

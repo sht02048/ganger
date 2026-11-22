@@ -107,7 +107,8 @@ export function loadRunDetail(db: Database, runId: string, now: Date): RunDetail
     workspace: { id: run.workspaceId, name: workspace?.name ?? run.workspaceId },
     branch: run.state === "queued" ? null : run.branch,
     worktree: run.state === "queued" ? null : run.worktree,
-    runner: runner === undefined ? null : { name: runner.name, online: runner.online },
+    runner:
+      runner === undefined ? null : { id: runner.id, name: runner.name, online: runner.online },
     agent: run.agent,
     model: run.model,
     assignedAt: run.assignedAt.toISOString(),
