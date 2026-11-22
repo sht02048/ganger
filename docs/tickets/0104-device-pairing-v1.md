@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 blocked_by: []
 ---
 
@@ -20,9 +20,9 @@ blocked_by: []
 - GLOSSARY에 기기 토큰, 기기 연결, 연결 코드를 더한다. "페어링 코드"는 쓰지 않는다(Runner Enrollment의 _Avoid_).
 - Expo 푸시 주소는 어느 화면과 API 응답에도 싣지 않는다(ADR 0016).
 
-## 시작할 때 운영자와 정할 것
+## 운영자 결정
 
-- 기기 표의 종류별 켜기 단위: 알림 사건 8종 각각인지 데스크톱의 5묶음인지(스펙 0002 열린 질문 18).
+- 기기 표의 종류별 켜기는 데스크톱 알림 설정과 같은 5묶음(Question, Permission, Human Check, Failed·Disconnected, Runner Issue)으로 둔다. 알림 사건 8종 각각이 아니다(스펙 0002 M47).
 
 ## 범위 밖
 
