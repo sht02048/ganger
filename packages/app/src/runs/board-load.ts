@@ -112,7 +112,7 @@ export function loadRunsBoard(
   return {
     workspace,
     active,
-    ended: listed.slice(0, endedLimit).map((run) => withContinue(db, run)),
+    ended: listed.slice(0, endedLimit),
     endedCounts: { review: review.length, all: endedRuns.length },
     endedView,
     failedOnly,

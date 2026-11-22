@@ -65,10 +65,9 @@ function RunsRoute() {
   const { sel, ws, ended, runner } = Route.useSearch();
   const navigate = Route.useNavigate();
   const nextEnded = (ended ?? ENDED_RUNS_PAGE_SIZE) + ENDED_RUNS_PAGE_SIZE;
-  const listed = [...page.active, ...page.ended].some((run) => run.id === sel);
-  const { data: outsideRun } = useQuery({
+  const { data: selectedRun } = useQuery({
     ...runsBoardRunQuery(ws, sel ?? ""),
-    enabled: sel !== undefined && !listed,
+    enabled: sel !== undefined,
   });
   const narrow = (change: {
     view?: (typeof ENDED_VIEWS)[number];
@@ -88,7 +87,7 @@ function RunsRoute() {
         drawKey={drawKey}
         workspaces={shell.workspaces}
         selectedId={sel}
-        outsideRun={outsideRun ?? null}
+        selectedRun={selectedRun ?? null}
         runnerId={runner}
         onSelect={(id) => {
           void navigate({

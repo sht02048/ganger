@@ -226,7 +226,7 @@ describe("Runs 두 구역(0173)", () => {
 describe("Runs 패널(0173)", () => {
   it("PR CI 실패면 처리할 일 상자에 실패한 검사 보기와 이어서 맡기기를 둔다", () => {
     const { page, id } = endWithPr("open");
-    const html = panelHtml(find(page, id));
+    const html = panelHtml({ ...find(page, id), canContinue: true });
     const text = textOf(html);
     expect(text).toContain(runsJson.panel.todoTitle);
     expect(text).toContain(runsJson.panel.prSection.failedChecks);

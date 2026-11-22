@@ -84,7 +84,7 @@ export interface RunsScreenProps {
   drawKey?: string;
   workspaces: ReadonlyArray<WorkspaceSummary>;
   selectedId: string | undefined;
-  outsideRun?: BoardRun | null;
+  selectedRun?: BoardRun | null;
   runnerId?: string | undefined;
   onSelect: (runId: string | undefined) => void;
   onOpen: (runId: string) => void;
@@ -169,7 +169,7 @@ function useSituationText(): (part: SituationPart) => string {
 }
 
 function RunsBoard(props: RunsScreenProps) {
-  const { page, selectedId, outsideRun, runnerId, onOpen, onClearConditions, runHref } = props;
+  const { page, selectedId, selectedRun, runnerId, onOpen, onClearConditions, runHref } = props;
   const t = useTranslations("runs");
   const opener = useRef<HTMLElement | null>(null);
   const onSelect = (id: string | undefined) => {
@@ -183,9 +183,10 @@ function RunsBoard(props: RunsScreenProps) {
   const focusAfterClear = useRef(false);
   const cards = runnerCards(page.runners, page.active, page.conditions, runnerId);
   const queue = waitingRuns(page.active);
+  const read = selectedRun?.id === selectedId ? (selectedRun ?? undefined) : undefined;
+  const listed = [...page.active, ...page.ended].find((run) => run.id === selectedId);
   const selected =
-    [...page.active, ...page.ended].find((run) => run.id === selectedId) ??
-    (outsideRun?.id === selectedId ? (outsideRun ?? undefined) : undefined);
+    listed === undefined ? read : { ...listed, canContinue: read?.canContinue ?? false };
 
   useEffect(() => {
     if (!focusAfterClear.current) return;
@@ -436,6 +437,9 @@ function EndedSection({
     return () => observer.disconnect();
   }, [canLoadMore, shownCount]);
   const periodIsChoice = ENDED_PERIOD_CHOICES.some((days) => days === page.days);
+  const removedRunnerName = page.conditions.flatMap((condition) =>
+    condition.key === "runner" && condition.name !== null ? [condition.name] : [],
+  )[0];
   const runnerValue = runnerId === undefined ? ALL_RUNNERS : runnerId === "" ? null : runnerId;
   return (
     <Section title={t("title")} titleRole="heading" count={page.endedCounts.all}>
@@ -480,6 +484,11 @@ function EndedSection({
               options={[
                 { value: ALL_RUNNERS, label: t("allRunners") },
                 ...page.runners.map((runner) => ({ value: runner.id, label: runner.name })),
+                ...(runnerId === undefined ||
+                runnerId === "" ||
+                page.runners.some((runner) => runner.id === runnerId)
+                  ? []
+                  : [{ value: runnerId, label: removedRunnerName ?? runnerId }]),
               ]}
               onValueChange={(value) => onRunnerChange?.(value === ALL_RUNNERS ? undefined : value)}
             />

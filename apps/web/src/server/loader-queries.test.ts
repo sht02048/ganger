@@ -11,6 +11,7 @@ import type { Database } from "@ganger/db";
 import { describe, expect, it, vi } from "vitest";
 import { loadHomePage } from "@ganger/app/home/load";
 import { loadRunnersPage } from "@ganger/app/runners/load";
+import { loadRunsBoard } from "@ganger/app/runs/board-load";
 import { loadRunsPage } from "@ganger/app/runs/load";
 import { loadShell } from "@ganger/app/shell/load";
 import { loadStatsPage } from "@ganger/app/stats/load";
@@ -69,6 +70,10 @@ const loaders: ReadonlyArray<[string, (db: Database) => unknown]> = [
   ["셸", (db) => loadShell(db)],
   ["Dashboard", (db) => loadHomePage(db, commerce, now, "UTC")],
   ["Runs", (db) => loadRunsPage(db, commerce, now, 20, {}, "UTC")],
+  [
+    "Runs 보드",
+    (db) => loadRunsBoard(db, commerce, now, { endedLimit: 50, view: "all", timeZone: "UTC" }),
+  ],
   ["Runners", (db) => loadRunnersPage(db, now)],
   ["Stats", (db) => loadStatsPage(db, commerce, now, "UTC", 30)],
   ["Tickets 의 DB 부분", (db) => loadTicketRuns(db, commerce, now)],

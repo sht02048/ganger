@@ -127,6 +127,16 @@ describe("Runs 보드 읽기(0173)", () => {
     expect(page.ended.some((run) => run.id === failedId)).toBe(false);
   });
 
+  it("이어서 맡길 수 있는지는 목록이 아니라 고른 런 하나를 읽을 때 정한다", () => {
+    const { db, ids } = seedDatabase();
+    const failed = endedCases.find((c) => c.summary === "failed");
+    if (failed === undefined) throw new Error("seed");
+    const id = ids.get(failed.key) ?? "";
+    const row = loadRunsBoard(db, undefined, now, { view: "all" }).ended.find((r) => r.id === id);
+    expect(row?.canContinue).toBe(false);
+    expect(loadBoardRun(db, undefined, id, now)?.canContinue).toBe(true);
+  });
+
   it("러너 자리는 다른 Workspace 의 런까지 세고, 조건이 걸려도 그대로다", () => {
     const { db } = seedDatabase();
     const all = loadRunsBoard(db, undefined, now);
