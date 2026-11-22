@@ -13,7 +13,7 @@ blocked_by: [0104]
 
 - 알림 사건 목록, SSE를 v1 계약(`packages/api`)으로 둔다. 사건 하나 읽기는 지금 없어 새로 만든다. 종류는 지금 8종 그대로다(M29). v1 경로는 `/api/v1/notification-events`다. 옛 `/api/notification-events`와 `/api/attention`은 v0.6.0까지 두고 지운다(M42). 지우는 일은 v0.6.0 출시 때 잊지 않게 이 티켓 PR에 적는다.
 - 데스크톱 앱(같은 기계 모드, 원격 모드)의 v1 인증. 데스크톱도 기기 토큰을 쓰고 첫 연결 때 자동 등록한다(M39).
-- 알림 사건 동기화를 클라이언트 요청과 상관없이 worker가 주기적으로 돌린다(M43). 지금은 `/api/notification-events`, 그 SSE, `/api/attention`에 요청이 올 때만 돌아(`apps/web/src/notifications/server.ts`), 요청이 없으면 사건이 생기지 않는다.
+- 알림 사건 동기화를 클라이언트 요청과 상관없이 worker가 주기적으로 돌린다(M43). 지금은 `/api/notification-events`, 그 SSE, `/api/attention`에 요청이 올 때만 돌아(`apps/web/src/notifications/server.ts`), 요청이 없으면 사건이 생기지 않는다. `syncNotifications`는 지금 `apps/web`에 있고 `apps/worker`는 `@ganger/app`에 기대지 않아, 동기화 코드를 둘 자리와 의존성도 이 티켓에서 고친다.
 
 ## 시작할 때 운영자와 정할 것
 

@@ -4,7 +4,7 @@
 
 **갱신(2026-11-23, 티켓 [0188](../tickets/0188-mobile-plan-refresh.md)).** 계획을 쓴 뒤 0113~0183이 머지되고 v0.4.0이 나와 도메인과 화면이 바뀌었다. 본문의 사실을 지금 코드에 맞추고, 그날 운영자가 정한 M22~M45를 11절에 더했다.
 
-용어는 [GLOSSARY](../../GLOSSARY.md)를 따른다. 문장 안에서 To do는 처리할 일로 쓴다. 이 문서를 쪼갠 티켓은 [0104](../tickets/0104-device-pairing-v1.md)~[0112](../tickets/0112-mobile-testflight.md)이고, 남은 열린 질문 14는 티켓 0109의 실기기 확인으로 푼다.
+용어는 [GLOSSARY](../../GLOSSARY.md)를 따른다. 문장 안에서 To do는 처리할 일로 쓴다. 이 문서를 쪼갠 티켓은 [0104](../tickets/0104-device-pairing-v1.md)~[0112](../tickets/0112-mobile-testflight.md)이고, 남은 열린 질문은 12절에 적은 티켓에서 푼다.
 
 ## 1. 목표와 완료 기준
 
@@ -94,8 +94,8 @@
 - `/api/v1`만 기기 토큰을 요구한다(ADR 0015). 지금 웹 화면과 서버 함수, `/api/identity`, webhook은 바꾸지 않는다.
 - 읽기: Dashboard 세 칸과 처리할 일, 런 상세(처리할 일 띠의 `runNextStep`, 요약, PR 구역, 질문과 선택지, Human Check 내용, 실패 이유), Runners, 설정에 필요한 서버 정보. 타임라인과 터미널은 열지 않아 `requestRunLog`도 v1에 없다(M37).
 - 쓰기: 답하기, Human Check 답하기, Permission 거절, 런 취소, 재개. 지금 서버 함수(`answerQuestion`, `answerHumanCheck`, `denyPermission`, `cancelRun`, `controlRun`의 `resume`)와 같은 규칙을 쓴다. `controlRun`의 `pause`는 v1에 열지 않는다(M24). 다시 맡기기(`assignTicket`에 이전 런의 저장소·러너·에이전트)와 이어서 맡기기(`continueRunFrom`)를 연다(M38). 여러 티켓을 맡기는 `assignTickets`는 열지 않는다. `startRunWithoutWaiting`과 `sendAgentMessage`는 v1에 열지 않는다(M28).
-- 같은 요청 한 번만(M25): v1의 모든 쓰기는 `requestId`(16~64자)가 필수다. 같은 런에 이미 성공한 ID와 같은 내용이 다시 오면 다시 처리하지 않고 그 성공으로 답한다. 예외로 `controlRun` 요청이 뒤에 실패로 기록되면(러너에서 재개하지 못함) 같은 ID로 다시 처리한다. 거절된 요청은 기록하지 않아 같은 ID로 다시 시도할 수 있다. 같은 ID에 내용이 다르면 거절한다. 이유 값은 `answerQuestion`·`answerHumanCheck`가 `already-answered`이고 그 밖의 쓰기는 `request-reused`다(티켓 [0156](../tickets/0156-dedupe-run-actions.md), `handleRunActionOnce`). 지금 `answerQuestion`, `answerHumanCheck`, `cancelRun`, `controlRun`, `continueRunFrom`에는 이 보호가 있고, `denyPermission`, `assignTicket`에는 없어 v1에 열 때 더한다. 할당은 요청 때 런이 없어 런에 묶인 `run_action_requests` 표를 그대로 쓸 수 없고 따로 저장할 곳이 필요하다(티켓 0111). 거절은 이유 값(예: `already-answered`, `not-found`, `resolved`)으로 돌려주고 앱이 그 이유를 문장으로 보인다.
-- 알림 사건: 티켓 0103의 목록과 SSE를 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다(M6). 0103 구현은 목록과 SSE를 `/api/notification-events`(v1 밖, `request-guard`만 거침)에 두었고, 옛 `/api/attention`도 v0.4.0에 남아 있다. v1로 옮기고 데스크톱 인증을 붙이는 일은 티켓 0108이 한다. v1 경로는 `/api/v1/notification-events`이고, 옛 `/api/notification-events`와 `/api/attention`은 v0.6.0까지 두고 지운다(M42). 0108 전까지 0104는 알림 사건 경로에 토큰을 요구하지 않는다. 지금 알림 사건 동기화는 이 경로들에 요청이 올 때만 돌아(`apps/web/src/notifications/server.ts`), Mac이 잠들었거나 앱을 끄면 사건이 생기지 않는다. 0108이 worker가 클라이언트와 상관없이 주기적으로 동기화하게 바꾸고, worker가 Expo Push도 함께 보낸다(M43). 사건 하나를 읽는 경로는 아직 없어 0108이 더하고, 앱의 NSE는 그 경로로 사건 번호 하나의 제목과 대상을 읽는다.
+- 같은 요청 한 번만(M25): v1의 모든 쓰기는 `requestId`(16~64자)가 필수다. 같은 런에 이미 성공한 ID와 같은 내용이 다시 오면 다시 처리하지 않고 그 성공으로 답한다. 예외가 둘이다. `controlRun` 요청이 뒤에 실패로 기록되면(러너에서 재개하지 못함) 같은 ID로 다시 처리하고, `continueRunFrom`은 이어 만든 런이 없어졌거나 시작하지 못하고 끝났으면 같은 ID로 다시 처리한다. 거절된 요청은 기록하지 않아 같은 ID로 다시 시도할 수 있다. 같은 ID에 내용이 다르면 거절한다. 이유 값은 `answerQuestion`·`answerHumanCheck`가 `already-answered`이고 그 밖의 쓰기는 `request-reused`다(티켓 [0156](../tickets/0156-dedupe-run-actions.md), `handleRunActionOnce`). 지금 `answerQuestion`, `answerHumanCheck`, `cancelRun`, `controlRun`, `continueRunFrom`에는 이 보호가 있고, `denyPermission`, `assignTicket`에는 없어 v1에 열 때 더한다. 할당은 요청 때 런이 없어 런에 묶인 `run_action_requests` 표를 그대로 쓸 수 없고 따로 저장할 곳이 필요하다(티켓 0111). 거절은 이유 값(예: `already-answered`, `not-found`, `resolved`)으로 돌려주고 앱이 그 이유를 문장으로 보인다.
+- 알림 사건: 티켓 0103의 목록과 SSE를 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다(M6). 0103 구현은 목록과 SSE를 `/api/notification-events`(v1 밖, `request-guard`만 거침)에 두었고, 옛 `/api/attention`도 v0.4.0에 남아 있다. v1로 옮기고 데스크톱 인증을 붙이는 일은 티켓 0108이 한다. v1 경로는 `/api/v1/notification-events`이고, 옛 `/api/notification-events`와 `/api/attention`은 v0.6.0까지 두고 지운다(M42). 0108 전까지 0104는 알림 사건 경로에 토큰을 요구하지 않는다. 지금 알림 사건 동기화는 이 경로들에 요청이 올 때만 돌아(`apps/web/src/notifications/server.ts`), 데스크톱 앱을 끄면 사건이 생기지 않는다. 0108이 worker가 클라이언트와 상관없이 주기적으로 동기화하게 바꾸고, worker가 Expo Push도 함께 보낸다(M43). worker는 서버가 깨어 있는 동안만 돌아, 로컬 모드 노트북이 잠든 동안에는 사건도 푸시도 없다. 사건 하나를 읽는 경로는 아직 없어 0108이 더하고, 앱의 NSE는 그 경로로 사건 번호 하나의 제목과 대상을 읽는다.
 - 화면 갱신(M26): 변경 기록 SSE(ADR [0019](../adr/0019-query-cache-and-change-events.md), 웹은 `/api/change-events/stream`)를 v1 아래에 기기 토큰 인증으로 연다. 앱이 앞에 있을 때만 붙고, 실패하면 폴링한다.
 - 버전 호환(M27): v1 응답에 서버 버전과 계약 버전을 싣고, 앱은 최소 서버 버전을 가진다. `/api/build`(티켓 [0180](../tickets/0180-stale-client-reload.md))는 웹 전용이라 앱이 쓰지 않는다.
 - Host 거절: 다른 기기에서 열 주소가 허용되지 않으면 서버는 403으로 거절한다(티켓 [0157](../tickets/0157-address-webhook-setup.md) F7·F8). 응답 본문에는 읽을 수 있는 이유 값이 없으므로, 앱은 데스크톱 앱처럼 Host 검사를 받지 않는 `/api/identity`의 `webAccess`가 `host-not-allowed`인지 보고 인증 실패와 가른 뒤, 서버 맥의 Settings › 주소를 고치라고 안내한다.
@@ -110,7 +110,7 @@ ADR 0016을 요약한다.
 - 기기 연결 때 알림을 받을지 묻고, 허용한 기기에만 보낸다. 기기를 지우면 멈춘다(M11).
 - Expo의 Enhanced Push Security는 끈다(M12).
 - 알림에는 사건 번호와 티켓 내용이 없는 고정 문구("처리할 일이 생겼어요")만 싣는다. 폰의 NSE가 다른 기기에서 열 주소로 서버에 물어 제목과 내용을 채운다. 서버에 닿지 않으면 고정 문구가 그대로 보인다(M13).
-- 종류는 지금 알림 사건 8종 그대로다(M29, `packages/app/src/notifications/causes.ts`: `question`, `human-check`, `permission`, `disconnected`, `failed`, `runner-offline`, `runner-auth`, `runner-usage-limit`). 모두 소리 있는 보통 알림이다. Human Check도 데스크톱의 지금 동작처럼 소리가 있고, 데스크톱은 Question·Permission·Human Check를 10분 뒤 한 번 더 알린다(M23). 모바일도 같게 10분 뒤 한 번 다시 알리고, 5초 안에 3개를 넘으면 묶으며, 다른 곳에서 처리된 사건의 알림은 조용한 푸시로 지운다(M33). 종류별로 끈 알림은 서버가 보내지 않는다(M40). Succeeded와 Canceled, Paused, Queued·Running으로 옮김은 알리지 않는다. 시간 민감(Time Sensitive) 알림은 쓰지 않는다(M14).
+- 종류는 지금 알림 사건 8종 그대로다(M29, `packages/app/src/notifications/causes.ts`: `question`, `human-check`, `permission`, `disconnected`, `failed`, `runner-offline`, `runner-auth`, `runner-usage-limit`). 모두 소리 있는 보통 알림이다. Human Check도 데스크톱의 지금 동작처럼 소리가 있고, 데스크톱은 Question·Permission·Human Check를 10분 뒤 한 번 더 알린다(M23). 모바일도 같게 10분 뒤 한 번 다시 알리고, To do 종류가 5초 안에 3개를 넘으면 묶으며(Runner Issue는 묶지 않는다), 다른 곳에서 처리된 사건의 알림은 조용한 푸시로 지운다(M33). 종류별로 끈 알림은 서버가 보내지 않는다(M40). Succeeded와 Canceled, Paused, Queued·Running으로 옮김은 알리지 않는다. 시간 민감(Time Sensitive) 알림은 쓰지 않는다(M14).
 - 데스크톱 앱이 시스템 유휴 시간 기준 마지막 사용 시각을 1분마다 서버에 보고한다. 최근 2분 안에 사용했으면 Mac 앞으로 보고 모바일 푸시를 5분 미루며, 그 사이 해결되면 보내지 않는다(M15, M32). 이 미루기에는 스위치를 두지 않는다(M40).
 - Question 알림에는 "답하기", Human Check 알림에는 "확인하기" 버튼 하나를 두고, 누르면 앱이 열려 그 시트가 뜬다. 다른 종류의 알림에는 버튼을 두지 않는다(M16, M22).
 
@@ -126,8 +126,8 @@ ADR 0016을 요약한다.
 
 - 데스크톱 앱 서명에 쓰는 Apple 개발자 팀으로 iOS 앱을 낸다(M7).
 - App Store 심사관은 운영자 서버에 붙을 수 없으므로 앱 안 데모 모드(가짜 데이터)를 둔다(M7). 제품 앱은 `demo/`를 import 하지 않는다(AGENTS.md, 티켓 0047). 데모 데이터는 `apps/mobile/src/demo/`에 두고 모양은 `packages/api` 계약 타입에 맞춘다(M44).
-- 개발 환경(M45): `pnpm dev:mobile` 하나로 시드된 데모 서버(`demo/`의 dev 서버)와 Expo 개발 서버를 함께 띄운다. 앱은 개발 빌드에서 QR 없이 그 로컬 서버에 자동 연결하고, 개발용 기기 토큰은 dev 서버가 발급한다. 개발 연결 정보는 데스크톱의 `GANGER_DESKTOP_DEV_SERVER`처럼 환경 변수로 받아 제품 앱이 `demo/`를 import 하지 않게 한다. 서버 없는 앱 안 데모 모드도 그대로 둔다.
-- 서버는 HTTPS 주소로 닿아야 한다. iOS의 ATS는 기본으로 평문 http를 막고, 앱에 예외를 두지 않는다(research 0014 3절, ADR 0015).
+- 개발 환경(M45): `pnpm dev:mobile` 하나로 시드된 데모 서버(`demo/`의 dev 서버)와 Expo 개발 서버를 함께 띄운다. 앱은 개발 빌드에서 QR 없이 그 로컬 서버에 자동 연결하고, 개발용 기기 토큰은 dev 서버가 발급한다. 개발 연결 정보는 데스크톱의 `GANGER_DESKTOP_DEV_SERVER`처럼 환경 변수로 받아 제품 앱이 `demo/`를 import 하지 않게 한다. 서버 없는 앱 안 데모 모드도 그대로 둔다. 지금 dev 서버는 평문 http로 `127.0.0.1`에 떠서, 개발 빌드가 어떻게 닿을지는 열린 질문 17이다.
+- 서버는 HTTPS 주소로 닿아야 한다. iOS의 ATS는 기본으로 평문 http를 막고, 앱에 예외를 두지 않는다(research 0014 3절, ADR 0015). 개발 빌드도 같을지는 열린 질문 17이다.
 - CI: 디자인 시스템 lint와 `check:lengths`는 `apps/web`만 본다. 색 검사(`check:colors`)의 허용 경로는 `packages/ui` 하나라, 모바일 토큰 위치를 더해야 한다(티켓 0105). `bundle`과 `smoke:bundle`의 서버 배포물에는 모바일 앱이 들어가면 안 된다.
 - 출시: 브랜치 흐름은 ADR [0017](../adr/0017-develop-branch-flow.md)을 따른다. `.github/workflows/release.yml`은 `v*` 태그로 돌고 서명 비밀 값은 `release` environment에 있다. 버전 파일은 루트와 `apps/desktop`의 `package.json`이다(`scripts/release-version.ts`). 모바일 버전과 배포를 여기에 묶을지는 티켓 0112에서 정한다.
 
@@ -202,6 +202,8 @@ M9로 정한 순서다. 1번은 이 문서와 함께 들어가고, 2번부터는
 
 ## 12. 열린 질문
 
-남은 질문은 14 하나다. 나머지는 2026-11-23까지 정해 11절로 옮겼다. 옛 문서가 가리키는 질문 번호와 결정은 1→M31, 2→M32, 3→M33, 4→티켓 0163(4절 「칸 이름」), 5→M34, 6→M35, 7→M36, 8→M37, 9→M38, 10→M39, 11→M40, 12→M41, 13→M42, 15→M43, 16→M44로 이어진다.
+남은 질문은 14와, 결정을 문서에 옮기며 드러난 17·18이다. 나머지는 2026-11-23까지 정해 11절로 옮겼다. 옛 문서가 가리키는 질문 번호와 결정은 1→M31, 2→M32, 3→M33, 4→티켓 0163(4절 「칸 이름」), 5→M34, 6→M35, 7→M36, 8→M37, 9→M38, 10→M39, 11→M40, 12→M41, 13→M42, 15→M43, 16→M44로 이어진다.
 
 - **질문 14. 새어 나간 푸시 주소.** Expo 푸시 주소를 무효로 하는 방법(앱 다시 설치, Expo 쪽 기능)을 실기기로 확인해야 한다. 결정이 아니라 확인 작업이고, 티켓 0112 전에 티켓 0109에서 한다.
+- **질문 17. 개발 빌드의 연결(M45).** dev 서버는 평문 http로 `127.0.0.1`에 뜨고, 앱에는 ATS 예외를 두지 않기로 했다(ADR 0015). 실기기는 그 주소에 닿지 않고, 바인드를 넓히면 Host 허용도 맞춰야 한다. 개발 빌드에만 예외를 둘지 HTTPS 터널을 쓸지, 시뮬레이터와 실기기를 어떻게 나눌지 티켓 0106을 시작할 때 운영자와 정한다.
+- **질문 18. 종류별 켜기의 단위(M40).** 알림 사건은 8종이고 데스크톱 설정은 5묶음(Question, Permission, Human Check, Failed·Disconnected, Runner Issue)이다. 기기 표에 어느 단위로 둘지 티켓 0104를 시작할 때 운영자와 정한다.
