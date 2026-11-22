@@ -1,4 +1,4 @@
-import type { IssueRowSurface, IssueStateKind } from "@ganger/ui";
+import type { IssueGroupPhase, IssueRowSurface, IssueStateKind } from "@ganger/ui";
 import { lastRun, matchesFilter, matchesSearch } from "@ganger/app/tickets/model";
 import type { TicketFilter, TicketView } from "@ganger/app/tickets/model";
 import type {
@@ -128,4 +128,130 @@ export function listRows(input: {
 
 export function isSelectableRow(row: TicketListRow): boolean {
   return row.kind !== "loose-head";
+}
+
+export function withClosingGroupsOpen(
+  overrides: ReadonlyMap<string, boolean>,
+  phases: ReadonlyMap<string, IssueGroupPhase>,
+): ReadonlyMap<string, boolean> {
+  const closing = [...phases].filter(([, phase]) => phase === "closing");
+  if (closing.length === 0) return overrides;
+  const presented = new Map(overrides);
+  for (const [id] of closing) presented.set(id, true);
+  return presented;
+}
+
+export interface BlockRow {
+  kind: TicketListRow["kind"];
+  id: string;
+  surface?: IssueRowSurface;
+}
+
+export function movingChildPhases(
+  rows: ReadonlyArray<BlockRow>,
+  phases: ReadonlyMap<string, IssueGroupPhase>,
+): ReadonlyMap<string, IssueGroupPhase> {
+  const moving = new Map<string, IssueGroupPhase>();
+  if (phases.size === 0) return moving;
+  let phase: IssueGroupPhase | undefined;
+  for (const row of rows) {
+    if (row.kind === "parent") phase = phases.get(row.id);
+    else if (row.kind !== "child") phase = undefined;
+    else if (phase !== undefined) moving.set(row.id, phase);
+  }
+  return moving;
+}
+
+export type TicketListSpace = { kind: "space"; key: string; height: number };
+export type TicketBodyItem<R extends BlockRow = TicketListRow> =
+  | TicketListSpace
+  | { kind: "line"; row: R; index: number };
+export type TicketListBlock<R extends BlockRow = TicketListRow> =
+  | TicketListSpace
+  | { kind: "row"; row: R }
+  | {
+      kind: "body";
+      groupId: string;
+      phase: IssueGroupPhase | undefined;
+      childCount: number;
+      items: TicketBodyItem<R>[];
+    };
+
+interface BlockWindow {
+  start: number;
+  end: number;
+  offsets: ReadonlyArray<number>;
+  collapsed: { start: number; end: number } | null;
+}
+
+function addSpace<R extends BlockRow>(
+  list: Array<TicketListBlock<R>> | Array<TicketBodyItem<R>>,
+  key: string,
+  height: number,
+): void {
+  if (height <= 0) return;
+  const last = list.at(-1);
+  if (last?.kind === "space") last.height += height;
+  else list.push({ kind: "space", key: `space-${key}`, height });
+}
+
+export function listBlocks<R extends BlockRow>(
+  rows: ReadonlyArray<R>,
+  window: BlockWindow,
+  phases: ReadonlyMap<string, IssueGroupPhase>,
+): TicketListBlock<R>[] {
+  const { start, end, offsets, collapsed } = window;
+  const inMain = (index: number) => index >= start && index < end;
+  const inCollapsed = (index: number) =>
+    collapsed !== null && index >= collapsed.start && index < collapsed.end;
+  const heightOf = (index: number) => (offsets[index + 1] ?? 0) - (offsets[index] ?? 0);
+  const blocks: TicketListBlock<R>[] = [];
+  let index = 0;
+  while (index < rows.length) {
+    const row = rows[index];
+    if (row === undefined) break;
+    const shown = inMain(index) || inCollapsed(index);
+    if (shown) blocks.push({ kind: "row", row });
+    else addSpace(blocks, row.id, heightOf(index));
+    index += 1;
+    if (row.kind !== "parent") continue;
+    let bodyEnd = index;
+    while (rows[bodyEnd]?.kind === "child") bodyEnd += 1;
+    if (bodyEnd === index) continue;
+    const phase = phases.get(row.id);
+    let anyShown = phase !== undefined && shown;
+    for (let at = index; at < bodyEnd && !anyShown; at += 1) {
+      anyShown = inMain(at) || (phase === undefined && inCollapsed(at));
+    }
+    if (!anyShown) {
+      for (let at = index; at < bodyEnd; at += 1) {
+        addSpace(blocks, rows[at]?.id ?? "", heightOf(at));
+      }
+      index = bodyEnd;
+      continue;
+    }
+    const items: TicketBodyItem<R>[] = [];
+    for (let at = index; at < bodyEnd; at += 1) {
+      const child = rows[at];
+      if (child === undefined) continue;
+      if (inMain(at) || (phase === undefined && inCollapsed(at))) {
+        const presented: R =
+          phase !== undefined && child.kind === "child" && child.surface === "last"
+            ? { ...child, surface: "middle" }
+            : child;
+        items.push({ kind: "line", row: presented, index: at - index });
+      } else {
+        addSpace(items, child.id, heightOf(at));
+      }
+    }
+    blocks.push({
+      kind: "body",
+      groupId: row.id,
+      phase,
+      childCount: bodyEnd - index,
+      items,
+    });
+    index = bodyEnd;
+  }
+  return blocks;
 }

@@ -49,19 +49,39 @@ export function windowOf(
   return { start, end, spaceBefore: before, spaceAfter: total - (offsets[end] ?? total) };
 }
 
+export interface MovingRowWindow extends RowWindow {
+  offsets: ReadonlyArray<number>;
+  collapsed: RowWindow | null;
+}
+
+const NO_MOVING_KEYS: ReadonlyMap<string, unknown> = new Map();
+
 export function useRowWindow(
   root: RefObject<HTMLElement | null>,
   rowKeys: ReadonlyArray<string>,
   indexToKeepInView: number,
-): RowWindow {
+  movingKeys: ReadonlyMap<string, unknown> = NO_MOVING_KEYS,
+): MovingRowWindow {
   const measured = useRef(new Map<string, number>());
   const [version, setVersion] = useState(0);
   const [view, setView] = useState<{ from: number; to: number } | null>(null);
+  const holdScroll = movingKeys.size > 0;
 
   const offsets = useMemo(
     () =>
       rowOffsets(rowKeys.map((key) => measured.current.get(key) ?? ROW_HEIGHT_BEFORE_MEASURING)),
     [rowKeys, version],
+  );
+  const collapsedOffsets = useMemo(
+    () =>
+      holdScroll
+        ? rowOffsets(
+            rowKeys.map((key) =>
+              movingKeys.has(key) ? 0 : (measured.current.get(key) ?? ROW_HEIGHT_BEFORE_MEASURING),
+            ),
+          )
+        : null,
+    [rowKeys, version, movingKeys, holdScroll],
   );
 
   useLayoutEffect(() => {
@@ -70,7 +90,7 @@ export function useRowWindow(
     let changed = false;
     for (const row of element.querySelectorAll<HTMLElement>("[data-row-key]")) {
       const key = row.dataset["rowKey"];
-      if (key === undefined) continue;
+      if (key === undefined || row.closest("[data-issue-group-moving]") !== null) continue;
       const style = getComputedStyle(row);
       const height =
         row.getBoundingClientRect().height +
@@ -116,7 +136,10 @@ export function useRowWindow(
   }, [root, rowKeys.length]);
 
   const keyToKeepInView = rowKeys[indexToKeepInView];
+  const keptKey = useRef<string | undefined>(undefined);
   useLayoutEffect(() => {
+    if (holdScroll || keptKey.current === keyToKeepInView) return;
+    keptKey.current = keyToKeepInView;
     const element = root.current;
     if (element === null || indexToKeepInView < 0) return;
     const list = element.querySelector('[role="list"]');
@@ -132,7 +155,7 @@ export function useRowWindow(
     if (delta === 0) return;
     if (scroller === null) window.scrollBy(0, delta);
     else scroller.scrollTop += delta;
-  }, [root, keyToKeepInView]);
+  }, [root, keyToKeepInView, holdScroll]);
 
   if (view === null) {
     const end = Math.min(rowKeys.length, ROWS_BEFORE_MEASURING);
@@ -141,9 +164,15 @@ export function useRowWindow(
       end,
       spaceBefore: 0,
       spaceAfter: (offsets[rowKeys.length] ?? 0) - (offsets[end] ?? 0),
+      offsets,
+      collapsed: null,
     };
   }
-  return windowOf(offsets, view.from, view.to);
+  return {
+    ...windowOf(offsets, view.from, view.to),
+    offsets,
+    collapsed: collapsedOffsets === null ? null : windowOf(collapsedOffsets, view.from, view.to),
+  };
 }
 
 function scrollParent(element: HTMLElement): HTMLElement | null {

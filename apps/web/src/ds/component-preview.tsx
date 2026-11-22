@@ -17,6 +17,8 @@ import {
   IconToggleGroup,
   Input,
   IssueGroupLabel,
+  IssueGroupBody,
+  IssueGroupLine,
   IssueList,
   IssueListFrame,
   IssueListHead,
@@ -59,6 +61,7 @@ import {
   showToast,
   statusTone,
   type PillStatus,
+  useIssueGroupMotion,
 } from "@ganger/ui";
 import { colors, fontWeight, radius, space } from "@ganger/ui/tokens.stylex";
 import { useState, type ReactNode } from "react";
@@ -614,6 +617,26 @@ function IssueListPreview() {
   const [expanded, setExpanded] = useState(true);
   const [selected, setSelected] = useState("child");
   const indented = view === "grouped";
+  const groupMotion = useIssueGroupMotion(view);
+  const phase = groupMotion.phases.get("parent");
+  const showChild = expanded || phase === "closing";
+  const childRow = (
+    <IssueRow
+      rowKey="child"
+      label={`ACME-11 ${t("childTitle")}`}
+      selected={selected === "child"}
+      tabbable={selected === "child"}
+      onSelect={() => setSelected("child")}
+      indent={indented ? "child" : "none"}
+      surface={indented ? (phase === undefined ? "last" : "middle") : "none"}
+      icon={<IssueStateIcon kind="in-progress" label={t("state.in-progress")} />}
+      ticketKey="ACME-11"
+      title={t("childTitle")}
+      {...(indented ? {} : { below: `↳ ACME-10 ${t("parentTitle")}` })}
+      run={t("runChild")}
+      action={<Button compact>{t("action")}</Button>}
+    />
+  );
   return (
     <>
       <Demo>
@@ -646,13 +669,17 @@ function IssueListPreview() {
             tabbable={selected === "parent"}
             onSelect={() => setSelected("parent")}
             indent={indented ? "top" : "none"}
-            surface={indented ? (expanded ? "first" : "only") : "none"}
+            surface={indented ? (showChild ? "first" : "only") : "none"}
             {...(indented
               ? {
                   toggle: {
                     expanded,
                     label: t(expanded ? "collapse" : "expand"),
-                    onToggle: () => setExpanded(!expanded),
+                    moving: phase !== undefined,
+                    onToggle: () => {
+                      groupMotion.toggle("parent", !expanded, 1);
+                      setExpanded(!expanded);
+                    },
                   },
                 }
               : {})}
@@ -663,23 +690,12 @@ function IssueListPreview() {
             titleAfter="2/5"
             run={t("runSummary")}
           />
-          {indented && !expanded ? null : (
-            <IssueRow
-              rowKey="child"
-              label={`ACME-11 ${t("childTitle")}`}
-              selected={selected === "child"}
-              tabbable={selected === "child"}
-              onSelect={() => setSelected("child")}
-              indent={indented ? "child" : "none"}
-              surface={indented ? "last" : "none"}
-              icon={<IssueStateIcon kind="in-progress" label={t("state.in-progress")} />}
-              ticketKey="ACME-11"
-              title={t("childTitle")}
-              {...(indented ? {} : { below: `↳ ACME-10 ${t("parentTitle")}` })}
-              run={t("runChild")}
-              action={<Button compact>{t("action")}</Button>}
-            />
-          )}
+          {!indented ? childRow : null}
+          {indented && showChild ? (
+            <IssueGroupBody phase={phase} childCount={1}>
+              <IssueGroupLine index={0}>{childRow}</IssueGroupLine>
+            </IssueGroupBody>
+          ) : null}
           <IssueGroupLabel rowKey="loose" name={t("noParent")} count={1} />
         </IssueList>
       </IssueListFrame>

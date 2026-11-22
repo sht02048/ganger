@@ -360,6 +360,119 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
     }
   });
 
+  it("펼치고 접으면 움직이고, 도중에 다시 누르면 되돌아가며 선택 줄을 지킨다(0175)", async () => {
+    setParent(true);
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}&f=assignable`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      const child = list.getByRole("button", { name: "ACME-501 Ticket number 501" });
+      await child.waitFor();
+      const moving = page.locator("[data-issue-group-moving]");
+      expect(await moving.count()).toBe(0);
+
+      await child.click();
+      await expect.poll(() => child.getAttribute("aria-current")).toBe("true");
+      const toggle = list
+        .getByRole("listitem")
+        .filter({ hasText: parentKey })
+        .locator("button[aria-expanded]");
+      expect(await toggle.getAttribute("aria-expanded")).toBe("true");
+
+      const seen = await toggle.evaluate(async (button) => {
+        const body = () => document.querySelector("[data-issue-group-moving]");
+        const heightTransitions = (element: Element | null) =>
+          element
+            ?.getAnimations()
+            .filter(
+              (animation) =>
+                animation instanceof CSSTransition &&
+                animation.transitionProperty === "grid-template-rows",
+            ) ?? [];
+        const clipHeight = (element: Element | null) =>
+          element?.firstElementChild?.getBoundingClientRect().height ?? 0;
+        if (!(button instanceof HTMLElement)) throw new Error("no button");
+        const fullHeight = clipHeight(document.querySelector("[data-issue-group-body]"));
+        button.click();
+        await Promise.resolve();
+        const closingBody = body();
+        const closingTransitions = heightTransitions(closingBody);
+        const closing = {
+          phase: closingBody?.getAttribute("data-issue-group-moving"),
+          expanded: button.getAttribute("aria-expanded"),
+          transitions: closingTransitions.length,
+        };
+        for (const transition of closingTransitions) {
+          transition.pause();
+          transition.currentTime = 40;
+        }
+        const heightAtTurn = clipHeight(closingBody);
+        button.click();
+        await Promise.resolve();
+        const openingBody = body();
+        const openingTransitions = heightTransitions(openingBody);
+        const heightAfterTurn = clipHeight(openingBody);
+        return {
+          closing,
+          opening: {
+            phase: openingBody?.getAttribute("data-issue-group-moving"),
+            expanded: button.getAttribute("aria-expanded"),
+            transitions: openingTransitions.length,
+            sameBody: openingBody === closingBody,
+          },
+          turnedInPlace:
+            heightAtTurn > 0 &&
+            heightAtTurn < fullHeight &&
+            Math.abs(heightAfterTurn - heightAtTurn) < 1,
+        };
+      });
+      expect(seen.closing).toEqual({ phase: "closing", expanded: "false", transitions: 1 });
+      expect(seen.opening).toEqual({
+        phase: "opening",
+        expanded: "true",
+        transitions: 1,
+        sameBody: true,
+      });
+      expect(seen.turnedInPlace).toBe(true);
+      await expect.poll(() => moving.count()).toBe(0);
+      await child.waitFor();
+      expect(await child.getAttribute("aria-current")).toBe("true");
+
+      await toggle.press("Enter");
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("false");
+      await child.waitFor({ state: "detached" });
+      await expect.poll(() => moving.count()).toBe(0);
+      await toggle.press("Enter");
+      await child.waitFor();
+      await expect.poll(() => moving.count()).toBe(0);
+      expect(await child.getAttribute("aria-current")).toBe("true");
+      await expect.poll(() => child.isVisible()).toBe(true);
+
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("number 501");
+      await child.waitFor();
+      expect(await moving.count()).toBe(0);
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("");
+
+      await page.emulateMedia({ reducedMotion: "reduce" });
+      const reduced = await toggle.evaluate(async (button) => {
+        if (!(button instanceof HTMLElement)) throw new Error("no button");
+        button.click();
+        await Promise.resolve();
+        return {
+          moving: document.querySelectorAll("[data-issue-group-moving]").length,
+          expanded: button.getAttribute("aria-expanded"),
+        };
+      });
+      expect(reduced).toEqual({ moving: 0, expanded: "false" });
+      await child.waitFor({ state: "detached" });
+    } finally {
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      setParent(false);
+      await reread();
+    }
+  });
+
   it("상위 이슈에서 하위 2개를 한 번에 할당하면 두 런이 Queued가 되고 포커스가 패널 제목으로 간다(0172)", async () => {
     setParent(true);
     const otherChildKey = toTicketKey("ACME-601");

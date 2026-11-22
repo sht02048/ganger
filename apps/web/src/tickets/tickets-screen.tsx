@@ -15,7 +15,9 @@ import {
   IconToggleGroup,
   InfoTip,
   Input,
+  IssueGroupBody,
   IssueGroupLabel,
+  IssueGroupLine,
   IssueList,
   IssueListFrame,
   IssueListHead,
@@ -39,11 +41,12 @@ import {
   TimeSlot,
   VisuallyHidden,
   showToast,
+  useIssueGroupMotion,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import type { IssueListMove, PillStatus } from "@ganger/ui";
+import type { IssueGroupPhase, IssueListMove, PillStatus } from "@ganger/ui";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { currentPrState } from "@ganger/app/runs/model";
@@ -75,8 +78,16 @@ import { useAgentName, useQueuedReasonText } from "../labels";
 import { useRowWindow } from "./row-window";
 import { groupTickets, issueGroupsById, ticketStage } from "@ganger/app/tickets/groups";
 import type { TicketGroup, TicketListView } from "@ganger/app/tickets/groups";
-import { isSelectableRow, issueStateKind, listRows, rowActionOf } from "./ticket-rows";
-import type { TicketListRow } from "./ticket-rows";
+import {
+  isSelectableRow,
+  issueStateKind,
+  listBlocks,
+  listRows,
+  movingChildPhases,
+  rowActionOf,
+  withClosingGroupsOpen,
+} from "./ticket-rows";
+import type { TicketListBlock, TicketListRow } from "./ticket-rows";
 
 export interface TicketsScreenProps {
   page: TicketsPage;
@@ -265,6 +276,11 @@ function TicketsList({
     setExpansionNarrowing(narrowing);
     setExpansion(new Map());
   }
+  const groupMotion = useIssueGroupMotion(`${view}\u0000${narrowing}`);
+  const presentedExpansion = useMemo(
+    () => withClosingGroupsOpen(expansion, groupMotion.phases),
+    [expansion, groupMotion.phases],
+  );
   const grouping = useMemo(() => groupTickets(page.tickets), [page.tickets]);
   const issueGroups = useMemo(
     () => issueGroupsById(page.tickets, grouping),
@@ -278,12 +294,19 @@ function TicketsList({
         grouping,
         filter,
         query,
-        overrides: expansion,
+        overrides: presentedExpansion,
         selectedId,
       }),
-    [view, page.tickets, grouping, filter, query, expansion, selectedId],
+    [view, page.tickets, grouping, filter, query, presentedExpansion, selectedId],
   );
-  const selectableRows = useMemo(() => rows.filter(isSelectableRow), [rows]);
+  const movingChildren = useMemo(
+    () => movingChildPhases(rows, groupMotion.phases),
+    [rows, groupMotion.phases],
+  );
+  const selectableRows = useMemo(
+    () => rows.filter((row) => isSelectableRow(row) && movingChildren.get(row.id) !== "closing"),
+    [rows, movingChildren],
+  );
   const counts = useMemo(() => countByFilter(page.tickets), [page.tickets]);
   const selectionExists =
     selectedId !== undefined &&
@@ -295,9 +318,14 @@ function TicketsList({
   const rowKeys = useMemo(() => rows.map((row) => row.id), [rows]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
-  const rowWindow = useRowWindow(listRef, rowKeys, selectedIndex);
+  const rowWindow = useRowWindow(listRef, rowKeys, selectedIndex, movingChildren);
   const moreBelow = useMoreBelow(scrollRef, listRef, rows.length);
-  const renderedRows = rows.slice(rowWindow.start, rowWindow.end);
+  const blocks = listBlocks(rows, rowWindow, groupMotion.phases);
+  const renderedRows = blocks.flatMap((block) => {
+    if (block.kind === "row") return [block.row];
+    if (block.kind !== "body" || block.phase === "closing") return [];
+    return block.items.flatMap((item) => (item.kind === "line" ? [item.row] : []));
+  });
   const tabbableId = renderedRows.some((row) => row.id === effectiveId)
     ? effectiveId
     : renderedRows.find(isSelectableRow)?.id;
@@ -333,6 +361,9 @@ function TicketsList({
   };
   const selectFromPanel = (id: string) => {
     setRelationPickedId(id);
+    for (const group of grouping.groups) {
+      if (group.children.some((child) => child.id === id)) groupMotion.cancel(group.id);
+    }
     setExpansion((current) => {
       const next = new Map(current);
       for (const group of grouping.groups) {
@@ -342,8 +373,52 @@ function TicketsList({
     });
     onSelect(id);
   };
-  const toggleGroup = (id: string, expanded: boolean) => {
-    setExpansion((current) => new Map(current).set(id, !expanded));
+  const toggleGroup = (group: TicketGroup, expanded: boolean) => {
+    groupMotion.toggle(group.id, !expanded, group.children.length);
+    setExpansion((current) => new Map(current).set(group.id, !expanded));
+  };
+  const renderRow = (row: TicketListRow) => (
+    <TicketListRowView
+      key={row.id}
+      row={row}
+      page={page}
+      issueGroups={issueGroups}
+      selected={row.id === effectiveId}
+      tabbable={row.id === tabbableId}
+      groupPhase={groupMotion.phases.get(row.id)}
+      onSelect={onSelect}
+      onToggle={toggleGroup}
+      onOpenRun={onOpenRun}
+      onAssign={onAssign}
+      onAssigned={assignedFromList}
+      onBulkAssign={openBulkAssign}
+    />
+  );
+  const renderBlock = (block: TicketListBlock) => {
+    switch (block.kind) {
+      case "space":
+        return <div key={block.key} aria-hidden="true" style={{ height: block.height }} />;
+      case "row":
+        return renderRow(block.row);
+      case "body":
+        return (
+          <IssueGroupBody
+            key={`body-${block.groupId}`}
+            phase={block.phase}
+            childCount={block.childCount}
+          >
+            {block.items.map((item) =>
+              item.kind === "space" ? (
+                <div key={item.key} aria-hidden="true" style={{ height: item.height }} />
+              ) : (
+                <IssueGroupLine key={item.row.id} index={item.index}>
+                  {renderRow(item.row)}
+                </IssueGroupLine>
+              ),
+            )}
+          </IssueGroupBody>
+        );
+    }
   };
   const assignedFromList = (id: string) => {
     setAssignedId(id);
@@ -458,28 +533,7 @@ function TicketsList({
                       </TableEmpty>
                     ) : (
                       <IssueList label={t("listLabel")} onMove={moveSelection}>
-                        {rowWindow.spaceBefore > 0 ? (
-                          <div aria-hidden="true" style={{ height: rowWindow.spaceBefore }} />
-                        ) : null}
-                        {renderedRows.map((row) => (
-                          <TicketListRowView
-                            key={row.id}
-                            row={row}
-                            page={page}
-                            issueGroups={issueGroups}
-                            selected={row.id === effectiveId}
-                            tabbable={row.id === tabbableId}
-                            onSelect={onSelect}
-                            onToggle={toggleGroup}
-                            onOpenRun={onOpenRun}
-                            onAssign={onAssign}
-                            onAssigned={assignedFromList}
-                            onBulkAssign={openBulkAssign}
-                          />
-                        ))}
-                        {rowWindow.spaceAfter > 0 ? (
-                          <div aria-hidden="true" style={{ height: rowWindow.spaceAfter }} />
-                        ) : null}
+                        {blocks.map(renderBlock)}
                       </IssueList>
                     )}
                   </div>
@@ -606,8 +660,9 @@ interface TicketListRowViewProps {
   page: TicketsPage;
   selected: boolean;
   tabbable: boolean;
+  groupPhase: IssueGroupPhase | undefined;
   onSelect: (id: string) => void;
-  onToggle: (id: string, expanded: boolean) => void;
+  onToggle: (group: TicketGroup, expanded: boolean) => void;
   onOpenRun: (runId: string) => void;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
@@ -615,8 +670,9 @@ interface TicketListRowViewProps {
   issueGroups: ReadonlyMap<string, TicketGroup>;
 }
 
-function TicketListRowView({ row, ...props }: TicketListRowViewProps) {
+function TicketListRowView({ row, groupPhase, ...props }: TicketListRowViewProps) {
   const t = useTranslations("tickets.group");
+  const expanded = row.kind === "parent" && row.expanded && groupPhase !== "closing";
   switch (row.kind) {
     case "loose-head":
       return <IssueGroupLabel rowKey={row.id} name={t("noParent")} count={row.count} />;
@@ -626,9 +682,10 @@ function TicketListRowView({ row, ...props }: TicketListRowViewProps) {
           rowKey={row.id}
           group={row.group}
           toggle={{
-            expanded: row.expanded,
-            label: t(row.expanded ? "collapse" : "expand", { key: row.group.root.key }),
-            onToggle: () => props.onToggle(row.id, row.expanded),
+            expanded,
+            label: t(expanded ? "collapse" : "expand", { key: row.group.root.key }),
+            onToggle: () => props.onToggle(row.group, expanded),
+            moving: groupPhase !== undefined,
           }}
           surface={row.surface}
           indent="top"
@@ -648,7 +705,7 @@ function TicketListRowView({ row, ...props }: TicketListRowViewProps) {
   }
 }
 
-type RowCommon = Omit<TicketListRowViewProps, "row" | "onToggle">;
+type RowCommon = Omit<TicketListRowViewProps, "row" | "onToggle" | "groupPhase">;
 
 function ParentRow({
   rowKey,
@@ -668,7 +725,7 @@ function ParentRow({
 }: RowCommon & {
   rowKey: string;
   group: TicketGroup;
-  toggle?: { expanded: boolean; label: string; onToggle: () => void };
+  toggle?: { expanded: boolean; label: string; onToggle: () => void; moving: boolean };
   surface?: "none" | "first" | "middle" | "last" | "only";
   indent: "none" | "top";
   showParentLine?: boolean;
