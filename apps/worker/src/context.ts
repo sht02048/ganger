@@ -196,7 +196,8 @@ export function isNewMerge(
   pr: PullRequestSnapshot | null,
 ): boolean {
   if (pr?.state !== "merged") return false;
-  return stored?.id !== pr.id || stored.signals?.open !== false;
+  if (stored?.id !== pr.id || stored.signals?.open !== false) return true;
+  return pr.mergedAt !== null && pr.mergedAt.getTime() > stored.checkedAt.getTime();
 }
 
 export function rememberConfirmedMerge(

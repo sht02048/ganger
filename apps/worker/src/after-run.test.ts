@@ -295,6 +295,19 @@ describe("PR 머지 때 티켓 상태 바꾸기", () => {
     expect(h.tracker.stateChanges).toEqual([]);
   });
 
+  it("닫힌 것으로 읽은 PR이 다시 열려 머지되면 새 머지로 친다", async () => {
+    chooseMergedState();
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "closed");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([]);
+    h.advance(PR_POLL_INTERVAL_MS);
+    await settlePullRequest(run, "merged");
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
   it("설정 전에 본 머지는 worker를 다시 띄워도 새 머지로 치지 않는다", async () => {
     const { run, worker } = await startOne();
     h.putPullRequest(current(run), "merged");

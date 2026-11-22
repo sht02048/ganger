@@ -419,12 +419,11 @@ async function recordSettledPullRequest(
   const state = pr.state === "merged" ? "merged" : pr.state === "closed" ? "closed" : null;
   if (state === null) return false;
   if (settledAfterNextRunStarted(context, run, pr)) return false;
+  if (mergeIsNew) rememberConfirmedMerge(context, run.id, pr);
   const recorded = tryWrite(context, run.id, () =>
     updateRunRecords(context.db, run.id, { laterPrState: { state, at: context.now() } }),
   );
-  if (recorded !== true) return false;
-  if (mergeIsNew) rememberConfirmedMerge(context, run.id, pr);
-  return true;
+  return recorded === true;
 }
 
 function nextRunStartedAt(context: TickContext, run: StartedEndedRun): Date | null {
