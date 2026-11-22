@@ -424,6 +424,42 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
     expect(primaryLinks(html)).toEqual([]);
   });
 
+  it("새 런이 생긴 옛 런도 워크트리를 남긴 이유와 다음 행동을 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-3");
+    if (id === undefined) throw new Error("no ACME-3");
+    updateRunRecords(db, id, { worktreeKept: "uncommitted-changes" });
+    const run = found(db, id);
+    const newer = new Date(Date.parse(run.assignedAt) + 60_000).toISOString();
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        otherRuns: [{ id: "run-new", assignedAt: newer, state: "running" }],
+      },
+    });
+    expect(text(html)).toContain(
+      `${runJson.keptWorktree["uncommitted-changes"]} ${runJson.keptWorktreeNext["uncommitted-changes"]}`,
+    );
+    expect(labels(html)).toContain(runJson.removeWorktree.trigger);
+  });
+
+  it("다음 런으로 넘긴 PR 은 지난 CI 실패를 문제로 보이지 않는다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        prHandedOver: true,
+        pullRequest: { ...run.pullRequest, ci: "failure", signals: null },
+      },
+    });
+    expect(text(html)).not.toContain(runJson.pr.checksLink);
+    expect(html).not.toContain('data-signal-tone="problem"');
+  });
+
   it("끝난 런의 이어서 맡기기는 보조 버튼이다", () => {
     const { db } = seedDatabase();
     const id = assign(db, "ACME-71", 400);

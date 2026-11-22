@@ -248,14 +248,22 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
         </div>
 
         {nextStep === "none" ? (
-          <Text variant="body" as="p">
-            <Reason run={run} />
-          </Text>
+          <div {...stylex.props(styles.bandText)}>
+            <Text variant="body" as="p">
+              <Reason run={run} />
+            </Text>
+            {keptWorktree === null ? null : (
+              <Text variant="body" as="p">
+                {t(`keptWorktree.${keptWorktree.reason}`)}{" "}
+                {t(`keptWorktreeNext.${keptWorktree.reason}`)}
+              </Text>
+            )}
+          </div>
         ) : (
           <NextStepBand
             run={run}
             step={nextStep}
-            onGoToInput={() => focusFirst(inputRef)}
+            onGoToInput={() => focusInputField(inputRef)}
             resume={
               resumeInBand ? (
                 <ControlRun
@@ -396,6 +404,13 @@ function focusFirst(...targets: ReadonlyArray<RefObject<HTMLElement | null>>): v
       return;
     }
   }
+}
+
+function focusInputField(container: RefObject<HTMLElement | null>): void {
+  const field = container.current?.querySelector<HTMLElement>(
+    "textarea:not([disabled]), input:not([disabled])",
+  );
+  (field ?? container.current)?.focus();
 }
 
 function ActionFailed() {
@@ -595,7 +610,8 @@ function PrSection({ run }: { run: RunDetail }) {
   const state = ended === null ? null : (ended.laterPrState?.state ?? ended.prState);
   if (pr === null && (state === null || state === "none")) return null;
   const signals = pr?.signals ?? null;
-  const ciFailed = pr !== null && (signals === null ? pr.ci === "failure" : signals.ciFailed);
+  const ciFailed =
+    pr !== null && !run.prHandedOver && (signals === null ? pr.ci === "failure" : signals.ciFailed);
   const title = pr === null ? t("title") : t("titleWithId", { pr: pr.displayId });
   const stateText =
     run.prHandedOver && pr !== null

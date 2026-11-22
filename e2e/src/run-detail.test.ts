@@ -137,10 +137,8 @@ describe("Run 상세 보내기 뒤 포커스와 안내(브라우저, 0051)", () 
       .press("Enter");
 
     await expect
-      .poll(() =>
-        page.evaluate(() => document.activeElement?.querySelector("textarea, input") != null),
-      )
-      .toBe(true);
+      .poll(() => page.evaluate(() => document.activeElement?.tagName))
+      .toMatch(/^(TEXTAREA|INPUT)$/);
   });
 
   it("질문에 키보드로 답하면 포커스가 body 가 아니고 결과 문장이 role=status 안에 있다", async () => {
