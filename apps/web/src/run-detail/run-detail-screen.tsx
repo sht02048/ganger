@@ -55,7 +55,7 @@ import { useRunNextStepText } from "../run-next-step";
 import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlOutcome, RunControlView } from "@ganger/app/run-control-view";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
-import type { RunControl } from "@ganger/core";
+import type { RunControl, RunnerId } from "@ganger/core";
 import type { HumanCheckDecision } from "@ganger/app/home/actions";
 import type {
   CiView,
@@ -85,7 +85,7 @@ export interface RunDetailScreenProps extends RunDetailActions {
   page: RunDetailPage;
   runsHref: string;
   runHref: (runId: string) => string;
-  runnerHref: (runnerId: string) => string;
+  runnerHref: (runnerId: RunnerId) => string;
   logStalled?: boolean;
 }
 
@@ -252,7 +252,7 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
             <Text variant="body" as="p">
               <Reason run={run} />
             </Text>
-            {keptWorktree === null ? null : (
+            {keptWorktree === null || keptWorktree.removing ? null : (
               <Text variant="body" as="p">
                 {t(`keptWorktree.${keptWorktree.reason}`)}{" "}
                 {t(`keptWorktreeNext.${keptWorktree.reason}`)}
@@ -289,7 +289,7 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
               />
             )}
 
-            {run.status.state === "waiting-for-input" ? (
+            {run.status.state === "waiting-for-input" && run.status.input.kind !== "unknown" ? (
               <div ref={inputRef} tabIndex={-1} {...stylex.props(focusStyles.target)}>
                 <InputBlock
                   input={run.status.input}
@@ -675,7 +675,11 @@ function PrSection({ run }: { run: RunDetail }) {
           >
             {signals === null || signals.checkTotal === null
               ? ci(pr.ci)
-              : checksText(signals, signals.checkTotal, t)}
+              : ciFailed
+                ? checksText(signals, signals.checkTotal, t)
+                : [ci(pr.ci), checksText(signals, signals.checkTotal, t)].join(
+                    root("metaSeparator"),
+                  )}
           </SignalRow>
           {signals === null || signals.conflict === null ? null : (
             <SignalRow label={t("conflict")} tone={signals.conflict ? "problem" : "pass"}>
@@ -1370,7 +1374,9 @@ function Timeline({
                   {event.kind !== "ended" ? null : report === null ? (
                     <Text variant="meta">{reportText("none")}</Text>
                   ) : (
-                    <CodeBlock label={reportText("label")}>{report}</CodeBlock>
+                    <CodeBlock scroll label={reportText("label")}>
+                      {report}
+                    </CodeBlock>
                   )}
                 </span>
               </Row>
@@ -1495,7 +1501,7 @@ function Properties({
   runnerHref,
 }: {
   run: RunDetail;
-  runnerHref: (runnerId: string) => string;
+  runnerHref: (runnerId: RunnerId) => string;
 }) {
   const agentName = useAgentName();
   const t = useTranslations("run.props");

@@ -424,6 +424,44 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
     expect(primaryLinks(html)).toEqual([]);
   });
 
+  it("CI 가 도는 중이면 PR 구역에 그 상태와 검사 수를 함께 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        pullRequest: {
+          ...run.pullRequest,
+          ci: "pending",
+          signals: {
+            ciFailed: false,
+            checkTotal: 4,
+            failedCount: 0,
+            failedChecks: [],
+            checksTruncated: false,
+            conflict: false,
+            behindBy: 0,
+            checkedAt: minutes(100).toISOString(),
+          },
+        },
+      },
+    });
+    expect(valueOf(html, runJson.pr.ci)).toBe(
+      `${runJson.ci.pending} · ${runJson.pr.checks.replace("{total}", "4")}`,
+    );
+  });
+
+  it("지우는 중인 워크트리에는 지워 달라는 안내를 보이지 않는다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-3");
+    if (id === undefined) throw new Error("no ACME-3");
+    updateRunRecords(db, id, { worktreeKept: "unpushed-commits" });
+    removeWorktreeRequest(db, id, minutes(110));
+    expect(text(render(page(db, id)))).not.toContain(runJson.keptWorktreeNext["unpushed-commits"]);
+  });
+
   it("새 런이 생긴 옛 런도 워크트리를 남긴 이유와 다음 행동을 보인다", () => {
     const { db, ids } = seedDatabase();
     const id = ids.get("ACME-3");

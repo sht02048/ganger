@@ -6,6 +6,7 @@ import type {
   PrReadError,
   PrState,
   RunId,
+  RunnerId,
   RunState,
   SummaryOutcome,
 } from "@ganger/core";
@@ -132,7 +133,7 @@ export interface RunDetail {
   workspace: { id: string; name: string };
   branch: string | null;
   worktree: string | null;
-  runner: { id: string; name: string; online: boolean } | null;
+  runner: { id: RunnerId; name: string; online: boolean } | null;
   agent: string;
   model: string | null;
   assignedAt: string;
