@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { RunDetail } from "./run-detail/model.js";
 import { nextStepInputOfDetail, runNextStep } from "./run-next-step.js";
 import type { RunNextStepDetail, RunNextStepInput } from "./run-next-step.js";
-import type { RunView } from "./runs/model.js";
 
 const active = { pullRequest: null, cancelling: false };
 const ended = {
@@ -11,6 +10,8 @@ const ended = {
   summary: "succeeded",
   prState: "none",
   laterPrState: null,
+  keptWorktree: null,
+  superseded: false,
 } satisfies RunNextStepInput;
 const failingPr = { signals: { ciFailed: true, conflict: true } };
 const conflictPr = { signals: { ciFailed: false, conflict: true } };
@@ -26,7 +27,6 @@ describe("runNextStep", () => {
     ["Running", { ...active, state: "running" }, "none"],
     ["Paused", { ...active, state: "paused" }, "paused"],
     ["Disconnected", { ...active, state: "disconnected" }, "disconnected"],
-    ["입력을 모르는 대기", { ...active, state: "waiting-for-input" }, "waiting-input"],
     [
       "읽지 못한 입력",
       { ...active, state: "waiting-for-input", input: { kind: "unknown" } },
@@ -63,6 +63,12 @@ describe("runNextStep", () => {
     ["Failed", { ...ended, summary: "failed" }, "failed"],
     ["남긴 워크트리", { ...ended, keptWorktree: { removing: false } }, "kept-worktree"],
     ["지우는 워크트리", { ...ended, keptWorktree: { removing: true } }, "none"],
+    [
+      "워크트리를 남긴 Failed",
+      { ...ended, summary: "failed", keptWorktree: { removing: false } },
+      "failed",
+    ],
+    ["새 런이 생긴 옛 Failed", { ...ended, summary: "failed", superseded: true }, "none"],
     ["열린 PR의 CI 실패", { ...ended, prState: "open", pullRequest: failingPr }, "pr-ci-failed"],
     ["열린 PR의 충돌", { ...ended, prState: "open", pullRequest: conflictPr }, "pr-conflict"],
     [
@@ -83,35 +89,13 @@ describe("runNextStep", () => {
   ])("%s", (_name, input, expected) => {
     expect(runNextStep(input)).toBe(expected);
   });
-
-  it("Runs 목록의 런을 그대로 받아요", () => {
-    const run = {
-      id: "run-1",
-      ticketKey: "ACME-1",
-      ticketTitle: "결제 실패 재시도",
-      trackerProject: "Payments",
-      branch: null,
-      runner: null,
-      agent: "claude",
-      waitMs: 0,
-      executionMs: 1,
-      pullRequest: null,
-      attention: false,
-      state: "ended",
-      endedAt: "2026-11-22T00:00:00.000Z",
-      endedAgoMs: 0,
-      agentResult: "reported-failure",
-      prState: "none",
-      laterPrState: null,
-      prReadError: null,
-      summary: "failed",
-    } satisfies RunView;
-    expect(runNextStep(run)).toBe("failed");
-  });
 });
 
 describe("nextStepInputOfDetail", () => {
   const detail = (patch: Partial<RunNextStepDetail>): RunNextStepDetail => ({
+    id: "run-2",
+    assignedAt: "2026-11-22T01:00:00.000Z",
+    otherRuns: [],
     pullRequest: null,
     cancelPending: false,
     prHandedOver: false,
@@ -160,6 +144,21 @@ describe("nextStepInputOfDetail", () => {
         nextStepInputOfDetail(detail({ status: endedStatus, pullRequest, prHandedOver: true })),
       ),
     ).toBe("none");
+  });
+
+  it.each([
+    ["늦게 맡긴 런", "run-1", "2026-11-22T02:00:00.000Z", "none"],
+    ["같은 때 맡긴 뒤 id의 런", "run-3", "2026-11-22T01:00:00.000Z", "none"],
+    ["같은 때 맡긴 앞 id의 런", "run-1", "2026-11-22T01:00:00.000Z", "pr-ci-failed"],
+    ["먼저 맡긴 런", "run-3", "2026-11-22T00:00:00.000Z", "pr-ci-failed"],
+  ])("같은 티켓의 %s", (_name, id, assignedAt, expected) => {
+    const run = detail({ status: endedStatus, pullRequest, otherRuns: [{ id, assignedAt }] });
+    expect(runNextStep(nextStepInputOfDetail(run))).toBe(expected);
+  });
+
+  it("RunDetail을 그대로 받아요", () => {
+    const accepts: (run: RunDetail) => RunNextStepInput = nextStepInputOfDetail;
+    expect(accepts).toBe(nextStepInputOfDetail);
   });
 
   it("취소 요청을 cancelling으로 옮겨요", () => {

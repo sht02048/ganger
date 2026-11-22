@@ -35,14 +35,14 @@ interface NextStepActive extends NextStepBase {
 export type RunNextStepInput =
   | (NextStepActive & { state: "queued"; queuedReason: Pick<QueuedReason, "kind"> })
   | (NextStepActive & { state: "running" | "paused" | "disconnected" })
-  | (NextStepActive & { state: "waiting-for-input"; input?: NextStepInputWait })
+  | (NextStepActive & { state: "waiting-for-input"; input: NextStepInputWait })
   | (NextStepBase & {
       state: "ended";
       summary: SummaryOutcome;
       prState: PrState;
       laterPrState: "merged" | "closed" | null;
-      keptWorktree?: { removing: boolean } | null;
-      superseded?: boolean;
+      keptWorktree: { removing: boolean } | null;
+      superseded: boolean;
     });
 
 export function runNextStep(run: RunNextStepInput): RunNextStep {
@@ -58,7 +58,7 @@ export function runNextStep(run: RunNextStepInput): RunNextStep {
     case "disconnected":
       return "disconnected";
     case "waiting-for-input":
-      return run.input === undefined ? "waiting-input" : inputNextStep(run.input);
+      return inputNextStep(run.input);
   }
 }
 
@@ -75,19 +75,30 @@ function inputNextStep(input: NextStepInputWait): RunNextStep {
 }
 
 function endedNextStep(run: Extract<RunNextStepInput, { state: "ended" }>): RunNextStep {
-  if (run.superseded === true) return "none";
+  if (run.superseded) return "none";
   if (currentPrState(run) === "open") {
     if (run.pullRequest?.signals?.ciFailed === true) return "pr-ci-failed";
     if (run.pullRequest?.signals?.conflict === true) return "pr-conflict";
   }
-  if (run.keptWorktree != null && !run.keptWorktree.removing) return "kept-worktree";
-  return run.summary === "failed" ? "failed" : "none";
+  if (run.summary === "failed") return "failed";
+  return run.keptWorktree !== null && !run.keptWorktree.removing ? "kept-worktree" : "none";
+}
+
+function hasNewerRun(run: RunNextStepDetail): boolean {
+  const assignedAt = Date.parse(run.assignedAt);
+  return run.otherRuns.some((other) => {
+    const otherAssignedAt = Date.parse(other.assignedAt);
+    return otherAssignedAt > assignedAt || (otherAssignedAt === assignedAt && other.id > run.id);
+  });
 }
 
 export type RunNextStepDetail = Pick<
   RunDetail,
-  "pullRequest" | "cancelPending" | "prHandedOver" | "status"
-> & { continuedBy: { number: number } | null };
+  "id" | "assignedAt" | "pullRequest" | "cancelPending" | "prHandedOver" | "status"
+> & {
+  continuedBy: { number: number } | null;
+  otherRuns: ReadonlyArray<{ id: string; assignedAt: string }>;
+};
 
 export function nextStepInputOfDetail(run: RunNextStepDetail): RunNextStepInput {
   const base = { pullRequest: run.pullRequest };
@@ -110,7 +121,7 @@ export function nextStepInputOfDetail(run: RunNextStepDetail): RunNextStepInput 
         prState: status.prState,
         laterPrState: status.laterPrState?.state ?? null,
         keptWorktree: status.keptWorktree,
-        superseded: run.prHandedOver || run.continuedBy !== null,
+        superseded: run.prHandedOver || run.continuedBy !== null || hasNewerRun(run),
       };
   }
 }
