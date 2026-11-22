@@ -6,15 +6,17 @@ import { CheckboxControl } from "./checkbox";
 import { ScrollRegion } from "./scroll-region";
 import { Text } from "./text";
 import { VisuallyHidden } from "./visually-hidden";
+import {
+  COLUMN_GAP,
+  DIVIDER_GAP,
+  LOOP_GUTTER,
+  NODE_HEIGHT,
+  NODE_WIDTH,
+  ROW_GAP,
+  edgeRoute,
+} from "./dependency-graph-route";
 
-const NODE_WIDTH = 200;
-const NODE_HEIGHT = 52;
-const COLUMN_GAP = 36;
-const ROW_GAP = 16;
 const HEAD_HEIGHT = 28;
-const DIVIDER_GAP = 25;
-const SAME_COLUMN_OFFSET = 16;
-const ARROW_SIZE = 5;
 
 export type DependencyGraphTone = "default" | "problem";
 export type DependencyGraphEdgeTone = "default" | "waiting" | "problem";
@@ -63,34 +65,6 @@ function rowTop(row: number, dividerRow: number | undefined): number {
   return HEAD_HEIGHT + row * (NODE_HEIGHT + ROW_GAP) + (pastDivider ? DIVIDER_GAP : 0);
 }
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-function edgeLine(from: Point, to: Point): { line: string; arrow: string } {
-  if (from.x === to.x) {
-    const down = to.y > from.y;
-    const x = from.x + NODE_WIDTH / 2 + (down ? SAME_COLUMN_OFFSET : -SAME_COLUMN_OFFSET);
-    const startY = down ? from.y + NODE_HEIGHT : from.y;
-    const endY = down ? to.y - 1 : to.y + NODE_HEIGHT + 1;
-    const back = down ? -ARROW_SIZE : ARROW_SIZE;
-    return {
-      line: `M${x} ${startY} L${x} ${endY}`,
-      arrow: `M${x - ARROW_SIZE} ${endY + back} L${x} ${endY} L${x + ARROW_SIZE} ${endY + back}`,
-    };
-  }
-  const startX = from.x + NODE_WIDTH;
-  const startY = from.y + NODE_HEIGHT / 2;
-  const endX = to.x - 1;
-  const endY = to.y + NODE_HEIGHT / 2;
-  const middle = (startX + endX) / 2;
-  return {
-    line: `M${startX} ${startY} C${middle} ${startY}, ${middle} ${endY}, ${endX} ${endY}`,
-    arrow: `M${endX - ARROW_SIZE} ${endY - ARROW_SIZE} L${endX} ${endY} L${endX - ARROW_SIZE} ${endY + ARROW_SIZE}`,
-  };
-}
-
 export function DependencyGraph({
   label,
   scrollLabel,
@@ -100,15 +74,20 @@ export function DependencyGraph({
   dividerRow,
 }: DependencyGraphProps) {
   const rowCount = nodes.reduce((most, node) => Math.max(most, node.row + 1), 0);
-  const width = columnLeft(columns.length) - COLUMN_GAP;
+  const nodesWidth = columnLeft(columns.length) - COLUMN_GAP;
   const height = rowTop(rowCount - 1, dividerRow) + NODE_HEIGHT;
   const positions = new Map(
     nodes.map((node) => [node.id, { x: columnLeft(node.column), y: rowTop(node.row, dividerRow) }]),
   );
   const inTabOrder = [...nodes].sort((a, b) => a.column - b.column || a.row - b.row);
-  const problemEdgesOnTop = [...edges].sort(
-    (a, b) => Number(a.tone === "problem") - Number(b.tone === "problem"),
-  );
+  const routed = [...edges]
+    .sort((a, b) => Number(a.tone === "problem") - Number(b.tone === "problem"))
+    .flatMap((edge) => {
+      const from = positions.get(edge.from);
+      const to = positions.get(edge.to);
+      return from === undefined || to === undefined ? [] : [{ edge, route: edgeRoute(from, to) }];
+    });
+  const width = nodesWidth + (routed.some(({ route }) => route.usesGutter) ? LOOP_GUTTER : 0);
   const dividerY =
     dividerRow === undefined ? null : rowTop(dividerRow, dividerRow) - (DIVIDER_GAP + ROW_GAP) / 2;
   return (
@@ -140,32 +119,26 @@ export function DependencyGraph({
             <line
               data-graph-divider=""
               x1={0}
-              x2={width}
+              x2={nodesWidth}
               y1={dividerY}
               y2={dividerY}
               {...stylex.props(styles.divider)}
             />
           )}
-          {problemEdgesOnTop.flatMap((edge) => {
-            const from = positions.get(edge.from);
-            const to = positions.get(edge.to);
-            if (from === undefined || to === undefined) return [];
-            const { line, arrow } = edgeLine(from, to);
-            return [
-              <g
-                key={`${edge.from}->${edge.to}`}
-                data-edge-tone={edge.tone}
-                {...stylex.props(edgeTones[edge.tone])}
-              >
-                <path
-                  d={line}
-                  strokeWidth={1.5}
-                  {...(edge.tone === "default" ? {} : { strokeDasharray: "4 4" })}
-                />
-                <path d={arrow} strokeWidth={1.5} />
-              </g>,
-            ];
-          })}
+          {routed.map(({ edge, route }) => (
+            <g
+              key={`${edge.from}->${edge.to}`}
+              data-edge-tone={edge.tone}
+              {...stylex.props(edgeTones[edge.tone])}
+            >
+              <path
+                d={route.line}
+                strokeWidth={1.5}
+                {...(edge.tone === "default" ? {} : { strokeDasharray: "4 4" })}
+              />
+              <path d={route.arrow} strokeWidth={1.5} />
+            </g>
+          ))}
         </svg>
         {inTabOrder.map((node) => (
           <GraphNode
@@ -242,7 +215,7 @@ const nodeAt = stylex.create({
 
 const edgeTones = stylex.create({
   default: { stroke: colors.borderStrong },
-  waiting: { stroke: colors.textTertiary },
+  waiting: { stroke: colors.borderStrong },
   problem: { stroke: colors.problem },
 });
 

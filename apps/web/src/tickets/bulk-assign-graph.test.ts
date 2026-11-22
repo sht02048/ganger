@@ -223,6 +223,12 @@ describe("앞 티켓 체크 해제(0182)", () => {
     expect(state.noteOf(place(graph, "A-1"))).toEqual({ kind: "now" });
   });
 
+  it("체크를 함께 푼 뒤 티켓도 할당하면 시작하지 못하는 상자로 보인다", () => {
+    const graph = chain();
+    const state = bulkGraphState(graph, without(graph, "A-1", "A-2"));
+    expect(state.blocked.has(idOf("A-2"))).toBe(true);
+  });
+
   it("이미 할당한 앞 티켓은 체크가 풀려도 막지 않는다", () => {
     const graph = chain();
     const state = bulkGraphState(graph, without(graph, "A-1"), new Set([idOf("A-1")]));

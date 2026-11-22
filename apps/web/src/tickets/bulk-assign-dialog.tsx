@@ -133,6 +133,8 @@ export function BulkAssignDialog({
     [group.children, readings],
   );
   const graph = useMemo(() => buildBulkGraph(choices, readings), [choices, readings]);
+  const [shownGraph, setShownGraph] = useState<BulkGraph | null>(null);
+  if (!reading && shownGraph !== graph) setShownGraph(graph);
   const [assigned, setAssigned] = useState<ReadonlySet<string>>(new Set());
   const [firstSelected] = useState<ReadonlySet<string>>(
     () =>
@@ -217,7 +219,7 @@ export function BulkAssignDialog({
         </>
       }
     >
-      {reading ? (
+      {shownGraph === null ? (
         <div role="status" {...stylex.props(styles.reading)}>
           <Spinner />
           <Text variant="ui" tone="muted">
@@ -226,7 +228,7 @@ export function BulkAssignDialog({
         </div>
       ) : (
         <BulkAssignGraph
-          graph={graph}
+          graph={shownGraph}
           selected={selected}
           assigned={assigned}
           disabled={pending}

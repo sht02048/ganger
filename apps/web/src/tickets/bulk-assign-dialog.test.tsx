@@ -225,6 +225,8 @@ describe("선행 티켓을 읽는 동안(0176)", () => {
     await settle();
     expect(onReadBlockers.mock.calls.map(([ticket]) => ticket.key)).toEqual(["ACME-1", "ACME-2"]);
     expect(isBusy(submitButton())).toBe(true);
+    expect(isChecked("ACME-1")).toBe(true);
+    expect(document.querySelector("[data-spinner]")).toBeNull();
 
     await settle(() => late.resolve(blockedBy("ACME-9", "canceled")));
     expect(isBusy(submitButton())).toBe(false);
