@@ -6,7 +6,7 @@ import {
   visibleGrouping,
 } from "@ganger/app/tickets/groups";
 import { mergeTicketsPage, ticketId } from "@ganger/app/tickets/merge";
-import { countByFilter, matchesFilter } from "@ganger/app/tickets/model";
+import { countByFilter, matchesFilter, matchesRunFilter } from "@ganger/app/tickets/model";
 import type {
   TicketIssueRef,
   TicketRun,
@@ -35,6 +35,7 @@ function ticket(key: string, change: Partial<TicketView> = {}): TicketView {
     trackerState: { name: "Todo", category: "unstarted" },
     priority: "none",
     ancestors: [],
+    isParentIssue: false,
     blockerWait: null,
     waitingTickets: [],
     labels: [],
@@ -54,7 +55,7 @@ const active = (runState: "running" | "waiting-for-input"): TicketRun => ({
   elapsedMs: 0,
   waitingOn: null,
 });
-const parentIssue = { assignability: { kind: "parent-issue" } } as const;
+const parentIssue = { isParentIssue: true } as const;
 
 describe("묶기(0171)", () => {
   it("맨 위 이슈로 묶고 중간 이슈도 그 묶음의 하위로 둔다", () => {
@@ -167,6 +168,18 @@ describe("묶기(0171)", () => {
     expect(byId.get(ticketId("c", "A"))?.children).toHaveLength(2);
   });
 
+  it("상위 이슈 자기 런이 답을 기다리면 사람이 볼 일이고, 끝난 자기 런은 단계에 넣지 않는다", () => {
+    const own = (runs: TicketRun[]) =>
+      groupTickets([
+        ticket("P", { ...parentIssue, runs }),
+        ticket("A", { ...under("P"), ...state("completed") }),
+      ]).groups[0];
+    expect(own([active("waiting-for-input")])?.stage).toBe("attention");
+    expect(own([active("waiting-for-input")])?.expandedByDefault).toBe(false);
+    expect(own([active("running")])?.stage).toBe("finished");
+    expect(own([])?.stage).toBe("finished");
+  });
+
   it("하위가 모두 끝난 묶음만 접어 둔다", () => {
     const { groups } = groupTickets([
       ticket("A", { ...under("DONE"), ...state("completed") }),
@@ -274,10 +287,12 @@ describe("상위 이슈 할당(0171)", () => {
     truncated: [],
   };
 
-  it("하위가 있는 이슈는 할당할 수 없고, 할당할 수 있음에서도 빠진다", () => {
+  it("하위가 있는 이슈는 화면의 할당할 수 있음에서 빠지고, 서버 할당 판정은 그대로다", () => {
     const { tickets } = mergeTicketsPage(runs, tracker);
-    const kinds = Object.fromEntries(tickets.map((t) => [t.key, t.assignability.kind]));
-    expect(kinds).toEqual({ P: "parent-issue", A: "ready", L: "ready" });
+    const parent = tickets.find((t) => t.key === "P");
+    expect(parent?.isParentIssue).toBe(true);
+    expect(parent?.assignability.kind).toBe("ready");
+    expect(matchesRunFilter(parent ?? tickets[0]!, "assignable")).toBe(true);
     expect(tickets.filter((t) => matchesFilter(t, "assignable")).map((t) => t.key)).toEqual([
       "A",
       "L",

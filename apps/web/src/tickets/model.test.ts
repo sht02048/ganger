@@ -19,6 +19,7 @@ function ticket(key: string, title: string, runs: TicketRun[]): TicketView {
     trackerState: { name: "Todo", category: "unstarted" },
     priority: "none",
     ancestors: [],
+    isParentIssue: false,
     blockerWait: null,
     waitingTickets: [],
     labels: [],

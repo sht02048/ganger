@@ -36,7 +36,12 @@ export function rowActionOf(ticket: TicketView): TicketRowAction | null {
   if (run?.state === "waiting-for-input") return "answer";
   if (run?.state === "disconnected") return "open-run";
   const { category } = ticket.trackerState;
-  if (ticket.assignability.kind !== "ready" || category === "completed" || category === "canceled")
+  if (
+    ticket.isParentIssue ||
+    ticket.assignability.kind !== "ready" ||
+    category === "completed" ||
+    category === "canceled"
+  )
     return null;
   if (run === undefined) return "assign";
   return run.state === "ended" && run.summary !== "succeeded" ? "new-run" : null;

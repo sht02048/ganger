@@ -540,7 +540,7 @@ describe("상위 이슈로 묶기(0171)", () => {
           return { ...ticket, ancestors: [ref("ACME-6")] };
         if (ticket.key === "ACME-2")
           return { ...ticket, ancestors: [ref("EPIC-1", "범위 밖 상위")] };
-        if (ticket.key === "ACME-6") return { ...ticket, assignability: { kind: "parent-issue" } };
+        if (ticket.key === "ACME-6") return { ...ticket, isParentIssue: true };
         return ticket;
       }),
     };
@@ -562,6 +562,23 @@ describe("상위 이슈로 묶기(0171)", () => {
     const rows = rowTexts(listOf(render(await grouped())));
     expect(rows.get("ACME-6")).toContain("Running 1");
     expect(rows.get("ACME-6")).not.toContain("할당");
+  });
+
+  it("상위 이슈 자기 런이 돌면 하위 요약보다 먼저 보이고, 끝난 자기 런은 줄에 없다", async () => {
+    const page = await grouped();
+    const running = page.tickets.find((ticket) => ticket.key === "ACME-3")?.runs[0];
+    const ended = page.tickets.find((ticket) => ticket.key === "ACME-2")?.runs[0];
+    if (running === undefined || ended === undefined) throw new Error("no run");
+    const withOwn = (run: TicketRun) => ({
+      ...page,
+      tickets: page.tickets.map((ticket) =>
+        ticket.key === "ACME-6" ? { ...ticket, runs: [run] } : ticket,
+      ),
+    });
+    const active = rowTexts(listOf(render(withOwn(running)))).get("ACME-6") ?? "";
+    expect(active).toContain("Running · 상위 · ");
+    expect(active.indexOf("Running · 상위")).toBeLessThan(active.indexOf("Running 1"));
+    expect(rowTexts(listOf(render(withOwn(ended)))).get("ACME-6")).not.toContain("· 상위");
   });
 
   it("할 일 칸은 테두리 버튼이고 노란 주 버튼을 쓰지 않는다", async () => {

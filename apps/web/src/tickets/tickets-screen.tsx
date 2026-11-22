@@ -717,17 +717,27 @@ function GroupRunSummary({ group }: { group: TicketGroup }) {
     const status = runDisplayStatus(run);
     counts.set(status, (counts.get(status) ?? 0) + 1);
   }
-  if (counts.size === 0)
+  const childSummary = [...counts]
+    .map(([status, count]) => `${statusName(status)} ${count}`)
+    .join(" · ");
+  const ownRun = group.rootTicket === null ? undefined : lastRun(group.rootTicket);
+  if (ownRun !== undefined && ownRun.state !== "ended") {
+    const status = runDisplayStatus(ownRun);
+    const own = t("ownRun", { status: statusName(status) });
+    return (
+      <span {...stylex.props(styles.runLine)}>
+        <StatusDot status={status} />
+        <Text variant="meta">{childSummary === "" ? own : `${own} · ${childSummary}`}</Text>
+      </span>
+    );
+  }
+  if (childSummary === "")
     return (
       <Text variant="meta" tone="muted">
         {t("noActiveRuns")}
       </Text>
     );
-  return (
-    <Text variant="meta">
-      {[...counts].map(([status, count]) => `${statusName(status)} ${count}`).join(" · ")}
-    </Text>
-  );
+  return <Text variant="meta">{childSummary}</Text>;
 }
 
 function TicketRowActionButton({
@@ -1221,7 +1231,7 @@ type NextStep =
 
 function nextStepOf(ticket: TicketView): NextStep {
   const run = lastRun(ticket);
-  if (ticket.assignability.kind === "parent-issue") return "parent-issue";
+  if (ticket.isParentIssue && ticket.assignability.kind !== "active-run") return "parent-issue";
   if (ticket.assignability.kind === "no-mapping") return "no-mapping";
   if (run === undefined) return "unassigned";
   if (run.state !== "ended") return run.state;
@@ -1361,7 +1371,7 @@ function TicketPanel({
           </div>
           <Text variant="body">{nextSentence}</Text>
           <Actions>
-            {assignability.kind === "ready" ? (
+            {assignability.kind === "ready" && !ticket.isParentIssue ? (
               <AssignDialog
                 ticket={ticket}
                 defaults={assignability.defaults}

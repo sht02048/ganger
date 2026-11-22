@@ -111,6 +111,11 @@ interface GroupDraft {
   children: TicketView[];
 }
 
+function rootNeedsPerson(root: TicketView | null): boolean {
+  const run = root === null ? undefined : lastRun(root);
+  return run !== undefined && run.state !== "ended" && isTodo(run);
+}
+
 function finishGroup(draft: GroupDraft): TicketGroup {
   const children = byStage(draft.children, ticketStage);
   const stage = children.reduce<TicketStage>((best, child) => {
@@ -121,7 +126,7 @@ function finishGroup(draft: GroupDraft): TicketGroup {
     ...draft,
     children,
     progress: progressOf(children),
-    stage,
+    stage: rootNeedsPerson(draft.rootTicket) ? "attention" : stage,
     expandedByDefault: stage !== "finished",
   };
 }

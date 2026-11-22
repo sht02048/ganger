@@ -114,7 +114,6 @@ export function mergeTicketsPage(runs: TicketRunsData, tracker: TrackerTicketsDa
       mapping: null,
       autoAssignLabel: null,
     };
-    const assignability = assignabilityOf(project, ticket, facts, names);
     return {
       id,
       connection: ticket.connection,
@@ -125,6 +124,7 @@ export function mergeTicketsPage(runs: TicketRunsData, tracker: TrackerTicketsDa
       trackerState: ticket.state,
       priority: ticket.priority,
       ancestors: ticket.ancestors,
+      isParentIssue: parentIssueIds.has(id),
       blockerWait: facts.blockerWait,
       waitingTickets: runs.waitingByBlocker[id] ?? [],
       labels: ticket.labels.map((label) => ({
@@ -133,10 +133,7 @@ export function mergeTicketsPage(runs: TicketRunsData, tracker: TrackerTicketsDa
       })),
       runs: facts.runs,
       mapping: assignDefaultsOf(project, ticket, facts, names),
-      assignability:
-        parentIssueIds.has(id) && assignability.kind !== "active-run"
-          ? { kind: "parent-issue" }
-          : assignability,
+      assignability: assignabilityOf(project, ticket, facts, names),
     };
   });
   return { ...base, tickets, errors: tracker.errors, truncated: tracker.truncated };

@@ -48,8 +48,7 @@ export interface AssignDefaults {
 export type Assignability =
   | { kind: "ready"; defaults: AssignDefaults }
   | { kind: "active-run"; runId: string }
-  | { kind: "no-mapping" }
-  | { kind: "parent-issue" };
+  | { kind: "no-mapping" };
 
 export interface WaitingTicket {
   key: string;
@@ -77,6 +76,7 @@ export interface TicketView {
   trackerState: { name: string; category: TrackerStateCategory };
   priority: TicketPriority;
   ancestors: ReadonlyArray<TicketIssueRef>;
+  isParentIssue: boolean;
   blockerWait: BlockerReason | null;
   waitingTickets: ReadonlyArray<WaitingTicket>;
   labels: ReadonlyArray<{ name: string; autoAssign: boolean }>;
@@ -202,7 +202,6 @@ export const ASSIGN_REJECT_REASONS = [
   "unknown-agent",
   "unknown-runner",
   "runner-assignment-blocked",
-  "parent-issue",
 ] as const;
 
 export type AssignRejectReason = (typeof ASSIGN_REJECT_REASONS)[number];
@@ -240,15 +239,19 @@ function isDone(run: TicketRun): boolean {
 }
 
 export function matchesFilter(ticket: TicketView, filter: TicketFilter): boolean {
+  if (filter === "assignable" && ticket.isParentIssue) return false;
+  return matchesRunFilter(ticket, filter);
+}
+
+export function matchesRunFilter(ticket: TicketView, filter: TicketFilter): boolean {
   const run = lastRun(ticket);
   switch (filter) {
     case "all":
       return true;
     case "assignable":
       return (
-        ticket.assignability.kind !== "parent-issue" &&
-        (run === undefined ||
-          (run.state === "ended" && (run.summary === "failed" || run.summary === "canceled")))
+        run === undefined ||
+        (run.state === "ended" && (run.summary === "failed" || run.summary === "canceled"))
       );
     case "todo":
       return run !== undefined && isTodo(run);
