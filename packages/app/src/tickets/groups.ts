@@ -56,6 +56,7 @@ export function ticketStage(ticket: TicketView): TicketStage {
   const run = lastRun(ticket);
   if (run !== undefined && run.state !== "ended") return isTodo(run) ? "attention" : "in-progress";
   if (isFinishedInTracker(ticket)) return "finished";
+  if (ticket.isParentIssue) return "in-progress";
   if (run !== undefined && isTodo(run)) return "attention";
   if (ticket.assignability.kind === "ready" && matchesFilter(ticket, "assignable"))
     return "assignable";
@@ -152,20 +153,23 @@ export function issueGroupsById(
 ): ReadonlyMap<string, TicketGroup> {
   const loaded = new Map(tickets.map((ticket) => [ticket.id, ticket]));
   const drafts = new Map<string, GroupDraft>();
+  const links = parentLinks(tickets);
   for (const ticket of tickets) {
-    for (const ancestor of ticket.ancestors) {
-      const id = ticketId(ticket.connection, ancestor.key);
-      const rootTicket = loaded.get(id);
+    const seen = new Set([ticket.id]);
+    for (let link = links.get(ticket.id); link !== undefined; link = links.get(link.id)) {
+      if (seen.has(link.id)) break;
+      seen.add(link.id);
+      const rootTicket = loaded.get(link.id);
       if (rootTicket === undefined) continue;
-      const draft = drafts.get(id) ?? {
-        id,
+      const draft = drafts.get(link.id) ?? {
+        id: link.id,
         connection: ticket.connection,
         root: refOf(rootTicket),
         rootTicket,
         children: [],
       };
       draft.children.push(ticket);
-      drafts.set(id, draft);
+      drafts.set(link.id, draft);
     }
   }
   const byId = new Map([...drafts.values()].map((draft) => [draft.id, finishGroup(draft)]));

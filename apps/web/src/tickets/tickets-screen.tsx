@@ -287,8 +287,8 @@ function TicketsList({
     pendingRowFocus.current = null;
   });
 
-  const moveSelection = (move: IssueListMove) => {
-    const index = selectableRows.findIndex((row) => row.id === effectiveId);
+  const moveSelection = (move: IssueListMove, fromRowKey: string | null) => {
+    const index = selectableRows.findIndex((row) => row.id === (fromRowKey ?? effectiveId));
     const last = selectableRows.length - 1;
     const nextIndex =
       move === "first"
@@ -436,6 +436,7 @@ function TicketsList({
                             key={row.id}
                             row={row}
                             page={page}
+                            issueGroups={issueGroups}
                             selected={row.id === effectiveId}
                             tabbable={row.id === tabbableId}
                             onSelect={onSelect}
@@ -533,6 +534,7 @@ interface TicketListRowViewProps {
   onOpenRun: (runId: string) => void;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
+  issueGroups: ReadonlyMap<string, TicketGroup>;
 }
 
 function TicketListRowView({ row, ...props }: TicketListRowViewProps) {
@@ -650,6 +652,7 @@ function TicketRow({
   surface,
   showParentLine = false,
   page,
+  issueGroups,
   selected,
   tabbable,
   onSelect,
@@ -664,6 +667,7 @@ function TicketRow({
 }) {
   const t = useTranslations("tickets.group");
   const parent = showParentLine ? ticket.ancestors[0] : undefined;
+  const ownIssueGroup = issueGroups.get(ticket.id);
   return (
     <IssueRow
       rowKey={ticket.id}
@@ -687,7 +691,13 @@ function TicketRow({
       {...(parent === undefined
         ? {}
         : { below: t("parentLine", { key: parent.key, title: parent.title }) })}
-      run={<TicketRunCell ticket={ticket} />}
+      run={
+        ownIssueGroup === undefined ? (
+          <TicketRunCell ticket={ticket} />
+        ) : (
+          <GroupRunSummary group={ownIssueGroup} />
+        )
+      }
       action={
         <TicketRowActionButton
           ticket={ticket}
@@ -737,7 +747,7 @@ function GroupRunSummary({ group }: { group: TicketGroup }) {
   for (const child of group.children) {
     const run = lastRun(child);
     if (run === undefined || ticketStage(child) === "finished") continue;
-    if (run.state === "ended" && run.summary !== "failed") continue;
+    if (run.state === "ended" && (run.summary !== "failed" || child.isParentIssue)) continue;
     const status = runDisplayStatus(run);
     counts.set(status, (counts.get(status) ?? 0) + 1);
   }
@@ -1355,21 +1365,23 @@ function TicketPanel({
         {parentIssue === undefined ? null : (
           <div {...stylex.props(styles.parentLine)}>
             <Text variant="meta">{t("parentLink")}</Text>
-            {parentIsKnown ? (
-              <Button variant="ghost" compact onClick={() => onSelectTicket(parentId)}>
-                {`${parentIssue.key} ${parentIssue.title}`}
-              </Button>
-            ) : (
-              <Text variant="meta" wrap="anywhere">
-                {`${parentIssue.key} ${parentIssue.title}`}
-              </Text>
-            )}
-            {parentIsKnown || parentIssue.url === null ? null : (
-              <ExternalIconLink
-                href={parentIssue.url}
-                label={`${t("openInLinear")} (${t("newTab")})`}
+            <PanelList>
+              <PanelListRow
+                ticketKey={parentIssue.key}
+                title={parentIssue.title}
+                {...(parentIsKnown ? { onClick: () => onSelectTicket(parentId) } : {})}
+                {...(parentIsKnown || parentIssue.url === null
+                  ? {}
+                  : {
+                      trailing: (
+                        <ExternalIconLink
+                          href={parentIssue.url}
+                          label={`${t("openInLinear")} (${t("newTab")})`}
+                        />
+                      ),
+                    })}
               />
-            )}
+            </PanelList>
           </div>
         )}
       </div>
@@ -1506,6 +1518,6 @@ const styles = stylex.create({
   chips: { display: "flex", flexWrap: "wrap", gap: space.px6, minWidth: 0 },
   relationGroup: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
   waitMark: { display: "inline-flex", flexShrink: 0, alignItems: "center", gap: space.s1 },
-  parentLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
+  parentLine: { display: "flex", flexDirection: "column", gap: space.px6, minWidth: 0 },
   runLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
 });

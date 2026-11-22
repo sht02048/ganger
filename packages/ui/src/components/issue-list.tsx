@@ -181,7 +181,7 @@ export function IssueList({
   children,
 }: {
   label: string;
-  onMove: (move: IssueListMove) => void;
+  onMove: (move: IssueListMove, fromRowKey: string | null) => void;
   children: ReactNode;
 }) {
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -190,7 +190,8 @@ export function IssueList({
     if (!(event.target instanceof HTMLElement) || !event.target.hasAttribute("data-issue-select"))
       return;
     event.preventDefault();
-    onMove(move);
+    const row = event.target.closest<HTMLElement>("[data-row-key]");
+    onMove(move, row?.dataset["rowKey"] ?? null);
   };
   return (
     <div role="list" aria-label={label} onKeyDown={handleKeyDown} {...stylex.props(styles.list)}>

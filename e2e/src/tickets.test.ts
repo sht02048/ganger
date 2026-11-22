@@ -314,6 +314,19 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
         .click();
       await child.waitFor();
 
+      await child.click();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      await list.getByRole("button", { name: "ACME-1 Ticket number 1", exact: true }).focus();
+      await page.keyboard.press("ArrowDown");
+      await expect.poll(focused).toBe("Ticket number 2");
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
       const search = page.getByRole("searchbox", { name: tickets.search.label });
       await search.fill("number 501");
       await child.waitFor();

@@ -105,6 +105,44 @@ describe("묶기(0171)", () => {
     expect(groups[0]?.expandedByDefault).toBe(true);
   });
 
+  it("중간 이슈의 끝난 런은 묶음 단계에 넣지 않는다", () => {
+    const failed: TicketRun = {
+      id: "r",
+      runnerName: null,
+      state: "ended",
+      endedAt: "2026-11-18T00:00:00.000Z",
+      endedAgoMs: 0,
+      agentResult: "reported-failure",
+      prState: "none",
+      laterPrState: null,
+      pullRequest: null,
+      summary: "failed",
+    };
+    const { groups } = groupTickets([
+      ticket("A", parentIssue),
+      ticket("B", { ...under("A"), ...parentIssue, runs: [failed] }),
+      ticket("C", {
+        ...under("B", "A"),
+        ...state("started"),
+        assignability: { kind: "no-mapping" },
+      }),
+    ]);
+    expect(groups[0]?.stage).toBe("in-progress");
+  });
+
+  it("깊은 트리의 중간 이슈 묶음도 사슬을 이어 모든 아래 티켓을 담는다", () => {
+    const tickets = [
+      ticket("R", parentIssue),
+      ticket("M", { ...under("R"), ...parentIssue }),
+      ticket("A", { ...under("M", "R"), ...parentIssue }),
+      ticket("B", { ...under("A", "M", "R"), ...parentIssue }),
+      ticket("C", { ...under("B", "A", "M"), ...parentIssue }),
+      ticket("T", under("C", "B", "A")),
+    ];
+    const middle = issueGroupsById(tickets, groupTickets(tickets)).get(ticketId("c", "M"));
+    expect(middle?.children.map((child) => child.key).toSorted()).toEqual(["A", "B", "C", "T"]);
+  });
+
   it("상위 관계가 돌아도 멈추고 티켓을 잃지 않는다", () => {
     const { groups, loose } = groupTickets([ticket("A", under("B")), ticket("B", under("A"))]);
     expect(groups).toEqual([]);
