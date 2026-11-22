@@ -93,6 +93,11 @@ export function RunPanelBody({
         : detailHref;
   const opensHost = run.nextStep === "pr-ci-failed" || run.nextStep === "pr-conflict";
   const canContinue = run.canContinue && (opensHost || run.nextStep === "failed");
+  const openDetailInApp = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isPlainClick(event)) return;
+    event.preventDefault();
+    onOpenDetail();
+  };
 
   return (
     <div {...stylex.props(styles.body)}>
@@ -114,7 +119,9 @@ export function RunPanelBody({
                 {nextStepText.action === null ? null : (
                   <a
                     href={stepHref}
-                    {...(opensHost ? { target: "_blank", rel: "noreferrer" } : {})}
+                    {...(opensHost
+                      ? { target: "_blank", rel: "noreferrer" }
+                      : { onClick: openDetailInApp })}
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
@@ -129,6 +136,7 @@ export function RunPanelBody({
                 {canContinue ? (
                   <a
                     href={detailHref}
+                    onClick={openDetailInApp}
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
@@ -155,11 +163,7 @@ export function RunPanelBody({
         <a
           href={detailHref}
           data-variant="primary"
-          onClick={(event) => {
-            if (!isPlainClick(event)) return;
-            event.preventDefault();
-            onOpenDetail();
-          }}
+          onClick={openDetailInApp}
           {...stylex.props(...buttonStyles("primary"))}
         >
           {t("openDetail")}
@@ -201,16 +205,19 @@ function useRunWhen(run: RunView): string {
   }
 }
 
-function useRunReason(run: RunView): string {
+function useRunReason(run: BoardRun): string {
   const t = useTranslations("runs.panel");
   const queuedReasonText = useQueuedReasonText();
   if (run.state !== "ended" && run.cancelling) return t("cancellingReason");
   switch (run.state) {
     case "queued":
       return queuedReasonText(run.queuedReason);
-    case "running":
     case "waiting-for-input":
-      return t(`reason.${run.state}`);
+      if (run.handledInput === "answered") return t("reason.answerSent");
+      if (run.handledInput === "denied") return t("reason.permissionDenied");
+      return t("reason.waiting-for-input");
+    case "running":
+      return t("reason.running");
     case "disconnected":
       return t(run.paused ? "reason.disconnectedPaused" : "reason.disconnected");
     case "paused":
@@ -348,7 +355,7 @@ function prChecksUrl(url: string): string {
   return `${url.replace(/\/+$/, "")}/checks`;
 }
 
-function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
+export function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 

@@ -50,8 +50,14 @@ import type { UnsavedGuard } from "../settings/navigation-guard";
 import { useUnsavedHold } from "../settings/row-state";
 import { ReportUnsavedContext, useRunnerCheckPolling } from "../settings/settings-screen";
 import type { ActionResult } from "../settings/settings-screen";
+import { runnerRunsHref } from "../runs/hrefs";
 import { useStatusName } from "../status";
-import { failedChecksFirst, problemRunnersFirst, runnerRowStatus } from "@ganger/app/runners/model";
+import {
+  failedChecksFirst,
+  problemRunnersFirst,
+  runnerRowStatus,
+  runnerRunsWorkspace,
+} from "@ganger/app/runners/model";
 import {
   isPushCheck,
   prerequisiteKind,
@@ -616,7 +622,9 @@ function CapacityRuns({ runner, ws }: { runner: RunnerView; ws: string | undefin
         total={runner.capacity}
         label={tRunners("capacityCellsLabel", { used, total: runner.capacity })}
       />
-      <TextLink href={runnerRunsHref(ws, runner.id)}>{t("viewRuns")}</TextLink>
+      <TextLink href={runnerRunsHref(runnerRunsWorkspace(runner, ws), runner.id)}>
+        {t("viewRuns")}
+      </TextLink>
       {runner.queued.length === 0 ? null : (
         <Text variant="meta" as="p" numeric>
           {t("queuedWaiting", {
@@ -627,12 +635,6 @@ function CapacityRuns({ runner, ws }: { runner: RunnerView; ws: string | undefin
       )}
     </PanelSection>
   );
-}
-
-export function runnerRunsHref(ws: string | undefined, runnerId: string): string {
-  const search = new URLSearchParams(ws === undefined ? {} : { ws });
-  search.set("runner", runnerId);
-  return `/runs?${search.toString()}`;
 }
 
 function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheckItem | null }) {

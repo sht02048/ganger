@@ -20,6 +20,8 @@ import { DEFAULT_ENDED_DAYS, needsReview } from "./board.js";
 import type {
   BoardRun,
   EndedView,
+  HandledInput,
+  OtherWorkspaceRuns,
   RunBoardConditions,
   RunBoardDays,
   RunnerSeats,
@@ -87,7 +89,7 @@ export function loadRunsBoard(
   };
   const endedScope = { ...scope, endedBetween: endedBounds(days, now, timeZone) };
 
-  const nextStepOf = nextStepReader(db);
+  const nextStepOf = nextStepReader(db, listRuns(db));
   const toBoardRun = (entry: RunEntry) => boardRun(db, toView(entry, false), entry, nextStepOf);
 
   const active = listRunsWithRecords(db, {
@@ -118,7 +120,7 @@ export function loadRunsBoard(
     failedOnly,
     days,
     moreEnded: listed.length > endedLimit,
-    runners: runnerSeats(db),
+    runners: runnerSeats(db, workspace.workspace.id),
     conditions: describeConditions(db, conditions, runners),
   };
 }
@@ -138,7 +140,12 @@ export function loadBoardRun(
   if (entry === null || entry.run.workspaceId !== workspace.workspace.id) return null;
   return withContinue(
     db,
-    boardRun(db, runViewBuilder(db, now).toView(entry, false), entry, nextStepReader(db)),
+    boardRun(
+      db,
+      runViewBuilder(db, now).toView(entry, false),
+      entry,
+      nextStepReader(db, listRuns(db, { ticket: entry.run.ticket })),
+    ),
   );
 }
 
@@ -160,15 +167,28 @@ function boardRun(
     ...view,
     runnerId: run.runnerId,
     waitingFor: pending?.kind ?? null,
+    handledInput: pending === null ? null : handledInputOf(pending),
     nextStep: nextStepOf(view, entry, pending ?? { kind: "unknown" }),
     canContinue: false,
   };
 }
 
-function nextStepReader(db: Database) {
+function handledInputOf(input: NextStepInputWait): HandledInput | null {
+  switch (input.kind) {
+    case "question":
+    case "human-check":
+      return input.answered ? "answered" : null;
+    case "permission":
+      return input.denied ? "denied" : null;
+    case "unknown":
+      return null;
+  }
+}
+
+function nextStepReader(db: Database, ticketRuns: ReadonlyArray<StoredRun>) {
   const takenOver = listTakenOverRunIds(db);
   const newest = new Map<string, StoredRun>();
-  for (const run of listRuns(db)) {
+  for (const run of ticketRuns) {
     const key = ticketKeyOf(run);
     const current = newest.get(key);
     if (current === undefined || isNewer(run, current)) newest.set(key, run);
@@ -222,10 +242,14 @@ function isNewer(run: StoredRun, than: StoredRun): boolean {
   return diff > 0 || (diff === 0 && run.id > than.id);
 }
 
-function runnerSeats(db: Database): RunnerSeats[] {
+function runnerSeats(db: Database, workspaceId: string): RunnerSeats[] {
   const used = new Map<string, number>();
+  const elsewhere = new Map<string, string[]>();
   for (const run of listRuns(db, { states: OCCUPYING_STATES })) {
-    if (run.runnerId !== null) used.set(run.runnerId, (used.get(run.runnerId) ?? 0) + 1);
+    if (run.runnerId === null) continue;
+    used.set(run.runnerId, (used.get(run.runnerId) ?? 0) + 1);
+    if (run.workspaceId !== workspaceId)
+      elsewhere.set(run.runnerId, [...(elsewhere.get(run.runnerId) ?? []), run.workspaceId]);
   }
   return listRunners(db).map((runner) => ({
     id: runner.id,
@@ -233,7 +257,17 @@ function runnerSeats(db: Database): RunnerSeats[] {
     online: runner.online,
     capacity: runner.capacity,
     used: used.get(runner.id) ?? 0,
+    otherWorkspaces: otherWorkspaceRuns(elsewhere.get(runner.id) ?? []),
   }));
+}
+
+function otherWorkspaceRuns(workspaceIds: ReadonlyArray<string>): OtherWorkspaceRuns {
+  const distinct = new Set(workspaceIds);
+  const [only] = distinct;
+  return {
+    count: workspaceIds.length,
+    onlyWorkspaceId: distinct.size === 1 && only !== undefined ? only : null,
+  };
 }
 
 function endedBounds(days: RunBoardDays, now: Date, timeZone: string) {

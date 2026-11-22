@@ -104,7 +104,9 @@ export function runViewBuilder(db: Database, now: Date) {
   const runners = new Map(listRunners(db).map((r) => [r.id, r]));
   const cancelling = new Set<RunId>(listPendingCancelRequests(db).map((r) => r.runId));
   const takenOver = listTakenOverRunIds(db);
-  const queueReasons = loadQueueReasons(db, now);
+  let queueReasons: ReturnType<typeof loadQueueReasons> | null = null;
+  const queueReasonCode = (id: RunId) =>
+    (queueReasons ??= loadQueueReasons(db, now)).get(id) ?? { kind: "behind" as const };
 
   const projectNames = new Map<string, string>();
   const projectName = (run: StoredRun): string => {
@@ -121,7 +123,7 @@ export function runViewBuilder(db: Database, now: Date) {
 
   const queuedReason = (id: RunId): QueuedReason =>
     describeQueuedReason(
-      queueReasons.get(id) ?? { kind: "behind" },
+      queueReasonCode(id),
       (runnerId) => runners.get(runnerId)?.name ?? runnerId,
       now,
     );

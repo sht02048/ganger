@@ -25,6 +25,7 @@ import {
   TableRow,
   TableRows,
   Text,
+  TextLink,
 } from "@ganger/ui";
 import type { PillStatus } from "@ganger/ui";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
@@ -33,13 +34,14 @@ import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { useAgentName } from "../labels";
-import { RunSheet } from "./run-panel";
+import { isPlainClick, RunSheet } from "./run-panel";
 import type { WorkspaceSummary } from "@ganger/app/shell/model";
 import {
   ENDED_PERIOD_CHOICES,
   RUNNER_CARD_VISIBLE_RUNS,
   WAITING_CARD_VISIBLE_RUNS,
   foldRuns,
+  isCancelling,
   prProblemOf,
   runWord,
   runnerCards,
@@ -58,6 +60,7 @@ import type {
 import type { ConditionKey } from "@ganger/app/runs/conditions";
 import { currentPrState, elapsedMs } from "@ganger/app/runs/model";
 import type { RunCondition } from "@ganger/app/runs/model";
+import { runnerRunsHref } from "./hrefs";
 
 export type ClearableCondition = ConditionKey | "f";
 
@@ -163,6 +166,7 @@ function useSituationText(): (part: SituationPart) => string {
       case "running":
       case "waiting":
       case "queued":
+      case "settling":
         return t(part.key, { count: part.count });
     }
   };
@@ -221,17 +225,6 @@ function RunsBoard(props: RunsScreenProps) {
         ) : null}
         <Section title={t("now.title")} titleRole="heading">
           <div {...stylex.props(styles.nowGrid)}>
-            <div data-runner-cards {...stylex.props(styles.cards)}>
-              {cards.length === 0 ? (
-                <Text variant="meta">
-                  {page.runners.length === 0 ? t("now.noRunners") : t("now.noMatch")}
-                </Text>
-              ) : (
-                cards.map((card) => (
-                  <RunnerRunsCard key={card.id} card={card} onSelect={onSelect} />
-                ))
-              )}
-            </div>
             <div data-waiting-card {...stylex.props(styles.queue)}>
               <Card padding="compact" label={t("now.queueTitle")}>
                 <div {...stylex.props(styles.cardBody)}>
@@ -253,6 +246,22 @@ function RunsBoard(props: RunsScreenProps) {
                   )}
                 </div>
               </Card>
+            </div>
+            <div data-runner-cards {...stylex.props(styles.cards)}>
+              {cards.length === 0 ? (
+                <Text variant="meta">
+                  {page.runners.length === 0 ? t("now.noRunners") : t("now.noMatch")}
+                </Text>
+              ) : (
+                cards.map((card) => (
+                  <RunnerRunsCard
+                    key={card.id}
+                    card={card}
+                    onSelect={onSelect}
+                    onPickWorkspace={props.onPickWorkspace}
+                  />
+                ))
+              )}
             </div>
           </div>
         </Section>
@@ -276,11 +285,14 @@ function RunsBoard(props: RunsScreenProps) {
 function RunnerRunsCard({
   card,
   onSelect,
+  onPickWorkspace,
 }: {
   card: RunnerCard;
   onSelect: (runId: string) => void;
+  onPickWorkspace: (workspaceId: string) => void;
 }) {
   const t = useTranslations("runs.now");
+  const elsewhere = card.otherWorkspaces;
   return (
     <div data-runner-card={card.id} data-dimmed={card.dimmed ? "" : undefined}>
       <Card padding="compact" label={t("runnerLabel", { name: card.name })}>
@@ -301,10 +313,8 @@ function RunnerRunsCard({
             )}
           </span>
           {card.runs.length === 0 ? (
-            card.online ? (
-              <Text variant="meta">
-                {card.used > 0 ? t("otherWorkspace", { count: card.used }) : t("noRuns")}
-              </Text>
+            card.online && elsewhere.count === 0 ? (
+              <Text variant="meta">{t("noRuns")}</Text>
             ) : null
           ) : (
             <FoldedRuns
@@ -314,9 +324,50 @@ function RunnerRunsCard({
               trailing="word"
             />
           )}
+          {elsewhere.count === 0 ? null : (
+            <OtherWorkspaceLine
+              count={elsewhere.count}
+              workspaceId={elsewhere.onlyWorkspaceId}
+              runnerId={card.id}
+              onPickWorkspace={onPickWorkspace}
+            />
+          )}
         </div>
       </Card>
     </div>
+  );
+}
+
+function OtherWorkspaceLine({
+  count,
+  workspaceId,
+  runnerId,
+  onPickWorkspace,
+}: {
+  count: number;
+  workspaceId: string | null;
+  runnerId: string;
+  onPickWorkspace: (workspaceId: string) => void;
+}) {
+  const t = useTranslations("runs.now");
+  const sentence = t("otherWorkspace", { count });
+  return (
+    <Text variant="meta">
+      {workspaceId === null ? (
+        sentence
+      ) : (
+        <TextLink
+          href={runnerRunsHref(workspaceId, runnerId)}
+          onClick={(event) => {
+            if (!isPlainClick(event)) return;
+            event.preventDefault();
+            onPickWorkspace(workspaceId);
+          }}
+        >
+          {sentence}
+        </TextLink>
+      )}
+    </Text>
   );
 }
 
@@ -333,6 +384,7 @@ function FoldedRuns({
 }) {
   const t = useTranslations("runs.now");
   const word = useRunWordText();
+  const queueReason = useQueueReasonText();
   const { duration, elapsed } = useTime();
   const [expanded, setExpanded] = useState(false);
   const list = useRef<HTMLDivElement>(null);
@@ -351,7 +403,7 @@ function FoldedRuns({
             key={run.id}
             marker={
               <StatusDot status={dotStatus(runWord(run))}>
-                {trailing === "wait" || run.state === "running" ? word(runWord(run)) : undefined}
+                {trailing === "word" && runWord(run) === "running" ? word("running") : undefined}
               </StatusDot>
             }
             {...(run.ticketTitle === null
@@ -359,8 +411,8 @@ function FoldedRuns({
               : { ticketKey: run.ticketKey, title: run.ticketTitle })}
             trailing={
               trailing === "wait"
-                ? duration(run.waitMs)
-                : run.state === "running"
+                ? `${queueReason(run)} · ${duration(run.waitMs)}`
+                : runWord(run) === "running"
                   ? elapsed(elapsedMs(run))
                   : word(runWord(run))
             }
@@ -389,6 +441,11 @@ function dotStatus(word: RunWord): PillStatus {
       return "succeeded";
     case "needs-review":
       return "failed";
+    case "answer-sent":
+    case "permission-denied":
+      return "running";
+    case "cancelling":
+      return "canceled";
     case "running":
     case "question":
     case "permission":
@@ -405,6 +462,16 @@ function dotStatus(word: RunWord): PillStatus {
 function useRunWordText(): (word: RunWord) => string {
   const t = useTranslations("runs.word");
   return (word) => t(word);
+}
+
+function useQueueReasonText(): (run: BoardRun) => string {
+  const t = useTranslations("runs");
+  return (run) => {
+    if (isCancelling(run)) return t("word.cancelling");
+    return run.state === "queued"
+      ? t(`now.queueReason.${run.queuedReason.kind}`)
+      : t("word.queued");
+  };
 }
 
 function EndedSection({
@@ -681,7 +748,8 @@ const styles = stylex.create({
     gap: space.s4,
   },
   cards: {
-    order: 1,
+    gridColumn: { default: 1, [breakpoints.runsBoardStacked]: "auto" },
+    gridRow: { default: 1, [breakpoints.runsBoardStacked]: "auto" },
     display: "grid",
     gridTemplateColumns: {
       default: `repeat(auto-fill, minmax(${size.runnerCardMinWidth}, 1fr))`,
@@ -692,7 +760,8 @@ const styles = stylex.create({
     minWidth: 0,
   },
   queue: {
-    order: { default: 2, [breakpoints.runsBoardStacked]: 0 },
+    gridColumn: { default: 2, [breakpoints.runsBoardStacked]: "auto" },
+    gridRow: { default: 1, [breakpoints.runsBoardStacked]: "auto" },
     minWidth: 0,
   },
   cardBody: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
