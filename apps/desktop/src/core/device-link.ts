@@ -47,16 +47,18 @@ export function deviceTokenStore(
       }
     },
     write: (instanceId, token) => {
-      if (cipher === null || !cipher.isAvailable()) {
-        memory.set(instanceId, token);
+      memory.set(instanceId, token);
+      if (cipher === null || !cipher.isAvailable()) return;
+      try {
+        const current = settings.read();
+        settings.write({
+          ...current,
+          deviceTokens: { ...sealedTokens(current), [instanceId]: cipher.encrypt(token) },
+        });
+        memory.delete(instanceId);
+      } catch {
         return;
       }
-      const current = settings.read();
-      settings.write({
-        ...current,
-        deviceTokens: { ...sealedTokens(current), [instanceId]: cipher.encrypt(token) },
-      });
-      memory.delete(instanceId);
     },
   };
 }

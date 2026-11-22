@@ -152,6 +152,7 @@ export class Controller {
   private updateTimer: NodeJS.Timeout | undefined;
   private readonly deviceLink: DeviceLink;
   private deviceLinkState: DeviceLinkState = "connected";
+  private deviceRejectedNotice: Notification | undefined;
   quitting = false;
 
   constructor(options: ControllerOptions) {
@@ -803,12 +804,16 @@ export class Controller {
   }
 
   private notifyDeviceRejected(): void {
-    if (!Notification.isSupported()) return;
+    if (!Notification.isSupported() || !this.notificationPrefs().enabled) return;
     const notification = new Notification({
       title: t("notifications.deviceRejected.title"),
       body: t("notifications.deviceRejected.body"),
     });
-    notification.on("click", () => this.showNotificationSettings());
+    notification.on("click", () => {
+      this.deviceRejectedNotice = undefined;
+      this.showNotificationSettings();
+    });
+    this.deviceRejectedNotice = notification;
     notification.show();
   }
 
@@ -816,7 +821,7 @@ export class Controller {
     const current = this.feed;
     if (current === undefined || this.deviceLinkState === "reconnecting") return;
     this.setDeviceLinkState("reconnecting");
-    const connected = await this.deviceLink.reconnect(current.url);
+    const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
     if (this.feed !== current) return;
     this.setDeviceLinkState(connected ? "connected" : "failed");
     if (connected) current.feed.reconnect();
@@ -833,6 +838,7 @@ export class Controller {
     const current = this.feed;
     if (current === undefined) return;
     this.feed = undefined;
+    this.setDeviceLinkState("connected");
     current.feed.stop();
     this.applyNotifications(current.url, current.notifier.clear());
   }

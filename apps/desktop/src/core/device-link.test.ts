@@ -90,6 +90,24 @@ describe("데스크톱 기기 연결(M48)", () => {
     expect(settings.value.deviceTokens).toBeUndefined();
   });
 
+  it("토큰을 저장하지 못해도 메모리에 두어 다시 등록하지 않는다", async () => {
+    const settings = memorySettings();
+    settings.write = () => {
+      throw new Error("ENOSPC");
+    };
+    const { link, registers } = linkWith(settings, [
+      { kind: "registered", token: "token-1" },
+      { kind: "registered", token: "token-2" },
+    ]);
+
+    expect(await link.connection(ORIGIN)).toEqual({ kind: "token", token: "token-1" });
+    expect(await link.connection(ORIGIN)).toEqual({ kind: "token", token: "token-1" });
+    expect(registers).toHaveLength(1);
+
+    expect(await link.reconnect(ORIGIN)).toBe(true);
+    expect(await link.connection(ORIGIN)).toEqual({ kind: "token", token: "token-2" });
+  });
+
   it("v1 이 없는 옛 서버는 옛 경로로, 등록 실패는 나중에 다시 시도로 돌린다", async () => {
     const legacy = linkWith(memorySettings(), [{ kind: "unsupported" }]);
     expect(await legacy.link.connection(ORIGIN)).toEqual({ kind: "legacy" });
