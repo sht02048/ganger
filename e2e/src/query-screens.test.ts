@@ -283,8 +283,8 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     const { page, serverCalls } = await newPage(context, { stream: false });
     await open(page, "/tickets?f=assignable", "tickets");
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${ticket.key} ${ticket.title}` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${ticket.key} ${ticket.title}` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();
@@ -307,8 +307,8 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     const { page, serverCalls } = await newPage(context, { stream: true });
     await open(page, "/tickets?f=assignable", "tickets");
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${ticket.key} ${ticket.title}` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${ticket.key} ${ticket.title}` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();
@@ -410,8 +410,8 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     const ticket = addTicket("Before webhook");
     const { page } = await newPage(context, { stream: true });
     await open(page, "/tickets", "tickets");
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    await list.getByRole("option", { name: `${ticket.key} Before webhook` }).waitFor();
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    await list.getByRole("button", { name: `${ticket.key} Before webhook` }).waitFor();
 
     const trackerReads = tracker.ticketReads;
     tracker.addTicket({ ...ticket, title: "After webhook" });
@@ -426,10 +426,10 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     });
 
     await list
-      .getByRole("option", { name: `${ticket.key} After webhook` })
+      .getByRole("button", { name: `${ticket.key} After webhook` })
       .waitFor({ timeout: VISIBLE_WITHIN_MS });
     expect(tracker.ticketReads).toBeGreaterThan(trackerReads);
-    expect(await list.getByRole("option", { name: `${ticket.key} Before webhook` }).count()).toBe(
+    expect(await list.getByRole("button", { name: `${ticket.key} Before webhook` }).count()).toBe(
       0,
     );
   });
@@ -453,8 +453,8 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
       await railLink(page, shell.nav.tickets).click();
       await waitForScreen(page, "tickets");
       await page
-        .getByRole("listbox", { name: tickets.listLabel })
-        .getByRole("option", { name: `${ticket.key} ${ticket.title}` })
+        .getByRole("list", { name: tickets.listLabel })
+        .getByRole("button", { name: `${ticket.key} ${ticket.title}` })
         .waitFor({ timeout: VISIBLE_WITHIN_MS });
       expect(await page.getByText(/티켓을 읽지 못했어요/).count()).toBe(0);
     } finally {
@@ -557,8 +557,9 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     const { page } = await newPage(context, { stream: false });
     await open(page, "/tickets", "tickets");
     const option = page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${ticket.key} ${ticket.title}` });
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
+      .filter({ hasText: ticket.key });
     expect(await option.innerText()).toContain(tickets.unassigned);
     await railLink(page, shell.nav.runners).click();
     await waitForScreen(page, "runners");
