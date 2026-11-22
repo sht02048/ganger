@@ -78,17 +78,50 @@ describe("움직이는 묶음의 줄 배치(0175)", () => {
     const phases = new Map<string, IssueGroupPhase>([["p", "opening"]]);
     const blocks = listBlocks(rows, { start: 0, end: 2, offsets, collapsed: null }, phases);
     const body = bodyOf(blocks);
-    expect(body.items.map((item) => item.kind)).toEqual(["line", "space"]);
+    expect(body.items.map((item) => item.kind)).toEqual(["line", "space", "line"]);
     expect(totalHeight(blocks)).toBe(300);
+  });
+
+  it("두 묶음이 함께 움직이면 위 묶음이 낮은 동안 보이는 아래 묶음의 줄도 그린다", () => {
+    const twoGroups: BlockRow[] = [
+      parent("a"),
+      ...Array.from({ length: 20 }, (_, i) => child(`a${i}`, i === 19 ? "last" : "middle")),
+      parent("b"),
+      ...Array.from({ length: 5 }, (_, i) => child(`b${i}`, i === 4 ? "last" : "middle")),
+    ];
+    const phases = new Map<string, IssueGroupPhase>([
+      ["a", "opening"],
+      ["b", "opening"],
+    ]);
+    const moving = movingChildPhases(twoGroups, phases);
+    const full = rowOffsets(twoGroups.map(() => 52));
+    const closed = rowOffsets(twoGroups.map((row) => (moving.has(row.id) ? 0 : 52)));
+    const main = windowOf(full, 0, 600);
+    const blocks = listBlocks(
+      twoGroups,
+      {
+        start: main.start,
+        end: main.end,
+        offsets: full,
+        collapsed: { ...windowOf(closed, 0, 600), offsets: closed, from: 0, to: 600 },
+      },
+      phases,
+    );
+    expect(shownIds(blocks)).toEqual(expect.arrayContaining(["b", "b0", "b1", "b2", "b3", "b4"]));
   });
 
   it("접힌 배치에서 보이는 아래 줄도 함께 그려 밀려 올라오게 한다", () => {
     const phases = new Map<string, IssueGroupPhase>([["p", "closing"]]);
     const moving = movingChildPhases(rows, phases);
     const collapsedOffsets = rowOffsets(rows.map((row) => (moving.has(row.id) ? 0 : 50)));
-    const collapsed = windowOf(collapsedOffsets, 0, 120, 0);
+    const collapsed = {
+      ...windowOf(collapsedOffsets, 0, 120, 0),
+      offsets: collapsedOffsets,
+      from: 0,
+      to: 120,
+    };
     const blocks = listBlocks(rows, { start: 0, end: 3, offsets, collapsed }, phases);
-    expect(shownIds(blocks)).toEqual(["p", "c1", "c2", "after1", "after2"]);
+    expect(shownIds(blocks)).toEqual(["p", "c1", "c2", "c3", "after1", "after2"]);
     expect(totalHeight(blocks)).toBe(300);
   });
 

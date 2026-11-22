@@ -76,7 +76,12 @@ import { isBlockerFinished } from "@ganger/core";
 import { blockerChipState } from "../blockers";
 import { useAgentName, useQueuedReasonText } from "../labels";
 import { useRowWindow } from "./row-window";
-import { groupTickets, issueGroupsById, ticketStage } from "@ganger/app/tickets/groups";
+import {
+  groupTickets,
+  issueGroupsById,
+  ticketStage,
+  visibleGrouping,
+} from "@ganger/app/tickets/groups";
 import type { TicketGroup, TicketListView } from "@ganger/app/tickets/groups";
 import {
   isSelectableRow,
@@ -374,7 +379,10 @@ function TicketsList({
     onSelect(id);
   };
   const toggleGroup = (group: TicketGroup, expanded: boolean) => {
-    groupMotion.toggle(group.id, !expanded, group.children.length);
+    const shownChildren = visibleGrouping(grouping, filter, query).groups.find(
+      (visible) => visible.group.id === group.id,
+    )?.children.length;
+    groupMotion.toggle(group.id, !expanded, shownChildren ?? group.children.length);
     setExpansion((current) => new Map(current).set(group.id, !expanded));
   };
   const renderRow = (row: TicketListRow) => (

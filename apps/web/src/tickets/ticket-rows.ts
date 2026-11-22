@@ -181,7 +181,15 @@ interface BlockWindow {
   start: number;
   end: number;
   offsets: ReadonlyArray<number>;
-  collapsed: { start: number; end: number } | null;
+  collapsed: CollapsedBlockWindow | null;
+}
+
+export interface CollapsedBlockWindow {
+  start: number;
+  end: number;
+  offsets: ReadonlyArray<number>;
+  from: number;
+  to: number;
 }
 
 function addSpace<R extends BlockRow>(
@@ -205,6 +213,13 @@ export function listBlocks<R extends BlockRow>(
   const inCollapsed = (index: number) =>
     collapsed !== null && index >= collapsed.start && index < collapsed.end;
   const heightOf = (index: number) => (offsets[index + 1] ?? 0) - (offsets[index] ?? 0);
+  const canPassThroughView = (at: number, bodyStart: number) => {
+    if (collapsed === null) return false;
+    const pulledUpBy = (offsets[bodyStart] ?? 0) - (collapsed.offsets[bodyStart] ?? 0);
+    return (
+      (offsets[at + 1] ?? 0) > collapsed.from && (offsets[at] ?? 0) - pulledUpBy < collapsed.to
+    );
+  };
   const blocks: TicketListBlock<R>[] = [];
   let index = 0;
   while (index < rows.length) {
@@ -219,9 +234,16 @@ export function listBlocks<R extends BlockRow>(
     while (rows[bodyEnd]?.kind === "child") bodyEnd += 1;
     if (bodyEnd === index) continue;
     const phase = phases.get(row.id);
+    const bodyStart = index;
+    const childShown = (at: number) =>
+      inMain(at) ||
+      (phase === undefined
+        ? inCollapsed(at)
+        : at === bodyEnd - 1 || canPassThroughView(at, bodyStart));
     let anyShown = phase !== undefined && shown;
     for (let at = index; at < bodyEnd && !anyShown; at += 1) {
-      anyShown = inMain(at) || (phase === undefined && inCollapsed(at));
+      anyShown =
+        phase === undefined ? childShown(at) : inMain(at) || canPassThroughView(at, bodyStart);
     }
     if (!anyShown) {
       for (let at = index; at < bodyEnd; at += 1) {
@@ -234,7 +256,7 @@ export function listBlocks<R extends BlockRow>(
     for (let at = index; at < bodyEnd; at += 1) {
       const child = rows[at];
       if (child === undefined) continue;
-      if (inMain(at) || (phase === undefined && inCollapsed(at))) {
+      if (childShown(at)) {
         const presented: R =
           phase !== undefined && child.kind === "child" && child.surface === "last"
             ? { ...child, surface: "middle" }

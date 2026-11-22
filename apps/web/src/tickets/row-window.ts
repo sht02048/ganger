@@ -51,7 +51,7 @@ export function windowOf(
 
 export interface MovingRowWindow extends RowWindow {
   offsets: ReadonlyArray<number>;
-  collapsed: RowWindow | null;
+  collapsed: (RowWindow & { offsets: ReadonlyArray<number>; from: number; to: number }) | null;
 }
 
 const NO_MOVING_KEYS: ReadonlyMap<string, unknown> = new Map();
@@ -171,7 +171,15 @@ export function useRowWindow(
   return {
     ...windowOf(offsets, view.from, view.to),
     offsets,
-    collapsed: collapsedOffsets === null ? null : windowOf(collapsedOffsets, view.from, view.to),
+    collapsed:
+      collapsedOffsets === null
+        ? null
+        : {
+            ...windowOf(collapsedOffsets, view.from, view.to),
+            offsets: collapsedOffsets,
+            from: view.from,
+            to: view.to,
+          },
   };
 }
 
