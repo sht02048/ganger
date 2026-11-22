@@ -8,7 +8,7 @@ import {
 } from "../server/device-functions";
 import type { DeviceActions } from "./devices-section";
 
-export const DEVICES_KEY = ["settings", "devices"] as const;
+export const DEVICES_KEY = ["devices"] as const;
 
 export const devicesQuery = queryOptions({
   queryKey: DEVICES_KEY,

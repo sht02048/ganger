@@ -43,7 +43,7 @@ export const INVALIDATED_KEYS: Readonly<Record<ChangeKind, ReadonlyArray<QueryKe
     ["runs"],
     ["stats"],
   ],
-  settings: [["settings"], ["dashboard"], ["tickets", "runs"], ["runs"], ["stats"]],
+  settings: [["settings"], ["devices"], ["dashboard"], ["tickets", "runs"], ["runs"], ["stats"]],
   tracker: [["tracker"]],
 };
 

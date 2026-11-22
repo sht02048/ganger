@@ -46,6 +46,8 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
   const [status, setStatus] = useState<Status>(null);
   const [starting, setStarting] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
+  const qrPanelRef = useRef<HTMLDivElement>(null);
+  const qrIsOpen = qr !== null;
   const openId = useRef<string | null>(null);
   const qrGeneration = useRef(0);
   const shownAddress = useRef(view.address);
@@ -80,6 +82,10 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
     shownAddress.current = view.address;
     dropQr();
   }, [view.address]);
+
+  useEffect(() => {
+    if (qrIsOpen) qrPanelRef.current?.focus();
+  }, [qrIsOpen]);
 
   useEffect(() => {
     if (qr === null || qr.expired) return;
@@ -164,7 +170,13 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
             }
             expanded={
               qr === null ? undefined : (
-                <QrPanel qr={qr} starting={starting} onRenew={() => void start()} onClose={close} />
+                <QrPanel
+                  panelRef={qrPanelRef}
+                  qr={qr}
+                  starting={starting}
+                  onRenew={() => void start()}
+                  onClose={close}
+                />
               )
             }
           />
@@ -204,11 +216,13 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
 }
 
 function QrPanel({
+  panelRef,
   qr,
   starting,
   onRenew,
   onClose,
 }: {
+  panelRef: React.RefObject<HTMLDivElement | null>;
   qr: OpenQr;
   starting: boolean;
   onRenew: () => void;
@@ -216,9 +230,15 @@ function QrPanel({
 }) {
   const t = useTranslations("settings.devices");
   return (
-    <div {...stylex.props(styles.panel)}>
+    <div
+      ref={panelRef}
+      tabIndex={-1}
+      role="group"
+      aria-label={t("qrLabel")}
+      {...stylex.props(styles.panel, focusStyles.target)}
+    >
       {qr.expired ? (
-        <Text variant="meta" tone="problem" as="p">
+        <Text variant="meta" tone="problem" as="p" role="status">
           {t("expired")}
         </Text>
       ) : (

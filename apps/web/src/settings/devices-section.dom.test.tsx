@@ -91,6 +91,14 @@ describe("기기 연결 QR의 수명(0104)", () => {
     expect(cancel).toHaveBeenCalledWith("second");
   });
 
+  it("QR을 띄우면 포커스를 QR 묶음으로 옮긴다", async () => {
+    const { actions, pending } = harness();
+    draw({ address: ADDRESS, devices: [] }, actions);
+    press(settings.devices.showQr);
+    await settle(() => pending[0]?.(issued("open")));
+    expect(document.activeElement?.getAttribute("aria-label")).toBe(settings.devices.qrLabel);
+  });
+
   it("기다리는 동안 화면을 떠나면 늦게 온 코드를 취소한다", async () => {
     const { actions, cancel, pending } = harness();
     draw({ address: ADDRESS, devices: [] }, actions);

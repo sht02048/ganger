@@ -44,10 +44,9 @@ export class DeviceConnectionCodes {
       options.newCode ?? (() => randomBytes(ENROLLMENT_TOKEN_BYTES).toString("base64url"));
   }
 
-  issue(replacing?: string): { id: string; code: string; expiresInMs: number } {
+  issue(): { id: string; code: string; expiresInMs: number } {
     const now = this.now();
     this.forgetOld(now);
-    if (replacing !== undefined) this.revoke(replacing);
     const code = this.newCode();
     const entry: CodeEntry = {
       id: randomUUID(),

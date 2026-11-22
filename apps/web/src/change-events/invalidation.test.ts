@@ -107,6 +107,15 @@ const change = (kind: ChangeKind, part: ReceivedChange["part"] = null): Received
   part,
 });
 
+describe("기기 목록", () => {
+  it("설정 변경이면 Settings 키와 겹치지 않는 기기 목록 키를 다시 읽는다", () => {
+    const keys = invalidatedKeysOf([
+      { kind: "settings", targetId: null, workspaceId: null, part: null },
+    ]);
+    expect(keys).toContainEqual(["devices"]);
+  });
+});
+
 describe("변경 기록 → query key 무효화(스펙 0003 5.4)", () => {
   it.for(CHANGE_KINDS)("%s 줄은 표의 key만 무효화한다", (kind) => {
     const queryClient = seededClient();
