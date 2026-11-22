@@ -32,6 +32,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `StatusPill`    | 점 + 상태 이름. 카드 하나에 상태 하나만 보인다                            |
 | `Chip`          | 선행 티켓과 PR 칩. CI 실패·충돌은 `problem`, 뒤처짐은 중립색              |
 | `Button`        | `primary`는 화면의 주 행동 하나, 카드 행동은 `secondary`, 위험은 `danger` |
+| `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                |
 | `Meter`         | 러너의 공급자 사용량 막대                                                 |
 | `SwitchRow`     | 이름이 붙은 스위치                                                        |
 | `Sheet`         | 아래에서 올라오는 레이어. 안의 주 행동 하나는 노란 버튼을 쓸 수 있다      |

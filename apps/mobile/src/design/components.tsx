@@ -79,6 +79,28 @@ export function Button({
   );
 }
 
+export function BackButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={onPress}
+      style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
+    >
+      <Svg width={size.backIcon} height={size.backIcon} viewBox="0 0 24 24" aria-hidden>
+        <Path
+          d="M15 5l-7 7 7 7"
+          fill="none"
+          stroke={colors.textSecondary}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </Pressable>
+  );
+}
+
 export function TodoBadge({ count, label }: { count: number; label: string }) {
   if (count === 0) return null;
   return (
@@ -355,6 +377,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   buttonCompact: { paddingHorizontal: space.s3 },
+  backButton: {
+    width: size.touchTarget,
+    height: size.touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.button,
+  },
   buttonPrimary: { backgroundColor: colors.accent },
   buttonSecondary: { backgroundColor: colors.bgControl },
   pressed: { opacity: 0.8 },
@@ -393,7 +422,7 @@ const styles = StyleSheet.create({
   },
   segmentItem: {
     flex: 1,
-    minHeight: size.touchTarget - space.s2,
+    minHeight: size.touchTarget,
     flexDirection: "row",
     gap: space.s1,
     alignItems: "center",

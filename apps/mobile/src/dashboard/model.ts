@@ -1,4 +1,4 @@
-import type { HomeRun, PrSignalsView, RunnerView } from "../demo/contract";
+import type { HomeRun, PrSignalsView, MobileRunner } from "../demo/contract";
 
 export const PR_CHIPS_VISIBLE = 2;
 export const DONE_COLUMN_DAYS = 7;
@@ -146,15 +146,15 @@ export function prProblemsOf(signals: PrSignalsView | null): PrProblem[] {
   ];
 }
 
-export function runnerIssueCount(runners: ReadonlyArray<RunnerView>): number {
+export function runnerIssueCount(runners: ReadonlyArray<MobileRunner>): number {
   return runners.filter((runner) => runner.cause !== null).length;
 }
 
-export function limitedRunners(runners: ReadonlyArray<RunnerView>): RunnerView[] {
+export function limitedRunners(runners: ReadonlyArray<MobileRunner>): MobileRunner[] {
   return runners.filter((runner) => runner.limits.length > 0);
 }
 
-export function readyAgainInMs(runner: RunnerView): number | null {
+export function readyAgainInMs(runner: MobileRunner): number | null {
   let latest = 0;
   for (const limit of runner.limits) {
     if (limit.resetsInMs === null) return null;

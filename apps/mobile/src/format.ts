@@ -1,4 +1,4 @@
-import type { HomeRun, QueuedReason, RunnerView } from "./demo/contract";
+import type { HomeRun, QueuedReason, MobileRunner } from "./demo/contract";
 import {
   endsWithFinalConsonant,
   limitedRunners,
@@ -76,7 +76,7 @@ export function queuedLine(run: HomeRun & { state: "queued" }): string {
 
 const SUMMARY_ORDER: ReadonlyArray<TodoGroupKind> = ["check", "answer", "stopped"];
 
-export function dashboardSummary(board: Board, runners: ReadonlyArray<RunnerView>): string {
+export function dashboardSummary(board: Board, runners: ReadonlyArray<MobileRunner>): string {
   const todo = [...board.running.humanCheck, ...board.running.todo, ...board.done.todo];
   const inProgress = board.running.rest.length + board.queued.length;
   const work =

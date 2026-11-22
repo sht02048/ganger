@@ -1,22 +1,14 @@
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
+import { BackButton } from "./design/components";
 import { Text } from "./design/text";
-import { size, space } from "./design/tokens";
+import { space } from "./design/tokens";
 import { t } from "./i18n";
 
 export function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
     <View style={styles.header}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("common.back")}
-        onPress={onBack}
-        style={styles.back}
-      >
-        <Text variant="panel" tone="secondary">
-          ‹
-        </Text>
-      </Pressable>
+      <BackButton label={t("common.back")} onPress={onBack} />
       <Text variant="page" heading>
         {title}
       </Text>
@@ -31,11 +23,5 @@ const styles = StyleSheet.create({
     gap: space.s1,
     paddingHorizontal: space.s2,
     paddingVertical: space.s2,
-  },
-  back: {
-    width: size.touchTarget,
-    height: size.touchTarget,
-    alignItems: "center",
-    justifyContent: "center",
   },
 });

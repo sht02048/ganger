@@ -154,6 +154,8 @@ describe("Runners 데모", () => {
     expect(text).toContain("고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 해요");
     expect(text).toContain("GitHub 인증을 다시 해야 해요");
     expect(text).toContain("Claude 5시간 한도에 닿았어요");
+    expect(text).toContain("사용량을 읽지 못했어요");
+    expect(text).toContain("Claude 주간");
     expect(host.querySelectorAll('[role="progressbar"]').length).toBeGreaterThan(0);
     press(byLabel(host, "뒤로"));
     expect(host.textContent).toContain("Dashboard");

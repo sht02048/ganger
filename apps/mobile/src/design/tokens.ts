@@ -75,6 +75,7 @@ export const space = {
 
 export const size = {
   touchTarget: 44,
+  backIcon: 24,
   dot: 6,
   badge: 18,
   mascot: 112,

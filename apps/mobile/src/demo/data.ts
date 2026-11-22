@@ -1,4 +1,11 @@
-import type { BlockerView, HomeRun, MobileSnapshot, WorkspaceSummary } from "./contract";
+import type {
+  BlockerView,
+  HomeRun,
+  MobileSnapshot,
+  RunnerUsageView,
+  UsageWindowView,
+  WorkspaceSummary,
+} from "./contract";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -32,6 +39,22 @@ const blocker = (key: string, title: string): BlockerView => ({
 });
 
 const prDisplayId = (pullNumber: number) => `#${pullNumber}`;
+
+const usageReadAt = (now: Date) => ({
+  readAt: new Date(now.getTime() - 2 * MINUTE).toISOString(),
+  agoMs: 2 * MINUTE,
+  now: now.toISOString(),
+});
+
+function readUsage(now: Date, provider: string, windows: UsageWindowView[]): RunnerUsageView {
+  const highest = windows.toSorted((a, b) => b.usedPercent - a.usedPercent)[0];
+  return {
+    ...usageReadAt(now),
+    kind: "read",
+    providers: [{ provider, status: "ok", windows }],
+    highest: highest === undefined ? null : { provider, window: highest },
+  };
+}
 
 export function busySnapshot(now: Date): MobileSnapshot {
   const endedAt = (agoMs: number) => new Date(now.getTime() - agoMs).toISOString();
@@ -197,7 +220,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
         offlineMs: 18 * MINUTE,
         used: 0,
         capacity: 2,
-        usage: [],
+        usage: { ...usageReadAt(now), kind: "unreadable" },
         limits: [],
       },
       {
@@ -207,7 +230,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
         offlineMs: null,
         used: 0,
         capacity: 2,
-        usage: [{ provider: "Codex", window: "weekly", usedPercent: 31 }],
+        usage: readUsage(now, "Codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
         limits: [],
       },
       {
@@ -217,10 +240,10 @@ export function busySnapshot(now: Date): MobileSnapshot {
         offlineMs: null,
         used: 3,
         capacity: 4,
-        usage: [
-          { provider: "Claude", window: "session", usedPercent: 100 },
-          { provider: "Claude", window: "weekly", usedPercent: 64 },
-        ],
+        usage: readUsage(now, "Claude", [
+          { kind: "session", usedPercent: 100, resetsAt: null },
+          { kind: "weekly", usedPercent: 64, resetsAt: null },
+        ]),
         limits: [{ provider: "Claude", window: "session", resetsInMs: 42 * MINUTE }],
       },
     ],

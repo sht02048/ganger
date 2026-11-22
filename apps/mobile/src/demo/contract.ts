@@ -73,11 +73,28 @@ export type HomeRun =
       endedAgoMs: number;
     });
 
-export interface UsageLine {
-  provider: string;
-  window: UsageWindowKind;
+export type ProviderUsageStatus = "ok" | "signed-out" | "unavailable" | "error";
+
+export interface UsageWindowView {
+  kind: UsageWindowKind;
   usedPercent: number;
+  resetsAt: string | null;
 }
+
+export interface ProviderUsageView {
+  provider: string;
+  status: ProviderUsageStatus;
+  windows: UsageWindowView[];
+}
+
+export type RunnerUsageView = { readAt: string; agoMs: number; now: string } & (
+  | {
+      kind: "read";
+      providers: ProviderUsageView[];
+      highest: { provider: string; window: UsageWindowView } | null;
+    }
+  | { kind: "unreadable" }
+);
 
 export interface UsageLimit {
   provider: string;
@@ -85,19 +102,19 @@ export interface UsageLimit {
   resetsInMs: number | null;
 }
 
-export interface RunnerView {
+export interface MobileRunner {
   id: string;
   name: string;
   cause: RunnerIssueCause | null;
   offlineMs: number | null;
   used: number;
   capacity: number;
-  usage: UsageLine[];
+  usage: RunnerUsageView | null;
   limits: UsageLimit[];
 }
 
 export interface MobileSnapshot {
   workspaces: WorkspaceSummary[];
   runs: HomeRun[];
-  runners: RunnerView[];
+  runners: MobileRunner[];
 }
