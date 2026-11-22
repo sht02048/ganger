@@ -155,6 +155,23 @@ describe("하위 티켓 처음 선택(0172)", () => {
     expect(blockerWaitHint([{ key: "ACME-8", stateCategory: "canceled" }])).toBeNull();
   });
 
+  it("저장소 칸이 없으니 라벨이나 지난 런으로 정해진 저장소를 다른 저장소로 바꾸지 않는다", () => {
+    const routed = {
+      runnerProject: "github:acme/api",
+      agent: "claude",
+      repos: [
+        { id: "github:acme/web", name: "acme/web", isDefault: true, label: null },
+        { id: "github:acme/api", name: "acme/api", isDefault: false, label: "api" },
+      ],
+    };
+    const ticket = child("ACME-1", {
+      mapping: routed,
+      assignability: { kind: "ready", defaults: routed },
+    });
+    const [sent] = bulkAssignmentsFor(bulkChoices([ticket]), new Set([ticket.id]));
+    expect(sent?.runnerProject).toBe("github:acme/api");
+  });
+
   it("고른 티켓만 자기 트래커 프로젝트와 Mapping 값으로 보낸다", () => {
     const web = child("ACME-1");
     const docs = child("DOC-1", {
@@ -165,11 +182,7 @@ describe("하위 티켓 처음 선택(0172)", () => {
       },
     });
     const skipped = child("ACME-2");
-    const sent = bulkAssignmentsFor(
-      bulkChoices([web, docs, skipped]),
-      new Set([web.id, docs.id]),
-      [],
-    );
+    const sent = bulkAssignmentsFor(bulkChoices([web, docs, skipped]), new Set([web.id, docs.id]));
     expect(sent.map((one) => [one.ticketKey, one.trackerProject, one.agent])).toEqual([
       ["ACME-1", "tp-web", "claude"],
       ["DOC-1", "tp-docs", "codex"],
@@ -254,11 +267,7 @@ describe("한 번에 할당(0172)", () => {
     const page = await loadTicketsPage(context, undefined, now);
     const ticket = page.tickets.find((candidate) => candidate.key === "ACME-6");
     if (ticket === undefined) throw new Error("no ACME-6");
-    const assignments = bulkAssignmentsFor(
-      bulkChoices([ticket]),
-      new Set([ticket.id]),
-      page.runners,
-    );
+    const assignments = bulkAssignmentsFor(bulkChoices([ticket]), new Set([ticket.id]));
     expect(submitBulkAssignment(db, parsed(assignments), now).results).toMatchObject([
       { ok: true },
     ]);

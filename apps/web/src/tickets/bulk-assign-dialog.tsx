@@ -17,13 +17,12 @@ import type {
 } from "@ganger/app/tickets/bulk-assign";
 import type { TicketGroup } from "@ganger/app/tickets/groups";
 import { ticketId } from "@ganger/app/tickets/merge";
-import type { RunnerChoice, TicketBlockersResult, TicketView } from "@ganger/app/tickets/model";
+import type { TicketBlockersResult, TicketView } from "@ganger/app/tickets/model";
 
 const BLOCKER_READS_AT_ONCE = 4;
 
 export interface BulkAssignDialogProps {
   group: TicketGroup;
-  runners: ReadonlyArray<RunnerChoice>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAssignMany: (input: BulkAssignInput) => Promise<BulkAssignResult>;
@@ -69,7 +68,6 @@ type Outcome = { kind: "results"; results: BulkAssignItemResult[] } | { kind: "f
 
 export function BulkAssignDialog({
   group,
-  runners,
   open,
   onOpenChange,
   onAssignMany,
@@ -93,7 +91,7 @@ export function BulkAssignDialog({
   const [pending, setPending] = useState(false);
   const sending = useRef(false);
   const [outcome, setOutcome] = useState<Outcome>(null);
-  const assignments = bulkAssignmentsFor(choices, selected, runners);
+  const assignments = bulkAssignmentsFor(choices, selected);
   const count = assignments.length;
 
   const submit = () => {
@@ -143,8 +141,13 @@ export function BulkAssignDialog({
       actions={
         <>
           <DialogClose>{t("close")}</DialogClose>
-          <Button variant="primary" disabled={pending || count === 0} onClick={submit}>
-            {pending ? t("submitting") : t("submit", { count })}
+          <Button
+            variant="primary"
+            disabled={count === 0}
+            busy={{ active: pending, label: t("submitting") }}
+            onClick={submit}
+          >
+            {t("submit", { count })}
           </Button>
         </>
       }

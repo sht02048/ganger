@@ -532,7 +532,6 @@ function TicketsList({
         <BulkAssignDialog
           key={bulkTarget.opening}
           group={issueGroups.get(bulkTarget.group.id) ?? bulkTarget.group}
-          runners={page.runners}
           open={bulkOpen}
           onOpenChange={(next) => {
             setBulkOpen(next);

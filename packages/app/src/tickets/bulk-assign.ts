@@ -1,6 +1,6 @@
 import { isBlockerFinished } from "@ganger/core";
-import { firstAssignableRepo, lastRun } from "./model.js";
-import type { AssignRejectReason, RunnerChoice, TicketView } from "./model.js";
+import { lastRun } from "./model.js";
+import type { AssignRejectReason, TicketView } from "./model.js";
 
 export const BULK_ASSIGN_LIMIT = 1000;
 
@@ -101,7 +101,6 @@ export function blockerReadTargets(children: ReadonlyArray<TicketView>): TicketV
 export function bulkAssignmentsFor(
   choices: ReadonlyArray<BulkChoice>,
   selectedIds: ReadonlySet<string>,
-  runners: ReadonlyArray<RunnerChoice>,
 ): BulkAssignment[] {
   return choices.flatMap((choice): BulkAssignment[] => {
     const { ticket } = choice;
@@ -114,7 +113,7 @@ export function bulkAssignmentsFor(
         ticketKey: ticket.key,
         ticketTitle: ticket.title,
         trackerProject: ticket.trackerProject.id,
-        runnerProject: firstAssignableRepo(defaults, runners),
+        runnerProject: defaults.runnerProject,
         runnerId: null,
         agent: defaults.agent,
       },
