@@ -711,7 +711,7 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await expect.poll(focused).toBe(tickets.panel.openRun);
   });
 
-  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행과 모두 보기는 Runs로 간다(0164)", async () => {
+  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행은 런 상세로, 모두 보기는 Runs로 간다(0164, 0181)", async () => {
     const waiter = toTicketKey("ACME-900");
     const blockerKey = toTicketKey("ACME-901");
     const manyRuns = toTicketKey("ACME-902");
@@ -763,8 +763,8 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
       .getByRole("button", { name: /Canceled/ })
       .first()
       .click();
-    await page.waitForURL((url) => url.pathname === "/runs");
-    expect(new URL(page.url()).searchParams.get("sel")).toBe(newest);
+    await page.waitForURL((url) => url.pathname === `/runs/${newest}`);
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
 
     await page.goto(ticketUrl(manyRuns));
     await hydrated(page);

@@ -2,10 +2,14 @@
   "documentTitle": "{ticket} 런 · Ganger",
   "documentTitleNotFound": "런 · Ganger",
   "metaSeparator": " · ",
-  "crumb": {
-    "label": "위치",
-    "runs": "Runs",
-    "run": "{ticket} 런"
+  "backTo": {
+    "dashboard": "Dashboard로 돌아가기",
+    "tickets": "Tickets로 돌아가기",
+    "runs": "Runs로 돌아가기",
+    "run": "이전 런으로 돌아가기",
+    "runners": "Runners로 돌아가기",
+    "stats": "Stats로 돌아가기",
+    "settings": "Settings로 돌아가기"
   },
   "notFound": {
     "title": "런을 찾을 수 없어요",

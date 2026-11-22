@@ -287,7 +287,8 @@
     "content": "동시에 런 3개까지 돌릴 수 있어요",
     "iconAction": "닫기",
     "linkLabel": "Runners",
-    "linkContent": "Runners, Runner Issue 1개"
+    "linkContent": "Runners, Runner Issue 1개",
+    "backLabel": "Tickets로 돌아가기"
   },
   "dialog": {
     "note": "되돌릴 수 없는 행동을 확인할 때만 써요.",

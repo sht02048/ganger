@@ -1,7 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import {
   Button,
-  ChevronRightIcon,
   NoticeLayout,
   PageHeader,
   ScreenLayout,
@@ -12,7 +11,6 @@ import {
   Text,
   linkStyles,
 } from "@ganger/ui";
-import { space } from "@ganger/ui/tokens.stylex";
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type {
@@ -27,7 +25,9 @@ import { EditorProvider, useInlineEdit } from "./row-state";
 import {
   ChangeButton,
   FocusFirst,
+  SettingsBackLink,
   TextEditor,
+  connectionRowId,
   plainSettingsLink,
   type RenderSettingsLink,
 } from "./settings-page";
@@ -62,17 +62,12 @@ export function ConnectionDetailScreen({
 }: ConnectionDetailScreenProps) {
   const t = useTranslations("settings.connection");
   const connection = findConnection(page, connectionId);
-  const back = renderLink(
-    { kind: "settings" },
-    {
-      ...stylex.props(linkStyles("quiet"), styles.crumb),
-      children: (
-        <>
-          {t("breadcrumb")}
-          <ChevronRightIcon />
-        </>
-      ),
-    },
+  const back = (
+    <SettingsBackLink
+      label={t("back")}
+      rowId={connectionRowId(connectionId)}
+      renderLink={renderLink}
+    />
   );
   if (connection === null) {
     return (
@@ -209,7 +204,3 @@ function ApiKeyRow({
     />
   );
 }
-
-const styles = stylex.create({
-  crumb: { display: "inline-flex", alignItems: "center", gap: space.s1 },
-});

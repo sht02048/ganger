@@ -8,6 +8,7 @@ import {
   CheckTick,
   RadioGroup,
   Chip,
+  BackLink,
   ExternalIconLink,
   PanelList,
   PanelListRow,
@@ -185,6 +186,14 @@ describe("칩·링크·코드(티켓 0074)", () => {
     );
     expect(html).toMatch(/런<\/h3><span[^>]*>3<\/span><i>도움말<\/i>/);
     expect(renderToString(<PanelSection title="런">본문</PanelSection>)).not.toContain("<i>");
+  });
+
+  it("BackLink 는 ‹ 만 보이고 돌아갈 곳을 이름으로 가진 링크다(0181)", () => {
+    const html = renderToString(
+      <BackLink label="Tickets로 돌아가기" render={(props) => <a href="/runs" {...props} />} />,
+    );
+    expect(html).toMatch(/<a href="\/runs"[^>]*aria-label="Tickets로 돌아가기"/);
+    expect(html).toContain('<span aria-hidden="true">‹</span>');
   });
 
   it("ExternalIconLink 는 이름을 가진 새 탭 링크다(0164)", () => {

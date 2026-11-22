@@ -1,6 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
 import {
   Actions,
+  BackLink,
   Button,
   CloseIcon,
   Card,
@@ -531,6 +532,10 @@ export function ComponentSections() {
             >
               {t("tooltip.linkLabel")}
             </Tooltip>
+            <BackLink
+              label={t("tooltip.backLabel")}
+              render={(anchor) => <a href="#tooltip" {...anchor} />}
+            />
           </Demo>
         </Section>
       </div>

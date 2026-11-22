@@ -3,6 +3,7 @@ import * as stylex from "@stylexjs/stylex";
 import { isMcpRejectReason, isMcpRunTool } from "@ganger/app/mcp/actions";
 import {
   Actions,
+  BackLink,
   Button,
   Card,
   CodeBlock,
@@ -34,9 +35,12 @@ import {
 import type { PillStatus, SignalTone } from "@ganger/ui";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
+import { RUN_ANSWER_HASH } from "../navigation/back-target";
+import type { BackOrigin } from "../navigation/back-target";
+import { isPlainLinkClick } from "../navigation/in-app-links";
 import { answerRejection } from "../home/rejection";
 import type { AnswerRejectReason } from "../home/rejection";
 import { HumanCheckAnswer, HumanCheckRequest } from "../question/human-check-answer";
@@ -87,6 +91,21 @@ export interface RunDetailScreenProps extends RunDetailActions {
   runHref: (runId: string) => string;
   runnerHref: (runnerId: RunnerId) => string;
   logStalled?: boolean;
+  back?: RunDetailBack;
+  openAtAnswer?: boolean;
+}
+
+export interface RunDetailBack {
+  origin: BackOrigin;
+  go: () => void;
+}
+
+function goBackOnPlainClick(go: () => void) {
+  return (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!isPlainLinkClick(event)) return;
+    event.preventDefault();
+    go();
+  };
 }
 
 export function RunDetailScreen(props: RunDetailScreenProps) {
@@ -146,18 +165,32 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
   const failure = useControlFailure(run.cancelPending ? null : run.control);
   const blockerWait =
     run.status.state === "queued" ? blockerReasonOf(run.status.queuedReason) : null;
+  const answerable =
+    run.status.state === "waiting-for-input" && run.status.input.kind !== "unknown";
+  const openedAtAnswer = useRef(false);
+  useEffect(() => {
+    if (props.openAtAnswer !== true || !answerable || openedAtAnswer.current) return;
+    openedAtAnswer.current = true;
+    focusInputField(inputRef);
+  }, [props.openAtAnswer, answerable]);
 
   return (
     <ScreenLayout
       header={
         <PageHeader
           lead={
-            <nav aria-label={t("crumb.label")} {...stylex.props(textStyles("ui"), styles.crumb)}>
-              <a href={props.runsHref} {...stylex.props(linkStyles("quiet"), styles.crumbLink)}>
-                <span aria-hidden="true">‹</span>
-                {t("crumb.runs")}
-              </a>
-            </nav>
+            <BackLink
+              label={t(`backTo.${props.back?.origin ?? "runs"}`)}
+              render={(anchor) => (
+                <a
+                  href={props.runsHref}
+                  {...(props.back === undefined
+                    ? {}
+                    : { onClick: goBackOnPlainClick(props.back.go) })}
+                  {...anchor}
+                />
+              )}
+            />
           }
           title={run.ticketTitle ?? run.ticketKey}
           subtitle={[
@@ -290,7 +323,12 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
             )}
 
             {run.status.state === "waiting-for-input" && run.status.input.kind !== "unknown" ? (
-              <div ref={inputRef} tabIndex={-1} {...stylex.props(focusStyles.target)}>
+              <div
+                id={RUN_ANSWER_HASH}
+                ref={inputRef}
+                tabIndex={-1}
+                {...stylex.props(focusStyles.target)}
+              >
                 <InputBlock
                   input={run.status.input}
                   waitedMs={inputWaitedMs(run)}
@@ -1630,13 +1668,6 @@ const styles = stylex.create({
     paddingTop: space.s6,
     paddingInline: { default: space.s8, [breakpoints.narrowScreen]: space.s4 },
     paddingBottom: space.s10,
-  },
-  crumb: { display: "flex" },
-  crumbLink: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: space.s2,
-    minHeight: size.control,
   },
   head: { display: "flex", flexDirection: "column", gap: space.s2 },
   stateRow: {

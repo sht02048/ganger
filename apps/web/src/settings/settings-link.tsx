@@ -25,8 +25,25 @@ export function routerSettingsLink(target: SettingsLinkTarget, props: SettingsLi
     case "mcp":
       return <Link to="/settings/mcp" {...props} />;
     case "settings":
-      return <Link to="/settings" activeOptions={{ exact: true }} {...props} />;
+      return (
+        <Link
+          to="/settings"
+          activeOptions={{ exact: true }}
+          {...(target.rowId === undefined ? {} : { hash: target.rowId })}
+          {...props}
+        />
+      );
     case "createWorkspace":
-      return <Link to="/onboarding" search={{ step: 4 }} {...props} />;
+      return (
+        <Link
+          to="/onboarding"
+          search={(prev) => ({
+            step: 4,
+            from: "settings" as const,
+            ...("ws" in prev && typeof prev.ws === "string" ? { ws: prev.ws } : {}),
+          })}
+          {...props}
+        />
+      );
   }
 }

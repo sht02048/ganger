@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { z } from "zod";
 import { ChangeEventsSubscription } from "../change-events/subscription";
+import { InAppLinks } from "../navigation/in-app-links";
 import { AppShell } from "../shell/app-shell";
 import { shellQuery, useShell } from "../shell/shell-query";
 import { resolveWorkspace } from "@ganger/app/shell/model";
@@ -33,6 +34,7 @@ function AppLayout() {
       }}
     >
       <ChangeEventsSubscription />
+      <InAppLinks />
       <Outlet />
     </AppShell>
   );
