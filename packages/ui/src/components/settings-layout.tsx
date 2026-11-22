@@ -730,6 +730,7 @@ const styles = stylex.create({
     borderTopWidth: { default: 0, ":not(:first-child)": 1 },
     borderTopStyle: "solid",
     borderTopColor: colors.borderSubtle,
+    scrollMarginTop: { default: space.s8, [breakpoints.settingsNavTop]: NAV_TOP_HEIGHT },
   },
   groupBody: {
     paddingBlock: space.s4,

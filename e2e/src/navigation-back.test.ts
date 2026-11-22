@@ -229,24 +229,44 @@ describe("앱 안 이동과 돌아가기(브라우저, 0181)", () => {
     expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
   });
 
-  it("Settings 하위의 ‹ 는 Settings 로 돌아가 그 프로젝트 줄을 보여 준다", async (context) => {
-    const page = await newPage(context, { width: 1280, height: 420 });
-    await open(page, `/settings/projects/${connection}/${trackerProject}?ws=${workspaceId}`);
+  it.each([
+    { width: 1280, height: 420 },
+    { width: 700, height: 500 },
+    { width: 390, height: 600 },
+  ])(
+    "Settings 하위의 ‹ 는 Settings 로 돌아가 그 프로젝트 줄을 가리지 않고 보여 준다($width)",
+    async ({ width, height }) => {
+      const browserContext = await browser.newContext({
+        baseURL: baseUrl,
+        locale: "ko-KR",
+        timezoneId: "UTC",
+        viewport: { width, height },
+      });
+      const page = await browserContext.newPage();
+      page.setDefaultTimeout(30_000);
+      await open(page, `/settings/projects/${connection}/${trackerProject}?ws=${workspaceId}`);
 
-    await backLink(page, settingsJson.project.back).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
+      await backLink(page, settingsJson.project.back).click();
+      await page.waitForURL((url) => url.pathname === "/settings");
 
-    const rowId = `project-${connection}-${trackerProject}`;
-    expect(decodeURIComponent(new URL(page.url()).hash)).toBe(`#${rowId}`);
-    await expect
-      .poll(() =>
-        page.evaluate((id) => {
-          const box = document.getElementById(id)?.getBoundingClientRect();
-          return box !== undefined && box.top >= -1 && box.bottom <= window.innerHeight + 1;
-        }, rowId),
-      )
-      .toBe(true);
-  });
+      const rowId = `project-${connection}-${trackerProject}`;
+      expect(decodeURIComponent(new URL(page.url()).hash)).toBe(`#${rowId}`);
+      await expect
+        .poll(() =>
+          page.evaluate((id) => {
+            const row = document.getElementById(id);
+            if (row === null) return false;
+            const box = row.getBoundingClientRect();
+            const x = box.left + box.width / 2;
+            return [box.top + 2, box.bottom - 2].every((y) =>
+              row.contains(document.elementFromPoint(x, y)),
+            );
+          }, rowId),
+        )
+        .toBe(true);
+      await browserContext.close();
+    },
+  );
 
   it("Settings 에서 들어간 온보딩에만 Settings 돌아가기가 있다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 900 });
