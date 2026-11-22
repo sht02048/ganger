@@ -140,6 +140,12 @@ describe("서버 빌드가 바뀐 뒤 옛 화면(브라우저, 0180)", () => {
 
     const request = await buildCheck;
     expect(new URL(request.url()).pathname).toBe("/api/build");
+
+    const reload = page.getByRole("button", { name: shell.serverBuild.reload });
+    await reload.waitFor();
+    await page.unroute("**/_serverFn/**");
+    await reload.click();
+    await page.waitForFunction(() => !("__staleMarker" in window));
   }, 120_000);
 
   it("오류 없는 화면에서는 알림만 보이고, 버튼을 눌러야 다시 불러온다", async (context) => {

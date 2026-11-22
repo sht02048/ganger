@@ -292,7 +292,14 @@ export class Controller {
     const reloadScreen = screenOutlivedServerSwap(result, this.serverUrl);
     this.watch.adopt(result);
     const window = this.window;
-    if (reloadScreen && window !== undefined && !window.isDestroyed()) window.webContents.reload();
+    if (
+      reloadScreen &&
+      result.kind === "running" &&
+      window !== undefined &&
+      !window.isDestroyed()
+    ) {
+      void loadServerScreen(window, new URL("/", result.status.url).toString());
+    }
   }
 
   private swapHooks(): EnsureHooks {

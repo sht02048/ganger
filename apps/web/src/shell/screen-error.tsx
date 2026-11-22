@@ -122,7 +122,9 @@ export function ScreenError({ reset }: ErrorComponentProps) {
       stillOnErrorScreen: () => mountedErrorScreens > 0 && router.state.location.href === href,
       reload: reloadPage,
       retry: retryReads,
-      abandon: () => setRetryState(IDLE),
+      abandon: () => {
+        if (retryState.kind === "retrying" && retryState.href === href) setRetryState(IDLE);
+      },
     });
   };
 

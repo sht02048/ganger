@@ -26,6 +26,7 @@ import { useBrowserErrorWatch, useReportCaughtError } from "../shell/browser-err
 import { useDesktopUpdates } from "../shell/desktop-updates";
 import { useErrorScreenShown } from "../shell/screen-error";
 import {
+  serverBuild,
   showsServerBuildNotice,
   useServerBuildStale,
   useServerBuildWatch,
@@ -112,6 +113,10 @@ const rootLoaderSchema = z.object({ titleBarHidden: z.boolean() });
 
 function RootError({ error }: ErrorComponentProps) {
   useReportCaughtError(error);
+  const stale = useServerBuildStale();
+  useEffect(() => {
+    void serverBuild.check();
+  }, []);
   const titleBarHidden = useRouterState({
     select: (state) =>
       rootLoaderSchema.safeParse(state.matches[0]?.loaderData).data?.titleBarHidden ?? false,
@@ -121,6 +126,7 @@ function RootError({ error }: ErrorComponentProps) {
       <WindowDragFrame>
         <ErrorComponent error={error} />
       </WindowDragFrame>
+      {stale ? <Toaster label={t("shell.toastRegion")} pinned={<ServerBuildToast />} /> : null}
     </WindowChrome>
   );
 }
