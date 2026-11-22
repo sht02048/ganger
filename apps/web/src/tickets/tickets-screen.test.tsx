@@ -37,6 +37,7 @@ function render(
       onOpenRun={noop}
       onOpenRuns={noop}
       onAssign={() => Promise.resolve({ ok: false, reason: "active-run" })}
+      onAssignMany={() => Promise.resolve({ results: [] })}
       onAssigned={noop}
       onReadBlockers={() => Promise.resolve({ ok: true, blockers: [] })}
       onReread={() => Promise.resolve()}
@@ -64,6 +65,58 @@ function variants(html: string): string[] {
 function panelText(html: string): string {
   return text(html.split("<aside")[1] ?? "");
 }
+
+function withChildrenOfParent(page: TicketsPage, parentKey: string, keys: string[]): TicketsPage {
+  const parent = page.tickets.find((ticket) => ticket.key === parentKey);
+  if (parent === undefined) throw new Error(`no ${parentKey}`);
+  const ref = { key: parent.key, title: parent.title, url: null, state: parent.trackerState };
+  return {
+    ...page,
+    tickets: page.tickets.map((ticket) => {
+      if (ticket.key === parentKey) return { ...ticket, isParentIssue: true };
+      return keys.includes(ticket.key) ? { ...ticket, ancestors: [ref] } : ticket;
+    }),
+  };
+}
+
+describe("하위 티켓 한 번에 할당 버튼(0172)", () => {
+  const trigger = (count: number, key: string) => `aria-label="하위 ${count}개 할당, ${key}"`;
+
+  it("묶기 보기의 상위 줄에 거르기와 상관없는 전체 개수로 테두리 버튼을 둔다", async () => {
+    const { context } = setupTickets();
+    const page = withChildrenOfParent(await loadTicketsPage(context, undefined, now), "ACME-6", [
+      "ACME-2",
+      "ACME-3",
+      "DOC-1",
+    ]);
+    const list = render(page, { filter: "in-progress" }).split("<aside")[0] ?? "";
+    expect(list).toContain(trigger(1, "ACME-6"));
+    const button = new RegExp(`<button[^>]*${trigger(1, "ACME-6")}[^>]*>`).exec(list)?.[0] ?? "";
+    expect(button).toContain('data-variant="secondary"');
+  });
+
+  it("상위 이슈 패널 머리에 같은 보조 버튼을 둔다", async () => {
+    const { context } = setupTickets();
+    const page = withChildrenOfParent(await loadTicketsPage(context, undefined, now), "ACME-6", [
+      "ACME-2",
+    ]);
+    const html = render(page, { selectedId: ticketId("conn-acme", "ACME-6") });
+    const panel = html.split("<aside")[1] ?? "";
+    const button = new RegExp(`<button[^>]*${trigger(1, "ACME-6")}[^>]*>`).exec(panel)?.[0] ?? "";
+    expect(button).toContain('data-variant="secondary"');
+  });
+
+  it("할당할 수 있는 하위가 없으면 버튼을 두지 않고, 모든 티켓 보기의 줄에도 두지 않는다", async () => {
+    const { context } = setupTickets();
+    const loaded = await loadTicketsPage(context, undefined, now);
+    const none = withChildrenOfParent(loaded, "ACME-6", ["ACME-3", "ACME-4"]);
+    expect(render(none)).not.toContain("하위 0개 할당");
+    expect(render(none)).not.toMatch(/aria-label="하위 \d+개 할당/);
+    const some = withChildrenOfParent(loaded, "ACME-6", ["ACME-2"]);
+    const flatList = render(some, { view: "flat" }).split("<aside")[0] ?? "";
+    expect(flatList).not.toContain(trigger(1, "ACME-6"));
+  });
+});
 
 describe("Tickets 화면", () => {
   it("티켓이 하나도 없으면 쉬는 반장을 장식으로 두고, 티켓이 있으면 두지 않는다(0077)", async () => {

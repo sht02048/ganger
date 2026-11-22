@@ -359,6 +359,45 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       await reread();
     }
   });
+
+  it("상위 이슈에서 하위 2개를 한 번에 할당하면 두 런이 Queued가 되고 포커스가 패널 제목으로 간다(0172)", async () => {
+    setParent(true);
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      const label = `하위 2개 할당, ${parentKey}`;
+      await list.getByRole("button", { name: label }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      await expect
+        .poll(() => choices.getByRole("checkbox", { checked: true }).count())
+        .toBe(childKeys.length);
+      await dialog.getByRole("button", { name: "2개 할당하기" }).click();
+
+      await page
+        .getByRole("region", { name: shell.toastRegion })
+        .getByText("2개 할당했어요.")
+        .waitFor();
+      await dialog.waitFor({ state: "hidden" });
+      await expect.poll(focused).toContain("Ticket number 500");
+      for (const key of childKeys) {
+        const runs = listRuns(db, { ticket: { connection, key } });
+        expect(runs.map((run) => run.state)).toEqual(["queued"]);
+      }
+      await expect.poll(() => list.getByRole("button", { name: label }).count()).toBe(0);
+    } finally {
+      for (const key of childKeys) {
+        for (const run of listRuns(db, { ticket: { connection, key } })) {
+          if (run.state !== "ended") endCanceled(run.id, new Date());
+        }
+      }
+      setParent(false);
+      await reread();
+    }
+  });
 });
 
 describe("Tickets 수동 할당(브라우저, 0054)", () => {

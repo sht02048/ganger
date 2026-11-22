@@ -557,6 +557,7 @@ export function ComponentSections() {
               title={t("dialog.title")}
               actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
             />
+            <TriggerlessDialogPreview />
           </Demo>
         </Section>
       </div>
@@ -583,6 +584,23 @@ export function ComponentSections() {
           </Demo>
         </Section>
       </div>
+    </>
+  );
+}
+
+function TriggerlessDialogPreview() {
+  const t = useTranslations("ds");
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button onClick={() => setOpen(true)}>{t("dialog.triggerless")}</Button>
+      <Dialog
+        open={open}
+        onOpenChange={setOpen}
+        title={t("dialog.title")}
+        description={t("dialog.description")}
+        actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
+      />
     </>
   );
 }
