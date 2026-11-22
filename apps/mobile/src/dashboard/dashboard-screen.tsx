@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
@@ -46,16 +47,24 @@ function countLine(board: Board, column: ColumnKey): string {
 function RunList({
   runs,
   showWorkspace,
+  actionsDisabled,
   onAction,
 }: {
   runs: DashboardRun[];
   showWorkspace: boolean;
+  actionsDisabled: boolean;
   onAction: () => void;
 }) {
   return (
     <>
       {runs.map((run) => (
-        <RunCard key={run.id} run={run} showWorkspace={showWorkspace} onAction={onAction} />
+        <RunCard
+          key={run.id}
+          run={run}
+          showWorkspace={showWorkspace}
+          actionsDisabled={actionsDisabled}
+          onAction={onAction}
+        />
       ))}
     </>
   );
@@ -66,12 +75,14 @@ function ColumnBody({
   column,
   todoOnly,
   showWorkspace,
+  actionsDisabled,
   onAction,
 }: {
   board: Board;
   column: ColumnKey;
   todoOnly: boolean;
   showWorkspace: boolean;
+  actionsDisabled: boolean;
   onAction: () => void;
 }) {
   const hasTodo = columnTodoCount(board, column) > 0;
@@ -86,7 +97,12 @@ function ColumnBody({
     );
   }
   const list = (runs: DashboardRun[]) => (
-    <RunList runs={runs} showWorkspace={showWorkspace} onAction={onAction} />
+    <RunList
+      runs={runs}
+      showWorkspace={showWorkspace}
+      actionsDisabled={actionsDisabled}
+      onAction={onAction}
+    />
   );
   switch (column) {
     case "queued":
@@ -129,24 +145,29 @@ export function DashboardScreen({
   onViewChange,
   onOpenRunners,
   onOpenSettings,
+  band = null,
+  actionsDisabled = false,
+  actionNotice = { title: t("settings.serverDemo"), body: t("common.demoAction") },
 }: {
   snapshot: MobileSnapshot;
   view: DashboardView;
   onViewChange: (next: DashboardView) => void;
   onOpenRunners: () => void;
   onOpenSettings: () => void;
+  band?: ReactNode;
+  actionsDisabled?: boolean;
+  actionNotice?: { title: string; body: string };
 }) {
   const [picking, setPicking] = useState(false);
-  const [demoNotice, setDemoNotice] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
   const { workspaceId, todoOnly } = view;
   const dashboard = useMemo(() => snapshot.dashboardFor(workspaceId), [snapshot, workspaceId]);
-  const board = useMemo(() => buildBoard(dashboard), [dashboard]);
-  const column = view.column ?? firstColumn(board);
-  const issues = dashboard.summary.runnerIssues;
+  const board = useMemo(() => (dashboard === null ? null : buildBoard(dashboard)), [dashboard]);
+  const column = view.column ?? (board === null ? "running" : firstColumn(board));
+  const issues = dashboard?.summary.runnerIssues ?? 0;
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");
-  const openDemoNotice = () => setDemoNotice(true);
   const chooseWorkspace = (id: string) => {
     onViewChange({ ...view, workspaceId: id });
     setPicking(false);
@@ -154,6 +175,7 @@ export function DashboardScreen({
 
   return (
     <View style={styles.root}>
+      {band}
       <View style={styles.topBar}>
         <View style={styles.workspace}>
           <Button
@@ -182,10 +204,10 @@ export function DashboardScreen({
             {t("dashboard.title")}
           </Text>
           <Text variant="meta" tone="secondary">
-            {dashboardSummary(dashboard)}
+            {dashboard === null ? t("common.loading") : dashboardSummary(dashboard)}
           </Text>
         </View>
-        {hasNoRuns(dashboard) ? (
+        {dashboard === null || board === null ? null : hasNoRuns(dashboard) ? (
           <View style={styles.empty}>
             <RestingMascot />
             <Text variant="body">{t("dashboard.empty")}</Text>
@@ -221,7 +243,8 @@ export function DashboardScreen({
               column={column}
               todoOnly={todoOnly}
               showWorkspace={workspaceId === ALL_WORKSPACES}
-              onAction={openDemoNotice}
+              actionsDisabled={actionsDisabled}
+              onAction={() => setNoticeOpen(true)}
             />
           </>
         )}
@@ -245,13 +268,13 @@ export function DashboardScreen({
         ))}
       </Sheet>
       <Sheet
-        visible={demoNotice}
-        title={t("settings.serverDemo")}
+        visible={noticeOpen}
+        title={actionNotice.title}
         closeLabel={t("common.close")}
-        onClose={() => setDemoNotice(false)}
+        onClose={() => setNoticeOpen(false)}
       >
-        <Text variant="body">{t("common.demoAction")}</Text>
-        <Button label={t("common.close")} onPress={() => setDemoNotice(false)} />
+        <Text variant="body">{actionNotice.body}</Text>
+        <Button label={t("common.close")} onPress={() => setNoticeOpen(false)} />
       </Sheet>
     </View>
   );

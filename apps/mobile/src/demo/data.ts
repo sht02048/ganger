@@ -1,8 +1,17 @@
-import type { V1Dashboard, V1DashboardRun } from "@ganger/api";
+import type {
+  V1Dashboard,
+  V1DashboardRun,
+  V1Runner,
+  V1RunnerUsage,
+  V1UsageWindow,
+} from "@ganger/api";
 
 import { ALL_WORKSPACES } from "../dashboard/model";
-import type { MobileRunner, RunnerUsageView, UsageWindowView } from "../runners/model";
 import type { MobileSnapshot, WorkspaceOption } from "../screen-model";
+
+export interface DemoSnapshot extends MobileSnapshot {
+  dashboardFor: (workspaceId: string) => V1Dashboard;
+}
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -22,7 +31,7 @@ const base = (key: string, title: string, workspace: WorkspaceOption = payments)
   trackerProject: "ACME",
   workspace,
   runner: mini,
-  agent: "Claude",
+  agent: "claude",
   waitMs: 4 * MINUTE,
   executionMs: 25 * MINUTE,
   pullRequest: null,
@@ -55,7 +64,7 @@ function demoTodoTag(run: V1DashboardRun): V1DashboardRun["todoTag"] {
 
 function demoDashboard(
   allRuns: ReadonlyArray<V1DashboardRun>,
-  runners: ReadonlyArray<MobileRunner>,
+  runners: ReadonlyArray<V1Runner>,
   workspaceId: string,
   workspaces: ReadonlyArray<WorkspaceOption>,
 ): V1Dashboard {
@@ -105,7 +114,7 @@ const usageReadAt = (now: Date) => ({
   now: now.toISOString(),
 });
 
-function readUsage(now: Date, provider: string, windows: UsageWindowView[]): RunnerUsageView {
+function readUsage(now: Date, provider: string, windows: V1UsageWindow[]): V1RunnerUsage {
   const highest = windows.toSorted((a, b) => b.usedPercent - a.usedPercent)[0];
   return {
     ...usageReadAt(now),
@@ -115,7 +124,7 @@ function readUsage(now: Date, provider: string, windows: UsageWindowView[]): Run
   };
 }
 
-export function busySnapshot(now: Date): MobileSnapshot {
+export function busySnapshot(now: Date): DemoSnapshot {
   const endedAt = (agoMs: number) => new Date(now.getTime() - agoMs).toISOString();
   const ended = (agoMs: number) => ({
     endedAt: endedAt(agoMs),
@@ -143,6 +152,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
         kind: "question",
         questionId: "question-138",
         body: "중복 웹훅은 무시할까요, 기록만 남길까요?",
+        summary: "중복 웹훅은 무시할까요, 기록만 남길까요?",
         choices: ["무시해요", "기록만 남겨요"],
         answered: false,
       },
@@ -231,7 +241,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       ...base("ACME-159", "포인트 적립 알림"),
       executionMs: null,
       state: "queued",
-      queuedReason: { kind: "usage-limit", provider: "Claude", resetsInMs: 42 * MINUTE },
+      queuedReason: { kind: "usage-limit", provider: "claude", resetsInMs: 42 * MINUTE },
     },
     {
       ...base("ACME-119", "정기 결제 재시도 큐 분리"),
@@ -277,7 +287,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
     },
   ];
 
-  const runners: MobileRunner[] = [
+  const runners: V1Runner[] = [
     {
       id: "runner-studio",
       name: "studio",
@@ -295,7 +305,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
       offlineMs: null,
       used: 0,
       capacity: 2,
-      usage: readUsage(now, "Codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
+      usage: readUsage(now, "codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
       limits: [],
     },
     {
@@ -305,11 +315,11 @@ export function busySnapshot(now: Date): MobileSnapshot {
       offlineMs: null,
       used: 3,
       capacity: 4,
-      usage: readUsage(now, "Claude", [
+      usage: readUsage(now, "claude", [
         { kind: "session", usedPercent: 100, resetsAt: null },
         { kind: "weekly", usedPercent: 64, resetsAt: null },
       ]),
-      limits: [{ provider: "Claude", window: "session", resetsInMs: 42 * MINUTE }],
+      limits: [{ provider: "claude", window: "session", resetsInMs: 42 * MINUTE }],
     },
   ];
   const workspaces = [payments, growth];
@@ -320,7 +330,7 @@ export function busySnapshot(now: Date): MobileSnapshot {
   };
 }
 
-export function emptySnapshot(): MobileSnapshot {
+export function emptySnapshot(): DemoSnapshot {
   const workspaces = [payments, growth];
   return {
     workspaces,

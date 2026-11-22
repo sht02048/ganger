@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Switch as NativeSwitch,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -12,7 +13,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { Text } from "./text";
 import type { TextTone } from "./text";
-import { brandArt, colors, radius, size, space } from "./tokens";
+import { brandArt, colors, fontFamily, fontSize, radius, size, space } from "./tokens";
 
 export function Card({
   emphasis = "none",
@@ -76,6 +77,41 @@ export function Button({
       </Text>
       <IssueBadge count={issueCount} />
     </Pressable>
+  );
+}
+
+export function TextField({
+  label,
+  value,
+  onChangeText,
+}: {
+  label: string;
+  value: string;
+  onChangeText: (next: string) => void;
+}) {
+  return (
+    <View style={styles.field}>
+      <Text variant="meta">{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        autoCapitalize="none"
+        autoCorrect={false}
+        value={value}
+        onChangeText={onChangeText}
+        placeholderTextColor={colors.textDisabled}
+        style={styles.fieldInput}
+      />
+    </View>
+  );
+}
+
+export function NoticeBand({ message }: { message: string }) {
+  return (
+    <View accessibilityRole="alert" testID="notice-band" style={styles.band}>
+      <Text variant="meta" tone="primary">
+        {message}
+      </Text>
+    </View>
   );
 }
 
@@ -375,6 +411,21 @@ const styles = StyleSheet.create({
     gap: space.s1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  field: { gap: space.s1 },
+  fieldInput: {
+    minHeight: size.touchTarget,
+    paddingHorizontal: space.s3,
+    borderRadius: radius.button,
+    backgroundColor: colors.bgControl,
+    color: colors.textPrimary,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.body,
+  },
+  band: {
+    paddingHorizontal: space.s4,
+    paddingVertical: space.s2,
+    backgroundColor: colors.problemSoft,
   },
   buttonCompact: { paddingHorizontal: space.s3 },
   backButton: {

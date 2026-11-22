@@ -5,6 +5,7 @@ const esmEntry = (name: string) =>
   fileURLToPath(new URL(`./node_modules/${name}/lib/module/index.js`, import.meta.url));
 
 export default defineProject({
+  define: { __DEV__: "true" },
   resolve: {
     alias: [
       { find: /^react-native$/, replacement: "react-native-web" },
@@ -28,7 +29,7 @@ export default defineProject({
   },
   test: {
     name: "mobile",
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "*.test.ts"],
     server: {
       deps: {
         inline: [/react-native-web/, /react-native-svg/, /react-native-safe-area-context/],
