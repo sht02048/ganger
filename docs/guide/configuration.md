@@ -30,6 +30,12 @@ The CLI keeps its files in one installation folder: `~/.ganger` by default, or t
 
 `start` reads only `WEB_HOST`, `WEB_PORT`, `DATABASE_PATH`, and `ENCRYPTION_KEY` from `.env`. Set the `GANGER_LOG_*` variables in the environment of the process that runs `start`; a line for them in `.env` has no effect. A launchd or systemd service does not inherit your shell's variables and gets only `PATH`, so add them to the service file. For detailed logs without any variable, turn on **자세한 서버 로그** (detailed server logs) in Settings > **서버 로그와 진단** (server logs and diagnostics).
 
+## Ticket state after a merge
+
+Ganger can move a ticket to a tracker state you choose when the run's pull request is merged. Open a tracker project under Settings > **프로젝트** (projects), then pick the state in **PR이 머지되면 바꿀 상태** (state to set when the PR is merged) under **트래커 티켓 상태** (tracker ticket state). The default is **바꾸지 않음** (don't change).
+
+This setting is optional and meant for projects without the Linear–GitHub integration. If that integration already moves your tickets, leave the default. Ganger changes the state at most once per run, and leaves it alone when a pull request is closed without merging or a run has no pull request.
+
 ## Sleep
 
 On macOS, `start` keeps the Mac from going to sleep while you are away (idle sleep) for as long as it runs, so runs keep going and webhooks still arrive. It holds the assertion with `caffeinate`, which you can see in `pmset -g assertions`, and releases it when `start` exits. If `caffeinate` fails, `start` prints a warning and keeps running. Turn it off with **서버가 도는 동안 이 맥이 잠들지 않게** (keep this Mac awake while the server runs) in Settings > **이 서버** (this server) (stored in `<home>/power.json`); the change applies within a few seconds without a restart. On Linux, `start` does not prevent sleep.

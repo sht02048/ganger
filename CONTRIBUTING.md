@@ -53,7 +53,7 @@ pnpm install   # also installs the lefthook pre-commit hook
 | `pnpm release:mac`          | Builds a release dmg (see [Build a release dmg](#build-a-release-dmg)) |
 | `pnpm update:browser-times` | Refreshes the browser test shard times from CI runs                    |
 
-The browser tests in `e2e` drive the Google Chrome installed on the machine through `playwright-core`; they do not download a browser. GitHub's Ubuntu runners already have Chrome. When a browser test fails, a screenshot of the page is saved to `e2e/test-results/`, and CI uploads it as an artifact.
+The browser tests in `e2e` drive the Google Chrome installed on the machine through `playwright-core`; they do not download a browser. GitHub's Ubuntu runners already have Chrome. When a browser test fails, a screenshot of the page is saved to `e2e/test-results/`, and CI uploads it as an artifact. A unit test that mounts a component starts with `// @vitest-environment jsdom` and runs in jsdom, a development dependency of `apps/web`.
 
 ## Development
 
