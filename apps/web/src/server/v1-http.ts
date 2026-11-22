@@ -1,18 +1,28 @@
 import { CONTRACT_VERSION } from "@ganger/api";
 import type { V1ErrorReason, V1Meta } from "@ganger/api";
-import { authenticateDevice, connectDevice } from "@ganger/app/devices/connection";
+import { authenticateDevice, connectDevice, registerDesktop } from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
 import { loadThisDevice, loadV1Runners, loadV1Workspaces } from "@ganger/app/devices/runners";
 import { loadHomePage } from "@ganger/app/home/load";
-import { parseAfter } from "@ganger/app/notifications/feed";
+import { parseAfter, toNotificationRecord } from "@ganger/app/notifications/feed";
 import { parseTimeZone } from "@ganger/app/time-zone";
-import { removeDevice } from "@ganger/db";
+import { getNotificationEvent } from "@ganger/db";
+import { z } from "zod";
 import { changeStream } from "../change-events/feed";
 import { PRODUCT_VERSION } from "../identity/identity";
-import { lastEventId, notificationStreamResponse } from "../notifications/stream";
+import { readNotificationFeed } from "../notifications/notifications";
+import { notificationSync } from "../notifications/server";
+import {
+  lastEventId,
+  notificationStream,
+  notificationStreamResponse,
+} from "../notifications/stream";
 import { changeSourceOf, getChangeFeed } from "./change-events";
 import { getDatabase } from "./database";
+import { getDesktopRegistrations } from "./desktop-registrations";
 import { getDeviceConnectionCodes } from "./device-connection-codes";
+import { removeDeviceAndCloseStreams } from "./device-removal";
+import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
 
 const NO_STORE = { "cache-control": "no-store" };
@@ -53,8 +63,45 @@ export async function serveV1Connect(request: Request): Promise<Response> {
 export function serveV1Disconnect(request: Request): Response {
   const deviceId = requestDevice(request);
   if (deviceId === null) return v1Error(401, "invalid-token");
-  removeDevice(getDatabase(), deviceId, new Date());
+  removeDeviceAndCloseStreams(deviceId);
   return v1Data({ disconnected: true });
+}
+
+export async function serveV1RegisterDesktop(request: Request): Promise<Response> {
+  const reply = registerDesktop(
+    { db: getDatabase(), registrations: getDesktopRegistrations() },
+    await readJson(request),
+    new Date(),
+  );
+  return reply.status === 200 ? v1Data(reply.result) : v1Error(reply.status, reply.reason);
+}
+
+export function serveV1NotificationFeed(request: Request): Response {
+  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
+  notificationSync();
+  const after = parseAfter(new URL(request.url).searchParams.get("after"));
+  return v1Data(readNotificationFeed(getDatabase(), after));
+}
+
+export function serveV1NotificationStream(request: Request): Response {
+  const deviceId = requestDevice(request);
+  if (deviceId === null) return v1Error(401, "invalid-token");
+  const source = notificationStream({
+    after: parseAfter(lastEventId(request)),
+    sync: notificationSync,
+    read: (after) => readNotificationFeed(getDatabase(), after),
+  });
+  return notificationStreamResponse(getDeviceStreams().track(deviceId, source));
+}
+
+const notificationEventId = z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+
+export function serveV1NotificationEvent(request: Request, id: string): Response {
+  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
+  const parsed = notificationEventId.safeParse(id);
+  const event = parsed.success ? getNotificationEvent(getDatabase(), parsed.data) : null;
+  if (event === null) return v1Error(404, "not-found");
+  return v1Data(toNotificationRecord(event));
 }
 
 export function serveV1Dashboard(request: Request): Response {
@@ -85,15 +132,13 @@ export function serveV1ThisDevice(request: Request): Response {
   return device === null ? v1Error(401, "invalid-token") : v1Data(device);
 }
 
-function openChangeStream(request: Request): ReadableStream<Uint8Array> {
-  return changeStream({
+export function serveV1ChangeStream(request: Request): Response {
+  const deviceId = requestDevice(request);
+  if (deviceId === null) return v1Error(401, "invalid-token");
+  const source = changeStream({
     after: parseAfter(lastEventId(request)),
     feed: getChangeFeed(),
     source: changeSourceOf(getDatabase()),
   });
-}
-
-export function serveV1ChangeStream(request: Request): Response {
-  if (requestDevice(request) === null) return v1Error(401, "invalid-token");
-  return notificationStreamResponse(openChangeStream(request));
+  return notificationStreamResponse(getDeviceStreams().track(deviceId, source));
 }

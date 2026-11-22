@@ -41,6 +41,7 @@ export interface NotificationSettingsApi {
   onNotificationSettings(listener: (view: NotificationSettingsView) => void): () => void;
   setNotificationSettings(settings: NotificationPrefs): Promise<void>;
   openSystemNotificationSettings(): Promise<void>;
+  reconnectDevice(): Promise<void>;
 }
 
 export interface DesktopApi {

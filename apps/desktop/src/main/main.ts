@@ -2,10 +2,11 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { PRODUCT_DISPLAY_NAME, resolveHome } from "@ganger/cli/home";
-import { app, dialog } from "electron";
+import { app, dialog, safeStorage } from "electron";
 import { useConsoleLogger } from "@ganger/log";
 import { z } from "zod";
 import { bundlelessServer, devServerUrl } from "../core/dev-server.js";
+import type { TokenCipher } from "../core/device-link.js";
 import { LocalServer, fileRecordStore } from "../core/local-server.js";
 import { SERVER_BUNDLE_ENV, loadServerBundle } from "../core/server-bundle.js";
 import { serviceInstalledFor } from "../core/service.js";
@@ -90,6 +91,7 @@ if (!app.requestSingleInstanceLock()) {
       local,
       serverVersion: bundle.version,
       devServerUrl: devServer,
+      tokenCipher: devServer === undefined ? safeStorageCipher : null,
       logFile,
       ...appPaths(app.getAppPath()),
       openedAtLogin: app.getLoginItemSettings().wasOpenedAtLogin === true,
@@ -97,6 +99,12 @@ if (!app.requestSingleInstanceLock()) {
     controller.start();
   });
 }
+
+const safeStorageCipher: TokenCipher = {
+  isAvailable: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (text) => safeStorage.encryptString(text).toString("base64"),
+  decrypt: (sealed) => safeStorage.decryptString(Buffer.from(sealed, "base64")),
+};
 
 function serverBundleRoot(): string {
   const override = process.env[SERVER_BUNDLE_ENV]?.trim();

@@ -1,7 +1,18 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { connectRequestSchema, connectionQrText, isConnectableAddress } from "@ganger/api";
+import {
+  connectRequestSchema,
+  connectionQrText,
+  isConnectableAddress,
+  registerDesktopRequestSchema,
+} from "@ganger/api";
 import type { ConnectResult, V1ErrorReason } from "@ganger/api";
-import { addDevice, listDevices, removeDevice, seeDeviceByTokenHash } from "@ganger/db";
+import {
+  addDevice,
+  listDevices,
+  removeDevice,
+  replaceDeviceToken,
+  seeDeviceByTokenHash,
+} from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { z } from "zod";
 import {
@@ -9,6 +20,7 @@ import {
   ENROLLMENT_TTL_MS,
   hashToken,
 } from "../runner-setup/enrollment.js";
+import type { DeviceStreams } from "./streams.js";
 
 const DEVICE_TOKEN_BYTES = 32;
 const FORGET_AFTER_MS = 60 * 60_000;
@@ -122,13 +134,55 @@ export function connectDevice(
   if (!request.success) return { status: 400, reason: "invalid-request" };
   const claimed = context.codes.claim(request.data.code);
   if (!claimed.ok) return REFUSALS[claimed.refusal];
+  return { status: 200, result: issueDeviceToken(context.db, request.data.name, now) };
+}
+
+function issueDeviceToken(db: Database, name: string, now: Date): ConnectResult {
   const token = randomBytes(DEVICE_TOKEN_BYTES).toString("base64url");
-  const device = addDevice(
-    context.db,
-    { name: request.data.name, tokenHash: hashToken(token) },
-    now,
-  );
-  return { status: 200, result: { deviceId: device.id, token } };
+  const device = addDevice(db, { name, tokenHash: hashToken(token) }, now);
+  return { deviceId: device.id, token };
+}
+
+export type RegisterDesktopReply =
+  | { status: 200; result: ConnectResult }
+  | { status: 400; reason: V1ErrorReason };
+
+const DESKTOP_REGISTRATION_KEEP_MS = 10 * 60_000;
+
+export class DesktopRegistrations {
+  private readonly entries = new Map<string, { deviceId: string; name: string; at: number }>();
+
+  find(requestId: string, now: Date): { deviceId: string; name: string } | null {
+    for (const [id, entry] of this.entries) {
+      if (now.getTime() - entry.at >= DESKTOP_REGISTRATION_KEEP_MS) this.entries.delete(id);
+    }
+    return this.entries.get(requestId) ?? null;
+  }
+
+  remember(requestId: string, deviceId: string, name: string, now: Date): void {
+    this.entries.set(requestId, { deviceId, name, at: now.getTime() });
+  }
+}
+
+export function registerDesktop(
+  context: { db: Database; registrations: DesktopRegistrations },
+  body: unknown,
+  now: Date,
+): RegisterDesktopReply {
+  const request = registerDesktopRequestSchema.safeParse(body);
+  if (!request.success) return { status: 400, reason: "invalid-request" };
+  const { name, requestId } = request.data;
+  const earlier = context.registrations.find(requestId, now);
+  if (earlier !== null && earlier.name !== name) return { status: 400, reason: "invalid-request" };
+  if (earlier !== null) {
+    const token = randomBytes(DEVICE_TOKEN_BYTES).toString("base64url");
+    if (replaceDeviceToken(context.db, earlier.deviceId, hashToken(token))) {
+      return { status: 200, result: { deviceId: earlier.deviceId, token } };
+    }
+  }
+  const result = issueDeviceToken(context.db, name, now);
+  context.registrations.remember(requestId, result.deviceId, name, now);
+  return { status: 200, result };
 }
 
 export function authenticateDevice(
@@ -172,6 +226,12 @@ export function loadDevicesView(db: Database, webAddress: string | null, now: Da
 export const deviceIdInput = z.object({ id: z.uuid() });
 export const startConnectionInput = z.object({ replacing: z.uuid().optional() });
 
-export function removeDeviceById(db: Database, id: string, now: Date): { ok: boolean } {
-  return { ok: removeDevice(db, id, now) };
+export function removeDeviceById(
+  context: { db: Database; streams: DeviceStreams },
+  id: string,
+  now: Date,
+): { ok: boolean } {
+  const ok = removeDevice(context.db, id, now);
+  if (ok) context.streams.closeDevice(id);
+  return { ok };
 }

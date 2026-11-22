@@ -24,6 +24,7 @@ export const LOG_EVENTS = {
   "worker.tick": "finished a tick",
   "worker.tick_failed": "tick failed",
   "worker.web_requests_failed": "could not process web requests",
+  "notifications.sync_failed": "could not sync notification events",
   "worker.log_tail_failed": "could not read a log tail",
 
   "run.assigned": "assigned a ticket to a run",

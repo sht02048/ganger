@@ -134,6 +134,8 @@ function refusalOf(body: unknown): V1Failure | ConnectFailure {
       return { kind: "code-refused", reason };
     case "invalid-request":
       return { kind: "invalid-request" };
+    case "not-found":
+      return { kind: "server-error" };
   }
 }
 

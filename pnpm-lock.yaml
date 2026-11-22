@@ -230,6 +230,9 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@ganger/api':
+        specifier: workspace:*
+        version: link:../../packages/api
       '@ganger/cli':
         specifier: workspace:*
         version: link:../cli
@@ -440,6 +443,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@ganger/app':
+        specifier: workspace:*
+        version: link:../../packages/app
       '@ganger/codehost-github':
         specifier: workspace:*
         version: link:../../packages/codehost-github

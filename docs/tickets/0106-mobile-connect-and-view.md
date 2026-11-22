@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 blocked_by: [0104, 0105]
 ---
 
