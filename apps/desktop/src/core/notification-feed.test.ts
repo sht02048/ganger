@@ -1,9 +1,12 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import type { FeedConnection } from "./device-link.js";
 import { NotificationFeed, SseParser } from "./notification-feed.js";
 import type { FeedBatch, FeedTransport } from "./notification-feed.js";
+
+const V1_META = { serverVersion: "0.5.0", contractVersion: 1 };
 
 function record(id: number, seq: number, resolved = false): NotificationRecord {
   return {
@@ -21,6 +24,10 @@ function record(id: number, seq: number, resolved = false): NotificationRecord {
 class FakeServer {
   log: NotificationRecord[] = [];
   streamAvailable = true;
+  tokenAccepted = true;
+  proxyRefuses = false;
+  legacyRequests = 0;
+  readonly v1Requests: Array<string | null> = [];
   readonly streamRequests: Array<string | null> = [];
   readonly pollRequests: Array<string | null> = [];
   private readonly clients = new Set<ServerResponse>();
@@ -78,7 +85,23 @@ class FakeServer {
 
   private handle(request: IncomingMessage, response: ServerResponse): void {
     const url = new URL(request.url ?? "/", this.origin);
-    if (url.pathname === "/api/notification-events/stream") {
+    const v1 = url.pathname.startsWith("/api/v1/");
+    const pathname = v1 ? url.pathname.replace("/api/v1/", "/api/") : url.pathname;
+    if (v1) {
+      this.v1Requests.push(request.headers.authorization ?? null);
+      if (this.proxyRefuses) {
+        response.writeHead(401, { "content-type": "text/plain" }).end("proxy login required");
+        return;
+      }
+      if (!this.tokenAccepted || request.headers.authorization !== `Bearer ${DEVICE_TOKEN}`) {
+        response.writeHead(401, { "content-type": "application/json" });
+        response.end(JSON.stringify({ meta: V1_META, error: { reason: "invalid-token" } }));
+        return;
+      }
+    } else {
+      this.legacyRequests += 1;
+    }
+    if (pathname === "/api/notification-events/stream") {
       const header = request.headers["last-event-id"];
       const lastId = typeof header === "string" ? header : null;
       this.streamRequests.push(lastId);
@@ -95,13 +118,12 @@ class FakeServer {
       request.on("close", () => this.clients.delete(response));
       return;
     }
-    if (url.pathname === "/api/notification-events") {
+    if (pathname === "/api/notification-events") {
       const after = url.searchParams.get("after");
       this.pollRequests.push(after);
       response.writeHead(200, { "content-type": "application/json" });
-      response.end(
-        JSON.stringify({ events: this.after(after), cursor: this.cursor(), open: this.open() }),
-      );
+      const feed = { events: this.after(after), cursor: this.cursor(), open: this.open() };
+      response.end(JSON.stringify(v1 ? { meta: V1_META, data: feed } : feed));
       return;
     }
     response.writeHead(404).end();
@@ -123,16 +145,29 @@ async function startServer(): Promise<FakeServer> {
   return server;
 }
 
+const DEVICE_TOKEN = "device-token";
+const tokenConnection = (): Promise<FeedConnection> =>
+  Promise.resolve({ kind: "token", token: DEVICE_TOKEN });
+let feedMode: "v1" | "legacy" = "legacy";
+
 function startFeed(
   server: FakeServer,
-  overrides: { streamRetryMs?: number; idleTimeoutMs?: number } = {},
+  overrides: {
+    streamRetryMs?: number;
+    idleTimeoutMs?: number;
+    connection?: () => Promise<FeedConnection>;
+    onRejected?: () => void;
+  } = {},
 ) {
   const batches: FeedBatch[] = [];
   const transports: FeedTransport[] = [];
+  const connection = overrides.connection ?? (feedMode === "v1" ? tokenConnection : undefined);
   const feed = new NotificationFeed({
     origin: server.origin,
     onBatch: (batch) => batches.push(batch),
     onTransport: (transport) => transports.push(transport),
+    ...(connection === undefined ? {} : { connection }),
+    ...(overrides.onRejected === undefined ? {} : { onRejected: overrides.onRejected }),
     pollMs: 20,
     reconnectMs: 10,
     maxReconnectMs: 20,
@@ -165,7 +200,96 @@ describe("SSE 파서", () => {
   });
 });
 
-describe("알림 사건 받기", () => {
+describe("v1 기기 토큰", () => {
+  it("토큰을 실어 v1 경로로 붙고, 폴링도 v1 응답을 읽는다", async () => {
+    const server = await startServer();
+    server.add(record(1, 1));
+    server.streamAvailable = false;
+    const { batches, transports } = startFeed(server, { connection: tokenConnection });
+    await waitFor(() => transports.includes("polling") && batches.length > 0);
+    expect(server.v1Requests.every((auth) => auth === `Bearer ${DEVICE_TOKEN}`)).toBe(true);
+    expect(server.v1Requests.length).toBeGreaterThan(0);
+    expect(server.legacyRequests).toBe(0);
+    expect(ids(batches)).toEqual([[1, 1]]);
+  });
+
+  it("토큰이 거절되면 안내를 한 번 올리고 다시 요청하지 않는다", async () => {
+    const server = await startServer();
+    server.tokenAccepted = false;
+    let rejected = 0;
+    startFeed(server, {
+      connection: tokenConnection,
+      onRejected: () => {
+        rejected += 1;
+      },
+    });
+    await waitFor(() => rejected === 1);
+    const requests = server.v1Requests.length;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(rejected).toBe(1);
+    expect(server.v1Requests).toHaveLength(requests);
+  });
+
+  it("연결 중 기기가 지워져 스트림이 끊기면 거절로 알아채고, 다시 연결하면 이어 받는다", async () => {
+    const server = await startServer();
+    server.add(record(1, 1));
+    let rejected = 0;
+    const { feed, batches } = startFeed(server, {
+      connection: tokenConnection,
+      onRejected: () => {
+        rejected += 1;
+      },
+    });
+    await waitFor(() => batches.length === 1);
+
+    server.tokenAccepted = false;
+    server.dropClients();
+    await waitFor(() => rejected === 1);
+
+    server.tokenAccepted = true;
+    server.add(record(2, 2));
+    feed.reconnect();
+    await waitFor(() => ids(batches).some(([id]) => id === 2));
+    expect(server.streamRequests.at(-1)).toBe("1");
+  });
+
+  it("앞단 프록시의 401 은 기기 거절로 보지 않고 다시 시도한다", async () => {
+    const server = await startServer();
+    server.proxyRefuses = true;
+    let rejected = 0;
+    startFeed(server, {
+      connection: tokenConnection,
+      onRejected: () => {
+        rejected += 1;
+      },
+    });
+    await waitFor(() => server.v1Requests.length >= 3);
+    expect(rejected).toBe(0);
+  });
+
+  it("저장한 토큰을 쓸 수 없으면 요청 없이 거절로 알린다", async () => {
+    const server = await startServer();
+    let rejected = 0;
+    startFeed(server, {
+      connection: () => Promise.resolve({ kind: "rejected" }),
+      onRejected: () => {
+        rejected += 1;
+      },
+    });
+    await waitFor(() => rejected === 1);
+    expect(server.v1Requests).toEqual([]);
+    expect(server.legacyRequests).toBe(0);
+  });
+});
+
+describe.each(["v1", "legacy"] as const)("알림 사건 받기(%s)", (mode) => {
+  beforeEach(() => {
+    feedMode = mode;
+  });
+  afterEach(() => {
+    feedMode = "legacy";
+  });
+
   it("SSE 로 연결하면 열린 사건을 첫 묶음으로, 새 사건은 바로 받는다", async () => {
     const server = await startServer();
     server.add(record(1, 1));

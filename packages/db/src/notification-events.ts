@@ -184,6 +184,11 @@ export function listOpenNotificationEvents(db: Database): StoredNotificationEven
     .map(toStored);
 }
 
+export function getNotificationEvent(db: Database, id: number): StoredNotificationEvent | null {
+  const row = db.select().from(notificationEvents).where(eq(notificationEvents.id, id)).get();
+  return row === undefined ? null : toStored(row);
+}
+
 export function listNotificationChanges(db: Database, afterSeq: number): StoredNotificationEvent[] {
   return db
     .select()

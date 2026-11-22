@@ -25,6 +25,14 @@ export const connectRequestSchema = z.object({
 });
 export type ConnectRequest = z.infer<typeof connectRequestSchema>;
 
+export const V1_DESKTOP_REGISTER_PATH = "/api/v1/devices/register";
+
+export const registerDesktopRequestSchema = z.object({
+  name: deviceNameSchema,
+  requestId: z.string().min(16).max(64),
+});
+export type RegisterDesktopRequest = z.infer<typeof registerDesktopRequestSchema>;
+
 export const connectResultSchema = z.object({
   deviceId: z.string().min(1),
   token: z.string().min(1),

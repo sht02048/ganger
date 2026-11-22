@@ -14,6 +14,7 @@ export const appSettingsSchema = z.object({
     .record(z.string(), z.number().int().nonnegative())
     .optional()
     .catch(undefined),
+  deviceTokens: z.record(z.string(), z.string()).optional().catch(undefined),
   updates: updateSettingsSchema.optional().catch(undefined),
 });
 export type AppSettings = z.infer<typeof appSettingsSchema>;

@@ -14,6 +14,7 @@
     "brand-assets": "node scripts/brand-assets.ts"
   },
   "dependencies": {
+    "@ganger/api": "workspace:*",
     "@ganger/cli": "workspace:*",
     "@ganger/db": "workspace:*",
     "@ganger/log": "workspace:*",
