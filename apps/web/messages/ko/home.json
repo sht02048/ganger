@@ -73,6 +73,12 @@
     "queuedFree": "빈 러너를 기다려요",
     "queuedOffline": "{runner}{subject, select, i {이} other {가}} Offline이라 기다려요",
     "queuedAnyOffline": "맞는 러너가 Offline이라 기다려요",
+    "blockerLine": {
+      "waiting": "선행 티켓을 기다려요",
+      "canceled": "선행 티켓이 취소됐어요",
+      "unreadable": "선행 티켓을 읽지 못했어요",
+      "cycle": "선행 티켓과 서로 기다려요"
+    },
     "answer": "답하기",
     "check": "확인하기",
     "answered": "답을 보냈어요",

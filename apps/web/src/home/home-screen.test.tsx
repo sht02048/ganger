@@ -16,6 +16,8 @@ import { loadHomePage } from "@ganger/app/home/load";
 import { homeMessages } from "./messages";
 import type { HomePage, HomeRun, InputWait } from "@ganger/app/home/model";
 import type { PrSignalsView } from "@ganger/app/pr-signals-view";
+import type { QueuedReason } from "@ganger/app/runs/model";
+import { useQueuedReasonText } from "../labels";
 
 const reject = () => Promise.reject(new Error("unused"));
 
@@ -484,6 +486,125 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
     expect(body).toContain(homeJson.card.cancelling);
     expect(body).toContain(first.workspace.name);
+  });
+
+  describe("칩과 아랫줄이 선행 티켓을 두 번 말하지 않는다(0183)", () => {
+    const active = {
+      key: "ACME-11",
+      title: "앞 티켓",
+      stateName: "In Progress",
+      stateCategory: "started",
+    };
+    const canceled = {
+      key: "ACME-10",
+      title: "취소된 티켓",
+      stateName: "Canceled",
+      stateCategory: "canceled",
+    };
+    const finished = {
+      key: "ACME-9",
+      title: "끝난 티켓",
+      stateName: "Done",
+      stateCategory: "completed",
+    };
+    const cardWith = (queuedReason: QueuedReason) => {
+      const page = seededPage();
+      const first = page.queued[0];
+      if (first === undefined) throw new Error("no queued run");
+      const queued = page.queued.map((run) =>
+        run.id === first.id && run.state === "queued" ? { ...run, queuedReason } : run,
+      );
+      return row(render({ ...page, queued }), first.ticketKey);
+    };
+    const footOf = (card: string) => {
+      const footId = /aria-describedby="[^"]*?([^" ]+foot)"/.exec(card)?.[1] ?? "";
+      return text(card.slice(card.indexOf(`id="${footId}"`)));
+    };
+
+    it.each([
+      [
+        "기다림",
+        { kind: "blockers-waiting", blockers: [active], finished: [finished] },
+        homeJson.card.blockerLine.waiting,
+      ],
+      [
+        "취소",
+        { kind: "blockers-stuck", cause: "canceled", blocker: canceled, blockers: [canceled] },
+        homeJson.card.blockerLine.canceled,
+      ],
+      [
+        "읽지 못함",
+        { kind: "blockers-stuck", cause: "unreadable", blocker: active, blockers: [active] },
+        homeJson.card.blockerLine.unreadable,
+      ],
+      [
+        "순환",
+        { kind: "blockers-stuck", cause: "cycle", blocker: active, blockers: [active] },
+        homeJson.card.blockerLine.cycle,
+      ],
+    ] satisfies [string, QueuedReason, string][])(
+      "%s 카드의 키는 칩에만 있다",
+      (_name, reason, line) => {
+        const card = cardWith(reason);
+        const foot = footOf(card);
+        expect(foot).toContain(line);
+        expect(foot).not.toMatch(/ACME-(9|10|11)\b/);
+        expect(card).toContain("data-blocker-state");
+        expect(text(card)).toMatch(/ACME-(10|11)/);
+      },
+    );
+
+    it("순환 카드는 원인 티켓의 칩만 멈춤으로 보인다", () => {
+      const inCycle = { ...active, key: "ACME-12" };
+      const card = cardWith({
+        kind: "blockers-stuck",
+        cause: "cycle",
+        blocker: inCycle,
+        blockers: [canceled, active, inCycle],
+      });
+      const chipOf = (state: string) => {
+        const [, chip = ""] = card.split(`data-blocker-state="${state}"`);
+        return text(`<span ${chip.split("data-blocker-state")[0] ?? ""}`);
+      };
+      expect(card.match(/data-blocker-state="stuck"/g)).toHaveLength(1);
+      expect(chipOf("stuck")).toContain("ACME-12");
+      expect(chipOf("stuck")).toContain(domain.blocker.stuckCause.cycle);
+      expect(chipOf("canceled")).toContain("ACME-10");
+      expect(chipOf("active")).toContain("ACME-11");
+    });
+
+    it("칩의 키와 상태는 카드 버튼의 설명으로 전해진다", () => {
+      const card = cardWith({ kind: "blockers-waiting", blockers: [active] });
+      const chipsId = /aria-describedby="[^"]*?([^" ]+chips)/.exec(card)?.[1] ?? "";
+      const chips = card.slice(card.indexOf(`id="${chipsId}"`));
+      expect(chipsId).not.toBe("");
+      expect(text(chips)).toContain("ACME-11");
+      expect(text(chips)).toContain("In Progress");
+    });
+
+    it("기다리는 선행 티켓 없이 끝난 칩만 있으면 기다린다고 말하지 않는다", () => {
+      const foot = footOf(
+        cardWith({ kind: "blockers-waiting", blockers: [], finished: [finished] }),
+      );
+      expect(foot).not.toContain(homeJson.card.blockerLine.waiting);
+      expect(foot).toContain(domain.queuedReason.behind);
+    });
+
+    it("칩이 없는 Queued 카드의 문장은 그대로다", () => {
+      expect(text(cardWith({ kind: "starting" }))).toContain(domain.queuedReason.starting);
+      expect(
+        text(
+          cardWith({ kind: "blockers-stuck", cause: "unreadable", blocker: null, blockers: [] }),
+        ),
+      ).toContain(domain.queuedReason["blocker-unreadable-unknown"]);
+    });
+
+    it("다른 화면이 쓰는 기다림 문장은 키를 그대로 말한다", () => {
+      function Reason() {
+        return useQueuedReasonText()({ kind: "blockers-waiting", blockers: [active] });
+      }
+      expect(text(renderWithMessages(<Reason />, homeMessages))).toBe("ACME-11을 기다려요");
+    });
   });
 
   it("Queued 까닭은 러너 이름에 맞는 조사로 쓴다", () => {
