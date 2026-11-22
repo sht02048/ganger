@@ -117,8 +117,14 @@ function useRunDetail(port: RunPort, run: DashboardRun): RunRead<V1RunDetail> | 
   return read;
 }
 
-function openWebLink(url: string): void {
-  if (isWebLink(url)) void Linking.openURL(url);
+async function openWebLink(url: string): Promise<boolean> {
+  if (!isWebLink(url)) return false;
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function ContextLine({ run }: { run: DashboardRun }) {
@@ -262,7 +268,7 @@ function RequestBody({ body }: { body: string }) {
     <Text variant="body" tone="primary">
       {bodyParts(body).map((part, index) =>
         part.kind === "link" ? (
-          <TextLink key={index} label={part.value} onPress={() => openWebLink(part.value)} />
+          <TextLink key={index} label={part.value} onPress={() => void openWebLink(part.value)} />
         ) : (
           part.value
         ),
@@ -422,8 +428,13 @@ function InputSheet({
               <DenyForm run={run} input={input} port={port} disabled={disabled} onClose={onClose} />
             );
           }
-          const handled: MessageKey =
-            kind === "answer"
+          const sameRequest =
+            (kind === "answer" && input?.kind === "question") ||
+            (kind === "human-check" && input?.kind === "human-check") ||
+            (kind === "deny" && input?.kind === "permission");
+          const handled: MessageKey = !sameRequest
+            ? "actions.refused.run.state-changed"
+            : kind === "answer"
               ? "actions.answer.handled"
               : kind === "human-check"
                 ? "actions.humanCheck.handled"
@@ -440,7 +451,7 @@ function InputSheet({
   );
 }
 
-function CancelSheet({
+function CancelConfirm({
   run,
   port,
   disabled,
@@ -454,12 +465,7 @@ function CancelSheet({
   const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
   const closeSheet = useCloseUnlessSending(onClose);
   return (
-    <Sheet
-      visible
-      title={t("actions.cancel.title")}
-      closeLabel={t("common.close")}
-      onClose={closeSheet}
-    >
+    <>
       <ContextLine run={run} />
       <Text variant="body">{t("actions.cancel.body")}</Text>
       <SheetMessage message={message} tone={messageTone} />
@@ -470,6 +476,30 @@ function CancelSheet({
         onPress={() => void send({ action: "cancel" })}
       />
       <Button label={t("common.close")} disabled={sending} onPress={closeSheet} />
+    </>
+  );
+}
+
+function CancelSheet({
+  run,
+  port,
+  disabled,
+  onClose,
+}: {
+  run: DashboardRun;
+  port: RunPort;
+  disabled: boolean;
+  onClose: () => void;
+}) {
+  const closeSheet = useCloseUnlessSending(onClose);
+  return (
+    <Sheet
+      visible
+      title={t("actions.cancel.title")}
+      closeLabel={t("common.close")}
+      onClose={closeSheet}
+    >
+      <CancelConfirm run={run} port={port} disabled={disabled} onClose={onClose} />
     </Sheet>
   );
 }
@@ -478,18 +508,18 @@ function MenuSheet({
   run,
   port,
   disabled,
-  onCancel,
   onClose,
 }: {
   run: DashboardRun;
   port: RunPort;
   disabled: boolean;
-  onCancel: () => void;
   onClose: () => void;
 }) {
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const [opening, setOpening] = useState(false);
+  const closeSheet = useCloseUnlessSending(onClose);
   const mounted = useRef(false);
   useEffect(() => {
     mounted.current = true;
@@ -502,9 +532,10 @@ function MenuSheet({
     setMessage(null);
     const link = await port.ticketLink(run);
     if (!mounted.current) return;
+    const opened = link.kind === "ok" && (await openWebLink(link.value));
+    if (!mounted.current) return;
     setOpening(false);
-    if (link.kind === "ok") {
-      openWebLink(link.value);
+    if (opened) {
       onClose();
       return;
     }
@@ -512,21 +543,32 @@ function MenuSheet({
     setMessage(link.kind === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed"));
   };
   return (
-    <Sheet visible title={run.ticketKey} closeLabel={t("common.close")} onClose={onClose}>
-      <Button
-        label={t("actions.menu.openTicket")}
-        disabled={opening}
-        onPress={() => void openTicket()}
-      />
-      {run.cancelling ? null : (
-        <Button
-          variant="danger"
-          label={t("actions.menu.cancel")}
-          disabled={disabled}
-          onPress={onCancel}
-        />
+    <Sheet
+      visible
+      title={confirmingCancel ? t("actions.cancel.title") : run.ticketKey}
+      closeLabel={t("common.close")}
+      onClose={closeSheet}
+    >
+      {confirmingCancel ? (
+        <CancelConfirm run={run} port={port} disabled={disabled} onClose={onClose} />
+      ) : (
+        <>
+          <Button
+            label={t("actions.menu.openTicket")}
+            disabled={opening}
+            onPress={() => void openTicket()}
+          />
+          {run.cancelling ? null : (
+            <Button
+              variant="danger"
+              label={t("actions.menu.cancel")}
+              disabled={disabled}
+              onPress={() => setConfirmingCancel(true)}
+            />
+          )}
+          <SheetMessage message={message} tone={messageTone} />
+        </>
       )}
-      <SheetMessage message={message} tone={messageTone} />
     </Sheet>
   );
 }
@@ -589,7 +631,10 @@ function RunDetailBody({ detail }: { detail: V1RunDetail }) {
               ))}
             </View>
             {isWebLink(pullRequest.url) ? (
-              <Button label={t("runDetail.openPr")} onPress={() => openWebLink(pullRequest.url)} />
+              <Button
+                label={t("runDetail.openPr")}
+                onPress={() => void openWebLink(pullRequest.url)}
+              />
             ) : null}
           </>
         )}
@@ -632,7 +677,6 @@ interface RunSheetsProps {
   sheet: OpenRunSheet | null;
   port: RunPort;
   disabled: boolean;
-  onOpen: (next: OpenRunSheet) => void;
   onClose: () => void;
 }
 
@@ -646,13 +690,7 @@ export function RunSheets({ sheet, ...rest }: RunSheetsProps) {
   );
 }
 
-function OpenSheet({
-  sheet,
-  port,
-  disabled,
-  onOpen,
-  onClose,
-}: RunSheetsProps & { sheet: OpenRunSheet }) {
+function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet: OpenRunSheet }) {
   switch (sheet.kind) {
     case "answer":
     case "human-check":
@@ -683,7 +721,6 @@ function OpenSheet({
           run={sheet.run}
           port={port}
           disabled={disabled}
-          onCancel={() => onOpen({ kind: "cancel", run: sheet.run })}
           onClose={onClose}
         />
       );

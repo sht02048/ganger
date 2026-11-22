@@ -109,13 +109,7 @@ async function open(sheet: OpenRunSheet, port: RunPort, disabled = false) {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <RunSheets
-          sheet={sheet}
-          port={port}
-          disabled={disabled}
-          onOpen={() => undefined}
-          onClose={onClose}
-        />
+        <RunSheets sheet={sheet} port={port} disabled={disabled} onClose={onClose} />
       </SafeAreaProvider>,
     );
     await Promise.resolve();
@@ -288,6 +282,15 @@ describe("Human Check 시트", () => {
   });
 });
 
+describe("늦게 연 시트", () => {
+  it("런이 Waiting for Input이 아니면 이미 답했다고 하지 않고 상태가 바뀌었다고 말한다", async () => {
+    const moved: V1RunDetail = { ...demoRunDetail(questionRun), state: "running", input: null };
+    await open({ kind: "answer", run: questionRun }, fakePort({ kind: "sent" }, moved).port);
+    expect(document.body.textContent).toContain("런의 상태가 그사이 바뀌었어요");
+    expect(document.body.textContent).not.toContain("이미 답한");
+  });
+});
+
 describe("Permission 거절 시트", () => {
   it("허용 안내를 보이고 거절을 보낸다", async () => {
     const { port, write } = fakePort();
@@ -365,6 +368,19 @@ describe("런 상세", () => {
 });
 
 describe("카드 메뉴", () => {
+  it("런 취소는 같은 시트 안에서 확인을 거쳐 보낸다", async () => {
+    const { port, write } = fakePort();
+    await open({ kind: "menu", run: questionRun }, port);
+    const dialogs = () => document.body.querySelectorAll('[aria-modal="true"]').length;
+    const before = dialogs();
+    await press("런 취소");
+    expect(document.body.textContent).toContain("이 런을 취소할까요?");
+    expect(dialogs()).toBe(before);
+    expect(write).not.toHaveBeenCalled();
+    await press("런 취소하기");
+    expect(write.mock.calls[0]?.[1]).toEqual({ action: "cancel" });
+  });
+
   it("Linear에서 열기와 런 취소를 보이고, 취소 중이면 런 취소를 뺀다", async () => {
     await open({ kind: "menu", run: questionRun }, fakePort().port);
     expect(byLabel("Linear에서 열기")).not.toBeNull();

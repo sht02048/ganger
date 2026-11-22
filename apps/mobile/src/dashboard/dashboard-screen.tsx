@@ -322,7 +322,6 @@ export function DashboardScreen({
         sheet={sheet ?? resumeNotice}
         port={port}
         disabled={actionsDisabled}
-        onOpen={setSheet}
         onClose={() => (sheet === null ? setResumeNotice(null) : setSheet(null))}
       />
     </View>

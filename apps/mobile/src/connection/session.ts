@@ -137,6 +137,7 @@ export class LiveSession {
   setWorkspace(workspaceId: string): void {
     if (workspaceId === this.#workspaceId) return;
     this.#workspaceId = workspaceId;
+    this.#distrustActions();
     if (this.#active) void this.refresh();
   }
 
@@ -162,6 +163,7 @@ export class LiveSession {
     if (!this.#active) return;
     this.#distrustActions();
     this.#applyFailure(failure);
+    if (failure.kind !== "token-rejected") void this.refresh();
   }
 
   #distrustActions(): void {

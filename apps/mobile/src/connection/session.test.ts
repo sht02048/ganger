@@ -134,6 +134,25 @@ describe("행동 버튼을 켜는 때", () => {
     expect(w.session.getState()).toMatchObject({ phase: "live", actionsReady: true });
   });
 
+  it("Workspace를 바꾸면 새로 읽을 때까지 끈다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.setWorkspace("ws-other");
+    expect(w.session.getState().actionsReady).toBe(false);
+    await settle();
+    expect(w.session.getState().actionsReady).toBe(true);
+  });
+
+  it("쓰기 실패 뒤 바로 다시 읽어 서버가 돌아오면 버튼을 켠다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.noteFailure({ kind: "unreachable" });
+    await settle();
+    expect(w.session.getState()).toMatchObject({ phase: "live", actionsReady: true });
+  });
+
   it("쓰기에서 서버에 닿지 않으면 바로 끈다", async () => {
     const w = world();
     w.session.setForeground(true);

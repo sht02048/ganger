@@ -349,7 +349,7 @@
       "pr-ci-failed": "PR의 CI가 실패했어요. GitHub에서 확인해 주세요.",
       "pr-conflict": "PR이 base와 충돌해요. GitHub에서 확인해 주세요.",
       "question": "에이전트의 질문에 답해 주세요.",
-      "permission": "권한 요청을 확인해 주세요. 허용은 러너의 Orca에서 해요.",
+      "permission": "Permission을 확인해 주세요. 허용은 러너의 Orca에서 해요.",
       "human-check": "에이전트가 확인을 기다려요.",
       "waiting-input": "무엇을 기다리는지 아직 읽지 못했어요.",
       "paused": "멈춰 있어요. 재개하면 같은 자리에서 이어서 해요.",

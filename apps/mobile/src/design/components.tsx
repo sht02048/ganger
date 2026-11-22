@@ -508,8 +508,8 @@ const styles = StyleSheet.create({
   },
   radioRowSelected: { backgroundColor: colors.bgSelected },
   radioMark: {
-    width: size.badge,
-    height: size.badge,
+    width: size.radioMark,
+    height: size.radioMark,
     borderRadius: radius.full,
     borderWidth: 1,
     borderColor: colors.borderDefault,
