@@ -4,7 +4,7 @@
 
 ## 낱말
 
-1. **상태 이름은 GLOSSARY의 영어 용어 그대로 쓴다.** 런 상태 Queued·Running·Waiting for Input·Paused·Disconnected, 요약 결과 Succeeded·Failed·Canceled(아래 0145 갱신. 앞서 Merged·Human Check·Failed·Canceled), 러너 Online·Offline. To do 종류는 Question·Permission·Failed·Disconnected다(0145 갱신으로 Human Check가 빠졌다). 운영자가 정한 종류 목록에는 Failed가 없었지만, Failed 런은 지금도 To do에 오르고(스펙 Q82.9) 색 규칙에도 있어 종류에 넣었다. 러너 문제는 Runner Issue로 부르고 세부 원인(GitHub 인증 깨짐, Offline 등)은 설명 문장으로 쓴다. Runner Issue는 To do에 올리지 않고, Dashboard에서는 오른쪽 Runners 열에 보인다(아래 갱신). Runner Issue에 Offline 러너를 넣는 것은 운영자 결정(규칙 1의 "러너 인증 깨짐·Offline 등")이고 0049에서 적용했다.
+1. **상태 이름은 GLOSSARY의 영어 용어 그대로 쓴다.** 런 상태 Queued·Running·Waiting for Input·Paused·Disconnected, 요약 결과 Succeeded·Failed·Canceled(아래 0145 갱신. 앞서 Merged·Human Check·Failed·Canceled), 러너 Online·Offline. To do 종류는 Question·Permission·Human Check·Failed·Disconnected다(Human Check는 0145 갱신으로 빠졌다가 0148에서 Waiting for Input 종류로 돌아왔다). 운영자가 정한 종류 목록에는 Failed가 없었지만, Failed 런은 지금도 To do에 오르고(스펙 Q82.9) 색 규칙에도 있어 종류에 넣었다. 러너 문제는 Runner Issue로 부르고 세부 원인(GitHub 인증 깨짐, Offline 등)은 설명 문장으로 쓴다. Runner Issue는 To do에 올리지 않고, Dashboard에서는 오른쪽 Runners 열에 보인다(아래 갱신). Runner Issue에 Offline 러너를 넣는 것은 운영자 결정(규칙 1의 "러너 인증 깨짐·Offline 등")이고 0049에서 적용했다.
 2. **설명 문장·버튼·안내는 한국어 해요체로 쓴다.** "모두"처럼 상태가 아닌 개념 낱말도 한국어로 둔다. 예외로 Dashboard 칸·열 이름(Queued·Running·Done·Runners)은 메뉴·화면 이름처럼 영어로 쓴다(아래 0100 갱신). 에이전트 결과와 PR 상태의 값(완료 보고(성공), 병합됨 등)은 상태 이름이 아니라 런이 어떻게 끝났는지 설명하는 값이라 한국어 그대로 둔다.
 3. **메뉴·화면 이름은 Dashboard·Tickets·Runs·Runners·Stats·Settings다.** 온보딩 단계 이름은 Tracker·GitHub·Runner·Workspace·Mapping이다.
 
@@ -24,7 +24,7 @@
 
    강조색(티켓 [0080](../tickets/0080-apply-brand-to-app-ui.md)): 상태가 아닌 강조는 Ganger Yellow `oklch(0.84 0.15 75)` 하나다(`accent*`). 주 버튼, 링크, 고른 탭·레일 항목 표시, 포커스 링, 로고 취구와 마스코트 모자에 쓴다. 노랑 바탕 위 글자는 Ink다. 바탕·면은 Ink `oklch(0.14 0 0)`에서 밝기만 바꾼 무채색, 글자는 Paper `oklch(0.97 0.003 85)`에서 밝기만 내린 따뜻한 무채색이다. 상태 색은 강조색과 색상(hue)이 40° 넘게 떨어진다. 앞서 0077은 노랑을 Human Check 색과 겹치지 않게 그림 안에만 두었으나, 0080에서 Human Check가 노랑을 내놓고 청록이 되어 이 예외를 강조색 규칙으로 바꿨다. 마스코트는 화면이 장난스러워지지 않게 상태를 나타내는 자리 곁에 두지 않는다.
 
-6. **노란 주 버튼은 화면 전체에서 주 행동 하나에만 쓴다.** 카드마다 하나가 아니다(Q18). Dashboard 카드의 행동(답하기, PR 보기)은 보조 버튼이다. 레이어(팝오버·대화상자·오른쪽 패널) 안의 주 행동 하나는 노란 주 버튼을 쓸 수 있다. 질문 선택지는 버튼이 아니라 하나를 고르는 라디오 항목이고, 모두 같은 모양이며 추천 선택지처럼 칠하지 않는다. 고르기만 해서는 보내지 않고, 고른 뒤 "보내기"를 눌러야 보낸다. 위험 행동(취소, 거절)은 빨간 글자 보조 버튼이다.
+6. **노란 주 버튼은 화면 전체에서 주 행동 하나에만 쓴다.** 카드마다 하나가 아니다(Q18). Dashboard 카드의 행동(답하기, 확인하기)은 보조 버튼이다. 레이어(팝오버·대화상자·오른쪽 패널) 안의 주 행동 하나는 노란 주 버튼을 쓸 수 있다. 질문 선택지는 버튼이 아니라 하나를 고르는 라디오 항목이고, 모두 같은 모양이며 추천 선택지처럼 칠하지 않는다. 고르기만 해서는 보내지 않고, 고른 뒤 "보내기"를 눌러야 보낸다. 위험 행동(취소, 거절)은 빨간 글자 보조 버튼이다.
 7. **시간 표기는 세 가지다.** 진행 중인 것은 경과("25 min"), 지난 일은 상대 시간("25 min ago", 1분 안이면 "Just now", 하루가 넘으면 날짜), 타임라인은 시각("10:45")이다(2026-11-21 갱신, 티켓 0162). 비율은 띄우지 않고 "2/2"로 쓴다.
 8. **화면 제목은 메뉴와 같은 화면 이름이고, 콘텐츠 맨 위 한 줄 머리에 요약 문장과 나란히 둔다.** 제목이 왼쪽, 요약 문장이 그 옆, 그 화면의 머리 행동이 오른쪽이다. Dashboard와 Stats의 결론 문장도 제목이 아니라 요약 문장이다(아래 0113 갱신. 앞선 0068 갱신의 결론 제목을 바꾼다).
 9. **티켓은 어디서나 "회색 키 + 제목"으로 보인다**(ACME-1 결제 실패 재시도).
@@ -59,7 +59,7 @@
 - **칸반 세 칸 + Runners 열.** 본문은 런 상태 기준 칸 Queued(Queued 런), Running(Running·Waiting for Input·Paused·Disconnected 런, Paused는 0118부터), Done(처음 이름은 Done today, 오늘 끝난 런. 0163 갱신으로 최근 7일)과 오른쪽 Runners 열이다. 본문 최대 폭 고정을 없앤다. 창이 넓으면(약 1440px 이상) 칸 셋 오른쪽에 Runners 열, 좁으면 Runners를 칸반 아래로 내리고, 더 좁으면(약 900px 이하) 칸을 세로로 쌓는다.
 - **To do는 칸이 아니라 꼬리표.** To do 종류(Question·Permission·Human Check·Failed·Disconnected)는 카드 위 꼬리표 알약(`StatusPill`, 점 + 종류 이름)으로 보이고, 꼬리표 카드가 칸 맨 위에 온다. 무엇을 기다리는지 아직 읽지 못한 Waiting for Input 런은 꼬리표 Waiting for Input이다. To do에 오른 끝난 런은 언제 끝났어도 Done 칸에 꼬리표로 남고, 그 밖의 끝난 런은 소제목 "처리할 일 없이 끝났어요" 아래에 모은다.
 - **보기.** 머리 오른쪽의 "모두 / 처리할 일만 {n}"으로 꼬리표 카드만 남길 수 있고, 주소(`?view=todo`)에 남는다.
-- **상세는 오른쪽 패널.** 카드를 누르면 오른쪽에 덮여 열리는 패널(`Sheet`)이 상세를 보인다. Question은 답하기, Permission은 러너에서 허용하라는 안내와 거절, Human Check는 PR 링크, Failed는 에이전트 결과·PR 상태 두 축과 Tickets에서 다시 맡기기를 패널에서 한다. 앞선 답하기·거절하기 팝오버는 이 패널로 바뀐다. 카드를 끌어 옮기지 않는다.
+- **상세는 오른쪽 패널.** 카드를 누르면 오른쪽에 덮여 열리는 패널(`Sheet`)이 상세를 보인다. Question은 답하기, Permission은 러너에서 허용하라는 안내와 거절, Human Check는 "확인했어요"·"고쳐 주세요"와 함께 보낼 말(0148 갱신), Failed는 에이전트 결과·PR 상태 두 축과 Tickets에서 다시 맡기기를 패널에서 한다. 앞선 답하기·거절하기 팝오버는 이 패널로 바뀐다. 카드를 끌어 옮기지 않는다.
 - **머리의 요약 문장.** 제목("처리할 일이 {n}개 있어요")과 요약 문장은 그대로 둔다. 요약 문장은 To do 종류를 하는 일로 모아 말한다(답할 질문, 확인할 PR, 멈춘 런).
   **갱신(2026-11-19, 운영자 결정, 티켓 [0113](../tickets/0113-desktop-titlebar.md)).** 데스크톱 앱 창이 macOS 기본 제목 표시줄을 써서 어두운 앱 위에 회색 띠와 "Ganger" 제목이 따로 떴다. 운영자가 이를 이질적이라고 짚고 시안 T3을 골랐다. 위 8·11번에 반영했다.
 

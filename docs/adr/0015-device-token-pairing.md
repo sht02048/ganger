@@ -24,3 +24,11 @@
 - 서버에 HTTPS 주소가 필요하다(ATS 예외를 두지 않으므로, research 0014 3절). `request-guard`는 Host가 loopback, 바인드 주소, "다른 기기에서 열 주소"일 때만 요청을 받는다. QR에는 "다른 기기에서 열 주소"만 쓰므로, 그 주소가 비었거나 https가 아니면 기기 연결 QR을 띄우지 않고 Settings의 주소 칸으로 안내한다.
 - 토큰 수명과 기기 목록을 둘 화면은 티켓에서 정한다(스펙 0002 열린 질문 6).
 - 같은 인증을 나중에 HTTP MCP 같은 다른 기기 클라이언트에도 쓸 수 있다(ADR 0013을 다시 정할 때).
+
+## 갱신(2026-11-23)
+
+운영자 결정 M25~M27(스펙 0002 11절, 티켓 [0188](../tickets/0188-mobile-plan-refresh.md))로 v1 계약에 다음을 더한다. 토큰 방식과 위 결정은 바뀌지 않는다.
+
+- 변경 기록 SSE(ADR [0019](0019-query-cache-and-change-events.md))도 v1 아래에 이 기기 토큰 인증으로 연다. 기기를 지우면 이 연결도 닫힌다. 웹의 `/api/change-events/stream`은 그대로 둔다.
+- v1의 모든 쓰기는 `requestId`가 필수이고, v1 응답에는 서버 버전과 계약 버전을 싣는다.
+- `request-guard`의 Host 거절(403)은 토큰 거절과 다른 응답이다. 앱은 둘을 갈라 안내한다(티켓 [0157](../tickets/0157-address-webhook-setup.md)).

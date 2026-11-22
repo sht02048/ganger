@@ -2,6 +2,8 @@
 
 모바일 클라이언트 구현의 기준 문서다. 조사 결과(research [0014](../research/0014-mobile-client.md))와 2026-11-19 운영자 결정 M1~M21, 데스크톱 알림 개선(티켓 [0103](../tickets/0103-desktop-notifications.md))이 만든 알림 사건, 그리고 이 문서와 함께 쓴 ADR [0015](../adr/0015-device-token-pairing.md)·[0016](../adr/0016-mobile-push-via-expo.md)을 한곳에 묶는다. M1~M21은 이 문서에 처음 모아 적는 결정이고(M5와 M14는 티켓 0103의 결정을 모바일에도 그대로 쓰는 것이다), 본문의 해당 문장이 그 결정이다(M2는 ADR 0015에, M10~M17은 ADR 0016에도 적었다). 이 문서는 새 결정을 만들지 않는다. 근거 문서에 없는 것은 「열린 질문」에 남긴다.
 
+**갱신(2026-11-23, 티켓 [0188](../tickets/0188-mobile-plan-refresh.md)).** 계획을 쓴 뒤 0113~0183이 머지되고 v0.4.0이 나와 도메인과 화면이 바뀌었다. 본문의 사실을 지금 코드에 맞추고, 그날 운영자가 정한 M22~M30을 11절에 더했다.
+
 용어는 [GLOSSARY](../../GLOSSARY.md)를 따른다. 문장 안에서 To do는 처리할 일로 쓴다. 이 문서를 쪼갠 티켓은 [0104](../tickets/0104-device-pairing-v1.md)~[0112](../tickets/0112-mobile-testflight.md)이고, 열린 질문은 그 질문에 닿는 티켓을 시작할 때 운영자와 정한다.
 
 ## 1. 목표와 완료 기준
@@ -11,7 +13,7 @@
 완료 기준:
 
 - Ganger 화면에서 보인 QR로 iPhone을 이 서버에 연결하고, 앱에서 Dashboard의 세 칸(Queued, Running, Done)과 Runners를 본다.
-- Question 알림을 눌러 답하기 시트에서 답을 보내면 그 런이 다시 Running이 된다. Permission 거절과 런 취소도 앱에서 된다. 취소는 확인 시트를 거친다. 할당과 Failed 런의 다시 맡기기(이것도 할당이라 M3대로 확인 시트를 거친다)는 열린 질문 9가 정해진 뒤 완료 기준에 넣는다.
+- Question 알림을 눌러 답하기 시트에서 답을 보내면 그 런이 다시 Running이 된다. Human Check도 같은 시트 방식으로 "확인했어요" 또는 "고쳐 주세요"와 덧붙일 말을 보내면 Running이 된다(M22). Permission 거절, Paused 런 재개(M24), 런 취소도 앱에서 된다. 취소는 확인 시트를 거친다. 할당, Failed 런의 다시 맡기기(이것도 할당이라 M3대로 확인 시트를 거친다), 이어서 맡기기는 열린 질문 9가 정해진 뒤 완료 기준에 넣는다.
 - 연결한 기기를 지우면 그 기기의 `/api/v1` 요청은 거절되고 그 기기로 가는 푸시도 멈춘다. 웹 화면은 여전히 인증이 없어, 그 기기가 서버 주소에 닿는 네트워크(Tailscale을 쓰면 tailnet)에서 빠지기 전까지는 웹으로 쓸 수 있다(8절).
 - 서버 없이 앱 안 데모 모드로 모든 화면을 본다.
 - iOS 앱을 TestFlight로 배포한다.
@@ -21,16 +23,18 @@
 범위:
 
 - **UI는 모바일용으로 따로 만든다(M1).** Ganger 웹 화면을 가져가지 않는다. 낱말과 상태 이름·색, 브랜드(Ink, Paper, Ganger Yellow, 호루라기 마크, 마스코트 규칙)는 웹과 같다([브랜드 가이드](../../packages/ui/brand/README.md), ADR 0010).
-- **할 수 있는 일(M3).** 보기, Question 답하기, Permission 거절, 다시 맡기기, 할당, 런 취소. 할당과 취소는 확인 시트를 거친다. Permission 허용은 웹과 같이 러너의 Orca에서만 한다(ADR 0009). 다시 맡기기와 할당은 지금 서버 규칙(`packages/db`의 `assignRun`, `active-run` 거절)처럼 끝나지 않은 런이 없는 티켓에만 된다. 그래서 다시 맡기기는 Failed 런에만 두고, Disconnected 런에는 두지 않는다(웹 Dashboard와 같다). 모바일에서 무엇을 어디서 할당할지는 열린 질문 9다.
+- **할 수 있는 일(M3, M22, M24).** 보기, Question 답하기, Human Check 답하기, Permission 거절, Paused 런 재개, 다시 맡기기, 할당, 런 취소. 할당과 취소는 확인 시트를 거친다. Permission 허용은 웹과 같이 러너의 Orca에서만 한다(ADR 0009). 다시 맡기기와 할당은 지금 서버 규칙(`packages/db`의 `assignRun`, `active-run` 거절)처럼 끝나지 않은 런이 없는 티켓에만 된다. 그래서 다시 맡기기는 Failed 런에만 두고, Disconnected 런에는 두지 않는다(웹 Dashboard와 같다). 모바일에서 무엇을 어디서 할당할지는 열린 질문 9다.
 - **기술(M4).** Expo(React Native). iOS를 먼저 내고 Android는 나중이다.
 - **서버 인증(M2).** 기기 토큰과 QR 연결(ADR 0015).
-- **공개 API(M6).** 새 순수 패키지 `packages/api`에 계약을 두고 `/api/v1`로 연다. 지금 웹이 쓰는 서버 함수는 그대로 두고, 모바일에 필요한 것만 v1에 연다. 티켓 0103의 알림 사건 SSE도 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다. 데스크톱이 v1에 어떻게 인증할지는 열린 질문 10이다.
+- **공개 API(M6).** 새 순수 패키지 `packages/api`에 계약을 두고 `/api/v1`로 연다. 지금 웹이 쓰는 서버 함수는 그대로 두고, 모바일에 필요한 것만 v1에 연다. 티켓 0103의 알림 사건 SSE도 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다. 데스크톱이 v1에 어떻게 인증할지는 열린 질문 10이다. 화면 갱신용 변경 기록 SSE도 v1 아래에 기기 토큰 인증으로 연다(M26).
 - **푸시(M10~M16).** Expo Push로 알림 사건 번호만 보낸다(ADR 0016).
 - **모바일 디자인 시스템(M20).** 웹의 `packages/ui`와 따로 둔다.
 
 제외:
 
 - 온보딩, 러너 등록·고치기, ssh 대상 바꾸기, 비밀 값 저장(트래커 키, GitHub 토큰), MCP 쓰기 허용, Mapping 편집, Stats 세부 표(research 0014 6절과 같은 이유: ssh와 비밀 값은 ADR 0013이 MCP에서 막은 이유와 같다).
+- 런 멈추기(M24, 나중). 재개만 한다.
+- 기다리지 않고 시작, 에이전트에게 보내기(M28).
 - Face ID 확인과 목록 스와이프 동작(M8, 나중에 정한다).
 - 알림 안에서 바로 답 보내기(M16).
 - ntfy 같은 외부 알림 연동(M17).
@@ -38,17 +42,19 @@
 
 ## 3. 흐름
 
-| 흐름         | 시작                                                           | 끝                                                                                             |
-| ------------ | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| 기기 연결    | Ganger 화면의 기기 연결에서 QR을 띄운다                        | 앱이 QR을 읽어 서버에 붙고, 알림을 받을지 묻는다(M11)                                          |
-| Question     | 알림 "Question · ACME-142"를 누르거나 알림의 "답하기"를 누른다 | 앱이 그 런의 답하기 시트를 연다. 선택지를 고르고 "보내기"를 눌러야 보낸다(ADR 0010 6번)        |
-| Permission   | 알림이나 Running 칸의 Permission 카드                          | "거절"을 누른다. 허용은 러너의 Orca에서 한다는 안내를 카드에 둔다                              |
-| Human Check  | 알림이나 Done 칸의 Human Check 카드                            | "PR 보기"로 GitHub를 연다                                                                      |
-| Failed       | 알림이나 Done 칸의 Failed 카드                                 | "로그 보기". "다시 맡기기"는 열린 질문 9가 정해진 뒤 더한다                                    |
-| Disconnected | 알림이나 Running 칸의 Disconnected 카드                        | 웹과 같은 설명 문장(다시 닿으면 이어 간다)과 "로그 보기"                                       |
-| Runner Issue | 알림이나 Dashboard의 Runners 버튼 배지                         | Runners 화면에서 문제를 본다. 고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 한다고 안내한다 |
-| 취소         | Queued·Running 카드 메뉴                                       | 확인 시트를 거친다(M3)                                                                         |
-| 할당         | 열린 질문 9                                                    | 확인 시트를 거친다(M3)                                                                         |
+| 흐름         | 시작                                                             | 끝                                                                                                                      |
+| ------------ | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| 기기 연결    | Ganger 화면의 기기 연결에서 QR을 띄운다                          | 앱이 QR을 읽어 서버에 붙고, 알림을 받을지 묻는다(M11)                                                                   |
+| Question     | 알림 "Question · ACME-142"를 누르거나 알림의 "답하기"를 누른다   | 앱이 그 런의 답하기 시트를 연다. 선택지를 고르고 "보내기"를 눌러야 보낸다(ADR 0010 6번)                                 |
+| Permission   | 알림이나 Running 칸의 Permission 카드                            | "거절"을 누른다. 허용은 러너의 Orca에서 한다는 안내를 카드에 둔다                                                       |
+| Human Check  | 알림의 "확인하기"나 Running 칸 맨 위 "확인해 주세요" 묶음의 카드 | 시트에서 "확인했어요" 또는 "고쳐 주세요"와 덧붙일 말(선택)을 보내면 Running으로 돌아간다(M22). Ganger는 머지하지 않는다 |
+| Paused       | Running 칸의 Paused 카드(알림 없음)                              | "재개"를 누른다(M24). 멈추기는 모바일에 없다                                                                            |
+| 멈춘 기다림  | Queued 칸의 빨간 테두리 카드(알림 없음, M29)                     | 이유를 본다. 기다리지 않고 시작은 Ganger 웹이나 데스크톱 앱에서 한다(M28)                                               |
+| Failed       | 알림이나 Done 칸의 Failed 카드                                   | "로그 보기". "다시 맡기기"와 이어서 맡기기는 열린 질문 9가 정해진 뒤 더한다                                             |
+| Disconnected | 알림이나 Running 칸의 Disconnected 카드                          | 웹과 같은 설명 문장(다시 닿으면 이어 간다)과 "로그 보기"                                                                |
+| Runner Issue | 알림이나 Dashboard의 Runners 버튼 배지                           | Runners 화면에서 문제를 본다. 고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 한다고 안내한다                          |
+| 취소         | Queued·Running 카드 메뉴                                         | 확인 시트를 거친다(M3)                                                                                                  |
+| 할당         | 열린 질문 9                                                      | 확인 시트를 거친다(M3)                                                                                                  |
 
 알림을 누르면 Ganger 앱의 그 화면으로 간다(M16).
 
@@ -56,13 +62,16 @@
 
 시안 MB1(2026-11-19 운영자 승인)을 옮긴다. 세로 한 손 쓰기를 기준으로 한다.
 
-- **Dashboard(M18).** 웹 Dashboard와 같은 줄기로, 칸반 세 칸을 위쪽 세그먼트 Queued · Running · Done으로 바꿔 한 번에 한 칸을 보인다. 처음 열면 처리할 일이 있는 칸부터 보인다. 처리할 일은 웹과 같이 카드 위 꼬리표(Question, Permission, Human Check, Failed, Disconnected, 그리고 무엇을 기다리는지 아직 읽지 못한 런의 Waiting for Input)로 보이고, 꼬리표 카드가 칸 맨 위에 온다. 카드에서 바로 할 수 있는 행동 하나(Question 답하기, Permission 거절, Human Check PR 보기)를 둔다. Failed 카드의 다시 맡기기는 열린 질문 9가 정해진 뒤 더한다. 제목과 요약 문장은 웹 Dashboard와 같다("처리할 일이 4개 있어요", "답할 질문 2개, 확인할 PR 1개, 멈춘 런 1개예요."). "처리할 일만" 스위치를 둔다. 맨 위에는 Workspace 고르기, Runners 버튼, 설정이 있다. 아래 탭 막대는 두지 않는다.
+- **Dashboard(M18).** 웹 Dashboard와 같은 줄기로, 칸반 세 칸을 위쪽 세그먼트 Queued · Running · Done으로 바꿔 한 번에 한 칸을 보인다. 처음 열면 처리할 일이 있는 칸부터 보인다. 처리할 일은 웹과 같이 카드 위 꼬리표(Question, Permission, Human Check, Failed, Disconnected, 그리고 무엇을 기다리는지 아직 읽지 못한 런의 Waiting for Input)로 보이고, 꼬리표 카드가 칸 맨 위에 온다. Human Check는 Running 칸 맨 위에 "확인해 주세요"로 Question과 따로 묶는다(ADR [0023](../adr/0023-human-check-request.md)). Done 칸의 꼬리표는 Failed뿐이다. 카드에서 바로 할 수 있는 행동 하나(Question "답하기", Human Check "확인하기", Permission 거절, Paused "재개")를 둔다. Failed 카드의 다시 맡기기는 열린 질문 9가 정해진 뒤 더한다. 제목은 "Dashboard"이고 요약 문장은 웹과 같다(`apps/web/messages/ko/home.json`. 예: "처리할 일은 확인할 일 1개, 답할 질문 2개, 멈춘 런 1개예요.", 처리할 일이 없으면 "처리할 일은 없고, 진행 중인 런이 3개 있어요."). "처리할 일만" 스위치를 둔다. 기준은 티켓 단위 To do로, 웹 Dashboard·알림·배지와 같다(M30). 멈춘 기다림, 보고 없이 멈춘 Paused, PR CI 실패는 To do가 아니라 카드에 보이기만 한다(M29). 맨 위에는 Workspace 고르기, Runners 버튼, 설정이 있다. 아래 탭 막대는 두지 않는다.
 - **세그먼트의 처리할 일 표시(M19).** 칸 이름에는 전체 수를 붙이지 않고, 처리할 일이 있는 칸에만 노란 배지로 그 수를 붙인다. 고른 칸의 런 수는 세그먼트 아래 줄에 처리할 일과 나머지로 나눠 쓴다(예: Running 칸 "처리할 일 2 · Running 1").
-- **칸 이름(M21).** 세 번째 칸은 Done이다. ADR 0010과 GLOSSARY는 이 칸을 Done today로 적는다. 웹 이름도 바꿀지, Done이 며칠의 끝난 런을 보일지, GLOSSARY와 ADR 0010을 어떻게 갱신할지는 열린 질문 4다. 같은 칸이 두 이름으로 남지 않게 한다.
+- **칸 이름(M21).** 세 번째 칸은 웹과 같이 Done이고, 운영자 시간대로 오늘을 포함한 최근 7일 동안 끝난 런을 보인다. Failed 꼬리표 런은 날짜와 상관없이 칸 맨 위에 남는다(티켓 [0163](../tickets/0163-dashboard-done-week.md), ADR 0010 0163 갱신).
 - **Runners 버튼(M18).** 평소에는 회색 버튼이고, Runner Issue가 있으면 문제 러너 수를 빨간 배지로 붙인다. 세는 법은 웹 레일 Runners 점과 같다(사용량 한도 러너는 세지 않는다, GLOSSARY). 버튼 전체를 빨갛게 하지 않는다.
-- **Queued 카드.** 기다리는 이유를 메타 줄에 쓴다(웹 Dashboard의 Queued 이유 문구와 같게). 카드 메뉴 시트에 Linear에서 열기와 런 취소를 둔다. 시안 MB1에 있던 "다른 러너에 맡기기"는 Queued 런을 옮기는 서버 동작이 없어 뺐다(열린 질문 9).
-- **Done 칸.** 처리할 일 카드(Failed, Human Check)를 위에, Merged·Canceled는 한 줄짜리 묶음 목록으로 아래에 둔다.
-- **답하기 시트.** 질문, 맥락 한 줄, 선택지와 그 설명, "직접 쓰기"(웹과 같은 낱말), 아래에 고정한 "보내면 되돌릴 수 없어요"와 "보내기". 고르기만 해서는 보내지 않는다(ADR 0010 6번).
+- **Queued 카드.** 기다리는 이유를 메타 줄에 쓴다(웹 Dashboard의 Queued 이유 문구와 같게). 이유는 9종이다(`packages/app/src/runs/model.ts`의 `QueuedReason`: `starting`, `behind`, `no-capacity`, `runner-offline`, `project-missing`, `assignment-blocked`, `usage-limit`, `blockers-waiting`, `blockers-stuck`). 선행 티켓을 기다리면 선행 티켓 칩을 보이고, 칩이 있는 카드의 아랫줄은 티켓 키 없이 원인만 말한다(티켓 [0183](../tickets/0183-dashboard-blocker-line.md)). 멈춘 기다림은 빨간 테두리로 보인다. 카드 메뉴 시트에 Linear에서 열기와 런 취소를 둔다. 시안 MB1에 있던 "다른 러너에 맡기기"는 Queued 런을 옮기는 서버 동작이 없어 뺐다(열린 질문 9).
+- **카드 공통.** 모든 칸의 카드에 PR이 열려 있을 때의 PR 칩(CI 실패, 충돌, base보다 뒤처짐, 티켓 [0167](../tickets/0167-dashboard-pr-chips.md))을 웹과 같은 규칙으로 보인다. 취소를 요청했지만 아직 끝나지 않은 런은 "취소 중"을 함께 보인다.
+- **Paused 카드.** Running 칸에 꼬리표 Paused와 멈춘 이유 한 줄(Ganger에서 멈춤, 러너에서 멈춤, 보고 없이 멈춤)을 보이고 "재개" 버튼을 둔다(M24). To do·알림·배지에는 넣지 않는다(티켓 [0118](../tickets/0118-run-pause-resume.md)·[0120](../tickets/0120-runner-agent-stop-detection.md)).
+- **Done 칸.** 처리할 일 카드(Failed)를 위에, Succeeded·Canceled는 한 줄짜리 묶음 목록으로 아래에 둔다. PR 병합 여부는 결과가 아니라 PR 정보로 곁에 보인다(ADR [0022](../adr/0022-run-outcome-from-agent-report.md)).
+- **답하기 시트.** 질문, 맥락 한 줄, 선택지, "직접 쓰기"(웹과 같은 낱말), 아래에 고정한 "보내면 되돌릴 수 없어요"와 "보내기". 선택지는 글뿐이고 따로 설명 칸이 없다(`packages/app/src/question.ts`의 `readQuestion`). 고르기만 해서는 보내지 않는다(ADR 0010 6번).
+- **Human Check 시트(M22).** 답하기 시트와 같은 방식이다. 무엇을 확인할지(에이전트가 보낸 글과 링크), 덧붙일 말(선택), "확인했어요"와 "고쳐 주세요"를 둔다. 답을 보내면 런이 Running으로 돌아간다.
 - **Runners.** 위에 문제 카드(Offline, GitHub 인증, 사용량 한도. 사용량 한도도 Runner Issue다, M5), 그 아래 러너별 자리와 공급자 사용량 막대. 보기만 한다.
 - **설정.** 연결한 서버와 연결 상태, 이 기기 연결 끊기, 알림 켜기, 알림이 Expo Push를 거친다는 안내, 앱 버전. 시안 MB1의 종류별 켜기와 "Mac 앞에 있으면 5분 미루기" 스위치는 열린 질문 11이다.
 - **빈 상태.** 쉬는 마스코트와 "에이전트가 묻거나 멈추면 알려 줄게요." 마스코트는 브랜드 가이드가 허용한 곳(빈 상태, 로딩, 연결이 끊긴 화면 등)에만 쓰고 목록 행이나 상태 알약 옆에 두지 않는다.
@@ -83,9 +92,13 @@
 ## 6. 서버 API
 
 - `/api/v1`만 기기 토큰을 요구한다(ADR 0015). 지금 웹 화면과 서버 함수, `/api/identity`, webhook은 바꾸지 않는다.
-- 읽기: Dashboard 세 칸과 처리할 일, 런 상세 일부(질문과 선택지, 실패 이유), Runners, 설정에 필요한 서버 정보.
-- 쓰기: 답하기, Permission 거절, 런 취소. 지금 서버 함수(`answerQuestion`, `denyPermission`, `cancelRun`)와 같은 규칙을 쓴다. 할당과 Failed 런 다시 맡기기(`assignTicket`)는 입력값이 열린 질문 9에 달려 있어 그 뒤에 더한다.
-- 알림 사건: 티켓 0103의 목록과 SSE를 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다(M6). 0103 구현은 목록과 SSE를 `/api/notification-events`(v1 밖, `request-guard`만 거침)에 두었다. v1로 옮기고 데스크톱 인증을 붙이는 일은 티켓 0108이 한다. 그때까지 0104는 알림 사건 경로에 토큰을 요구하지 않는다. 지금 알림 사건 동기화는 데스크톱 앱의 요청이 있을 때만 돌아, Mac이 잠들었거나 앱을 끄면 사건이 생기지 않는다. 0108이 서버가 클라이언트와 상관없이 주기적으로 동기화하게 바꾼다(어느 프로세스가 맡을지는 열린 질문 15). 앱의 NSE는 사건 번호 하나로 그 사건의 제목과 대상을 읽는다.
+- 읽기: Dashboard 세 칸과 처리할 일, 런 상세 일부(질문과 선택지, Human Check 내용, 실패 이유, 처리할 일을 정하는 `runNextStep`의 결과), Runners, 설정에 필요한 서버 정보. 로그를 어디까지 열지는 열린 질문 8이다.
+- 쓰기: 답하기, Human Check 답하기, Permission 거절, 런 취소, 재개. 지금 서버 함수(`answerQuestion`, `answerHumanCheck`, `denyPermission`, `cancelRun`, `controlRun`의 `resume`)와 같은 규칙을 쓴다. `controlRun`의 `pause`는 v1에 열지 않는다(M24). 할당과 다시 맡기기(`assignTicket`, `assignTickets`), 이어서 맡기기(`continueRunFrom`)는 입력값이 열린 질문 9에 달려 있어 그 뒤에 더한다. `startRunWithoutWaiting`과 `sendAgentMessage`는 v1에 열지 않는다(M28).
+- 같은 요청 한 번만(M25): v1의 모든 쓰기는 `requestId`(16~64자)가 필수다. 같은 런에 이미 성공한 ID와 같은 내용이 다시 오면 다시 처리하지 않고 그 성공으로 답하고, 내용이 다르면 `request-reused`로 거절한다. 거절된 요청은 기록하지 않아 같은 ID로 다시 시도할 수 있다(티켓 [0156](../tickets/0156-dedupe-run-actions.md), `handleRunActionOnce`). 지금 `answerQuestion`, `answerHumanCheck`, `cancelRun`, `controlRun`, `continueRunFrom`에는 이 보호가 있고, `denyPermission`, `assignTicket`, `assignTickets`에는 없어 v1에 열 때 더한다. 거절은 이유 값(예: `already-answered`, `not-found`, `resolved`)으로 돌려주고 앱이 그 이유를 문장으로 보인다.
+- 알림 사건: 티켓 0103의 목록과 SSE를 `/api/v1` 아래에 두고 데스크톱과 모바일이 함께 쓴다(M6). 0103 구현은 목록과 SSE를 `/api/notification-events`(v1 밖, `request-guard`만 거침)에 두었고, 옛 `/api/attention`도 v0.4.0에 남아 있다. v1로 옮기고 데스크톱 인증을 붙이는 일은 티켓 0108이 한다. 그때까지 0104는 알림 사건 경로에 토큰을 요구하지 않는다. 지금 알림 사건 동기화는 이 경로들에 요청이 올 때만 돌아(`apps/web/src/notifications/server.ts`), Mac이 잠들었거나 앱을 끄면 사건이 생기지 않는다. 0108이 서버가 클라이언트와 상관없이 주기적으로 동기화하게 바꾼다(어느 프로세스가 맡을지는 열린 질문 15). 사건 하나를 읽는 경로는 아직 없어 0108이 더하고, 앱의 NSE는 그 경로로 사건 번호 하나의 제목과 대상을 읽는다.
+- 화면 갱신(M26): 변경 기록 SSE(ADR [0019](../adr/0019-query-cache-and-change-events.md), 웹은 `/api/change-events/stream`)를 v1 아래에 기기 토큰 인증으로 연다. 앱이 앞에 있을 때만 붙고, 실패하면 폴링한다.
+- 버전 호환(M27): v1 응답에 서버 버전과 계약 버전을 싣고, 앱은 최소 서버 버전을 가진다. `/api/build`(티켓 [0180](../tickets/0180-stale-client-reload.md))는 웹 전용이라 앱이 쓰지 않는다.
+- Host 거절: 다른 기기에서 열 주소가 허용되지 않으면 서버는 403(`host-not-allowed`)으로 거절한다(티켓 [0157](../tickets/0157-address-webhook-setup.md) F7·F8). 앱은 이를 인증 실패와 가르고, 서버 맥의 Settings › 주소를 고치라고 안내한다.
 - 새 낱말(기기 토큰, 기기 연결, 연결 코드)은 구현 티켓에서 GLOSSARY에 더한다. 러너 등록의 _Avoid_인 "페어링 코드"는 쓰지 않는다.
 - 외부 입력(요청 본문, Expo 응답)은 경계에서 zod로 파싱한다(AGENTS.md).
 
@@ -97,9 +110,9 @@ ADR 0016을 요약한다.
 - 기기 연결 때 알림을 받을지 묻고, 허용한 기기에만 보낸다. 기기를 지우면 멈춘다(M11).
 - Expo의 Enhanced Push Security는 끈다(M12).
 - 알림에는 사건 번호와 티켓 내용이 없는 고정 문구("처리할 일이 생겼어요")만 싣는다. 폰의 NSE가 다른 기기에서 열 주소로 서버에 물어 제목과 내용을 채운다. 서버에 닿지 않으면 고정 문구가 그대로 보인다(M13).
-- 종류는 티켓 0103과 같다. Question, Permission, Failed, Disconnected, Runner Issue는 보통 알림, Human Check는 소리 없이 알린다. Merged와 Canceled, Queued·Running으로 옮김은 알리지 않는다. 시간 민감(Time Sensitive) 알림은 쓰지 않는다(M14).
+- 종류는 지금 알림 사건 8종 그대로다(M29, `packages/app/src/notifications/causes.ts`: `question`, `human-check`, `permission`, `disconnected`, `failed`, `runner-offline`, `runner-auth`, `runner-usage-limit`). 모두 소리 있는 보통 알림이다. Human Check도 데스크톱의 지금 동작처럼 소리가 있고, 데스크톱은 Question·Permission·Human Check를 10분 뒤 한 번 더 알린다(M23). 모바일의 다시 알림은 열린 질문 3이다. Succeeded와 Canceled, Paused, Queued·Running으로 옮김은 알리지 않는다. 시간 민감(Time Sensitive) 알림은 쓰지 않는다(M14).
 - 최근 2분 안에 Mac에서 Ganger 앱을 썼으면 모바일 푸시를 5분 미루고, 그 사이 해결되면 보내지 않는다(M15).
-- Question 알림에만 "답하기" 버튼 하나를 두고, 누르면 앱이 열려 답하기 시트가 뜬다. 다른 종류의 알림에는 버튼을 두지 않는다(M16).
+- Question 알림에는 "답하기", Human Check 알림에는 "확인하기" 버튼 하나를 두고, 누르면 앱이 열려 그 시트가 뜬다. 다른 종류의 알림에는 버튼을 두지 않는다(M16, M22).
 
 ## 8. 보안
 
@@ -113,6 +126,8 @@ ADR 0016을 요약한다.
 - 데스크톱 앱 서명에 쓰는 Apple 개발자 팀으로 iOS 앱을 낸다(M7).
 - App Store 심사관은 운영자 서버에 붙을 수 없으므로 앱 안 데모 모드(가짜 데이터)를 둔다(M7). 제품 앱은 `demo/`를 import 하지 않는다(AGENTS.md, 티켓 0047). 데모 데이터를 어디에 둘지는 열린 질문 16이다.
 - 서버는 HTTPS 주소로 닿아야 한다. iOS의 ATS는 기본으로 평문 http를 막고, 앱에 예외를 두지 않는다(research 0014 3절, ADR 0015).
+- CI: 디자인 시스템 lint와 `check:lengths`는 `apps/web`만 본다. 색 검사(`check:colors`)의 허용 경로는 `packages/ui` 하나라, 모바일 토큰 위치를 더해야 한다(티켓 0105). `bundle`과 `smoke:bundle`의 서버 배포물에는 모바일 앱이 들어가면 안 된다.
+- 출시: 브랜치 흐름은 ADR [0017](../adr/0017-develop-branch-flow.md)을 따른다. `.github/workflows/release.yml`은 `v*` 태그로 돌고 서명 비밀 값은 `release` environment에 있다. 버전 파일은 루트와 `apps/desktop`의 `package.json`이다(`scripts/release-version.ts`). 모바일 버전과 배포를 여기에 묶을지는 티켓 0112에서 정한다.
 
 ## 10. 순서
 
@@ -154,21 +169,35 @@ M9로 정한 순서다. 1번은 이 문서와 함께 들어가고, 2번부터는
 | M20  | 둥글기를 웹보다 줄인 모바일 디자인 시스템을 따로 만든다                        |
 | M21  | 세 번째 칸 이름은 Done                                                         |
 
+### 운영자 결정 목록(2026-11-23)
+
+| 번호 | 결정                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------- |
+| M22  | 모바일에서 Human Check에 답한다. Question과 같은 시트 방식으로 "확인했어요"/"고쳐 주세요" + 덧붙일 말, 알림 버튼은 "확인하기"다 |
+| M23  | Human Check 알림은 지금 동작대로 소리가 있고 데스크톱은 10분 뒤 다시 알린다. M14의 "소리 없이"를 바꾼다                         |
+| M24  | 멈추기·재개 중 모바일은 재개만 한다. 멈추기는 나중                                                                              |
+| M25  | v1 쓰기는 거절을 포함해 모두 `requestId`가 필수다                                                                               |
+| M26  | 화면 갱신은 변경 기록 SSE를 v1 아래 기기 토큰 인증으로 연다. 앱이 앞에 있을 때만 붙고 실패하면 폴링한다                         |
+| M27  | v1 응답에 서버 버전과 계약 버전을 싣고 앱에 최소 서버 버전을 둔다. `/api/build`는 웹 전용이다                                   |
+| M28  | 기다리지 않고 시작, 에이전트에게 보내기는 모바일에서 뺀다                                                                       |
+| M29  | 알림 사건 종류는 지금 8종 그대로다. 멈춘 기다림, 보고 없이 멈춘 Paused, PR CI 실패는 모바일 Dashboard에서 보이기만 한다         |
+| M30  | 모바일 "처리할 일만" 기준은 티켓 단위 To do다(웹 Dashboard·알림·배지와 같다)                                                    |
+
 ## 12. 열린 질문
 
 1. **서버에 닿지 않을 때.** research 0014 6절은 마지막으로 받은 내용을 "n분 전 기준" 띠와 함께 보이고, 행동 버튼을 끄고, 오프라인 쓰기를 대기열에 쌓지 않기를 권한다. 운영자가 아직 정하지 않았다.
 2. **Mac 앞에 있는지 아는 법(M15).** 데스크톱 앱이 마지막 사용 시각을 서버에 알리는 방식이 필요하다. 무엇을 "사용"으로 볼지(창 포커스, 시스템 유휴 시간) 정해야 한다.
-3. **티켓 0103의 다시 알림과 묶기.** 데스크톱은 Question·Permission을 10분 뒤 한 번 더 알리고, 5초 안에 3개를 넘으면 묶는다. 모바일에도 같게 할지 정해야 한다. 티켓 0103은 다른 곳에서 처리한 사건의 알림을 지운다. 모바일에서도 받은 푸시를 지울지(조용한 푸시 등)도 정해야 한다.
-4. **Done 칸.** 웹 Dashboard의 Done today를 모바일과 같게 Done으로 바꿀지, 모바일 Done이 며칠의 끝난 런을 보일지, 그에 맞춰 GLOSSARY와 ADR 0010을 어떻게 갱신할지.
+3. **다시 알림과 묶기.** 데스크톱은 Question·Permission·Human Check를 10분 뒤 한 번 더 알리고(`REMIND_AFTER_MS`), 5초 안에 3개를 넘으면 묶는다. Human Check의 소리는 M23으로 정했다. 모바일에도 10분 뒤 다시 알림과 묶기를 같게 둘지, 둔다면 서버가 보낼지 정해야 한다. 티켓 0103은 다른 곳에서 처리한 사건의 알림을 지운다. 모바일에서도 받은 푸시를 지울지(조용한 푸시 등)도 정해야 한다.
+4. **Done 칸(결정 완료).** 0163이 웹과 모바일의 이름을 Done으로, 기간을 최근 7일로 정했고 GLOSSARY와 ADR 0010에 반영했다. 4절 「칸 이름」을 본다.
 5. **디자인 토큰 원본.** 웹 토큰(`packages/ui/src/tokens.stylex.ts`)을 중립 원본으로 옮겨 웹·모바일을 생성할지(research 0014 2절), 모바일 토큰을 따로 둘지.
 6. **기기 토큰 수명과 기기 목록 위치.** 토큰을 만료시킬지, 기기 목록을 데스크톱 설정과 웹 Settings 중 어디에 둘지.
 7. **웹 화면의 인증.** ADR 0015는 `/api/v1`만 막는다. 웹 화면과 서버 함수에도 인증을 걸지는 따로 정한다.
-8. **런 상세.** 모바일에서 "로그 보기"가 무엇을 보일지(웹 Run 상세의 어느 부분까지).
-9. **모바일의 할당.** 모바일에는 Tickets 화면이 없다. 할당할 티켓을 어디서 고를지, Queued 런을 다른 러너로 옮기는 것을 취소 후 다시 할당으로 할지 새 서버 동작으로 만들지 정해야 한다. 지금 `submitAssignment`는 끝나지 않은 런이 있는 티켓을 `active-run`으로 거절한다. Failed 카드의 다시 맡기기도 할당이다. 웹은 Tickets 화면으로 넘겨 러너와 에이전트를 고르게 한다. 다시 맡기기는 M3대로 확인 시트를 거친다. 모바일에서 이전 런의 러너·에이전트를 그대로 쓸지 고르게 할지 정해야 한다.
+8. **로그 보기의 범위.** 웹 Run 상세는 이제 전체 페이지다(티켓 [0174](../tickets/0174-run-detail-page.md)). 맨 위 처리할 일 띠(`runNextStep`), 기다리는 일, PR 구역, 지나온 일, 런 정보와 받은 지시서, 터미널 끝부분, 같은 티켓의 다른 런이 있다. 모바일 "로그 보기"가 이 중 어디까지 보일지 정해야 한다. 터미널 끝부분을 새로 읽는 `requestRunLog`는 Queued·Ended가 아닌 런에만 되는 POST다. v1에 연다면 M25대로 `requestId`를 받는다.
+9. **모바일의 할당과 이어서 맡기기.** 모바일에는 Tickets 화면이 없다. 할당할 티켓을 어디서 고를지, Queued 런을 다른 러너로 옮기는 것을 취소 후 다시 할당으로 할지 새 서버 동작으로 만들지 정해야 한다. `assignTicket`은 `connection`, `ticketKey`, `trackerProject`, `runnerProject`, `agent`가 필수이고, `runnerId`는 비우면 자동으로 정하며 값을 주면 그 러너에 고정된다(ADR [0018](../adr/0018-mapping-repos-by-label.md), 티켓 0155). 여러 티켓을 함께 맡기는 `assignTickets`는 러너를 고르지 않는다. 지금 `submitAssignment`는 끝나지 않은 런이 있는 티켓을 `active-run`으로 거절한다. Failed 카드의 다시 맡기기도 할당이다. 웹은 Tickets 화면으로 넘겨 저장소와 에이전트를 고르게 한다. 다시 맡기기는 M3대로 확인 시트를 거친다. 모바일에서 이전 런의 저장소·러너·에이전트를 그대로 쓸지 고르게 할지 정해야 한다. 이어서 맡기기(`continueRunFrom`, 티켓 [0149](../tickets/0149-continue-run.md))는 워크트리가 남은 끝난 런에서 운영자의 말을 받아 같은 러너에 새 런을 만든다. 이것을 모바일에 둘지, 다시 맡기기와 어떻게 가를지도 정해야 한다.
 10. **데스크톱의 v1 인증.** M6으로 데스크톱도 `/api/v1`의 SSE를 쓴다. 데스크톱 앱(같은 기계 모드와 원격 모드)이 기기 토큰을 받을지, 같은 기계 요청을 예외로 둘지 정해야 한다.
 11. **알림 설정의 세부.** 시안 MB1의 종류별 켜기와 "Mac 앞에 있으면 5분 미루기" 스위치를 둘지. iOS의 NSE는 받은 푸시를 숨길 수 없으므로 종류별로 끄려면 서버가 골라 보내야 하고, 기기 표에 종류별 켜기가 들어가야 한다. M15는 미루기를 항상 하는 규칙으로 정했다.
 12. **글꼴.** 브랜드 가이드는 앱 글자를 Pretendard로 정했다. 모바일도 Pretendard를 넣을지, iOS 시스템 글꼴을 쓸지.
-13. **알림 사건 경로 옮기기.** 0103 구현은 `/api/notification-events`에 두었다. v1으로 옮길 때 옛 경로를 얼마나 남길지(옛 데스크톱 앱 호환)와 v1 경로 이름.
+13. **알림 사건 경로 옮기기.** 지금 데스크톱 앱은 `/api/notification-events`와 그 `/stream`을 토큰 없이 쓰고(`packages/app/src/notifications/feed.ts`), 옛 `/api/attention`도 v0.4.0에 남아 있다. 이미 설치된 데스크톱 앱이 이 경로에 기대므로, v1으로 옮길 때 두 옛 경로를 얼마나 남길지와 v1 경로 이름을 정해야 한다.
 14. **새어 나간 푸시 주소.** Expo 푸시 주소를 무효로 하는 방법(앱 다시 설치, Expo 쪽 기능)을 실기기로 확인해야 한다.
 15. **푸시를 보내는 곳.** 알림 사건을 만드는 쪽(0103 구현)에 맞춰 worker와 web 중 어디서 Expo Push를 보낼지.
 16. **데모 데이터의 자리.** 제품 앱은 `demo/`를 import 하지 않으므로, 모바일 데모 모드의 가짜 데이터를 앱 안에 따로 둘지 공용 패키지로 뺄지.
