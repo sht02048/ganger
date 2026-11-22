@@ -29,7 +29,7 @@ import {
 import type { PillStatus } from "@ganger/ui";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
-import type { MouseEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { useAgentName } from "../labels";
@@ -222,7 +222,9 @@ function RunsBoard(props: RunsScreenProps) {
           <div {...stylex.props(styles.nowGrid)}>
             <div data-runner-cards {...stylex.props(styles.cards)}>
               {cards.length === 0 ? (
-                <Text variant="meta">{t("now.noRunners")}</Text>
+                <Text variant="meta">
+                  {page.runners.length === 0 ? t("now.noRunners") : t("now.noMatch")}
+                </Text>
               ) : (
                 cards.map((card) => (
                   <RunnerRunsCard key={card.id} card={card} onSelect={onSelect} />
@@ -230,7 +232,7 @@ function RunsBoard(props: RunsScreenProps) {
               )}
             </div>
             <div data-waiting-card {...stylex.props(styles.queue)}>
-              <Card padding="compact" surface="inset" label={t("now.queueTitle")}>
+              <Card padding="compact" label={t("now.queueTitle")}>
                 <div {...stylex.props(styles.cardBody)}>
                   <span {...stylex.props(styles.cardHead)}>
                     <Text variant="title">{t("now.queueTitle")}</Text>
@@ -299,7 +301,9 @@ function RunnerRunsCard({
           </span>
           {card.runs.length === 0 ? (
             card.online ? (
-              <Text variant="meta">{t("noRuns")}</Text>
+              <Text variant="meta">
+                {card.used > 0 ? t("otherWorkspace", { count: card.used }) : t("noRuns")}
+              </Text>
             ) : null
           ) : (
             <FoldedRuns
@@ -344,7 +348,11 @@ function FoldedRuns({
         {shown.map((run) => (
           <PanelListRow
             key={run.id}
-            marker={<StatusDot status={dotStatus(runWord(run))} />}
+            marker={
+              <StatusDot status={dotStatus(runWord(run))}>
+                {trailing === "wait" || run.state === "running" ? word(runWord(run)) : undefined}
+              </StatusDot>
+            }
             {...(run.ticketTitle === null
               ? { title: run.ticketKey }
               : { ticketKey: run.ticketKey, title: run.ticketTitle })}
@@ -427,12 +435,6 @@ function EndedSection({
     observer.observe(more.current);
     return () => observer.disconnect();
   }, [canLoadMore, shownCount]);
-  const openRow = (event: MouseEvent<HTMLDivElement>) => {
-    if (!(event.target instanceof Element)) return;
-    const marker = event.target.closest('[role="option"]')?.querySelector("[data-run-row]");
-    const id = marker?.getAttribute("data-run-row");
-    if (id !== null && id !== undefined) onSelect(id);
-  };
   const periodIsChoice = ENDED_PERIOD_CHOICES.some((days) => days === page.days);
   const runnerValue = runnerId === undefined ? ALL_RUNNERS : runnerId === "" ? null : runnerId;
   return (
@@ -485,7 +487,7 @@ function EndedSection({
         </span>
       </div>
       <Card padding="compact" label={t("listLabel")}>
-        <div onClick={openRow}>
+        <>
           <Table columns={columns} foldedColumns={foldedColumns} narrowColumns={narrowColumns}>
             <TableHead>
               <TableHeader hideWhen="second">{t("columns.key")}</TableHeader>
@@ -516,7 +518,7 @@ function EndedSection({
               </MotionList>
             </TableRows>
           </Table>
-        </div>
+        </>
       </Card>
       {page.moreEnded ? (
         <div ref={more} {...stylex.props(styles.more)}>
@@ -594,15 +596,13 @@ function EndedRow({
   const wordText = reason === null ? t(`word.${word}`) : `${t(`word.${word}`)} · ${reason}`;
   const runner = run.runner?.name ?? t("endedRuns.noRunner");
   return (
-    <TableRow value={run.id} label={ticketName(run)} onOpen={onOpen} disabled={leaving}>
+    <TableRow value={run.id} label={ticketName(run)} onActivate={onOpen} disabled={leaving}>
       <TableCell hideWhen="second">
-        <span data-run-row={run.id}>
-          {run.ticketTitle === null ? null : (
-            <Text variant="meta" numeric>
-              {run.ticketKey}
-            </Text>
-          )}
-        </span>
+        {run.ticketTitle === null ? null : (
+          <Text variant="meta" numeric>
+            {run.ticketKey}
+          </Text>
+        )}
       </TableCell>
       <TableCell>
         <span {...stylex.props(styles.rowText)}>
@@ -665,8 +665,8 @@ const styles = stylex.create({
   nowGrid: {
     display: "grid",
     gridTemplateColumns: {
-      default: `minmax(0, 1fr) ${size.dashboardSideWidth}`,
-      [breakpoints.kanbanStacked]: "minmax(0, 1fr)",
+      default: `minmax(0, 1fr) ${size.runsQueueWidth}`,
+      [breakpoints.runsBoardStacked]: "minmax(0, 1fr)",
     },
     alignItems: "start",
     gap: space.s4,
@@ -675,15 +675,15 @@ const styles = stylex.create({
     order: 1,
     display: "grid",
     gridTemplateColumns: {
-      default: `repeat(auto-fill, minmax(${size.todoTextMinWidth}, 1fr))`,
-      [breakpoints.kanbanStacked]: "minmax(0, 1fr)",
+      default: `repeat(auto-fill, minmax(${size.runnerCardMinWidth}, 1fr))`,
+      [breakpoints.runsBoardStacked]: "minmax(0, 1fr)",
     },
     alignItems: "start",
     gap: space.s3,
     minWidth: 0,
   },
   queue: {
-    order: { default: 2, [breakpoints.kanbanStacked]: 0 },
+    order: { default: 2, [breakpoints.runsBoardStacked]: 0 },
     minWidth: 0,
   },
   cardBody: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
@@ -709,7 +709,7 @@ const styles = stylex.create({
     gap: space.s3,
   },
   menus: { display: "inline-flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
-  menu: { width: size.lastRunColumn, maxWidth: "100%" },
+  menu: { width: size.runsMenuWidth, maxWidth: "100%" },
   conditions: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
   more: {
     display: "flex",

@@ -1,5 +1,6 @@
 import { summarizeRunOutcome, toRunId } from "@ganger/core";
 import {
+  continueRunBlock,
   getRunWithRecords,
   listRunners,
   listRuns,
@@ -111,7 +112,7 @@ export function loadRunsBoard(
   return {
     workspace,
     active,
-    ended: listed.slice(0, endedLimit),
+    ended: listed.slice(0, endedLimit).map((run) => withContinue(db, run)),
     endedCounts: { review: review.length, all: endedRuns.length },
     endedView,
     failedOnly,
@@ -135,7 +136,14 @@ export function loadBoardRun(
   if (workspace.kind !== "one") return null;
   const entry = getRunWithRecords(db, toRunId(runId));
   if (entry === null || entry.run.workspaceId !== workspace.workspace.id) return null;
-  return boardRun(db, runViewBuilder(db, now).toView(entry, false), entry, nextStepReader(db));
+  return withContinue(
+    db,
+    boardRun(db, runViewBuilder(db, now).toView(entry, false), entry, nextStepReader(db)),
+  );
+}
+
+function withContinue(db: Database, run: BoardRun): BoardRun {
+  return { ...run, canContinue: continueRunBlock(db, toRunId(run.id)) === null };
 }
 
 type RunEntry = { run: StoredRun; records: RunRecords };
@@ -153,6 +161,7 @@ function boardRun(
     runnerId: run.runnerId,
     waitingFor: pending?.kind ?? null,
     nextStep: nextStepOf(view, entry, pending ?? { kind: "unknown" }),
+    canContinue: false,
   };
 }
 

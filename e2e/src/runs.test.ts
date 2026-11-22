@@ -195,6 +195,36 @@ describe("Runs 화면(브라우저, 0056)", () => {
     await page.getByRole("dialog").waitFor({ state: "detached" });
   });
 
+  it("끝난 런 행은 클릭·Space·Enter 로 패널을 열고, 방향키만으로는 열지 않는다(0173)", async (context) => {
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await openRuns(page);
+    const rows = page
+      .getByRole("listbox", { name: runsJson.endedRuns.listLabel })
+      .getByRole("option");
+    const dialog = page.getByRole("dialog");
+    const close = async () => {
+      await page.getByRole("button", { name: runsJson.panel.close }).click();
+      await dialog.waitFor({ state: "detached" });
+    };
+
+    await rows.first().click();
+    await dialog.waitFor();
+    await close();
+
+    await rows.first().focus();
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(200);
+    expect(await dialog.count()).toBe(0);
+    await page.keyboard.press("Space");
+    await dialog.waitFor();
+    await close();
+
+    await rows.first().focus();
+    await page.keyboard.press("Enter");
+    await dialog.waitFor();
+    expect(new URL(page.url()).searchParams.has("sel")).toBe(true);
+  });
+
   it("400px 에서 PR 의 CI 실패·충돌·뒤처짐이 Runs 행과 Run 상세에서 넘치지 않는다(0150)", async (context) => {
     const ended = listRuns(db)
       .flatMap((run) => (run.state === "ended" ? [run] : []))

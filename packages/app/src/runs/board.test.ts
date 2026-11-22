@@ -26,6 +26,7 @@ const base = {
   runnerId: "a",
   waitingFor: null,
   nextStep: "none" as const,
+  canContinue: false,
 };
 
 function active(

@@ -92,7 +92,7 @@ export function RunPanelBody({
         ? pr.url
         : detailHref;
   const opensHost = run.nextStep === "pr-ci-failed" || run.nextStep === "pr-conflict";
-  const canContinue = opensHost || run.nextStep === "failed";
+  const canContinue = run.canContinue && (opensHost || run.nextStep === "failed");
 
   return (
     <div {...stylex.props(styles.body)}>
@@ -105,7 +105,7 @@ export function RunPanelBody({
       {nextStepText === null ? (
         <Text variant="body">{reason}</Text>
       ) : (
-        <Card padding="compact" label={t("todoTitle")}>
+        <Card padding="compact" surface="inset" label={t("todoTitle")}>
           <div data-next-step={nextStepText.kind} {...stylex.props(styles.todo)}>
             <Text variant="title">{t("todoTitle")}</Text>
             <Text variant="body">{nextStepText.body}</Text>
@@ -118,7 +118,11 @@ export function RunPanelBody({
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
-                    {nextStepText.action}
+                    {stepAction === null ||
+                    stepAction === "pr-ci-failed" ||
+                    stepAction === "pr-conflict"
+                      ? nextStepText.action
+                      : t(`inDetail.${stepAction}`)}
                     {opensHost ? <ExternalIcon /> : null}
                   </a>
                 )}

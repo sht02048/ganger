@@ -36,7 +36,9 @@
     "showMore": "{count}개 더 보기",
     "queueTitle": "자리를 기다려요",
     "queueEmpty": "기다리는 런이 없어요",
-    "runnerLabel": "{name} 러너"
+    "runnerLabel": "{name} 러너",
+    "noMatch": "이 조건에 맞는 끝나지 않은 런이 없어요.",
+    "otherWorkspace": "다른 Workspace에서 {count}개가 돌아요"
   },
   "endedRuns": {
     "title": "끝난 런",
@@ -68,7 +70,7 @@
     "noRunner": "러너: 없음",
     "project": "프로젝트: {name}",
     "agent": "에이전트: {name}",
-    "days": "기간: 최근 {days, plural, =1 {오늘} other {{days}일}}",
+    "days": "기간: {days, plural, =1 {오늘} other {최근 {days}일}}",
     "remove": "{condition} 조건 지우기",
     "clearAll": "조건 모두 지우기",
     "failed": "상태: 실패"
@@ -147,6 +149,11 @@
     "reasonWithCiFailed": "{reason} PR의 CI가 실패해서 확인이 필요해요.",
     "close": "닫기",
     "todoTitle": "처리할 일",
-    "continue": "이어서 맡기기"
+    "continue": "런 상세에서 이어서 맡기기",
+    "inDetail": {
+      "question": "런 상세에서 답하기",
+      "human-check": "런 상세에서 확인하기",
+      "paused": "런 상세에서 재개하기"
+    }
   }
 }

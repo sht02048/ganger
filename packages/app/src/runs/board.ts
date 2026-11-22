@@ -36,6 +36,7 @@ export type BoardRun = RunView & {
   runnerId: string | null;
   waitingFor: WaitingFor | null;
   nextStep: RunNextStep;
+  canContinue: boolean;
 };
 
 export interface RunnerSeats {

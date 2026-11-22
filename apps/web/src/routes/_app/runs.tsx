@@ -109,7 +109,6 @@ function RunsRoute() {
               ended: undefined,
               view: undefined,
               f: undefined,
-              runner: undefined,
               project: undefined,
               agent: undefined,
             }),

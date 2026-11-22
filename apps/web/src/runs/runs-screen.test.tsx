@@ -154,6 +154,20 @@ describe("Runs 두 구역(0173)", () => {
     expect(html.indexOf("data-runner-cards")).toBeLessThan(html.indexOf("data-waiting-card"));
   });
 
+  it("조건으로 카드가 비면 러너가 없다고 하지 않고, 다른 Workspace 의 자리는 그렇게 말한다", () => {
+    const { db } = seedDatabase();
+    const empty = render(loadRunsBoard(db, undefined, now, { conditions: { agent: "codex" } }));
+    expect(textOf(empty)).toContain(runsJson.now.noMatch);
+    expect(textOf(empty)).not.toContain(runsJson.now.noRunners);
+    const page = loadRunsBoard(db, labs, now);
+    const other = render({
+      ...page,
+      active: [],
+      runners: [{ id: "busy", name: "busy", online: true, capacity: 3, used: 1 }],
+    });
+    expect(textOf(other)).toContain("다른 Workspace에서 1개가 돌아요");
+  });
+
   it("끝난 런 토글은 확인 필요와 모두의 수를 보인다", () => {
     const { db } = seedDatabase();
     const page = loadRunsBoard(db, undefined, now);
@@ -221,6 +235,19 @@ describe("Runs 패널(0173)", () => {
     expect(text).toContain("7개 중 2개 실패");
     expect(text).toContain("3커밋 뒤");
     expect(html.match(/data-variant="primary"/g)).toHaveLength(1);
+  });
+
+  it("이어서 맡길 수 없는 런에는 이어서 맡기기를 두지 않는다", () => {
+    const { page, id } = endWithPr("open");
+    const html = panelHtml({ ...find(page, id), canContinue: false });
+    expect(textOf(html)).not.toContain(runsJson.panel.continue);
+  });
+
+  it("런 상세로 가는 버튼은 이동임을 문구로 드러낸다", () => {
+    const { db, ids } = seedDatabase();
+    const run = find(loadRunsBoard(db, undefined, now), ids.get("ACME-10"));
+    const text = textOf(panelHtml({ ...run, nextStep: "paused" }));
+    expect(text).toContain(runsJson.panel.inDetail.paused);
   });
 
   it("Merged PR 은 처리할 일 없이 CI 줄만 둔다", () => {
