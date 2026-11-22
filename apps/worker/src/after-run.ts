@@ -20,11 +20,13 @@ import {
 import type { RunRecords, StoredRun, StoredRunner } from "@ganger/db";
 import {
   decideRunPrState,
+  isNewMerge,
   mailboxFor,
   prReadDue,
   pullRequestRecord,
   readRunPrState,
   rememberConfirmedMerge,
+  rememberMergeAgainstStored,
   rememberPrReadFailure,
   runLogContext,
   runnerErrorDetail,
@@ -107,10 +109,11 @@ async function markInProgress(
   ) {
     return;
   }
-  const stateId =
-    getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
-      ?.inProgressStateId ?? null;
+  const project = getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject);
+  const stateId = project?.inProgressStateId ?? null;
   if (stateId === null) return;
+  const mergedStateChosen = (project?.mergedStateId ?? null) !== null;
+  if (mergedStateChosen && context.confirmedMerges.has(run.id)) return;
   const tracker = trackerFor(context, run);
   if (tracker === null) return;
   try {
@@ -134,12 +137,7 @@ async function markMerged(context: TickContext, run: StoredRun): Promise<void> {
   const stateId =
     getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
       ?.mergedStateId ?? null;
-  if (
-    records === undefined ||
-    records.mergedStateSetAt !== null ||
-    stateId === null ||
-    context.ticketsGone.has(run.id)
-  ) {
+  if (records === undefined || records.mergedStateSetAt !== null || stateId === null) {
     context.unmarkedMerges.delete(run.id);
     return;
   }
@@ -259,7 +257,7 @@ function forgetGoneTicket(context: TickContext, run: StoredRun): void {
 async function pollActivePullRequest(context: TickContext, run: ActiveRun): Promise<void> {
   if (!pollDue(context, run)) return;
   const decision = await decideRunPrState(context, run);
-  rememberConfirmedMerge(context, run.id, decision.prState);
+  rememberMergeAgainstStored(context, run.id, decision.pr);
   if (decision.pr === null) return;
   recordPullRequest(context, run, decision.pr);
 }
@@ -416,6 +414,7 @@ async function recordSettledPullRequest(
   if (!pollDue(context, run)) return false;
   const pr = await currentPullRequest(context, run, records);
   if (pr === null) return false;
+  const mergeIsNew = isNewMerge(records.pullRequest, pr);
   recordPullRequest(context, run, pr);
   const state = pr.state === "merged" ? "merged" : pr.state === "closed" ? "closed" : null;
   if (state === null) return false;
@@ -424,7 +423,7 @@ async function recordSettledPullRequest(
     updateRunRecords(context.db, run.id, { laterPrState: { state, at: context.now() } }),
   );
   if (recorded !== true) return false;
-  rememberConfirmedMerge(context, run.id, state);
+  if (mergeIsNew) rememberConfirmedMerge(context, run.id, pr);
   return true;
 }
 

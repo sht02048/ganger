@@ -295,6 +295,68 @@ describe("PR 머지 때 티켓 상태 바꾸기", () => {
     expect(h.tracker.stateChanges).toEqual([]);
   });
 
+  it("설정 전에 본 머지는 worker를 다시 띄워도 새 머지로 치지 않는다", async () => {
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    chooseMergedState();
+    h.advance(PR_POLL_INTERVAL_MS);
+    await h.worker().tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  function chooseBothStates(): void {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: inProgress,
+      mergedStateId: mergedState,
+    });
+  }
+
+  it("시작 상태가 not-found여도 머지 상태는 바꾼다", async () => {
+    chooseBothStates();
+    vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("머지 상태가 not-found여도 머지된 티켓을 시작 상태로 되돌리지 않는다", async () => {
+    chooseBothStates();
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("바꾸지 않음이면 머지를 본 뒤에도 실패했던 시작 상태를 다시 시도한다", async () => {
+    chooseInProgress();
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: inProgress }]);
+  });
+
   it("머지 상태로 바꾼 뒤에는 실패했던 시작 상태로 되돌리지 않는다", async () => {
     saveWorkspaceTrackerProject(h.db, {
       workspaceId: toWorkspaceId("ws-1"),

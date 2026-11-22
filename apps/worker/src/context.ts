@@ -20,12 +20,13 @@ import type {
 import {
   changeRunState,
   getRun,
+  getRunWithRecords,
   listRunners,
   setRunnerMailbox,
   worktreeTakenOverBy,
 } from "@ganger/db";
 import type { WorktreeSetupResult } from "@ganger/core";
-import type { Database, StoredRun, StoredRunner } from "@ganger/db";
+import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
 import type { LogContext, Logger } from "@ganger/log";
 import type { WorkerAdapters } from "./adapters.js";
 import type { AutoAssignState } from "./auto-assign.js";
@@ -190,20 +191,41 @@ export type PrRead =
   | { kind: "read"; decision: PrStateDecision }
   | { kind: "failed"; error: PrReadError };
 
+export function isNewMerge(
+  stored: RunRecords["pullRequest"],
+  pr: PullRequestSnapshot | null,
+): boolean {
+  if (pr?.state !== "merged") return false;
+  return stored?.id !== pr.id || stored.signals?.open !== false;
+}
+
 export function rememberConfirmedMerge(
   context: TickContext,
   runId: RunId,
-  prState: PrStateDecision["prState"],
+  pr: PullRequestSnapshot | null,
 ): void {
-  if (prState !== "merged" || context.confirmedMerges.has(runId)) return;
+  if (pr?.state !== "merged" || context.confirmedMerges.has(runId)) return;
   context.confirmedMerges.add(runId);
   context.unmarkedMerges.add(runId);
+}
+
+export function rememberMergeAgainstStored(
+  context: TickContext,
+  runId: RunId,
+  pr: PullRequestSnapshot | null,
+): void {
+  const stored = getRunWithRecords(context.db, runId)?.records.pullRequest ?? null;
+  if (isNewMerge(stored, pr)) {
+    rememberConfirmedMerge(context, runId, pr);
+  } else if (pr?.state === "merged") {
+    context.confirmedMerges.add(runId);
+  }
 }
 
 export async function readRunPrState(context: TickContext, run: StartedStoredRun): Promise<PrRead> {
   try {
     const decision = await decideRunPrState(context, run);
-    rememberConfirmedMerge(context, run.id, decision.prState);
+    rememberMergeAgainstStored(context, run.id, decision.pr);
     return { kind: "read", decision };
   } catch (error) {
     const reason = prReadErrorOf(error);
