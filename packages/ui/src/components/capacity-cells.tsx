@@ -9,23 +9,38 @@ export interface CapacityCellsProps {
   total: number;
   label: string;
   tone?: CapacityTone;
+  overflow?: "number" | "meter";
 }
 
 export function showsCapacityCells(total: number): boolean {
   return total > 0 && total <= CAPACITY_CELLS_MAX;
 }
 
-export function CapacityCells({ used, total, label, tone = "progress" }: CapacityCellsProps) {
+export function CapacityCells({
+  used,
+  total,
+  label,
+  tone = "progress",
+  overflow = "number",
+}: CapacityCellsProps) {
   const filled = Math.min(Math.max(used, 0), total);
   const cells = showsCapacityCells(total);
+  const meter = !cells && overflow === "meter" && total > 0;
   return (
     <span
       role="img"
       aria-label={label}
       data-tone={tone}
-      data-cells={cells ? "shown" : "number-only"}
+      data-cells={cells ? "shown" : meter ? "meter" : "number-only"}
       {...stylex.props(styles.root)}
     >
+      {meter ? (
+        <span aria-hidden="true" data-capacity-meter {...stylex.props(styles.meter)}>
+          <span
+            {...stylex.props(styles.meterFill, usedTone[tone], meterWidth.of(filled / total))}
+          />
+        </span>
+      ) : null}
       {cells ? (
         <span aria-hidden="true" {...stylex.props(styles.cells)}>
           {Array.from({ length: total }, (_, index) => {
@@ -77,7 +92,26 @@ const trackColumns = stylex.create({
   of: (count: number) => ({ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }),
 });
 
+const meterWidth = stylex.create({
+  of: (share: number) => ({ width: `${share * 100}%` }),
+});
+
 const styles = stylex.create({
+  meter: {
+    display: "block",
+    flexShrink: 0,
+    width: 84,
+    height: 6,
+    overflow: "hidden",
+    borderRadius: radius.full,
+    backgroundColor: colors.meterTrack,
+  },
+  meterFill: {
+    display: "block",
+    height: "100%",
+    borderRadius: radius.full,
+    borderWidth: 0,
+  },
   track: { display: "grid", gap: space.s1, minWidth: 0 },
   trackCell: { height: 6, borderRadius: radius.full, backgroundColor: colors.meterTrack },
   trackCellUsed: { backgroundColor: colors.progress },

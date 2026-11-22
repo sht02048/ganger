@@ -9,7 +9,6 @@ import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from "vitest";
 import type { TestContext } from "vitest";
-import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
 import tickets from "../../apps/web/messages/ko/tickets.json" with { type: "json" };
 import { TRACKER_DELAY_MS } from "./browser/slow-tracker-adapters.js";
 import { navigationWorkspace, startNavigationWorld, watchedTicket } from "./navigation-world.js";
@@ -74,14 +73,22 @@ describe("레일로 화면 옮기기(브라우저, 0117)", () => {
   it("다시 들어간 화면은 그사이 바뀐 런 상태를 반영한다", async (context) => {
     const page = await newPage(context);
     await open(page, "/runs", "runs");
-    const row = page.getByRole("option").filter({ hasText: watchedTicket });
-    await expect.poll(() => row.innerText()).toContain(domain.runState.queued);
+    await page
+      .locator("[data-waiting-card]")
+      .getByRole("button")
+      .filter({ hasText: watchedTicket })
+      .waitFor();
 
     await navigateByRail(page, "dashboard", "first");
     start(world.db, world.watchedRun);
     await navigateByRail(page, "runs", "again");
 
-    await expect.poll(() => row.innerText()).toContain(domain.runState.running);
+    const running = page
+      .locator("[data-runner-cards]")
+      .getByRole("button")
+      .filter({ hasText: watchedTicket });
+    await running.waitFor();
+    expect(await running.count()).toBe(1);
   });
 });
 

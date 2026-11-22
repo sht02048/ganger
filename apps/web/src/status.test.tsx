@@ -15,9 +15,6 @@ import tickets from "../messages/ko/tickets.json" with { type: "json" };
 import { HomeScreen } from "./home/home-screen";
 import { loadHomePage } from "@ganger/app/home/load";
 import { homeMessages } from "./home/messages";
-import { loadRunsPage } from "@ganger/app/runs/load";
-import { runsMessages } from "./runs/messages";
-import { RunsScreen } from "./runs/runs-screen";
 import { useStatusName } from "./status";
 import { pillsOf } from "./testing/pills";
 import { renderWithMessages } from "./testing/render";
@@ -81,10 +78,7 @@ describe("메시지 파일 낱말(ADR 0010 1·3번)", () => {
   it("To do 는 이름 자리에서 To do, 필터와 문장 안에서는 처리할 일이다(ADR 0010 0068 갱신)", () => {
     expect(ds.typography.sampleHeading).toBe("To do");
     expect(home.view.todo).toBe("처리할 일만");
-    expect([runs.filter.attention, ds.tabs.todo]).toEqual([
-      tickets.filter.todo,
-      tickets.filter.todo,
-    ]);
+    expect(ds.tabs.todo).toBe(tickets.filter.todo);
     expect([run.reason.canceled, runs.panel.reason.canceled]).toEqual([
       "운영자가 취소한 런이에요. 처리할 일에 올리지 않아요.",
       "운영자가 취소한 런이에요. 처리할 일에 올리지 않아요.",
@@ -102,7 +96,7 @@ describe("메시지 파일 낱말(ADR 0010 1·3번)", () => {
 });
 
 describe("화면의 상태 알약", () => {
-  it("Dashboard·Runs 의 알약 글은 영어 용어이고 상태 값과 맞는다", () => {
+  it("Dashboard 의 알약 글은 영어 용어이고 상태 값과 맞는다", () => {
     const { db } = seedDatabase();
     const pills = [
       ...pillsOf(
@@ -115,22 +109,6 @@ describe("화면의 상태 알약", () => {
             onControl={() => Promise.resolve("requested" as const)}
           />,
           homeMessages,
-        ),
-      ),
-      ...pillsOf(
-        renderWithMessages(
-          <RunsScreen
-            page={loadRunsPage(db, undefined, now)}
-            workspaces={[]}
-            filter="all"
-            selectedId={undefined}
-            onFilterChange={() => {}}
-            onSelect={() => {}}
-            onOpen={() => {}}
-            onPickWorkspace={() => {}}
-            runHref={(id) => `/runs/${id}`}
-          />,
-          runsMessages,
         ),
       ),
     ];

@@ -16,7 +16,7 @@ import { loadRunnersPage } from "@ganger/app/runners/load";
 import { runnersMessages } from "./messages";
 import { failedChecksFirst, problemRunnersFirst } from "@ganger/app/runners/model";
 import type { OccupyingRun, RunnerView, RunnersPage } from "@ganger/app/runners/model";
-import { addRunnerHref, RunnersScreen } from "./runners-screen";
+import { addRunnerHref, runnerRunsHref, RunnersScreen } from "./runners-screen";
 import type { RunnerActions } from "./runners-screen";
 
 const panel = runnersJson.panel;
@@ -436,16 +436,22 @@ describe("Runners 고른 러너 패널", () => {
     expect(a).toMatch(/role="img" aria-label="10자리 중 4자리 사용"/);
     expect(a.match(/data-cell="used"/g)).toHaveLength(4);
     expect(a.match(/data-cell="free"/g)).toHaveLength(6);
-    expect(a).toContain('data-status="running"');
-    expect(a).toContain('data-status="disconnected"');
     expect(textOf(a)).toContain("이 러너를 기다리는 Queued 런");
-    const id = ids.get("LAB-1") ?? "";
-    expect(a).toMatch(
-      new RegExp(
-        `<a href="/runs/${id}\\?ws=ws-labs"[^>]*>(?:(?!</a>)[^])*LAB-1(?:(?!</a>)[^])*</a>`,
-      ),
+    expect(ids.has("LAB-1")).toBe(true);
+    expect(a).not.toContain("LAB-1 ");
+    expect(textOf(a)).toContain(panel.viewRuns);
+  });
+
+  it("패널은 러너별 런 목록 대신 그 러너 조건의 Runs 링크를 둔다(0173)", () => {
+    expect(runnerRunsHref("ws-labs", "runner a")).toBe("/runs?ws=ws-labs&runner=runner+a");
+    expect(runnerRunsHref(undefined, "r")).toBe("/runs?runner=r");
+    const html = panelHtml(
+      render({
+        runners: [runner({ id: "r", capacity: 2, occupying: [occupyingRun({ id: "a" })] })],
+      }),
     );
-    expect(textOf(panelHtml(render(loadRunnersPage(db, now), "runner-b")))).toContain(panel.noRuns);
+    expect(html).toMatch(new RegExp(`<a [^>]*href="/runs\\?[^"]*runner=r"[^>]*>${panel.viewRuns}`));
+    expect(html).not.toContain('href="/runs/a');
   });
 
   it.each([
@@ -463,34 +469,6 @@ describe("Runners 고른 러너 패널", () => {
       expect(textOf(html)).toContain(`${panel.capacity} ${used}/${capacity}`);
     },
   );
-
-  it("런 행 오른쪽은 일하는 런이면 시간, To do 면 종류 이름이고 제목은 번호 옆에 둔다(0165)", () => {
-    const html = panelHtml(
-      render({
-        runners: [
-          runner({
-            id: "r",
-            capacity: 3,
-            occupying: [
-              occupyingRun({ id: "a", ticketKey: "ACME-12", ticketTitle: "시계 adapter 합치기" }),
-              occupyingRun({
-                id: "b",
-                ticketKey: "ACME-16",
-                ticketTitle: "승인 정책 기본값",
-                state: "waiting-for-input",
-                waitingFor: "question",
-              }),
-            ],
-          }),
-        ],
-      }),
-    );
-    const text = textOf(html);
-    expect(text).toContain("ACME-12 시계 adapter 합치기 4 min");
-    expect(text).toContain(`ACME-16 승인 정책 기본값 ${domain.attention.question}`);
-    expect(html).toContain('data-status="question"');
-    expect(html).toContain('href="/runs/b?ws=ws"');
-  });
 
   it("이 러너를 기다리는 Queued 런은 개수와 번호 한 줄로 보인다(0165)", () => {
     const queued = ["ACME-14", "ACME-15"].map((ticketKey) => ({

@@ -269,7 +269,7 @@ function statusOf(
   }
 }
 
-function keptWorktreeOf(
+export function keptWorktreeOf(
   run: Extract<StoredRun, { state: "ended" }>,
   records: RunRecords,
   disposition: WorktreeDisposition,

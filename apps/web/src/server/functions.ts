@@ -22,8 +22,9 @@ import {
 } from "@ganger/app/run-detail/actions";
 import { loadRunDetail, requestRunLogTail } from "@ganger/app/run-detail/load";
 import { loadRunnersPage } from "@ganger/app/runners/load";
-import { pickConditions, runConditionsSchema } from "@ganger/app/runs/conditions";
-import { loadRunsPage } from "@ganger/app/runs/load";
+import { ENDED_VIEWS, pickBoardConditions, runBoardDaysSchema } from "@ganger/app/runs/board";
+import { loadBoardRun, loadRunsBoard } from "@ganger/app/runs/board-load";
+import { runConditionsSchema } from "@ganger/app/runs/conditions";
 import { MAX_ENDED_RUNS } from "@ganger/app/runs/model";
 import { loadShell } from "@ganger/app/shell/load";
 import { TITLE_BAR_COOKIE, isTitleBarHidden } from "@ganger/app/shell/window-chrome";
@@ -78,18 +79,24 @@ export const getRunsPage = createServerFn({ method: "GET" })
     runConditionsSchema.extend({
       ws: z.string().optional(),
       ended: z.number().int().min(1).max(MAX_ENDED_RUNS).optional(),
+      days: runBoardDaysSchema.optional(),
+      view: z.enum(ENDED_VIEWS).optional(),
+      failedOnly: z.boolean().optional(),
     }),
   )
   .handler(({ data }) =>
-    loadRunsPage(
-      getDatabase(),
-      data.ws,
-      new Date(),
-      data.ended,
-      pickConditions(data),
-      parseTimeZone(getCookie(TIME_ZONE_COOKIE)),
-    ),
+    loadRunsBoard(getDatabase(), data.ws, new Date(), {
+      ...(data.ended === undefined ? {} : { endedLimit: data.ended }),
+      conditions: pickBoardConditions(data),
+      ...(data.view === undefined ? {} : { view: data.view }),
+      failedOnly: data.failedOnly === true,
+      timeZone: parseTimeZone(getCookie(TIME_ZONE_COOKIE)),
+    }),
   );
+
+export const getRunsBoardRun = createServerFn({ method: "GET" })
+  .validator(z.object({ ws: z.string().optional(), runId: z.string().min(1).max(200) }))
+  .handler(({ data }) => loadBoardRun(getDatabase(), data.ws, data.runId, new Date()));
 
 export const getStatsPage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional(), days: statsPeriodDaysSchema }))

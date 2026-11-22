@@ -226,6 +226,9 @@ export const size = stylex.defineVars({
   settingsChipHeight: "40px",
   repoSelectWidth: "240px",
   saveStatusColumn: "88px",
+  runsQueueWidth: "360px",
+  runnerCardMinWidth: "256px",
+  runsMenuWidth: "160px",
 });
 
 export const breakpoints = stylex.defineConsts({
@@ -235,6 +238,7 @@ export const breakpoints = stylex.defineConsts({
   dashboardOneColumn: "@container (max-width: 719px)",
   kanbanRunnersBelow: "@container (760px <= width < 1280px)",
   kanbanStacked: "@container (width < 760px)",
+  runsBoardStacked: "@container (width < 760px)",
   kanbanCardActionBelow: "@container (width < 360px)",
   statTilesTwoColumns: "@container (480px < width <= 880px)",
   statTilesStacked: "@container (max-width: 480px)",

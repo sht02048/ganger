@@ -1,9 +1,9 @@
 import { queryOptions } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import type { RunId } from "@ganger/core";
-import type { RunConditions } from "@ganger/app/runs/conditions";
+import type { EndedView, RunBoardConditions } from "@ganger/app/runs/board";
 import { RUNNERS_LIST_KEY } from "../runners/runners-query";
-import { getRunDetail, getRunsPage } from "../server/functions";
+import { getRunDetail, getRunsBoardRun, getRunsPage } from "../server/functions";
 import { TICKET_RUNS_KEY } from "../tickets/tickets-query";
 
 export const runsListKey = ["runs", "list"] as const;
@@ -24,9 +24,11 @@ export function keysChangedByRunWrite(runId: RunId): ReadonlyArray<QueryKey> {
   ];
 }
 
-export interface RunsListParams extends RunConditions {
+export interface RunsListParams extends RunBoardConditions {
   ws: string | undefined;
   ended: number;
+  view?: EndedView;
+  failedOnly?: boolean;
 }
 
 export function runsListQuery(params: RunsListParams, timeZone: string) {
@@ -34,6 +36,13 @@ export function runsListQuery(params: RunsListParams, timeZone: string) {
   return queryOptions({
     queryKey: [...runsListKey, { ws: ws ?? "", ...rest }, timeZone] as const,
     queryFn: () => getRunsPage({ data: ws === undefined ? rest : { ...rest, ws } }),
+  });
+}
+
+export function runsBoardRunQuery(ws: string | undefined, runId: string) {
+  return queryOptions({
+    queryKey: [...runsListKey, "run", ws ?? "", runId] as const,
+    queryFn: () => getRunsBoardRun({ data: ws === undefined ? { runId } : { ws, runId } }),
   });
 }
 

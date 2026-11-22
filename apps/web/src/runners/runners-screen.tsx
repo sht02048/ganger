@@ -24,19 +24,19 @@ import {
   RowTitle,
   ScreenLayout,
   SplitView,
-  StatusDot,
   StatusPill,
   Table,
   TableCell,
   TableRow,
   TableRows,
   Text,
+  TextLink,
   textStyles,
   Tooltip,
   UsageBar,
   UsageMeter,
 } from "@ganger/ui";
-import type { CheckResultState, PillStatus } from "@ganger/ui";
+import type { CheckResultState } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
 import type { PrerequisiteFailureKind } from "@ganger/core";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
@@ -59,7 +59,6 @@ import {
   summarizePushChecks,
 } from "@ganger/app/prerequisites";
 import type {
-  OccupyingRun,
   ProviderUsageView,
   RunnerCheckItem,
   RunnerUsageView,
@@ -209,6 +208,7 @@ export function RunnersScreen({
                   <RunnerPanel
                     key={selected.id}
                     runner={selected}
+                    ws={ws}
                     actions={actions}
                     renderEdit={renderEdit}
                     blocked={blocked}
@@ -309,11 +309,13 @@ function RowSentence({ runner }: { runner: RunnerView }) {
 
 function RunnerPanel({
   runner,
+  ws,
   actions,
   renderEdit,
   blocked,
 }: {
   runner: RunnerView;
+  ws: string | undefined;
   actions: RunnerActions;
   renderEdit: RenderRunnerEdit | undefined;
   blocked: boolean;
@@ -395,7 +397,7 @@ function RunnerPanel({
       </div>
       {needsFix ? <FixCard runner={runner} target={target} recheck={recheck} /> : null}
       {needsFix ? <CheckList runner={runner} target={target} /> : null}
-      <CapacityRuns runner={runner} />
+      <CapacityRuns runner={runner} ws={ws} />
       <ProviderUsage runner={runner} />
       {needsFix ? null : <CheckList runner={runner} target={target} />}
       <LeftWorktrees runner={runner} />
@@ -599,7 +601,7 @@ function FixCard({
   );
 }
 
-function CapacityRuns({ runner }: { runner: RunnerView }) {
+function CapacityRuns({ runner, ws }: { runner: RunnerView; ws: string | undefined }) {
   const t = useTranslations("runners.panel");
   const tRunners = useTranslations("runners");
   const used = runner.occupying.length;
@@ -614,15 +616,7 @@ function CapacityRuns({ runner }: { runner: RunnerView }) {
         total={runner.capacity}
         label={tRunners("capacityCellsLabel", { used, total: runner.capacity })}
       />
-      {used === 0 ? (
-        <Text variant="ui">{t("noRuns")}</Text>
-      ) : (
-        <PanelList>
-          {runner.occupying.map((run) => (
-            <OccupyingRunRow key={run.id} run={run} />
-          ))}
-        </PanelList>
-      )}
+      <TextLink href={runnerRunsHref(ws, runner.id)}>{t("viewRuns")}</TextLink>
       {runner.queued.length === 0 ? null : (
         <Text variant="meta" as="p" numeric>
           {t("queuedWaiting", {
@@ -635,31 +629,10 @@ function CapacityRuns({ runner }: { runner: RunnerView }) {
   );
 }
 
-function occupyingStatus(run: OccupyingRun): PillStatus {
-  return run.state === "waiting-for-input" ? (run.waitingFor ?? run.state) : run.state;
-}
-
-function OccupyingRunRow({ run }: { run: OccupyingRun }) {
-  const statusName = useStatusName();
-  const { elapsed } = useTime();
-  const status = occupyingStatus(run);
-  const isTodo = run.state === "waiting-for-input" || run.state === "disconnected";
-  return (
-    <PanelListRow
-      href={runHref(run.workspace.id, run.id)}
-      marker={
-        isTodo ? (
-          <StatusDot status={status} />
-        ) : (
-          <StatusDot status={status}>{statusName(status)}</StatusDot>
-        )
-      }
-      {...(run.ticketTitle === null
-        ? { title: run.ticketKey }
-        : { ticketKey: run.ticketKey, title: run.ticketTitle })}
-      trailing={isTodo ? statusName(status) : elapsed(run.executionMs)}
-    />
-  );
+export function runnerRunsHref(ws: string | undefined, runnerId: string): string {
+  const search = new URLSearchParams(ws === undefined ? {} : { ws });
+  search.set("runner", runnerId);
+  return `/runs?${search.toString()}`;
 }
 
 function CheckList({ runner, target }: { runner: RunnerView; target: RunnerCheckItem | null }) {

@@ -110,7 +110,7 @@ describe("Runs 화면(브라우저, 0056)", () => {
   it("'자세히 보기'를 누르면 문서를 다시 읽지 않고 Run 상세로 간다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 900 });
     await openRuns(page);
-    await page.getByRole("option", { name: runningKey }).click();
+    await runningLine(page).click();
     await page.evaluate(() => {
       Object.assign(globalThis, { runsDocumentMarker: true });
     });
@@ -125,7 +125,7 @@ describe("Runs 화면(브라우저, 0056)", () => {
   it("'자세히 보기'를 수정키로 누르면 지금 화면은 그대로 두고 새 탭으로 연다(0166)", async (context) => {
     const page = await newPage(context, { width: 1280, height: 900 });
     await openRuns(page);
-    await page.getByRole("option", { name: runningKey }).click();
+    await runningLine(page).click();
     const listUrl = page.url();
     const opened = page.context().waitForEvent("page");
     await page
@@ -137,100 +137,101 @@ describe("Runs 화면(브라우저, 0056)", () => {
     expect(page.url()).toBe(listUrl);
   });
 
-  it("끝난 런은 최근 50개만 보이고, '더 보기'를 누르면 더 읽고 포커스를 잃지 않는다", async (context) => {
+  it("끝난 런은 50개부터 보이고, 아래로 내리면 이어서 불러온다(0173)", async (context) => {
     const page = await newPage(context, { width: 1280, height: 900 });
     await openRuns(page);
     const endedRows = page.getByRole("option", { name: /^ACME-END-/ });
-    expect(await endedRows.count()).toBe(endedPageSize);
-    await page
-      .getByRole("status")
-      .filter({ hasText: runsJson.ended.partial.replace("{count}", String(endedPageSize)) })
-      .waitFor();
+    await expect.poll(() => endedRows.count()).toBeGreaterThanOrEqual(endedPageSize);
 
-    await page.getByRole("button", { name: runsJson.ended.showMore }).click();
-    await page
-      .getByRole("status")
-      .filter({ hasText: runsJson.ended.all.replace("{count}", String(endedRunCount)) })
-      .waitFor();
+    await page.getByRole("button", { name: runsJson.endedRuns.loadMore }).scrollIntoViewIfNeeded();
 
-    expect(await endedRows.count()).toBe(endedRunCount);
-    expect(await page.getByRole("button", { name: runsJson.ended.showMore }).count()).toBe(0);
-    expect(await page.evaluate(() => document.activeElement?.textContent)).toBe(
-      runsJson.ended.all.replace("{count}", String(endedRunCount)),
-    );
+    await expect.poll(() => endedRows.count()).toBe(endedRunCount);
+    expect(await page.getByRole("button", { name: runsJson.endedRuns.loadMore }).count()).toBe(0);
   });
 
-  it("800px 폭에서는 목록이 무너지지 않고 패널이 목록 아래로 내려간다", async (context) => {
-    const page = await newPage(context, { width: 800, height: 900 });
-    await openRuns(page);
-    const list = page.getByRole("listbox", { name: runsJson.listLabel });
-    const panel = page.getByRole("region", { name: runsJson.panel.label });
-    const listBox = await list.boundingBox();
-    const panelBox = await panel.boundingBox();
-    if (listBox === null || panelBox === null) throw new Error("list or panel is not visible");
-
-    expect(listBox.width).toBeGreaterThan(500);
-    expect(panelBox.y).toBeGreaterThanOrEqual(listBox.y);
-    expect(panelBox.width).toBeGreaterThan(500);
-  });
-
-  it("넓은 창에서는 열로 나눈 한 줄 행이 패널 바로 앞까지 채우고, 좁아지면 결과 → 러너 순으로 접는다(0101)", async (context) => {
+  it("넓으면 자리를 기다리는 카드가 오른쪽, 좁으면 맨 위이고 가로로 넘치지 않는다(0173)", async (context) => {
     const layoutAt = async (width: number) => {
       const page = await newPage(context, { width, height: 900 });
       await openRuns(page);
-      const row = page.getByRole("option", { name: runningKey });
-      await row.waitFor();
-      return page.evaluate((key) => {
-        const option = [...document.querySelectorAll('[role="option"]')].find((e) =>
-          e.textContent?.includes(key),
-        );
-        const list = document.querySelector('[role="listbox"]');
-        const panel = document.querySelector("main aside");
-        if (option === undefined || list === null || panel === null)
-          throw new Error("runs layout not found");
-        const shown = (selector: string) =>
-          [...option.querySelectorAll(selector)].some((e) => e.getBoundingClientRect().width > 0);
-        const listBox = list.getBoundingClientRect();
-        const panelBox = panel.getBoundingClientRect();
-        const title = option.querySelector("[title]");
-        const titleCell = title?.closest('[role="option"] > *');
-        if (title === null || title === undefined || titleCell === null || titleCell === undefined)
-          throw new Error("runs title not found");
+      await page.locator("[data-waiting-card]").waitFor();
+      return page.evaluate(() => {
+        const box = (selector: string) => {
+          const element = document.querySelector(selector);
+          if (element === null) throw new Error(`${selector} not found`);
+          return element.getBoundingClientRect();
+        };
+        const waiting = box("[data-waiting-card]");
+        const cards = box("[data-runner-cards]");
         return {
           overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-          gap: Math.round(panelBox.left - listBox.right),
-          result: shown('[data-hide-when="first"]'),
-          runner: shown('[data-hide-when="second"]'),
-          secondLine: shown('[data-folded-only="first"]'),
-          rowHeight: Math.round(option.getBoundingClientRect().height),
-          titleShortBy: Math.round(
-            titleCell.getBoundingClientRect().width - title.getBoundingClientRect().width,
-          ),
+          waitingRight: waiting.left >= cards.right,
+          waitingAbove: waiting.bottom <= cards.top,
         };
-      }, runningKey);
+      });
+    };
+    expect(await layoutAt(1440)).toEqual({ overflow: 0, waitingRight: true, waitingAbove: false });
+    for (const width of [600, 400, 320])
+      expect(await layoutAt(width)).toEqual({
+        overflow: 0,
+        waitingRight: false,
+        waitingAbove: true,
+      });
+  });
+
+  it("런을 누르면 패널이 열리고 sel 로 남으며, 닫으면 누른 행으로 포커스가 돌아온다(0173)", async (context) => {
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await openRuns(page);
+    await runningLine(page).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
+    await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(true);
+
+    await page.getByRole("button", { name: runsJson.panel.close }).click();
+    await dialog.waitFor({ state: "detached" });
+    await expect
+      .poll(() => runningLine(page).evaluate((line) => line === document.activeElement))
+      .toBe(true);
+
+    await runningLine(page).click();
+    await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(true);
+    await page.reload();
+    await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
+    await page.waitForLoadState("networkidle");
+    await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
+
+    await page.getByRole("button", { name: runsJson.panel.close }).click();
+    await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(false);
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+  });
+
+  it("끝난 런 행은 클릭·Space·Enter 로 패널을 열고, 방향키만으로는 열지 않는다(0173)", async (context) => {
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await openRuns(page);
+    const rows = page
+      .getByRole("listbox", { name: runsJson.endedRuns.listLabel })
+      .getByRole("option");
+    const dialog = page.getByRole("dialog");
+    const close = async () => {
+      await page.getByRole("button", { name: runsJson.panel.close }).click();
+      await dialog.waitFor({ state: "detached" });
     };
 
-    const wide = await layoutAt(1728);
-    expect(wide).toMatchObject({ overflow: 0, result: true, runner: true, secondLine: false });
-    expect(wide.gap).toBeLessThanOrEqual(64);
+    await rows.first().click();
+    await dialog.waitFor();
+    await close();
 
-    const middle = await layoutAt(1280);
-    expect(middle).toMatchObject({ overflow: 0, result: false, runner: false, secondLine: true });
+    await rows.first().focus();
+    await page.keyboard.press("ArrowDown");
+    await page.waitForTimeout(200);
+    expect(await dialog.count()).toBe(0);
+    await page.keyboard.press("Space");
+    await dialog.waitFor();
+    await close();
 
-    const laptop = await layoutAt(1100);
-    expect(laptop).toMatchObject({ overflow: 0, secondLine: true, titleShortBy: 0 });
-    expect(laptop.rowHeight).toBeLessThan(middle.rowHeight + 8);
-
-    for (const width of [900, 400, 320]) {
-      const narrow = await layoutAt(width);
-      expect(narrow).toMatchObject({
-        overflow: 0,
-        result: false,
-        runner: false,
-        secondLine: true,
-        titleShortBy: 0,
-      });
-    }
+    await rows.first().focus();
+    await page.keyboard.press("Enter");
+    await dialog.waitFor();
+    expect(new URL(page.url()).searchParams.has("sel")).toBe(true);
   });
 
   it("400px 에서 PR 의 CI 실패·충돌·뒤처짐이 Runs 행과 Run 상세에서 넘치지 않는다(0150)", async (context) => {
@@ -277,17 +278,11 @@ describe("Runs 화면(브라우저, 0056)", () => {
     const page = await newPage(context, { width: 400, height: 900 });
     await openRuns(page);
     const row = page.getByRole("option", { name: new RegExp(`^${key}(\\D|$)`) });
-    await row.getByText(runsJson.prMarks.conflict).first().waitFor();
-    await row.getByText(runsJson.prMarks.ciFailed).first().waitFor();
+    await row
+      .getByText(`${runsJson.word["needs-review"]} · ${runsJson.reason["ci-failed"]}`)
+      .first()
+      .waitFor();
     expect(await overflow(page)).toBe(0);
-    const clipped = await row.locator("[data-pr-marks]").evaluate((marks) => {
-      const cell = marks.getBoundingClientRect();
-      return [...marks.children].some(
-        (mark) => mark.getBoundingClientRect().right > Math.ceil(cell.right),
-      );
-    });
-    expect(clipped).toBe(false);
-    await row.getByText(runsJson.prMarks.behind.replace("{count}", "18")).waitFor();
 
     await page.goto(`/runs/${id}`);
     await page.getByText(runJson.pr.hasConflict, { exact: true }).waitFor();
@@ -302,8 +297,8 @@ describe("Runs 화면(브라우저, 0056)", () => {
     const headGapAt = async (width: number) => {
       const page = await newPage(context, { width, height: 900 });
       await openRuns(page);
-      const list = page.getByRole("listbox", { name: runsJson.listLabel });
-      await list.getByRole("option").first().click();
+      const list = page.getByRole("listbox", { name: runsJson.endedRuns.listLabel });
+      await list.getByRole("option").first().waitFor();
       return list.evaluate((listbox) => {
         const table = listbox.parentElement;
         const head = listbox.previousElementSibling;
@@ -388,7 +383,7 @@ describe("Runs 조건(브라우저, 0075)", () => {
     const page = await newPage(context, { width: 1280, height: 900 });
     await page.goto(`/runs?ws=${workspaceId}&agent=codex`);
     await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-    await page.getByText(runsJson.noRunsWithConditions).waitFor();
+    await page.getByText(runsJson.endedRuns.emptyWithConditions).waitFor();
     expect(await page.getByRole("option").count()).toBe(0);
   });
 });
@@ -411,6 +406,10 @@ async function newPage(
     await page.screenshot({ path: join(resultsDir, `${name}.png`), fullPage: true });
   });
   return page;
+}
+
+function runningLine(page: Page) {
+  return page.locator("[data-runner-cards]").getByRole("button", { name: runningKey });
 }
 
 async function openRuns(page: Page): Promise<void> {

@@ -45,7 +45,7 @@ import { startWorker } from "@ganger/worker";
 import type { RunningWorker } from "@ganger/worker";
 import type { ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import domain from "../../apps/web/messages/ko/domain.json" with { type: "json" };
+import { loadBoardRun } from "@ganger/app/runs/board-load";
 import runsJson from "../../apps/web/messages/ko/runs.json" with { type: "json" };
 import { startWebServer } from "./web-server.js";
 
@@ -162,24 +162,19 @@ describe("끝에서 끝까지 얇은 경로", () => {
       const records = getRunWithRecords(db, assigned.id)?.records;
       expect(records?.pullRequest?.displayId ?? null).toBe(scenario.pr === null ? null : "#pr");
 
-      const html = await fetchRuns(assigned.id);
-      const [title, meta, pill] = rowCells(html, scenario.key) ?? [];
+      const html = await fetchRuns();
+      const [title, word] = rowCells(html, scenario.key) ?? [];
       expect(title).toBe(`Ticket ${scenario.key}`);
-      expect(pill).toBe(domain.summary[scenario.summary]);
-      expect(meta).toContain(domain.agentResult[scenario.agentResult]);
-      expect(meta?.includes(domain.prState[scenario.prState])).toBe(
-        scenario.pr !== null || scenario.prState !== "none",
+      expect(word).toContain(
+        runsJson.word[scenario.summary === "succeeded" ? "done" : scenario.summary],
       );
-      const panel = panelText(html);
-      expect(panel).toContain(scenario.key);
-      expect(panel).toContain(domain.summary[scenario.summary]);
-      expect(panel).toContain(domain.agentResult[scenario.agentResult]);
-      expect(panel).toContain(
-        scenario.prState === "none"
-          ? runsJson.panel.prSection.none
-          : runsJson.panel.prSection.state[scenario.prState],
-      );
-      expect(panel.includes("#pr")).toBe(scenario.pr !== null);
+      const panelRun = loadBoardRun(db, workspaceId, assigned.id, new Date());
+      expect(panelRun).toMatchObject({
+        state: "ended",
+        summary: scenario.summary,
+        agentResult: scenario.agentResult,
+      });
+      expect(panelRun?.pullRequest?.displayId ?? null).toBe(scenario.pr === null ? null : "#pr");
     });
   }
 
@@ -293,10 +288,10 @@ async function waitForRun(
   }
 }
 
-async function fetchRuns(selected: RunId): Promise<string> {
+async function fetchRuns(): Promise<string> {
   const url = new URL("/runs", baseUrl);
   url.searchParams.set("ws", workspaceId);
-  url.searchParams.set("sel", selected);
+  url.searchParams.set("view", "all");
   const response = await fetch(url);
   expect(response.status).toBe(200);
   return response.text();
@@ -331,12 +326,7 @@ function rowCells(html: string, key: string): string[] | undefined {
       .split(/<[^>]+>/)
       .map((s) => s.trim())
       .filter((s) => s !== "" && !s.includes("="));
-    if (cells[0] === key) return [cells[1] ?? "", cells[3] ?? "", cells[4] ?? ""];
+    if (cells[0] === key) return [cells[1] ?? "", cells[3] ?? ""];
   }
   return undefined;
-}
-
-function panelText(html: string): string {
-  const panel = html.split("<aside").at(-1)?.split("</aside>")[0] ?? "";
-  return panel.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 }
