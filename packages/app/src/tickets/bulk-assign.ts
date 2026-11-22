@@ -8,6 +8,7 @@ export type BulkChoiceKind =
   | "ready"
   | "waiting"
   | "blocker-canceled"
+  | "blocker-unread"
   | "failed"
   | "canceled"
   | "succeeded"
@@ -20,12 +21,16 @@ export interface BlockerWaitHint {
   rest: number;
 }
 
+export const BLOCKER_UNREAD = { state: "unread" } as const;
+
+export type BlockerHint = BlockerWaitHint | typeof BLOCKER_UNREAD;
+
 export interface BulkChoice {
   ticket: TicketView;
   kind: BulkChoiceKind;
   selectable: boolean;
   initiallySelected: boolean;
-  waitingOn: BlockerWaitHint | null;
+  waitingOn: BlockerHint | null;
 }
 
 export type BulkAssignFailure = AssignRejectReason | "failed";
@@ -57,7 +62,7 @@ export function blockerWaitHint(
   return { state: "waiting", key: first.key, rest: unfinished.length - 1 };
 }
 
-function kindOf(ticket: TicketView, waitingOn: BlockerWaitHint | null): BulkChoiceKind | null {
+function kindOf(ticket: TicketView, waitingOn: BlockerHint | null): BulkChoiceKind | null {
   const run = lastRun(ticket);
   if (ticket.isParentIssue) return null;
   if (ticket.assignability.kind === "active-run") return null;
@@ -67,7 +72,14 @@ function kindOf(ticket: TicketView, waitingOn: BlockerWaitHint | null): BulkChoi
   if (ticket.assignability.kind === "no-mapping") return "no-mapping";
   if (run !== undefined) return run.summary;
   if (waitingOn === null) return "ready";
-  return waitingOn.state === "canceled" ? "blocker-canceled" : "waiting";
+  switch (waitingOn.state) {
+    case "waiting":
+      return "waiting";
+    case "canceled":
+      return "blocker-canceled";
+    case "unread":
+      return "blocker-unread";
+  }
 }
 
 function isSelectable(kind: BulkChoiceKind): boolean {
@@ -75,6 +87,7 @@ function isSelectable(kind: BulkChoiceKind): boolean {
     kind === "ready" ||
     kind === "waiting" ||
     kind === "blocker-canceled" ||
+    kind === "blocker-unread" ||
     kind === "failed" ||
     kind === "canceled"
   );
@@ -82,19 +95,20 @@ function isSelectable(kind: BulkChoiceKind): boolean {
 
 export function bulkChoices(
   children: ReadonlyArray<TicketView>,
-  waitHints: ReadonlyMap<string, BlockerWaitHint> = new Map(),
+  waitHints: ReadonlyMap<string, BlockerHint> = new Map(),
 ): BulkChoice[] {
   return children.flatMap((ticket): BulkChoice[] => {
     const hint = waitHints.get(ticket.id) ?? null;
     const kind = kindOf(ticket, hint);
     if (kind === null) return [];
+    const selectable = isSelectable(kind);
     return [
       {
         ticket,
         kind,
-        selectable: isSelectable(kind),
+        selectable,
         initiallySelected: kind === "ready" || kind === "waiting",
-        waitingOn: kind === "waiting" || kind === "blocker-canceled" ? hint : null,
+        waitingOn: selectable ? hint : null,
       },
     ];
   });
@@ -121,7 +135,7 @@ export function assignableChildCount(children: ReadonlyArray<TicketView>): numbe
 
 export function blockerReadTargets(children: ReadonlyArray<TicketView>): TicketView[] {
   return bulkChoices(children)
-    .filter((choice) => choice.kind === "ready")
+    .filter((choice) => choice.selectable)
     .map((choice) => choice.ticket);
 }
 

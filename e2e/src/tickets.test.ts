@@ -555,6 +555,66 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       await reread();
     }
   });
+
+  it("선행 티켓이 취소된 하위 티켓은 체크되지 않은 채 남아 할당되지 않는다(0176)", async () => {
+    const blockedKey = toTicketKey("ACME-801");
+    const freeKey = toTicketKey("ACME-802");
+    const originals = [blockedKey, freeKey].map((key) => {
+      const original = tracker.tickets.get(key);
+      if (original === undefined) throw new Error(`no ${key}`);
+      tracker.tickets.set(key, {
+        ...original,
+        ancestors: [
+          {
+            id: "issue-800",
+            key: toTicketKey("ACME-800"),
+            title: "Ticket number 800",
+            url: "https://tracker.example.com/ACME-800",
+            state: { name: "Todo", category: "unstarted" },
+          },
+        ],
+      });
+      return { key, original };
+    });
+    tracker.relations.set(blockedKey, {
+      priority: "none",
+      blockers: [
+        {
+          key: toTicketKey("ACME-700"),
+          title: "Ticket number 700",
+          state: { id: toTrackerStateId("canceled"), name: "Canceled", category: "canceled" },
+        },
+      ],
+    });
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      await list.getByRole("button", { name: "하위 2개 할당, ACME-800" }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      await dialog.getByText("ACME-700 티켓이 취소돼서 할당하면 Queued에 멈춰요").waitFor();
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      await expect.poll(() => choices.getByRole("checkbox", { checked: true }).count()).toBe(1);
+      await dialog.getByRole("button", { name: "1개 할당하기" }).click();
+
+      await dialog.waitFor({ state: "hidden" });
+      expect(listRuns(db, { ticket: { connection, key: blockedKey } })).toEqual([]);
+      expect(
+        listRuns(db, { ticket: { connection, key: freeKey } }).map((run) => run.state),
+      ).toEqual(["queued"]);
+    } finally {
+      tracker.relations.delete(blockedKey);
+      for (const run of listRuns(db, { ticket: { connection, key: freeKey } })) {
+        if (run.state !== "ended") endCanceled(run.id, new Date());
+      }
+      for (const { key, original } of originals) tracker.tickets.set(key, original);
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+    }
+  });
 });
 
 describe("Tickets 수동 할당(브라우저, 0054)", () => {

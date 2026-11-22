@@ -151,10 +151,13 @@
     "listLabel": "할당할 하위 티켓",
     "submit": "{count, number}개 할당하기",
     "submitting": "할당하는 중…",
+    "checkingBlockers": "선행 티켓 확인 중…",
     "close": "닫기",
     "hint": {
       "waiting": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요",
       "blocker-canceled": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 취소돼서 할당하면 Queued에 멈춰요",
+      "blocker-unread": "선행 티켓을 읽지 못했어요",
+      "runAndBlocker": "{run} · {blocker}",
       "failed": "지난 런이 Failed예요",
       "canceled": "지난 런이 Canceled예요",
       "succeeded": "지난 런이 Succeeded예요. 새 런은 티켓 패널에서 시작해요",
