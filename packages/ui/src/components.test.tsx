@@ -10,6 +10,7 @@ import {
   IssueGroupLabel,
   IssueGroupBody,
   IssueGroupLine,
+  useIssueGroupMotion,
   IssueList,
   IssueListFrame,
   IssueListHead,
@@ -1484,6 +1485,14 @@ describe("IssueList(티켓 0171)", () => {
     expect(html).not.toContain("data-issue-group-moving");
     expect(html).toContain('data-issue-line="still"');
     expect(html).not.toContain("transition-delay");
+  });
+
+  it("처음 그릴 때 움직임 단계가 없다(0175)", () => {
+    function FirstRender() {
+      const { phases } = useIssueGroupMotion("all");
+      return <span>{phases.size}</span>;
+    }
+    expect(renderToString(<FirstRender />)).toContain(">0<");
   });
 
   it("접히는 묶음 본문은 포커스를 받지 않고 줄이 흐려진다(0175)", () => {

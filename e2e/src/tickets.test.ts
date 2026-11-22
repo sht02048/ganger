@@ -453,6 +453,29 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       await child.waitFor();
       expect(await moving.count()).toBe(0);
       await page.getByRole("searchbox", { name: tickets.search.label }).fill("");
+      await child.waitFor();
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("true");
+
+      const narrowedMidMotion = await toggle.evaluate(async (button) => {
+        const search = document.querySelector('input[type="search"]');
+        if (!(button instanceof HTMLElement) || !(search instanceof HTMLInputElement))
+          throw new Error("no controls");
+        const movingCount = () => document.querySelectorAll("[data-issue-group-moving]").length;
+        button.click();
+        await Promise.resolve();
+        const beforeNarrowing = movingCount();
+        Reflect.set(HTMLInputElement.prototype, "value", "number 501", search);
+        search.dispatchEvent(new Event("input", { bubbles: true }));
+        await Promise.resolve();
+        const afterNarrowing = movingCount();
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        return { beforeNarrowing, afterNarrowing, afterTimers: movingCount() };
+      });
+      expect(narrowedMidMotion).toEqual({ beforeNarrowing: 1, afterNarrowing: 0, afterTimers: 0 });
+      await child.waitFor();
+      await page.getByRole("searchbox", { name: tickets.search.label }).fill("");
+      await child.waitFor();
+      await expect.poll(() => toggle.getAttribute("aria-expanded")).toBe("true");
 
       await page.emulateMedia({ reducedMotion: "reduce" });
       const reduced = await toggle.evaluate(async (button) => {
