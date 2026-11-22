@@ -453,6 +453,34 @@ describe("Run 상세의 처리할 일 띠와 배치 (0174)", () => {
     );
   });
 
+  it("CI 를 못 읽어도 마지막으로 아는 실패는 PR 구역에 실패로 보인다", () => {
+    const { db, ids } = seedDatabase();
+    const run = found(db, ids.get("ACME-2"));
+    if (run.pullRequest === null) throw new Error("no PR");
+    const html = render({
+      kind: "found",
+      run: {
+        ...run,
+        pullRequest: {
+          ...run.pullRequest,
+          ci: "unavailable",
+          signals: {
+            ciFailed: true,
+            checkTotal: null,
+            failedCount: 0,
+            failedChecks: [],
+            checksTruncated: false,
+            conflict: null,
+            behindBy: null,
+            checkedAt: minutes(100).toISOString(),
+          },
+        },
+      },
+    });
+    expect(valueOf(html, runJson.pr.ci)).toContain(runJson.ci.failure);
+    expect(valueOf(html, runJson.pr.ci)).not.toContain(runJson.ci.unavailable);
+  });
+
   it("지우는 중인 워크트리에는 지워 달라는 안내를 보이지 않는다", () => {
     const { db, ids } = seedDatabase();
     const id = ids.get("ACME-3");

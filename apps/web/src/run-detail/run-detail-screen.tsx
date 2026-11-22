@@ -544,7 +544,7 @@ function NextStepBand({
   if (isProblemStep(step)) {
     return (
       <ProblemCallout title={title} {...(action === null ? {} : { actions: action })}>
-        {details}
+        {stepDetail === null && (kept === null || step === "kept-worktree") ? undefined : details}
       </ProblemCallout>
     );
   }
@@ -674,7 +674,7 @@ function PrSection({ run }: { run: RunDetail }) {
               : {})}
           >
             {signals === null || signals.checkTotal === null
-              ? ci(pr.ci)
+              ? ci(ciFailed ? "failure" : pr.ci)
               : ciFailed
                 ? checksText(signals, signals.checkTotal, t)
                 : [ci(pr.ci), checksText(signals, signals.checkTotal, t)].join(
