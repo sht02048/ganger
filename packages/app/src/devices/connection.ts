@@ -9,6 +9,7 @@ import {
   ENROLLMENT_TTL_MS,
   hashToken,
 } from "../runner-setup/enrollment.js";
+import type { DeviceStreams } from "./streams.js";
 
 const DEVICE_TOKEN_BYTES = 32;
 const FORGET_AFTER_MS = 60 * 60_000;
@@ -172,6 +173,12 @@ export function loadDevicesView(db: Database, webAddress: string | null, now: Da
 export const deviceIdInput = z.object({ id: z.uuid() });
 export const startConnectionInput = z.object({ replacing: z.uuid().optional() });
 
-export function removeDeviceById(db: Database, id: string, now: Date): { ok: boolean } {
-  return { ok: removeDevice(db, id, now) };
+export function removeDeviceById(
+  context: { db: Database; streams: DeviceStreams },
+  id: string,
+  now: Date,
+): { ok: boolean } {
+  const ok = removeDevice(context.db, id, now);
+  if (ok) context.streams.closeDevice(id);
+  return { ok };
 }

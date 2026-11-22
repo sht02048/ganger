@@ -7,8 +7,10 @@ import {
   authenticateDevice,
   connectDevice,
   loadDevicesView,
+  removeDeviceById,
   startDeviceConnection,
 } from "./connection.js";
+import { DeviceStreams } from "./streams.js";
 
 const at = new Date("2026-11-23T00:00:00.000Z");
 const SERVER = "https://ganger.example.com";
@@ -146,6 +148,20 @@ describe("기기 토큰", () => {
     const { deviceId, token } = connected(context);
     removeDevice(context.db, deviceId, at);
     expect(authenticateDevice(context.db, `Bearer ${token}`, at)).toBeNull();
+  });
+
+  it("기기를 지우면 그 기기의 열린 스트림을 닫고, 없는 기기는 아무것도 닫지 않는다", async () => {
+    const context = world();
+    const { deviceId } = connected(context);
+    const streams = new DeviceStreams();
+    const reader = streams.track(deviceId, new ReadableStream<Uint8Array>()).getReader();
+
+    expect(removeDeviceById({ db: context.db, streams }, "missing", at)).toEqual({ ok: false });
+    expect(streams.openCount(deviceId)).toBe(1);
+
+    expect(removeDeviceById({ db: context.db, streams }, deviceId, at)).toEqual({ ok: true });
+    expect((await reader.read()).done).toBe(true);
+    expect(streams.openCount(deviceId)).toBe(0);
   });
 
   it("기기 목록 화면 값에 토큰, 해시, Expo 푸시 주소가 없다", () => {

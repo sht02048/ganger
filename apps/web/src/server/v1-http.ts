@@ -1,13 +1,17 @@
 import { CONTRACT_VERSION } from "@ganger/api";
 import type { V1ErrorReason, V1Meta } from "@ganger/api";
-import { authenticateDevice, connectDevice } from "@ganger/app/devices/connection";
+import {
+  authenticateDevice,
+  connectDevice,
+  removeDeviceById,
+} from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
 import { loadHomePage } from "@ganger/app/home/load";
 import { parseTimeZone } from "@ganger/app/time-zone";
-import { removeDevice } from "@ganger/db";
 import { PRODUCT_VERSION } from "../identity/identity";
 import { getDatabase } from "./database";
 import { getDeviceConnectionCodes } from "./device-connection-codes";
+import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
 
 const NO_STORE = { "cache-control": "no-store" };
@@ -48,7 +52,7 @@ export async function serveV1Connect(request: Request): Promise<Response> {
 export function serveV1Disconnect(request: Request): Response {
   const deviceId = requestDevice(request);
   if (deviceId === null) return v1Error(401, "invalid-token");
-  removeDevice(getDatabase(), deviceId, new Date());
+  removeDeviceById({ db: getDatabase(), streams: getDeviceStreams() }, deviceId, new Date());
   return v1Data({ disconnected: true });
 }
 
