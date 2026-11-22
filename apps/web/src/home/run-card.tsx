@@ -22,6 +22,7 @@ import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlView } from "@ganger/app/run-control-view";
 import { questionSummary } from "@ganger/app/question";
 import { allBlockersOf, blockerReasonOf } from "@ganger/app/runs/model";
+import type { BlockerReason } from "@ganger/app/runs/model";
 import { BlockerChipList } from "../blockers";
 import { useRunText } from "./run-text";
 
@@ -186,12 +187,17 @@ function useCardParts(
         return { detail: text.queued(run), meta: runner, time: elapsed(run.waitMs) };
       const stuck = waiting.kind === "blockers-stuck";
       const blockers = allBlockersOf(waiting);
+      const keylessLine = keylessBlockerLine(waiting);
       return {
-        ...(blockers.length === 0 ? {} : { blockers: <BlockerChipList blockers={blockers} /> }),
+        ...(blockers.length === 0
+          ? {}
+          : {
+              blockers: <BlockerChipList blockers={blockers} cycleKey={cycleBlockerKey(waiting)} />,
+            }),
         stuck,
         meta: [
           run.cancelling ? t("cancelling") : null,
-          text.queued(run),
+          keylessLine === null ? text.queued(run) : t(`blockerLine.${keylessLine}`),
           all ? run.workspace.name : null,
         ]
           .filter((part) => part !== null)
@@ -314,6 +320,19 @@ function useCardParts(
       };
     }
   }
+}
+
+function keylessBlockerLine(
+  reason: BlockerReason,
+): "waiting" | "canceled" | "unreadable" | "cycle" | null {
+  if (reason.blockers.length === 0) return null;
+  return reason.kind === "blockers-waiting" ? "waiting" : reason.cause;
+}
+
+function cycleBlockerKey(reason: BlockerReason): string | null {
+  return reason.kind === "blockers-stuck" && reason.cause === "cycle"
+    ? (reason.blocker?.key ?? null)
+    : null;
 }
 
 function firstLineOf(body: string): string {
