@@ -13,9 +13,9 @@ blocked_by: [0107]
 
 - 운영자가 열린 질문 9를 정한 뒤 범위를 채운다. 정하기 전에는 시작하지 않는다.
 - 지금 서버 규칙: 끝나지 않은 런이 있는 티켓은 할당할 수 없다(`active-run`). Disconnected 런은 끝나지 않은 런이라 다시 맡길 수 없다.
-- `assignTicket` 입력은 `connection`, `ticketKey`, `trackerProject`, `runnerProject`, `agent`가 필수이고 `runnerId`는 비우면 자동, 값을 주면 고정이다(ADR 0018, 티켓 0155). `assignTickets`는 러너를 고르지 않는다.
-- `continueRunFrom`은 워크트리가 남은 끝난 런에서 운영자의 말을 받아 같은 러너에 새 런을 만든다(티켓 0149).
-- v1에 여는 쓰기는 모두 `requestId`가 필수다(M25). `assignTicket`과 `assignTickets`에는 아직 이 보호가 없어 v1에 열 때 더한다.
+- `assignTicket` 입력은 `connection`, `ticketKey`, `trackerProject`, `runnerProject`, `agent`가 필수이고 `runnerId`는 `null`이면 자동, 값을 주면 고정이다(ADR 0018, 티켓 0155). `assignTickets`는 러너를 고르지 않는다.
+- `continueRunFrom`은 `continueRunBlock`이 허용하는 끝난 런에서 운영자의 말을 받아 같은 러너에 새 런을 만든다. 남기기로 했던 워크트리가 지워졌으면 같은 브랜치로 다시 만든다(티켓 0149).
+- v1에 여는 쓰기는 모두 `requestId`가 필수다(M25). `assignTicket`과 `assignTickets`에는 아직 이 보호가 없어 v1에 열 때 더한다. 할당은 요청 때 런이 없어 `run_action_requests`(`run_id` 필수)를 그대로 쓸 수 없으므로, 할당용 키와 저장할 곳을 이 티켓에서 만든다.
 - 기다리지 않고 시작은 모바일에서 뺀다(M28).
 
 ## 시작할 때 운영자와 정할 것

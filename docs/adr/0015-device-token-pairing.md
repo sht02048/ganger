@@ -29,6 +29,6 @@
 
 운영자 결정 M25~M27(스펙 0002 11절, 티켓 [0188](../tickets/0188-mobile-plan-refresh.md))로 v1 계약에 다음을 더한다. 토큰 방식과 위 결정은 바뀌지 않는다.
 
-- 변경 기록 SSE(ADR [0019](0019-query-cache-and-change-events.md))도 v1 아래에 이 기기 토큰 인증으로 연다. 기기를 지우면 이 연결도 닫힌다. 웹의 `/api/change-events/stream`은 그대로 둔다.
+- 변경 기록 SSE(ADR [0019](0019-query-cache-and-change-events.md))도 v1 아래에 이 기기 토큰 인증으로 연다. 위 「기기 목록에서 끊는다」대로 기기를 지우면 이 연결도 닫힌다. 웹의 `/api/change-events/stream`은 그대로 둔다.
 - v1의 모든 쓰기는 `requestId`가 필수이고, v1 응답에는 서버 버전과 계약 버전을 싣는다.
-- `request-guard`의 Host 거절(403)은 토큰 거절과 다른 응답이다. 앱은 둘을 갈라 안내한다(티켓 [0157](../tickets/0157-address-webhook-setup.md)).
+- `request-guard`의 Host 거절(403)은 토큰 거절과 다른 응답이다. 403 본문에는 이유 값이 없어, 앱은 `/api/identity`의 `webAccess`로 둘을 갈라 안내한다(티켓 [0157](../tickets/0157-address-webhook-setup.md)).
