@@ -656,6 +656,29 @@ describe("상위 이슈로 묶기(0171)", () => {
     expect(rowTexts(listOf(render(page))).get("ACME-6")).not.toContain("할당");
   });
 
+  it("자기 런만 거르기에 맞는 가운데 이슈는 묶기 보기에서 숨고 모든 티켓 보기에는 남는다(0176)", async () => {
+    const page = await grouped();
+    const failedRun = page.tickets
+      .flatMap((ticket) => ticket.runs)
+      .find((run) => run.state === "ended" && run.summary === "failed");
+    if (failedRun === undefined) throw new Error("no failed run");
+    const nested: TicketsPage = {
+      ...page,
+      tickets: page.tickets.map((ticket) => {
+        if (ticket.key === "ACME-5")
+          return { ...ticket, isParentIssue: true, runs: [failedRun], ancestors: [ref("ACME-6")] };
+        if (ticket.key === "ACME-3")
+          return { ...ticket, runs: [failedRun], ancestors: [ref("ACME-5"), ref("ACME-6")] };
+        return ticket.runs[0] === failedRun ? { ...ticket, runs: [] } : ticket;
+      }),
+    };
+    const groupedRows = rowTexts(listOf(render(nested, { filter: "todo" })));
+    expect(groupedRows.has("ACME-5")).toBe(false);
+    expect(groupedRows.has("ACME-3")).toBe(true);
+    const flatRows = rowTexts(listOf(render(nested, { filter: "todo", view: "flat" })));
+    expect(flatRows.has("ACME-5")).toBe(true);
+  });
+
   it("할 일 칸은 테두리 버튼이고 노란 주 버튼을 쓰지 않는다", async () => {
     const list = listOf(render(await grouped(), { view: "flat" }));
     expect(text(list)).toContain("답하기");

@@ -297,6 +297,50 @@ describe("묶기 보기의 거르기·찾기(0171)", () => {
     expect(visibleGrouping(own, "todo", "").groups).toEqual([]);
   });
 
+  describe("가운데 단계 상위 이슈(0176)", () => {
+    const failedRun: TicketRun = {
+      id: "run-failed",
+      runnerName: "runner-a",
+      state: "ended",
+      endedAt: "2026-11-22T00:00:00.000Z",
+      endedAgoMs: 0,
+      agentResult: "reported-failure",
+      prState: "none",
+      laterPrState: null,
+      pullRequest: null,
+      summary: "failed",
+    };
+    const nested = [
+      ticket("TOP", parentIssue),
+      ticket("MID", { ...parentIssue, ...under("TOP"), runs: [failedRun] }),
+      ticket("LEAF", { ...under("MID", "TOP"), runs: [failedRun] }),
+      ticket("OTHER", under("MID", "TOP")),
+    ];
+    const nestedGrouping = groupTickets(nested);
+    const shown = (filter: Parameters<typeof visibleGrouping>[1]) =>
+      visibleGrouping(nestedGrouping, filter, "").groups.flatMap(({ children }) =>
+        children.map((child) => child.key),
+      );
+
+    it("자기 런만 거르기에 맞으면 숨기고 그 아래 맞는 하위 티켓은 보인다", () => {
+      expect(shown("todo")).toEqual(["LEAF"]);
+    });
+
+    it("맞는 하위 티켓이 없으면 묶음도 숨긴다", () => {
+      const onlyMiddle = groupTickets([
+        ticket("TOP", parentIssue),
+        ticket("MID", { ...parentIssue, ...under("TOP"), runs: [failedRun] }),
+        ticket("LEAF", under("MID", "TOP")),
+      ]);
+      expect(visibleGrouping(onlyMiddle, "todo", "").groups).toEqual([]);
+    });
+
+    it("전체 거르기와 거르기 개수에는 남는다", () => {
+      expect(shown("all")).toContain("MID");
+      expect(countByFilter(nested).todo).toBe(2);
+    });
+  });
+
   it("찾는 말이 상위 이슈에 맞으면 묶음 전체를 보인다", () => {
     expect(keys("all", "결제")).toEqual({ groups: [["P", ["B", "A"]]], loose: [] });
   });
