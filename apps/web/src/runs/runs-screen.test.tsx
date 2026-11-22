@@ -26,6 +26,7 @@ function render(page: RunsBoardPage, options: { runnerId?: string } = {}) {
       onSelect={noop}
       onOpen={noop}
       onPickWorkspace={noop}
+      onOpenRunnerRuns={noop}
       onShowMoreEnded={noop}
       runHref={(id) => `/runs/${id}`}
     />,
@@ -92,7 +93,7 @@ describe("Runs 두 구역(0173)", () => {
     const text = textOf(html);
     expect(text).toContain("러너와 끊긴 런이 1개 있어요.");
     expect(text).toContain("지금 1개가 돌고, 1개가 답을 기다려요.");
-    expect(text).toContain("2개는 자리를 기다려요.");
+    expect(text).toContain("2개는 시작을 기다려요.");
     expect(text).toContain(runsJson.now.title);
     expect(text).toContain(runsJson.endedRuns.title);
     expect(html).not.toContain("묶음으로 거르기");
@@ -141,17 +142,26 @@ describe("Runs 두 구역(0173)", () => {
     const html = render({
       ...page,
       active: [],
-      runners: [{ id: "idle", name: "idle", online: true, capacity: 3, used: 0 }],
+      runners: [
+        {
+          id: "idle",
+          name: "idle",
+          online: true,
+          capacity: 3,
+          used: 0,
+          otherWorkspaces: { count: 0, onlyWorkspaceId: null },
+        },
+      ],
     });
     expect(textOf(html)).toContain(runsJson.now.noRuns);
     expect(textOf(html)).toContain(runsJson.situation.none);
     expect(html).not.toContain("빈 자리");
   });
 
-  it("넓은 화면의 DOM 은 러너 카드 뒤에 자리를 기다리는 카드를 둔다", () => {
+  it("좁은 화면 탭 순서를 위해 DOM 은 기다리는 런 카드를 러너 카드 앞에 둔다", () => {
     const { db } = seedDatabase();
     const html = render(loadRunsBoard(db, undefined, now));
-    expect(html.indexOf("data-runner-cards")).toBeLessThan(html.indexOf("data-waiting-card"));
+    expect(html.indexOf("data-waiting-card")).toBeLessThan(html.indexOf("data-runner-cards"));
   });
 
   it("조건으로 카드가 비면 러너가 없다고 하지 않고, 다른 Workspace 의 자리는 그렇게 말한다", () => {
@@ -163,7 +173,16 @@ describe("Runs 두 구역(0173)", () => {
     const other = render({
       ...page,
       active: [],
-      runners: [{ id: "busy", name: "busy", online: true, capacity: 3, used: 1 }],
+      runners: [
+        {
+          id: "busy",
+          name: "busy",
+          online: true,
+          capacity: 3,
+          used: 1,
+          otherWorkspaces: { count: 1, onlyWorkspaceId: "ws-other" },
+        },
+      ],
     });
     expect(textOf(other)).toContain("다른 Workspace에서 1개가 돌아요");
   });

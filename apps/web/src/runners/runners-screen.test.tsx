@@ -16,7 +16,8 @@ import { loadRunnersPage } from "@ganger/app/runners/load";
 import { runnersMessages } from "./messages";
 import { failedChecksFirst, problemRunnersFirst } from "@ganger/app/runners/model";
 import type { OccupyingRun, RunnerView, RunnersPage } from "@ganger/app/runners/model";
-import { addRunnerHref, runnerRunsHref, RunnersScreen } from "./runners-screen";
+import { runnerRunsHref } from "../runs/hrefs";
+import { addRunnerHref, RunnersScreen } from "./runners-screen";
 import type { RunnerActions } from "./runners-screen";
 
 const panel = runnersJson.panel;

@@ -113,6 +113,9 @@ function RunsRoute() {
             }),
           });
         }}
+        onOpenRunnerRuns={(workspaceId, runnerId) => {
+          void navigate({ search: { ws: workspaceId, runner: runnerId } });
+        }}
         onEndedViewChange={(view) => narrow({ view })}
         onPeriodChange={(days) => narrow({ days: days === DEFAULT_ENDED_DAYS ? undefined : days })}
         onRunnerChange={(next) => narrow({ runner: next })}

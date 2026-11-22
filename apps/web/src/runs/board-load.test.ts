@@ -142,7 +142,7 @@ describe("Runs 보드 읽기(0173)", () => {
         runNextStep(nextStepInputOfDetail(detail.run)),
       );
     }
-    expect(loadBoardRun(db, undefined, disconnected, now)?.nextStep).toBe("disconnected");
+    expect(loadBoardRun(db, undefined, disconnected, now)?.nextStep).toBe("none");
   });
 
   it("이어서 맡길 수 있는지는 목록이 아니라 고른 런 하나를 읽을 때 정한다", () => {

@@ -25,6 +25,7 @@ const base = {
   attention: false,
   runnerId: "a",
   waitingFor: null,
+  handledInput: null,
   nextStep: "none" as const,
   canContinue: false,
 };
@@ -134,7 +135,14 @@ function ended(
 }
 
 function seat(id: string, online = true, capacity = 2): RunnerSeats {
-  return { id, name: id, online, capacity, used: 0 };
+  return {
+    id,
+    name: id,
+    online,
+    capacity,
+    used: 0,
+    otherWorkspaces: { count: 0, onlyWorkspaceId: null },
+  };
 }
 
 describe("러너 카드", () => {

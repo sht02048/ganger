@@ -12,6 +12,7 @@ import {
 } from "../../run-detail/actions";
 import { runMessages } from "../../run-detail/messages";
 import { RunDetailScreen } from "../../run-detail/run-detail-screen";
+import { runDetailRunnerHref } from "../../runs/hrefs";
 import { runDetailQuery } from "../../runs/queries";
 import type { RunDetailPage } from "@ganger/app/run-detail/model";
 import { ScreenError } from "../../shell/screen-error";
@@ -76,9 +77,7 @@ function RunDetail({ runId }: { runId: string }) {
         page={page}
         runsHref={`/runs${search}`}
         runHref={(id) => `/runs/${encodeURIComponent(id)}${search}`}
-        runnerHref={(id) =>
-          `/runs${search === "" ? "?" : `${search}&`}runner=${encodeURIComponent(id)}`
-        }
+        runnerHref={(id) => runDetailRunnerHref(page, ws, id)}
         logStalled={!controlPending(page) && fetchCount() - logPollsFrom >= LOG_POLL_LIMIT}
         {...actions}
       />

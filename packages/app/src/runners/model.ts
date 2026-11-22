@@ -83,6 +83,17 @@ export interface RunnersPage {
   runners: RunnerView[];
 }
 
+export function runnerRunsWorkspace(
+  runner: Pick<RunnerView, "occupying" | "queued">,
+  current: string | undefined,
+): string | undefined {
+  const workspaces = new Set(
+    [...runner.occupying, ...runner.queued].map((run) => run.workspace.id),
+  );
+  const [only] = workspaces;
+  return workspaces.size === 1 ? only : current;
+}
+
 export type RunnerRowStatus = "offline" | "runner-issue" | "online";
 
 export function runnerRowStatus(runner: {

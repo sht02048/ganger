@@ -47,8 +47,8 @@ export type RunNextStepInput =
 
 export function runNextStep(run: RunNextStepInput): RunNextStep {
   if (run.state === "ended") return endedNextStep(run);
-  if (run.state === "disconnected") return "disconnected";
   if (run.cancelling) return "none";
+  if (run.state === "disconnected") return "disconnected";
   switch (run.state) {
     case "queued":
       return run.queuedReason.kind === "blockers-stuck" ? "blockers-stuck" : "none";
