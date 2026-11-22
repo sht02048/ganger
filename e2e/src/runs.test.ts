@@ -42,6 +42,7 @@ import type { TestContext } from "vitest";
 import runsJson from "../../apps/web/messages/ko/runs.json" with { type: "json" };
 import runJson from "../../apps/web/messages/ko/run.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
+import { waitForScreenQuerySettled } from "./query-settled.js";
 import { startWebServer } from "./web-server.js";
 
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
@@ -58,6 +59,7 @@ const runningKey = "ACME-RUN";
 const runningTitle = "Retry failed payment webhooks";
 const endedRunCount = 55;
 const endedPageSize = 50;
+const runsListKey = ["runs", "list"];
 
 let dir: string;
 let db: Database;
@@ -195,8 +197,7 @@ describe("Runs 화면(브라우저, 0056)", () => {
     await runningLine(page).click();
     await expect.poll(() => new URL(page.url()).searchParams.has("sel")).toBe(true);
     await page.reload();
-    await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-    await page.waitForLoadState("networkidle");
+    await waitForScreenQuerySettled(page, runsListKey);
     await dialog.getByRole("link", { name: runsJson.panel.openDetail }).waitFor();
 
     await page.getByRole("button", { name: runsJson.panel.close }).click();
@@ -326,7 +327,8 @@ describe("Runs 화면(브라우저, 0056)", () => {
       const page = await newPage(context, { width, height: 900 });
       await page.goto(`/settings?ws=${workspaceId}`);
       await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-      await page.waitForLoadState("networkidle");
+      await page.locator('main nav[aria-label="Settings 목차"]').waitFor();
+      await page.locator("main section#workspace").waitFor();
       return page.evaluate(() => {
         const nav = document.querySelector('main nav[aria-label="Settings 목차"]');
         const first = document.querySelector("main section#workspace");
@@ -414,8 +416,7 @@ function runningLine(page: Page) {
 
 async function openRuns(page: Page): Promise<void> {
   await page.goto(`/runs?ws=${workspaceId}`);
-  await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-  await page.waitForLoadState("networkidle");
+  await waitForScreenQuerySettled(page, runsListKey);
 }
 
 function seed(db: Database): void {
