@@ -283,6 +283,50 @@ describe("PR 머지 때 티켓 상태 바꾸기", () => {
     expect(h.tracker.stateChanges).toEqual([]);
   });
 
+  it("도는 런의 PR이 이미 머지된 것을 본 뒤 상태를 골라도 바꾸지 않는다", async () => {
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    chooseMergedState();
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    expect(current(run).state).toBe("running");
+    expect(h.tracker.stateChanges).toEqual([]);
+  });
+
+  it("머지 상태로 바꾼 뒤에는 실패했던 시작 상태로 되돌리지 않는다", async () => {
+    saveWorkspaceTrackerProject(h.db, {
+      workspaceId: toWorkspaceId("ws-1"),
+      connection,
+      projectId: trackerProject,
+      name: "Web",
+      inProgressStateId: inProgress,
+      mergedStateId: mergedState,
+    });
+    vi.spyOn(h.tracker, "setState")
+      .mockRejectedValueOnce(new Error("network"))
+      .mockRejectedValueOnce(new Error("network"));
+    const { run, worker } = await startOne();
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    await worker.tick();
+    expect(h.tracker.stateChanges).toEqual([{ key: run.ticket.key, stateId: mergedState }]);
+  });
+
+  it("상태 바꾸기가 not-found여도 런이 끝날 때 결과 댓글은 단다", async () => {
+    chooseMergedState();
+    const { run, runnerId, worker } = await startOne();
+    vi.spyOn(h.tracker, "setState").mockRejectedValueOnce(new AdapterError({ kind: "not-found" }));
+    h.putPullRequest(current(run), "merged");
+    h.advance(PR_POLL_INTERVAL_MS);
+    await worker.tick();
+    report(run, runnerId);
+    await worker.tick();
+    expect(recordsOf(run).trackerComment).not.toBeNull();
+  });
+
   it("트래커 호출이 실패하면 다음 바퀴에 다시 하고 워크트리 정리는 막지 않는다", async () => {
     chooseMergedState();
     const { run, runnerId, worker } = await startOne();

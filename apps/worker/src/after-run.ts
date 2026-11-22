@@ -100,7 +100,13 @@ async function markInProgress(
   run: ActiveRun,
   records: RunRecords,
 ): Promise<void> {
-  if (records.trackerStateSetAt !== null || context.ticketsGone.has(run.id)) return;
+  if (
+    records.trackerStateSetAt !== null ||
+    records.mergedStateSetAt !== null ||
+    context.ticketsGone.has(run.id)
+  ) {
+    return;
+  }
   const stateId =
     getWorkspaceTrackerProject(context.db, run.ticket.connection, run.trackerProject)
       ?.inProgressStateId ?? null;
@@ -143,7 +149,7 @@ async function markMerged(context: TickContext, run: StoredRun): Promise<void> {
     await tracker.setState(run.ticket.key, stateId);
   } catch (error) {
     if (!isTicketGone(error)) throw error;
-    forgetGoneTicket(context, run);
+    context.logger.warn("run.tracker_update_failed", { runId: run.id, error });
     context.unmarkedMerges.delete(run.id);
     return;
   }

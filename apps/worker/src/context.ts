@@ -51,6 +51,7 @@ export interface TickContext {
   agentCheckedAt: Map<RunId, number>;
   unrecordedComments: Map<RunId, { id: CommentId; at: Date }>;
   ticketsGone: Set<RunId>;
+  confirmedMerges: Set<RunId>;
   unmarkedMerges: Set<RunId>;
   autoAssign: AutoAssignState;
   blockerRefresh: BlockerRefreshState;
@@ -194,7 +195,9 @@ export function rememberConfirmedMerge(
   runId: RunId,
   prState: PrStateDecision["prState"],
 ): void {
-  if (prState === "merged") context.unmarkedMerges.add(runId);
+  if (prState !== "merged" || context.confirmedMerges.has(runId)) return;
+  context.confirmedMerges.add(runId);
+  context.unmarkedMerges.add(runId);
 }
 
 export async function readRunPrState(context: TickContext, run: StartedStoredRun): Promise<PrRead> {
