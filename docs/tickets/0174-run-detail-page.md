@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 ---
 
 # 0174 런 상세 페이지 정리
