@@ -8,6 +8,9 @@ import {
   ISSUE_STATE_KINDS,
   IconToggleGroup,
   IssueGroupLabel,
+  IssueGroupBody,
+  IssueGroupLine,
+  useIssueGroupMotion,
   IssueList,
   IssueListFrame,
   IssueListHead,
@@ -1471,5 +1474,45 @@ describe("IssueList(티켓 0171)", () => {
     expect(html).toContain('aria-current="true"');
     expect(html).toContain('aria-expanded="true"');
     expect(html).not.toMatch(/<button(?:(?!<\/button>)[\s\S])*<button/);
+  });
+
+  it("단계 없이 그린 묶음 본문은 움직임 표시가 없다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase={undefined} childCount={1}>
+        <IssueGroupLine index={0}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).not.toContain("data-issue-group-moving");
+    expect(html).toContain('data-issue-line="still"');
+    expect(html).not.toContain("transition-delay");
+  });
+
+  it("처음 그릴 때 움직임 단계가 없다(0175)", () => {
+    function FirstRender() {
+      const { phases } = useIssueGroupMotion("all");
+      return <span>{phases.size}</span>;
+    }
+    expect(renderToString(<FirstRender />)).toContain(">0<");
+  });
+
+  it("접히는 묶음 본문은 포커스를 받지 않고 줄이 흐려진다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase="closing" childCount={1}>
+        <IssueGroupLine index={0}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).toContain('data-issue-group-moving="closing"');
+    expect(html).toContain("inert");
+    expect(html).toContain('data-issue-line="fading"');
+  });
+
+  it("하위가 30개를 넘는 묶음은 줄 효과 없이 높이만 움직인다(0175)", () => {
+    const html = renderToString(
+      <IssueGroupBody phase="opening" childCount={31}>
+        <IssueGroupLine index={3}>줄</IssueGroupLine>
+      </IssueGroupBody>,
+    );
+    expect(html).toContain('data-issue-group-moving="opening"');
+    expect(html).toContain('data-issue-line="still"');
   });
 });

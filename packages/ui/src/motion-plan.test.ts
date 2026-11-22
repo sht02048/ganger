@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  ISSUE_LINE_MOTION_MAX_CHILDREN,
+  ISSUE_LINE_STAGGER_MS,
   MOTION_BURST_LIMIT,
   chooseMoveStyle,
   diffMotionOrders,
+  hasIssueLineMotion,
+  issueGroupPhaseFor,
+  issueGroupSettleMs,
+  issueLineDelayMs,
   keepsViewTransition,
   reconcileMotionRows,
   type MotionBox,
@@ -99,6 +105,42 @@ describe("시간 토큰 읽기", () => {
 describe("움직임 줄이기(M4)", () => {
   it("다른 조건이 모두 미끄러짐이어도 흐려진다", () => {
     expect(chooseMoveStyle({ ...slideInput, reducedMotion: true })).toBe("fade");
+  });
+});
+
+describe("상위 이슈 펼치고 접기(0175)", () => {
+  const timing = { openMs: 220, closeMs: 160, lineEnterMs: 200, lineFadeMs: 120 };
+
+  it("하위 줄은 30ms 간격이고 9번째 줄부터 8번째 줄과 함께 나타난다", () => {
+    expect(issueLineDelayMs(0, 12)).toBe(0);
+    expect(issueLineDelayMs(1, 12)).toBe(ISSUE_LINE_STAGGER_MS);
+    expect(issueLineDelayMs(7, 12)).toBe(210);
+    expect(issueLineDelayMs(8, 12)).toBe(210);
+    expect(issueLineDelayMs(11, 12)).toBe(210);
+  });
+
+  it("하위가 30개까지는 줄 효과가 있고 넘으면 뺀다", () => {
+    expect(hasIssueLineMotion(ISSUE_LINE_MOTION_MAX_CHILDREN)).toBe(true);
+    expect(hasIssueLineMotion(ISSUE_LINE_MOTION_MAX_CHILDREN + 1)).toBe(false);
+    expect(issueLineDelayMs(5, ISSUE_LINE_MOTION_MAX_CHILDREN + 1)).toBe(0);
+  });
+
+  it("움직임 줄이기면 단계 없이 바로 바뀐다", () => {
+    expect(issueGroupPhaseFor(true, true)).toBeNull();
+    expect(issueGroupPhaseFor(false, true)).toBeNull();
+    expect(issueGroupPhaseFor(true, false)).toBe("opening");
+    expect(issueGroupPhaseFor(false, false)).toBe("closing");
+  });
+
+  it("끝나는 시간은 가장 늦은 움직임을 기다린다", () => {
+    const opening = issueGroupSettleMs({ ...timing, phase: "opening", childCount: 12 });
+    expect(opening).toBeGreaterThanOrEqual(200 + 210);
+    const big = issueGroupSettleMs({ ...timing, phase: "opening", childCount: 31 });
+    expect(big).toBeGreaterThanOrEqual(220);
+    expect(big).toBeLessThan(200 + 210);
+    const closing = issueGroupSettleMs({ ...timing, phase: "closing", childCount: 12 });
+    expect(closing).toBeGreaterThanOrEqual(160);
+    expect(closing).toBeLessThan(220);
   });
 });
 
