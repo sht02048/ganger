@@ -92,6 +92,7 @@ export interface RunsScreenProps {
   onSelect: (runId: string | undefined) => void;
   onOpen: (runId: string) => void;
   onPickWorkspace: (workspaceId: string) => void;
+  onOpenRunnerRuns: (workspaceId: string, runnerId: string) => void;
   onEndedViewChange?: (view: EndedView) => void;
   onPeriodChange?: (days: RunBoardDays) => void;
   onRunnerChange?: (runnerId: string | undefined) => void;
@@ -258,7 +259,7 @@ function RunsBoard(props: RunsScreenProps) {
                     key={card.id}
                     card={card}
                     onSelect={onSelect}
-                    onPickWorkspace={props.onPickWorkspace}
+                    onOpenRunnerRuns={props.onOpenRunnerRuns}
                   />
                 ))
               )}
@@ -285,11 +286,11 @@ function RunsBoard(props: RunsScreenProps) {
 function RunnerRunsCard({
   card,
   onSelect,
-  onPickWorkspace,
+  onOpenRunnerRuns,
 }: {
   card: RunnerCard;
   onSelect: (runId: string) => void;
-  onPickWorkspace: (workspaceId: string) => void;
+  onOpenRunnerRuns: (workspaceId: string, runnerId: string) => void;
 }) {
   const t = useTranslations("runs.now");
   const elsewhere = card.otherWorkspaces;
@@ -329,7 +330,7 @@ function RunnerRunsCard({
               count={elsewhere.count}
               workspaceId={elsewhere.onlyWorkspaceId}
               runnerId={card.id}
-              onPickWorkspace={onPickWorkspace}
+              onOpenRunnerRuns={onOpenRunnerRuns}
             />
           )}
         </div>
@@ -342,12 +343,12 @@ function OtherWorkspaceLine({
   count,
   workspaceId,
   runnerId,
-  onPickWorkspace,
+  onOpenRunnerRuns,
 }: {
   count: number;
   workspaceId: string | null;
   runnerId: string;
-  onPickWorkspace: (workspaceId: string) => void;
+  onOpenRunnerRuns: (workspaceId: string, runnerId: string) => void;
 }) {
   const t = useTranslations("runs.now");
   const sentence = t("otherWorkspace", { count });
@@ -361,7 +362,7 @@ function OtherWorkspaceLine({
           onClick={(event) => {
             if (!isPlainClick(event)) return;
             event.preventDefault();
-            onPickWorkspace(workspaceId);
+            onOpenRunnerRuns(workspaceId, runnerId);
           }}
         >
           {sentence}
@@ -443,7 +444,7 @@ function dotStatus(word: RunWord): PillStatus {
       return "failed";
     case "answer-sent":
     case "permission-denied":
-      return "running";
+      return "queued";
     case "cancelling":
       return "canceled";
     case "running":

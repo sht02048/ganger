@@ -26,6 +26,7 @@ function render(page: RunsBoardPage, options: { runnerId?: string } = {}) {
       onSelect={noop}
       onOpen={noop}
       onPickWorkspace={noop}
+      onOpenRunnerRuns={noop}
       onShowMoreEnded={noop}
       runHref={(id) => `/runs/${id}`}
     />,

@@ -12,13 +12,27 @@ import {
 import type * as DbModule from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import domainJson from "../../messages/ko/domain.json" with { type: "json" };
+import runJson from "../../messages/ko/run.json" with { type: "json" };
 import runsJson from "../../messages/ko/runs.json" with { type: "json" };
+import { loadRunDetail } from "@ganger/app/run-detail/load";
+import type { RunDetail } from "@ganger/app/run-detail/model";
 import { runnerRunsWorkspace } from "@ganger/app/runners/model";
 import { runWord, runnerCards, situationParts, waitingRuns } from "@ganger/app/runs/board";
 import type { BoardRun, RunsBoardPage } from "@ganger/app/runs/board";
 import { loadBoardRun, loadRunsBoard } from "@ganger/app/runs/board-load";
 import { renderWithMessages } from "../testing/render";
-import { commerce, labs, minutes, now, offlineQueuedKey, seedDatabase } from "../testing/seed";
+import { runMessages } from "../run-detail/messages";
+import { RunDetailScreen } from "../run-detail/run-detail-screen";
+import {
+  commerce,
+  endedCases,
+  labs,
+  minutes,
+  now,
+  offlineQueuedKey,
+  seedDatabase,
+} from "../testing/seed";
 import { runDetailRunnerHref } from "./hrefs";
 import { runsMessages } from "./messages";
 import { RunPanelBody } from "./run-panel";
@@ -49,6 +63,7 @@ function screen(page: RunsBoardPage) {
       onSelect={noop}
       onOpen={noop}
       onPickWorkspace={noop}
+      onOpenRunnerRuns={noop}
       runHref={(id) => `/runs/${id}`}
     />,
     runsMessages,
@@ -184,6 +199,56 @@ describe("취소 중(0178)", () => {
     const run = boardRun(db, "ACME-12");
     expect(run.nextStep).toBe("none");
     expect(panel(run)).toContain(runsJson.panel.cancellingReason);
+  });
+});
+
+describe("런 상세의 취소 안내(0178)", () => {
+  function detailText(db: Database, id: RunId, change: Partial<RunDetail> = {}) {
+    const page = loadRunDetail(db, id, now);
+    if (page.kind !== "found") throw new Error("detail not found");
+    const resolved = () => Promise.resolve();
+    return textOf(
+      renderWithMessages(
+        <RunDetailScreen
+          page={{ ...page, run: { ...page.run, ...change } }}
+          runsHref="/runs"
+          runHref={(run) => `/runs/${run}`}
+          runnerHref={(runner) => `/runs?runner=${runner}`}
+          onAnswer={resolved}
+          onHumanCheck={resolved}
+          onDeny={resolved}
+          onCancel={resolved}
+          onRemoveWorktree={resolved}
+          onContinue={resolved}
+          onStopPreviousAgent={resolved}
+          onControl={() => Promise.resolve("requested" as const)}
+          onStartWithoutWaiting={resolved}
+          onSendAgentMessage={() => Promise.resolve("requested" as const)}
+          onRefreshLog={resolved}
+        />,
+        runMessages,
+      ),
+    );
+  }
+
+  it("취소 중인 끊긴 런은 패널과 같은 취소 안내를 보이고 끊김 안내를 빼요", () => {
+    const { db, ids } = seedDatabase();
+    const id = must(ids.get("ACME-12"));
+    requestRunCancel(db, id, minutes(110));
+    const body = detailText(db, id);
+    expect(runJson.reason.cancelling).toBe(runsJson.panel.cancellingReason);
+    expect(body).toContain(runJson.reason.cancelling);
+    expect(body).not.toContain(domainJson.runNextStep.body.disconnected);
+  });
+
+  it("처리할 일 띠가 있는 런은 취소 표시가 있어도 띠의 안내가 그대로예요", () => {
+    const { db, ids } = seedDatabase();
+    const failed = endedCases.find((c) => c.summary === "failed");
+    const id = must(failed === undefined ? undefined : ids.get(failed.key));
+    expect(loadBoardRun(db, commerce, id, now)?.nextStep).toBe("failed");
+    const body = detailText(db, id, { cancelPending: true });
+    expect(body).toContain(domainJson.runNextStep.body.failed);
+    expect(body).not.toContain(runJson.reason.cancelling);
   });
 });
 

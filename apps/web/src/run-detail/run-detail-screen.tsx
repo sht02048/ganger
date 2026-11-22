@@ -433,6 +433,7 @@ function Reason({ run }: { run: RunDetail }) {
   const queuedReasonText = useQueuedReasonText();
   const { clock } = useTime();
   const { status } = run;
+  if (run.cancelPending && status.state !== "ended") return t("cancelling");
   switch (status.state) {
     case "queued":
       return queuedReasonText(status.queuedReason);

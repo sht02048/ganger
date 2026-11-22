@@ -12,6 +12,7 @@ import {
   toRunnerKind,
   toRunnerProjectId,
   toTicketKey,
+  toTrackerProjectId,
   toTrackerStateId,
   toWorktreeRef,
 } from "@ganger/core";
@@ -31,6 +32,7 @@ import {
   saveWorkspace,
   saveWorkspaceTrackerProject,
   toCodeHostConnectionId,
+  toWorkspaceId,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
@@ -49,6 +51,9 @@ const fakeAdaptersModule = fileURLToPath(new URL("./browser/fake-adapters.ts", i
 const resultsDir = fileURLToPath(new URL("../test-results", import.meta.url));
 
 const runnerId = toRunnerId("runner-a");
+const otherRunnerId = toRunnerId("runner-b");
+const otherWorkspace = toWorkspaceId("ws-other");
+const otherProject = toTrackerProjectId("tp-other");
 const runnerProject = toRunnerProjectId("fake:acme/web");
 const agent = toAgentId("claude");
 const encryptionKey = new Uint8Array(32).fill(7);
@@ -130,6 +135,20 @@ describe("Runs 다듬기(브라우저, 0178)", () => {
     const tab = await opened;
     await tab.waitForURL(new RegExp(`/runs/${questionRun}`));
     expect(page.url()).toBe(listUrl);
+  });
+
+  it("다른 Workspace 문장을 누르면 수정키 없이도 링크와 같은 주소로 간다", async (context) => {
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await openRuns(page);
+    const link = page
+      .locator(`[data-runner-card="${otherRunnerId}"]`)
+      .getByRole("link", { name: runsJson.now.otherWorkspace.replace("{count}", "1") });
+    const href = await link.getAttribute("href");
+
+    await link.click();
+    await page.waitForURL((url) => `${url.pathname}${url.search}` === href);
+
+    expect(href).toBe(`/runs?ws=${otherWorkspace}&runner=${otherRunnerId}`);
   });
 
   it("좁은 화면에서 Tab 은 기다리는 런 카드에 먼저 닿는다", async (context) => {
@@ -238,6 +257,49 @@ function seed(db: Database): string {
     { id: toQuestionId("q-1"), body: "Which policy?", options: [], askedAt: new Date() },
   ]);
   assign(db, "ACME-WAIT", new Date());
+  saveWorkspace(db, { id: otherWorkspace, name: "Other" });
+  saveWorkspaceTrackerProject(db, {
+    workspaceId: otherWorkspace,
+    connection,
+    projectId: otherProject,
+    name: "Other",
+    inProgressStateId: toTrackerStateId("in-progress"),
+  });
+  saveMapping(db, { connection, trackerProject: otherProject, runnerProject, agent });
+  saveRunner(db, {
+    id: otherRunnerId,
+    kind: toRunnerKind("fake"),
+    name: "runner-b",
+    config: {},
+    capacity: 2,
+  });
+  recordRunnerCheck(db, {
+    runnerId: otherRunnerId,
+    online: true,
+    checkedAt: new Date(),
+    error: null,
+    projects: [{ id: runnerProject, displayName: "acme/web", setupState: "ready" as const }],
+    assignmentBlocked: false,
+  });
+  const away = assignRun(db, {
+    ticket: { connection, key: toTicketKey("OTHER-1") },
+    trackerProject: otherProject,
+    runnerProject,
+    agent,
+    runnerId: otherRunnerId,
+    now: new Date(),
+  });
+  if (!away.ok) throw new Error(away.reason);
+  must(
+    changeRunState(db, away.run.id, {
+      to: "running",
+      started: {
+        worktree: toWorktreeRef("wt-other"),
+        branch: "acme/wt-other",
+        agentRef: toAgentRef("agent-wt-other"),
+      },
+    }),
+  );
   return asked;
 }
 
