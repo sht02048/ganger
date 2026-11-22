@@ -164,14 +164,41 @@ export function demoTicketBody(title: string): string {
   return `${title}.\n\nThis is a demo ticket with fake data.`;
 }
 
+const DEMO_PARENT_INDEX = 8;
+const DEMO_CHILD_STATES = ["state-done", "state-done", "state-in-review", "state-todo"];
+
+function withDemoParent(tickets: TrackerTicket[]): TrackerTicket[] {
+  const parent = tickets[DEMO_PARENT_INDEX];
+  if (parent === undefined) return tickets;
+  return tickets.map((ticket, index) => {
+    const childIndex = index - DEMO_PARENT_INDEX - 1;
+    const stateId = DEMO_CHILD_STATES[childIndex];
+    if (stateId === undefined) return ticket;
+    return {
+      ...ticket,
+      state: states.find((state) => state.id === stateId) ?? ticket.state,
+      ancestors: [
+        {
+          id: `issue-${parent.key}`,
+          key: parent.key,
+          title: parent.title,
+          url: parent.url,
+          state: { name: parent.state.name, category: parent.state.category },
+        },
+      ],
+    };
+  });
+}
+
 export function trackerCatalog(spec: TrackerSpec, now: Date): TrackerCatalog {
   const tickets: TrackerTicket[] = [];
   let n = 0;
   for (const project of spec.projects) {
+    const projectTickets: TrackerTicket[] = [];
     for (const title of project.titles) {
       n += 1;
       const key = toTicketKey(`${spec.keyPrefix}-${n}`);
-      tickets.push({
+      projectTickets.push({
         key,
         title,
         body: demoTicketBody(title),
@@ -182,6 +209,7 @@ export function trackerCatalog(spec: TrackerSpec, now: Date): TrackerCatalog {
         updatedAt: new Date(now.getTime() - (n + 1) * 3_600_000),
       });
     }
+    tickets.push(...withDemoParent(projectTickets));
   }
   return {
     projects: spec.projects.map((project) => ({

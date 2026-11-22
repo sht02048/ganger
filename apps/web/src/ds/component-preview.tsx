@@ -11,7 +11,17 @@ import {
   Dialog,
   DialogClose,
   Field,
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
   Input,
+  IssueGroupLabel,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
   Menu,
   MenuItem,
   MenuRadio,
@@ -22,6 +32,7 @@ import {
   PanelHeader,
   PILL_STATUSES,
   PinnedToast,
+  ProgressRing,
   Row,
   RowActionSlot,
   RowReason,
@@ -518,6 +529,12 @@ export function ComponentSections() {
         </Section>
       </div>
 
+      <div id="issue-list">
+        <Section title={t("nav.issueList")} note={t("issueList.note")}>
+          <IssueListPreview />
+        </Section>
+      </div>
+
       <div id="dialog">
         <Section title={t("nav.dialog")} note={t("dialog.note")}>
           <Demo>
@@ -566,6 +583,85 @@ export function ComponentSections() {
           </Demo>
         </Section>
       </div>
+    </>
+  );
+}
+
+function IssueListPreview() {
+  const t = useTranslations("ds.issueList");
+  const [view, setView] = useState<"grouped" | "flat">("grouped");
+  const [expanded, setExpanded] = useState(true);
+  const [selected, setSelected] = useState("child");
+  const indented = view === "grouped";
+  return (
+    <>
+      <Demo>
+        {ISSUE_STATE_KINDS.map((kind) => (
+          <IssueStateIcon key={kind} kind={kind} label={t(`state.${kind}`)} />
+        ))}
+        <ProgressRing done={2} total={5} label={t("progress")} />
+        <IconToggleGroup
+          label={t("viewLabel")}
+          value={view}
+          onValueChange={setView}
+          items={[
+            { value: "grouped", label: t("grouped"), icon: <GroupedViewIcon /> },
+            { value: "flat", label: t("flat"), icon: <FlatViewIcon /> },
+          ]}
+        />
+      </Demo>
+      <IssueListFrame>
+        <IssueListHead
+          keyLabel={t("key")}
+          titleLabel={t("title")}
+          runLabel={t("run")}
+          indented={indented}
+        />
+        <IssueList label={t("listLabel")} onMove={() => {}}>
+          <IssueRow
+            rowKey="parent"
+            label={`ACME-10 ${t("parentTitle")}`}
+            selected={selected === "parent"}
+            tabbable={selected === "parent"}
+            onSelect={() => setSelected("parent")}
+            indent={indented ? "top" : "none"}
+            surface={indented ? (expanded ? "first" : "only") : "none"}
+            {...(indented
+              ? {
+                  toggle: {
+                    expanded,
+                    label: t(expanded ? "collapse" : "expand"),
+                    onToggle: () => setExpanded(!expanded),
+                  },
+                }
+              : {})}
+            icon={<ProgressRing done={2} total={5} label={t("progress")} />}
+            ticketKey="ACME-10"
+            title={t("parentTitle")}
+            strong
+            titleAfter="2/5"
+            run={t("runSummary")}
+          />
+          {indented && !expanded ? null : (
+            <IssueRow
+              rowKey="child"
+              label={`ACME-11 ${t("childTitle")}`}
+              selected={selected === "child"}
+              tabbable={selected === "child"}
+              onSelect={() => setSelected("child")}
+              indent={indented ? "child" : "none"}
+              surface={indented ? "last" : "none"}
+              icon={<IssueStateIcon kind="in-progress" label={t("state.in-progress")} />}
+              ticketKey="ACME-11"
+              title={t("childTitle")}
+              {...(indented ? {} : { below: `↳ ACME-10 ${t("parentTitle")}` })}
+              run={t("runChild")}
+              action={<Button compact>{t("action")}</Button>}
+            />
+          )}
+          <IssueGroupLabel rowKey="loose" name={t("noParent")} count={1} />
+        </IssueList>
+      </IssueListFrame>
     </>
   );
 }

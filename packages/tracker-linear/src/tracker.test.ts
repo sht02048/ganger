@@ -283,6 +283,75 @@ describe("조회", () => {
     expect(result.nextCursor).toBeNull();
   });
 
+  describe("상위 이슈 읽기(0171)", () => {
+    const issue = (identifier: string, parent: unknown = null) => ({
+      id: `id-${identifier}`,
+      identifier,
+      title: `${identifier} 제목`,
+      url: `https://linear.app/acme/issue/${identifier}`,
+      state: { name: "In Review", type: "started" },
+      parent,
+    });
+    const page = (parent: unknown) =>
+      withBody(lastPage(fixture("project-tickets")), (body) => {
+        const parsed = connectionBody.parse(body);
+        for (const connection of Object.values(parsed.data)) {
+          connection.nodes = connection.nodes.slice(0, 1).map((node) => ({
+            ...z.record(z.string(), z.unknown()).parse(node),
+            parent,
+          }));
+        }
+        return parsed;
+      });
+    const keysOf = async (parent: unknown) => {
+      const { tracker: t } = tracker(page(parent));
+      const { items } = await t.listProjectTickets(PROJECT);
+      return items[0]?.ancestors?.map((ancestor) => ancestor.key);
+    };
+
+    it("상위가 없으면 빈 목록이다", async () => {
+      await expect(keysOf(null)).resolves.toEqual([]);
+    });
+
+    it("1·2·3단계를 가까운 순서로 읽고 키·제목·주소·상태를 담는다", async () => {
+      await expect(keysOf(issue("ENG-1"))).resolves.toEqual(["ENG-1"]);
+      await expect(keysOf(issue("ENG-2", issue("ENG-1")))).resolves.toEqual(["ENG-2", "ENG-1"]);
+      await expect(keysOf(issue("ENG-3", issue("ENG-2", issue("ENG-1"))))).resolves.toEqual([
+        "ENG-3",
+        "ENG-2",
+        "ENG-1",
+      ]);
+      const { tracker: t } = tracker(page(issue("ENG-1")));
+      const { items } = await t.listProjectTickets(PROJECT);
+      expect(items[0]?.ancestors?.[0]).toEqual({
+        id: "id-ENG-1",
+        key: toTicketKey("ENG-1"),
+        title: "ENG-1 제목",
+        url: "https://linear.app/acme/issue/ENG-1",
+        state: { name: "In Review", category: "started" },
+      });
+    });
+
+    it("3단계를 넘는 값은 읽지 않고, 쿼리도 3단계까지만 묻는다", async () => {
+      const deep = issue("ENG-4", issue("ENG-3", issue("ENG-2", issue("ENG-1"))));
+      await expect(keysOf(deep)).resolves.toEqual(["ENG-4", "ENG-3", "ENG-2"]);
+      const { tracker: t, sent } = tracker(page(null));
+      await t.listProjectTickets(PROJECT);
+      expect(sent[0]?.query.match(/parent \{/g)).toHaveLength(3);
+    });
+
+    it("상위 이슈 모양이 틀리면 파싱에 실패한다", async () => {
+      const { tracker: t } = tracker(page({ id: "id-only" }));
+      await expect(t.listProjectTickets(PROJECT)).rejects.toBeInstanceOf(Error);
+    });
+
+    it("티켓 하나를 읽는 쿼리는 상위 이슈를 묻지 않는다", async () => {
+      const { tracker: t, sent } = tracker(fixture("ticket"));
+      await t.getTicket(KEY).catch(() => null);
+      expect(sent[0]?.query).not.toContain("parent");
+    });
+  });
+
   it("listLabeledTickets가 라벨과 시각으로 거르고 모든 쪽을 250개씩 읽는다", async () => {
     const { tracker: t, sent } = tracker(
       fixture("labeled-tickets"),

@@ -99,6 +99,11 @@ export function mergeTicketsPage(runs: TicketRunsData, tracker: TrackerTicketsDa
     runs.projects.map((project) => [projectKey(project.connection, project.projectId), project]),
   );
   const names: Names = { labelNames: labelNamesOf(tracker), repoNames: runs.repoNames };
+  const parentIssueIds = new Set(
+    tracker.tickets.flatMap((ticket) =>
+      ticket.ancestors.map((ancestor) => ticketId(ticket.connection, ancestor.key)),
+    ),
+  );
   const tickets = tracker.tickets.map((ticket): TicketView => {
     const id = ticketId(ticket.connection, ticket.key);
     const facts = runs.runsByTicket[id] ?? NO_RUNS;
@@ -118,6 +123,8 @@ export function mergeTicketsPage(runs: TicketRunsData, tracker: TrackerTicketsDa
       trackerProject: { id: project.projectId, name: project.name },
       trackerState: ticket.state,
       priority: ticket.priority,
+      ancestors: ticket.ancestors,
+      isParentIssue: parentIssueIds.has(id),
       blockerWait: facts.blockerWait,
       waitingTickets: runs.waitingByBlocker[id] ?? [],
       labels: ticket.labels.map((label) => ({

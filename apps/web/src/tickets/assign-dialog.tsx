@@ -37,6 +37,7 @@ export interface AssignDialogProps {
   runners: ReadonlyArray<RunnerChoice>;
   agents: ReadonlyArray<string>;
   triggerLabel: string;
+  triggerInRow?: boolean;
   onAssign: (input: AssignInput) => Promise<AssignResult>;
   onAssigned: () => void;
 }
@@ -47,6 +48,7 @@ export function AssignDialog({
   runners,
   agents,
   triggerLabel,
+  triggerInRow = false,
   onAssign,
   onAssigned,
 }: AssignDialogProps) {
@@ -97,7 +99,8 @@ export function AssignDialog({
   return (
     <Dialog
       trigger={triggerLabel}
-      triggerVariant="primary"
+      triggerVariant={triggerInRow ? "secondary" : "primary"}
+      triggerCompact={triggerInRow}
       title={t("title", { key: ticket.key })}
       description={t("description")}
       open={open}

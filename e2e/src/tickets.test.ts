@@ -65,6 +65,7 @@ let web: ViteDevServer;
 let baseUrl: string;
 let browser: Browser;
 let page: Page;
+let tracker: FakeTracker;
 const fakeAdapters: Plugin = {
   name: "e2e-tickets-adapters",
   enforce: "pre",
@@ -89,7 +90,7 @@ beforeAll(async () => {
   migrate(db);
   seed(db);
 
-  const tracker = new FakeTracker(fakeKind);
+  tracker = new FakeTracker(fakeKind);
   for (let i = 1; i <= trackerReadLimit + 1; i += 1) {
     tracker.addTicket({
       key: toTicketKey(`ACME-${i}`),
@@ -156,8 +157,8 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
     const allTab = page.getByRole("tab", { name: tickets.filter.all });
     expect(await allTab.textContent()).toContain(String(trackerReadLimit));
 
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    const options = list.getByRole("option");
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    const options = list.getByRole("listitem");
     await options.first().waitFor();
     const viewportHeight = page.viewportSize()?.height ?? 0;
     const rowPitch = 54;
@@ -168,10 +169,10 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
     await options.first().hover();
     await page.mouse.wheel(0, trackerReadLimit * rowPitch);
     await list
-      .getByRole("option", { name: `ACME-${trackerReadLimit} Ticket number ${trackerReadLimit}` })
+      .getByRole("button", { name: `ACME-${trackerReadLimit} Ticket number ${trackerReadLimit}` })
       .waitFor();
     expect(await options.count()).toBeLessThanOrEqual(mostRenderedRows);
-    expect(await list.getByRole("option", { name: `ACME-${trackerReadLimit + 1} ` }).count()).toBe(
+    expect(await list.getByRole("button", { name: `ACME-${trackerReadLimit + 1} ` }).count()).toBe(
       0,
     );
   });
@@ -179,14 +180,16 @@ describe("Tickets 목록 규모(브라우저, 0054)", () => {
   it("화살표로 그리지 않은 행까지 옮겨 갈 수 있다", async () => {
     await page.goto(`/tickets?ws=${workspaceId}`);
     await hydrated(page);
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    await list.getByRole("option").first().click();
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    await list.getByRole("button", { name: "ACME-1 Ticket number 1", exact: true }).click();
     for (let i = 0; i < 40; i += 1) {
       await page.keyboard.press("ArrowDown");
       await page.waitForTimeout(50);
     }
-    await expect.poll(() => page.locator(":focus").getAttribute("role")).toBe("option");
-    await expect.poll(focused).toBe("ACME-41Ticket number 41할당 전");
+    await expect
+      .poll(() => page.locator(":focus").getAttribute("data-issue-select"))
+      .not.toBeNull();
+    await expect.poll(focused).toBe("Ticket number 41");
   });
 });
 
@@ -197,13 +200,13 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     const heading = page.getByRole("heading", { level: 1, name: tickets.title });
     const tabs = page.getByRole("tablist", { name: tickets.filter.label });
     const columnHead = page.getByText(tickets.columns.lastRun, { exact: true }).first();
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    await list.getByRole("option").first().waitFor();
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    await list.getByRole("listitem").first().waitFor();
     const before = await Promise.all([heading, tabs, columnHead].map((l) => top(l)));
     const scroller = page.locator("[data-more-below]");
     expect(await scroller.getAttribute("data-more-below")).toBe("true");
 
-    await list.getByRole("option").first().hover();
+    await list.getByRole("listitem").first().hover();
     await page.mouse.wheel(0, 54 * 20);
     await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
     expect(await Promise.all([heading, tabs, columnHead].map((l) => top(l)))).toEqual(before);
@@ -230,8 +233,8 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     await page.getByText(tickets.empty, { exact: true }).waitFor();
     await page.getByRole("tab", { name: tickets.filter.assignable }).click();
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option")
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
       .first()
       .waitFor();
   });
@@ -241,13 +244,120 @@ describe("Tickets 머리·필터·검색(브라우저, 0070)", () => {
     await hydrated(page);
     const search = page.getByRole("searchbox", { name: tickets.search.label });
     await search.fill("number 1000");
-    const options = page.getByRole("listbox", { name: tickets.listLabel }).getByRole("option");
+    const options = page.getByRole("list", { name: tickets.listLabel }).getByRole("listitem");
     await expect.poll(() => options.count()).toBe(1);
-    expect(await options.first().textContent()).toBe("ACME-1000Ticket number 1000할당 전");
+    expect(await options.first().textContent()).toContain("ACME-1000Ticket number 1000");
     await search.fill("acme-99");
     await expect.poll(() => options.count()).toBe(11);
     await search.fill("없는 티켓");
     await page.getByText(fill(tickets.noMatch, { query: "없는 티켓" }), { exact: true }).waitFor();
+  });
+});
+
+describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
+  const parentKey = "ACME-500";
+  const childKeys = ["ACME-501", "ACME-502"].map((key) => toTicketKey(key));
+
+  async function reread(): Promise<void> {
+    await page.getByRole("button", { name: tickets.reread.action }).click();
+    await page.getByRole("button", { name: tickets.reread.action }).waitFor();
+    await page.waitForLoadState("networkidle");
+  }
+
+  function setParent(hasParent: boolean): void {
+    for (const key of childKeys) {
+      const child = tracker.tickets.get(key);
+      if (child === undefined) throw new Error(`no ${key}`);
+      const { ancestors: _previous, ...plain } = child;
+      tracker.tickets.set(
+        key,
+        hasParent
+          ? {
+              ...plain,
+              ancestors: [
+                {
+                  id: "issue-500",
+                  key: toTicketKey(parentKey),
+                  title: "Ticket number 500",
+                  url: "https://tracker.example.com/ACME-500",
+                  state: { name: "Todo", category: "unstarted" },
+                },
+              ],
+            }
+          : plain,
+      );
+    }
+  }
+
+  it("보기를 바꿔도 거르기와 찾는 말이 남고, 펼치기 버튼과 좁은 화면의 런 줄이 동작한다", async () => {
+    setParent(true);
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}&f=assignable`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      const child = list.getByRole("button", { name: "ACME-501 Ticket number 501" });
+      await child.waitFor();
+
+      const scroller = page.locator("[data-more-below]");
+      await scroller.evaluate((el) => el.scrollTo({ top: 52 * 54 }));
+      await list.getByRole("button", { name: "ACME-55 Ticket number 55", exact: true }).click();
+      await scroller.evaluate((el) => el.scrollTo({ top: 0 }));
+      await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(0);
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
+      await child.click();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      await list.getByRole("button", { name: "ACME-1 Ticket number 1", exact: true }).focus();
+      await page.keyboard.press("ArrowDown");
+      await expect.poll(focused).toBe("Ticket number 2");
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+
+      const search = page.getByRole("searchbox", { name: tickets.search.label });
+      await search.fill("number 501");
+      await child.waitFor();
+      await list
+        .getByRole("button", { name: fill(tickets.group.collapse, { key: parentKey }) })
+        .click();
+      await child.waitFor({ state: "detached" });
+      await list
+        .getByRole("button", { name: fill(tickets.group.expand, { key: parentKey }) })
+        .click();
+      await child.waitFor();
+      await page.getByRole("button", { name: tickets.view.flat }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.get("view")).toBe("flat");
+      expect(new URL(page.url()).searchParams.get("f")).toBe("assignable");
+      expect(await search.inputValue()).toBe("number 501");
+      await list.getByText(`↳ ${parentKey} Ticket number 500`).first().waitFor();
+
+      await page.getByRole("button", { name: tickets.view.grouped }).click();
+      await expect.poll(() => new URL(page.url()).searchParams.has("view")).toBe(false);
+      expect(await search.inputValue()).toBe("number 501");
+
+      const row = list.getByRole("listitem").filter({ hasText: "ACME-501" });
+      await expect.poll(() => row.locator("[data-run-cell]").isVisible()).toBe(true);
+      await page.setViewportSize({ width: 420, height: 720 });
+      await expect.poll(() => row.locator("[data-run-cell]").isVisible()).toBe(false);
+      await expect.poll(() => row.locator("[data-run-below]").isVisible()).toBe(true);
+      await page.setViewportSize({ width: 1280, height: 720 });
+    } finally {
+      setParent(false);
+      await reread();
+    }
   });
 });
 
@@ -270,8 +380,10 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await dialog.waitFor({ state: "hidden" });
     await expect.poll(focused).toBe(tickets.panel.openRun);
     await panel.getByRole("heading", { name: "Ticket number 1", exact: true }).waitFor();
-    const list = page.getByRole("listbox", { name: tickets.listLabel });
-    expect(await list.getByRole("option", { name: `${key} Ticket number 1` }).count()).toBe(0);
+    const list = page.getByRole("list", { name: tickets.listLabel });
+    expect(
+      await list.getByRole("button", { name: `${key} Ticket number 1`, exact: true }).count(),
+    ).toBe(0);
     expect(new URL(page.url()).searchParams.get("sel")).not.toBeNull();
   });
 
@@ -280,8 +392,8 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await hydrated(page);
     const key = `ACME-${labeledTicket}`;
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${key} Ticket number ${labeledTicket}` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${key} Ticket number ${labeledTicket}` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();
@@ -319,8 +431,8 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await hydrated(page);
     const key = "ACME-2";
     await page
-      .getByRole("listbox", { name: tickets.listLabel })
-      .getByRole("option", { name: `${key} Ticket number 2` })
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("button", { name: `${key} Ticket number 2` })
       .click();
     const panel = page.getByRole("region", { name: tickets.panel.label });
     await panel.getByRole("button", { name: tickets.panel.assign }).click();

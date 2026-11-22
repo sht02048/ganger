@@ -300,6 +300,19 @@ describe("ganger mcp 서버", () => {
     });
   });
 
+  it("티켓 목록은 상위 이슈 키를 주고 제목은 external 칸에 둔다(0171)", async () => {
+    const { json } = await call("list_tickets");
+    expect(json).toMatchObject({
+      tickets: [
+        {
+          key: "ACME-9",
+          parentIssue: { key: "ACME-8", [EXTERNAL_FIELD]: { title: EXTERNAL.parentTitle } },
+        },
+      ],
+    });
+    expect(JSON.stringify(json)).not.toContain('"ancestors"');
+  });
+
   it("공급자 한도에 닿은 러너를 기다리는 런은 한도 대기 사유와 풀릴 때까지 남은 시간을 준다", async () => {
     recordProviderUsage(seeded.db, {
       runnerId,

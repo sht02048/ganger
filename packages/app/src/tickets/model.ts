@@ -9,12 +9,15 @@ import type { BlockerReason, BlockerView } from "../runs/model.js";
 import type { Remote } from "../settings/model.js";
 import type { WorkspaceChoice } from "../shell/model.js";
 
+export type TicketRunWait = "question" | "permission" | "human-check";
+
 export type TicketRun =
   | {
       id: string;
       runnerName: string | null;
       state: "queued" | "running" | "waiting-for-input" | "paused" | "disconnected";
       elapsedMs: number;
+      waitingOn: TicketRunWait | null;
     }
   | {
       id: string;
@@ -56,6 +59,13 @@ export type TicketBlockersResult =
   | { ok: true; blockers: BlockerView[] }
   | { ok: false; reason: TrackerLoadError["reason"] };
 
+export interface TicketIssueRef {
+  key: string;
+  title: string;
+  url: string | null;
+  state: { name: string; category: TrackerStateCategory };
+}
+
 export interface TicketView {
   id: string;
   connection: string;
@@ -65,6 +75,8 @@ export interface TicketView {
   trackerProject: { id: string; name: string };
   trackerState: { name: string; category: TrackerStateCategory };
   priority: TicketPriority;
+  ancestors: ReadonlyArray<TicketIssueRef>;
+  isParentIssue: boolean;
   blockerWait: BlockerReason | null;
   waitingTickets: ReadonlyArray<WaitingTicket>;
   labels: ReadonlyArray<{ name: string; autoAssign: boolean }>;
@@ -166,6 +178,7 @@ export interface TrackerTicketView {
   state: { name: string; category: TrackerStateCategory };
   priority: TicketPriority;
   labels: ReadonlyArray<TrackerLabel>;
+  ancestors: ReadonlyArray<TicketIssueRef>;
 }
 
 export interface TrackerProjectLabels {
@@ -226,6 +239,11 @@ function isDone(run: TicketRun): boolean {
 }
 
 export function matchesFilter(ticket: TicketView, filter: TicketFilter): boolean {
+  if (filter === "assignable" && ticket.isParentIssue) return false;
+  return matchesRunFilter(ticket, filter);
+}
+
+export function matchesRunFilter(ticket: TicketView, filter: TicketFilter): boolean {
   const run = lastRun(ticket);
   switch (filter) {
     case "all":
@@ -244,7 +262,7 @@ export function matchesFilter(ticket: TicketView, filter: TicketFilter): boolean
   }
 }
 
-export function matchesSearch(ticket: TicketView, query: string): boolean {
+export function matchesSearch(ticket: Pick<TicketView, "key" | "title">, query: string): boolean {
   const needle = query.trim().toLocaleLowerCase();
   if (needle === "") return true;
   return (

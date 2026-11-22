@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest";
 import { sectionScrollTop } from "./components/settings-layout";
 
 import {
+  FlatViewIcon,
+  GroupedViewIcon,
+  ISSUE_STATE_KINDS,
+  IconToggleGroup,
+  IssueGroupLabel,
+  IssueList,
+  IssueListFrame,
+  IssueListHead,
+  IssueRow,
+  IssueStateIcon,
+  ProgressRing,
   InfoTip,
   SectionNav,
   SettingsGroup,
@@ -1388,5 +1399,65 @@ describe("설정 한 페이지 부품(티켓 0119)", () => {
     expect(sectionScrollTop({ ...base, sectionTop: 2000 })).toBe(784);
     expect(sectionScrollTop({ ...base, sectionTop: -500 })).toBe(0);
     expect(sectionScrollTop({ ...base, sectionTop: 400, maxScrollTop: -10 })).toBe(0);
+  });
+});
+
+describe("IssueList(티켓 0171)", () => {
+  it("상태 아이콘은 모양을 분류로 고르고 이름을 접근 이름으로 둔다", () => {
+    for (const kind of ISSUE_STATE_KINDS) {
+      const html = renderToString(<IssueStateIcon kind={kind} label="In Review" />);
+      expect(html).toContain(`data-issue-state="${kind}"`);
+      expect(html).toContain('aria-label="In Review"');
+    }
+  });
+
+  it("진행 고리는 0개 분모에도 그려지고 이름을 가진다", () => {
+    const html = renderToString(<ProgressRing done={0} total={0} label="없음" />);
+    expect(html).toContain('data-progress="0/0"');
+    expect(html).toContain('aria-label="없음"');
+  });
+
+  it("보기 토글은 고른 단추만 눌림이다", () => {
+    const html = renderToString(
+      <IconToggleGroup
+        label="보기"
+        value="b"
+        onValueChange={() => {}}
+        items={[
+          { value: "a", label: "가", icon: <GroupedViewIcon /> },
+          { value: "b", label: "나", icon: <FlatViewIcon /> },
+        ]}
+      />,
+    );
+    expect(html).toMatch(/aria-label="가"[^>]*aria-pressed="false"/);
+    expect(html).toMatch(/aria-label="나"[^>]*aria-pressed="true"/);
+  });
+
+  it("행의 고르기·펼치기·할 일은 서로 안에 들어가지 않은 단추다", () => {
+    const html = renderToString(
+      <IssueListFrame>
+        <IssueListHead keyLabel="키" titleLabel="제목" runLabel="런" indented />
+        <IssueList label="목록" onMove={() => {}}>
+          <IssueGroupLabel rowKey="head" name="상위 이슈 없음" count={1} />
+          <IssueRow
+            rowKey="a"
+            label="A-1 제목"
+            selected
+            tabbable
+            onSelect={() => {}}
+            indent="top"
+            toggle={{ expanded: true, label: "접기", onToggle: () => {} }}
+            icon={<IssueStateIcon kind="todo" label="Todo" />}
+            ticketKey="A-1"
+            title="제목"
+            run="Running"
+            action={<button type="button">할당</button>}
+          />
+        </IssueList>
+      </IssueListFrame>,
+    );
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain('aria-expanded="true"');
+    expect(html).not.toMatch(/<button(?:(?!<\/button>)[\s\S])*<button/);
   });
 });
