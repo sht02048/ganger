@@ -80,7 +80,8 @@ import {
   VIEW_CHANNEL,
 } from "../shared/view.js";
 import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
-import { navigationMenu } from "./navigation-menu.js";
+import { canStepHistory, navigationMenu } from "./navigation-menu.js";
+import type { HistoryDirection } from "./navigation-menu.js";
 import { screenOutlivedServerSwap, viewMenu } from "./view-menu.js";
 import {
   diagnosticsDownloadNotice,
@@ -965,13 +966,34 @@ export class Controller {
         navigationMenu({
           label: t("menu.navigate"),
           screenLabel: (screen) => t(`navigate.${screen}`),
+          backLabel: t("navigate.back"),
+          forwardLabel: t("navigate.forward"),
           enabled: this.serverUrl !== undefined,
           onNavigate: (screen) => this.navigateTo(screen),
+          onHistory: (direction) => this.stepHistory(direction),
         }),
         { label: t("menu.server"), submenu: items },
         { label: t("menu.window"), role: "windowMenu" },
       ]),
     );
+  }
+
+  private stepHistory(direction: HistoryDirection): void {
+    const window = this.window;
+    if (window === undefined || window.isDestroyed()) return;
+    const history = window.webContents.navigationHistory;
+    const allowed = canStepHistory(
+      {
+        activeIndex: history.getActiveIndex(),
+        length: history.length(),
+        urlAt: (index) => history.getEntryAtIndex(index).url,
+      },
+      direction,
+      this.serverUrl,
+    );
+    if (!allowed) return;
+    if (direction === "back") history.goBack();
+    else history.goForward();
   }
 
   private navigateTo(screen: NavScreen): void {

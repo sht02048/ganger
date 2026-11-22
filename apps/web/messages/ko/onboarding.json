@@ -5,6 +5,7 @@
   "stepDone": "완료",
   "eyebrow": "{step}/{total} · {name}",
   "back": "이전",
+  "backToSettings": "Settings로 돌아가기",
   "next": "다음",
   "finish": "설정 마치기",
   "nextLocked": "확인이 끝나야 다음으로 갈 수 있어요.",

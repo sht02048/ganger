@@ -33,6 +33,8 @@
     "makeDiagnostics": "진단 묶음 만들기…"
   },
   "navigate": {
+    "back": "뒤로",
+    "forward": "앞으로",
     "dashboard": "Dashboard",
     "tickets": "Tickets",
     "runs": "Runs",

@@ -568,7 +568,7 @@ describe("Runners", () => {
     const html = section(render(seededPage()), "Runners");
     const offline = row(html, "runner-b");
     expect(dots(offline)).toEqual(["offline"]);
-    expect(offline).toContain('href="/runners?sel=runner-b"');
+    expect(offline).toContain('href="/runners?ws=ws-commerce&amp;sel=runner-b"');
     expect(offline).toMatch(/role="img" aria-label="1자리 중 0자리 사용" data-tone="problem"/);
     expect(text(offline)).toBe("Offline runner-b 0/1");
     const online = row(html, "runner-a");
@@ -580,7 +580,7 @@ describe("Runners", () => {
     expect(html).toMatch(/<h3[^>]*>러너 1대에 문제가 있어요<\/h3>/);
     expect(text(html)).toContain("Offline이에요: runner-b(2 hr)");
     expect(html).toMatch(
-      /<a href="\/runners" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
+      /<a href="\/runners\?ws=ws-commerce" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
     );
   });
 

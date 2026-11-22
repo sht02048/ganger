@@ -353,6 +353,7 @@
   },
   "mcp": {
     "title": "MCP",
+    "back": "Settings로 돌아가기",
     "rowRead": "읽기만 열려 있어요",
     "rowWrite": "쓰기도 열려 있어요",
     "intro": "같은 기계의 MCP 클라이언트가 Ganger를 읽게 해요. 비밀 값은 어떤 결과에도 담지 않아요.",

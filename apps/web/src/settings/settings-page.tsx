@@ -9,6 +9,8 @@ import {
   SectionNav,
   SettingsGroup,
   SettingsLayout,
+  BackLink,
+  type BackLinkRenderProps,
   SettingsLinkRow,
   SettingsRow,
   SettingsSection,
@@ -78,7 +80,7 @@ export type SettingsLinkTarget =
   | { kind: "connection"; connectionId: string }
   | { kind: "runners" }
   | { kind: "mcp" }
-  | { kind: "settings" }
+  | { kind: "settings"; rowId?: string }
   | { kind: "createWorkspace" };
 
 export type RenderSettingsLink = (
@@ -100,9 +102,9 @@ export function settingsHref(target: SettingsLinkTarget, ws: string | undefined)
     case "mcp":
       return `/settings/mcp${search}`;
     case "settings":
-      return `/settings${search}`;
+      return `/settings${search}${target.rowId === undefined ? "" : `#${encodeURIComponent(target.rowId)}`}`;
     case "createWorkspace":
-      return "/onboarding?step=4";
+      return `/onboarding?${new URLSearchParams({ step: "4", from: "settings", ...(ws === undefined ? {} : { ws }) }).toString()}`;
   }
 }
 
@@ -112,6 +114,45 @@ export function plainSettingsLink(ws: string | undefined): RenderSettingsLink {
 
 export function projectRowId(connectionId: string, projectId: string): string {
   return `project-${connectionId}-${projectId}`;
+}
+
+export function connectionRowId(connectionId: string): string {
+  return `connection-${connectionId}`;
+}
+
+export const MCP_ROW_ID = "mcp-row";
+
+function SettingsBackAnchor({
+  renderLink,
+  rowId,
+  children,
+  ...anchor
+}: BackLinkRenderProps & {
+  renderLink: RenderSettingsLink;
+  rowId: string | undefined;
+  children?: ReactNode;
+}) {
+  return renderLink(
+    { kind: "settings", ...(rowId === undefined ? {} : { rowId }) },
+    { ...anchor, children },
+  );
+}
+
+export function SettingsBackLink({
+  label,
+  rowId,
+  renderLink,
+}: {
+  label: string;
+  rowId?: string;
+  renderLink: RenderSettingsLink;
+}) {
+  return (
+    <BackLink
+      label={label}
+      render={(anchor) => <SettingsBackAnchor renderLink={renderLink} rowId={rowId} {...anchor} />}
+    />
+  );
 }
 
 export interface SettingsScreenProps {
@@ -186,6 +227,7 @@ export function SettingsScreen({
           <SettingsSection id="advanced" title={t("sections.advanced")}>
             <SettingsGroup>
               <SettingsLinkRow
+                id={MCP_ROW_ID}
                 label={t("mcp.title")}
                 detail={page.install.mcp.writeAllowed ? t("mcp.rowWrite") : t("mcp.rowRead")}
                 render={(props) => renderLink({ kind: "mcp" }, props)}
@@ -877,6 +919,7 @@ function ConnectionRow({
   const detail = useConnectionWebhookDetail(connection, now);
   return (
     <SettingsLinkRow
+      id={connectionRowId(connection.id)}
       label={connection.name}
       detail={detail}
       detailTone={connection.webhook.kind === "rejected" ? "problem" : "default"}

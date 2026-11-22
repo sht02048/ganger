@@ -318,9 +318,12 @@ export {
   type ToasterProps,
 } from "./components/toast";
 export {
+  BackLink,
   ExternalIconLink,
   InfoTip,
   Tooltip,
+  type BackLinkProps,
+  type BackLinkRenderProps,
   type ExternalIconLinkProps,
   type InfoTipProps,
   type TooltipAction,

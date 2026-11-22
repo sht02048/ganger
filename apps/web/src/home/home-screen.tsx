@@ -306,7 +306,7 @@ export function HomeScreen({
               </KanbanColumn>
             </MotionScope>
             <div {...stylex.props(styles.runners)}>
-              <RunnersSection runners={page.runners.list} />
+              <RunnersSection runners={page.runners.list} runnersPath={runnersHref(page)} />
             </div>
           </div>
         </div>
@@ -510,7 +510,13 @@ function SettledCards({ runs, page, host }: { runs: HomeRun[]; page: HomePage; h
   );
 }
 
-function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
+function RunnersSection({
+  runners,
+  runnersPath,
+}: {
+  runners: DashboardRunner[];
+  runnersPath: (sel?: string) => string;
+}) {
   const t = useTranslations("home");
   const { duration } = useTime();
   const issues = runnerIssues({ list: runners });
@@ -560,7 +566,7 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
           <div {...stylex.props(styles.sideBlock)}>
             <ul {...stylex.props(styles.rows)}>
               {runners.map((runner) => (
-                <RunnerRow key={runner.id} runner={runner} />
+                <RunnerRow key={runner.id} runner={runner} href={runnersPath(runner.id)} />
               ))}
             </ul>
             {problemCount === 0 ? null : (
@@ -568,7 +574,7 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
                 title={t("runners.problemTitle", { count: problemCount })}
                 actions={
                   <a
-                    href="/runners"
+                    href={runnersPath()}
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
@@ -611,14 +617,14 @@ function runnerStatus(runner: DashboardRunner): PillStatus {
   }
 }
 
-function RunnerRow({ runner }: { runner: DashboardRunner }) {
+function RunnerRow({ runner, href: rowHref }: { runner: DashboardRunner; href: string }) {
   const t = useTranslations("home.runners");
   const statusName = useStatusName();
   const status = runnerStatus(runner);
   return (
     <li data-runner={runner.id}>
       <Row
-        href={href("/runners", { sel: runner.id })}
+        href={rowHref}
         leading={<StatusDot status={status}>{statusName(status)}</StatusDot>}
         trailing={
           <CapacityCells
@@ -658,6 +664,11 @@ function RunnerUsage({ runner }: { runner: DashboardRunner }) {
       })}
     </Text>
   );
+}
+
+function runnersHref(page: HomePage): (sel?: string) => string {
+  const ws = page.workspace.kind === "one" ? { ws: page.workspace.workspace.id } : {};
+  return (sel) => href("/runners", { ...ws, ...(sel === undefined ? {} : { sel }) });
 }
 
 function runsHref(page: HomePage): string {

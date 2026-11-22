@@ -206,7 +206,7 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await write.click();
     await page.getByText(settings.status.saved, { exact: true }).waitFor();
     expect(await write.getAttribute("aria-checked")).toBe("true");
-    await page.getByRole("main").getByRole("link", { name: settings.project.breadcrumb }).click();
+    await page.getByRole("main").getByRole("link", { name: settings.mcp.back }).click();
     await section(settings.sections.advanced).getByText(settings.mcp.rowWrite).waitFor();
   });
 
@@ -318,10 +318,10 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
       .getByRole("button", { name: fill(settings.mapping.addFirstLabel, { project: "API" }) })
       .click();
     await page.getByRole("menuitem", { name: "acme/api", exact: true }).click();
-    await page.getByRole("main").getByRole("link", { name: settings.project.breadcrumb }).click();
+    await page.getByRole("main").getByRole("link", { name: settings.project.back }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
     expect(new URL(page.url()).pathname).toContain("/settings/projects/");
-    await page.getByRole("main").getByRole("link", { name: settings.project.breadcrumb }).click();
+    await page.getByRole("main").getByRole("link", { name: settings.project.back }).click();
     await page.waitForURL((url) => url.pathname === "/settings");
     await section(settings.sections.projects).getByRole("link", { name: /^API/ }).click();
     await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-api/);
@@ -334,7 +334,7 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await openSettings(page);
     await section(settings.sections.projects).getByRole("link", { name: /^Web/ }).click();
     await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-web/);
-    const crumb = page.getByRole("main").getByRole("link", { name: settings.project.breadcrumb });
+    const crumb = page.getByRole("main").getByRole("link", { name: settings.project.back });
     expect(await crumb.getAttribute("aria-current")).toBeNull();
     await shot(page, "settings-project-1280");
     const state = page.getByRole("combobox", { name: settings.project.state });

@@ -45,6 +45,7 @@ import { LOG_POLL_LIMIT, runDetailPollMs } from "./actions";
 import { runMessages } from "./messages";
 import type { RunDetail, RunDetailPage } from "@ganger/app/run-detail/model";
 import { RunDetailScreen, timelineRows } from "./run-detail-screen";
+import type { RunDetailBack } from "./run-detail-screen";
 import { addExtraEnded, assign, extraEndedCases, startedOn, walk } from "./testing";
 import { nextStepInputOfDetail, runNextStep } from "@ganger/app/run-next-step";
 import { answerInput, submitAnswer } from "@ganger/app/home/actions";
@@ -58,13 +59,14 @@ const resolved = () => Promise.resolve();
 
 const labels = (html: string): string[] => buttonsOf(html).map((button) => button.label);
 
-function render(page: RunDetailPage, timeZone?: string): string {
+function render(page: RunDetailPage, timeZone?: string, back?: RunDetailBack): string {
   return renderWithMessages(
     <RunDetailScreen
       page={page}
       runsHref="/runs"
       runHref={(id) => `/runs/${id}`}
       runnerHref={(id) => `/runs?runner=${id}`}
+      {...(back === undefined ? {} : { back })}
       onAnswer={resolved}
       onHumanCheck={resolved}
       onDeny={resolved}
@@ -125,6 +127,25 @@ function found(db: Database, id: string | undefined): RunDetail {
   if (p.kind !== "found") throw new Error("not found");
   return p.run;
 }
+
+describe("Run 상세의 돌아가기 (0181)", () => {
+  const backName = (back?: RunDetailBack) => {
+    const { db, ids } = seedDatabase();
+    const html = render({ kind: "found", run: found(db, ids.get("ACME-10")) }, undefined, back);
+    return /<a href="\/runs"[^>]*aria-label="([^"]+)"/.exec(html)?.[1];
+  };
+
+  it("앱 안 기록이 없으면 Runs로 돌아간다", () => {
+    expect(backName()).toBe(runJson.backTo.runs);
+  });
+
+  it.each(["dashboard", "tickets", "runs", "run", "runners", "stats", "settings"] as const)(
+    "%s 에서 왔으면 그 화면 이름으로 돌아간다",
+    (origin) => {
+      expect(backName({ origin, go: () => {} })).toBe(runJson.backTo[origin]);
+    },
+  );
+});
 
 describe("Run 상세의 먼저 끝나야 하는 티켓 (0160)", () => {
   const blocker = (key: string, stateName: string, stateCategory: string) => ({

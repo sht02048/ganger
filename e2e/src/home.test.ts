@@ -470,7 +470,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
   it("러너 문제는 Runners 열의 러너 행과 빨간 상자로 보인다(0069)", async () => {
     await openHome(page);
     const runners = page.getByRole("region", { name: home.section.runners });
-    const offline = runners.locator('a[href="/runners?sel=runner-b"]');
+    const offline = runners.locator(`a[href="/runners?ws=${workspaceId}&sel=runner-b"]`);
     await offline.getByText("runner-b", { exact: true }).waitFor();
     const capacity = home.runners.capacity.replace("{total}", "1").replace("{used}", "0");
     await offline.getByRole("img", { name: capacity, exact: true }).waitFor();
@@ -478,7 +478,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
       name: home.runners.problemTitle.replace("{count}", "1"),
     });
     expect(await problem.getByRole("link", { name: home.runners.fix }).getAttribute("href")).toBe(
-      "/runners",
+      `/runners?ws=${workspaceId}`,
     );
   });
 

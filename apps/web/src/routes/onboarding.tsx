@@ -1,4 +1,5 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { BackLink } from "@ganger/ui";
+import { Link, createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo } from "react";
 import type { ChangeKind } from "@ganger/db/change-events-model";
 import { createTranslator } from "use-intl";
@@ -32,8 +33,10 @@ export const Route = createFileRoute("/onboarding")({
   validateSearch: z.object({
     step: z.number().int().optional().catch(undefined),
     direct: z.boolean().optional().catch(undefined),
+    from: z.literal("settings").optional().catch(undefined),
+    ws: z.string().optional().catch(undefined),
   }),
-  loaderDeps: ({ search }) => ({ step: search.step }),
+  loaderDeps: ({ search }) => ({ step: search.step, from: search.from, ws: search.ws }),
   preloadStaleTime: PRELOAD_FRESH_MS,
   loader: async ({ deps }) => {
     const loaded = await getOnboardingPage({
@@ -41,7 +44,11 @@ export const Route = createFileRoute("/onboarding")({
     });
     const pinned = stepToPin(loaded.page, deps.step);
     if (pinned !== null) {
-      throw redirect({ to: ONBOARDING_PATH, search: { step: pinned }, replace: true });
+      throw redirect({
+        to: ONBOARDING_PATH,
+        search: { step: pinned, from: deps.from, ws: deps.ws },
+        replace: true,
+      });
     }
     return loaded;
   },
@@ -91,8 +98,20 @@ function OnboardingRoute() {
         trackerProjects={trackerProjects}
         index={resolveStep(page, step)}
         onStep={(index) => {
-          void navigate({ search: { step: index + 1 } });
+          void navigate({ search: { step: index + 1, from: search.from, ws: search.ws } });
         }}
+        {...(search.from === "settings"
+          ? {
+              settingsBack: (
+                <BackLink
+                  label={t("backToSettings")}
+                  render={(anchor) => (
+                    <Link to="/settings" search={{ ws: search.ws }} {...anchor} />
+                  )}
+                />
+              ),
+            }
+          : {})}
         onFinish={() => {
           void navigate({ to: HOME_PATH });
         }}

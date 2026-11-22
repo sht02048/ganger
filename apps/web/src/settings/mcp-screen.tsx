@@ -2,7 +2,6 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Button,
   Card,
-  ChevronRightIcon,
   CodeBlock,
   InfoTip,
   PageHeader,
@@ -14,7 +13,6 @@ import {
   SettingsSection,
   Switch,
   Text,
-  linkStyles,
   showToast,
   textStyles,
 } from "@ganger/ui";
@@ -29,7 +27,12 @@ import { useTime } from "../format/time";
 import { browserClipboard, copyText } from "./clipboard";
 import { AutoSaveStatusText, RevertedMessage, useAutoSave } from "./row-state";
 import type { SettingsActions } from "./settings-screen";
-import { plainSettingsLink, type RenderSettingsLink } from "./settings-page";
+import {
+  MCP_ROW_ID,
+  SettingsBackLink,
+  plainSettingsLink,
+  type RenderSettingsLink,
+} from "./settings-page";
 
 type McpClient = "hermes" | "json";
 
@@ -47,17 +50,8 @@ export function McpScreen({
   renderLink = plainSettingsLink(ws),
 }: McpScreenProps) {
   const t = useTranslations("settings");
-  const back = renderLink(
-    { kind: "settings" },
-    {
-      ...stylex.props(linkStyles("quiet"), styles.crumb),
-      children: (
-        <>
-          {t("project.breadcrumb")}
-          <ChevronRightIcon />
-        </>
-      ),
-    },
+  const back = (
+    <SettingsBackLink label={t("mcp.back")} rowId={MCP_ROW_ID} renderLink={renderLink} />
   );
   return (
     <ScreenLayout header={<PageHeader lead={back} title={t("mcp.title")} />}>
@@ -204,7 +198,6 @@ function Recent({ recent, now }: { recent: ReadonlyArray<McpActionView>; now: st
 }
 
 const styles = stylex.create({
-  crumb: { display: "inline-flex", alignItems: "center", gap: space.s1 },
   tabs: {
     display: "flex",
     flexWrap: "wrap",

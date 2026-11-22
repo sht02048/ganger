@@ -288,7 +288,8 @@
     "content": "동시에 런 3개까지 돌릴 수 있어요",
     "iconAction": "닫기",
     "linkLabel": "Runners",
-    "linkContent": "Runners, Runner Issue 1개"
+    "linkContent": "Runners, Runner Issue 1개",
+    "backLabel": "Tickets로 돌아가기"
   },
   "dependencyGraph": {
     "note": "선행 관계를 상자와 화살표로 보여요. 앞 상자의 체크를 풀면 뒤 상자가 빨간 테두리로 바뀌어요.",

@@ -94,6 +94,8 @@ import {
 } from "./ticket-rows";
 import type { TicketListBlock, TicketListRow } from "./ticket-rows";
 
+export type OpenRun = (runId: string, place?: "answer") => void;
+
 export interface TicketsScreenProps {
   page: TicketsPage;
   workspaces: ReadonlyArray<WorkspaceSummary>;
@@ -104,7 +106,7 @@ export interface TicketsScreenProps {
   onFilterChange: (filter: TicketFilter) => void;
   onSelect: (ticketId: string) => void;
   onPickWorkspace: (workspaceId: string) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   onAssign: (input: AssignInput) => Promise<AssignResult>;
   onAssignMany: (input: BulkAssignInput) => Promise<BulkAssignResult>;
@@ -671,7 +673,7 @@ interface TicketListRowViewProps {
   groupPhase: IssueGroupPhase | undefined;
   onSelect: (id: string) => void;
   onToggle: (group: TicketGroup, expanded: boolean) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
   onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
@@ -937,7 +939,7 @@ function TicketRowActionButton({
 }: {
   ticket: TicketView;
   page: TicketsPage;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
 }) {
@@ -948,7 +950,7 @@ function TicketRowActionButton({
   if (action === "answer" || action === "open-run") {
     if (run === undefined) return null;
     return (
-      <Button compact onClick={() => onOpenRun(run.id)}>
+      <Button compact onClick={() => onOpenRun(run.id, action === "answer" ? "answer" : undefined)}>
         {action === "answer" ? t("answer") : t("openRun")}
       </Button>
     );
@@ -982,7 +984,7 @@ function ParentIssuePanel({
   titleRef: RefObject<HTMLDivElement | null>;
   onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
   onSelectTicket: (id: string) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   focusTitle: boolean;
   onFocusedTitle: () => void;
@@ -1317,7 +1319,7 @@ function TicketRuns({
   onOpenRuns,
 }: {
   ticket: TicketView;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
 }) {
   const t = useTranslations("tickets.panel");
@@ -1460,7 +1462,7 @@ function TicketPanel({
 }: {
   ticket: TicketView;
   page: TicketsPage;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   onSelectTicket: (ticketId: string) => void;
   focusTitle: boolean;
