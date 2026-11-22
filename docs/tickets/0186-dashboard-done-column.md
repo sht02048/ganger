@@ -26,5 +26,5 @@ blocked_by: []
 
 ## 결정
 
-- 모든 Workspace 보기의 머리 링크는 `/runs`다. Runs는 Workspace 하나만 보여 주므로 ws 없는 `/runs`는 첫 Workspace를 연다.
+- 모든 Workspace 보기의 머리 링크는 `/runs?view=all`이다. `view`가 없으면 Runs가 "확인할 런" 탭을 열어 숨긴 카드를 찾을 수 없다. Runs는 Workspace 하나만 보여 주므로 ws가 없으면 첫 Workspace를 연다.
 - 7일보다 오래된 Failed 꼬리표 카드는 Done 칸 개수에 들지만 Runs 기본 기간에는 없다.

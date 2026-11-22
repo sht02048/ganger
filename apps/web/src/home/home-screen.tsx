@@ -669,9 +669,8 @@ function runnersHref(page: HomePage): (sel?: string) => string {
 }
 
 function endedRunsHref(page: HomePage): string {
-  return page.workspace.kind === "one"
-    ? href("/runs", { ws: page.workspace.workspace.id, view: "all" })
-    : "/runs";
+  const ws = page.workspace.kind === "one" ? { ws: page.workspace.workspace.id } : {};
+  return href("/runs", { ...ws, view: "all" });
 }
 
 const styles = stylex.create({

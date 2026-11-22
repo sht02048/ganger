@@ -306,6 +306,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       expect(section(html, name)).not.toContain("Runs에서 보기");
   });
 
+  it("모든 Workspace 보기의 Done 칸 머리도 끝난 런 모두 탭으로 간다 (0186)", () => {
+    const done = section(render({ ...seededPage(), workspace: { kind: "all" } }), "Done");
+    expect(done).toMatch(/<a href="\/runs\?view=all" aria-label="Done \d+, Runs에서 보기"/);
+  });
+
   it("Done 칸 머리 개수는 보이는 카드 수 제한과 상관없이 칸에 든 런 전체다 (0163)", () => {
     const page = seededPage();
     const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
