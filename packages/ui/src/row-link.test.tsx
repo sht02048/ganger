@@ -23,9 +23,11 @@ function mount(node: ReactNode): HTMLAnchorElement {
   return link;
 }
 
-function press(target: Element, key: string) {
+function press(target: Element, key: string, modifiers: KeyboardEventInit = {}) {
   act(() => {
-    target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...modifiers }),
+    );
   });
 }
 
@@ -58,6 +60,10 @@ describe("RowLink(0184)", () => {
     act(() => link.click());
     press(link, "Enter");
     press(link, " ");
+    press(link, "Enter", { metaKey: true });
+    press(link, "Enter", { ctrlKey: true });
+    press(link, "Enter", { altKey: true });
+    press(link, " ", { ctrlKey: true });
     expect(onActivate).not.toHaveBeenCalled();
     expect(onValueChange).not.toHaveBeenCalled();
 

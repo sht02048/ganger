@@ -29,6 +29,7 @@ import {
   PanelList,
   PanelListRow,
   RowLink,
+  TextLink,
   PanelHeader,
   PanelSection,
   ProgressRing,
@@ -1622,18 +1623,25 @@ function TicketPanel({
 function RunPullRequest({ run }: { run: TicketRun & { state: "ended" } }) {
   const t = useTranslations("tickets.panel");
   const domain = useTranslations("domain");
+  const row = useTranslations("tickets.row");
   const state = currentPrState(run);
-  if (state === "none") return null;
-  const stateName = domain(`prState.${state}`);
+  const stateName = state === "none" ? null : domain(`prState.${state}`);
+  const pullRequest = run.pullRequest;
+  if (pullRequest === null)
+    return stateName === null ? null : (
+      <Text variant="meta">{t("prState", { state: stateName })}</Text>
+    );
+  const label = row("pullRequest", { pr: pullRequest.displayId });
   return (
     <Text variant="meta">
-      {run.pullRequest === null ? (
-        t("prState", { state: stateName })
+      {pullRequest.url === null ? (
+        label
       ) : (
-        <>
-          <RunPullRequestLink pullRequest={run.pullRequest} /> {stateName}
-        </>
+        <TextLink href={pullRequest.url} external>
+          {label}
+        </TextLink>
       )}
+      {stateName === null ? null : ` ${stateName}`}
     </Text>
   );
 }

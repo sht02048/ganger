@@ -147,6 +147,27 @@ describe("끝난 런의 PR 번호 링크(0184)", () => {
     expect(panel).not.toMatch(/<button(?:(?!<\/button>).)*\/pull\/138/s);
   });
 
+  it("PR 상태가 없는 런도 카드에 목록과 같은 번호 링크를 보인다", async () => {
+    const { context } = setupTickets();
+    const loaded = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", "open");
+    const page: TicketsPage = {
+      ...loaded,
+      tickets: loaded.tickets.map((ticket) =>
+        ticket.key === "ACME-1"
+          ? {
+              ...ticket,
+              runs: ticket.runs.map((run) =>
+                run.state === "ended" ? { ...run, prState: "none" as const } : run,
+              ),
+            }
+          : ticket,
+      ),
+    };
+    const panel = render(page, { selectedId: ticketId("conn-acme", "ACME-1") }).split("<aside")[1];
+    expect(text(panel ?? "")).toContain("PR #13850");
+    expect(panel).toContain(`href="${prUrl}"`);
+  });
+
   it("마지막 런 카드는 번호를 링크로 두고 PR 상태를 함께 말한다", async () => {
     const { context } = setupTickets();
     const page = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", "merged");

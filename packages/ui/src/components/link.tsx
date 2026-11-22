@@ -7,7 +7,7 @@ import { focusStyles } from "./focus";
 export type LinkTone = "accent" | "quiet" | "action" | "plain" | "row";
 
 export function linkStyles(tone: LinkTone = "accent"): ReadonlyArray<StyleArg> {
-  return [styles.base, styles[tone], focusStyles.ring];
+  return [styles.base, styles[tone], tone === "row" ? focusStyles.ringInset : focusStyles.ring];
 }
 
 export interface TextLinkProps {
@@ -38,9 +38,10 @@ function keepFromRow(event: SyntheticEvent) {
 }
 
 function keepKeyFromRow(event: KeyboardEvent<HTMLAnchorElement>) {
+  const activatesRow = event.key === "Enter" || event.key === " ";
   const leavesLink = event.key === "Tab" || event.key === "Escape";
-  if (leavesLink || event.metaKey || event.ctrlKey || event.altKey) return;
-  event.stopPropagation();
+  const isShortcut = event.metaKey || event.ctrlKey || event.altKey;
+  if (activatesRow || !(leavesLink || isShortcut)) event.stopPropagation();
 }
 
 export function RowLink({ href, children }: { href: string; children: ReactNode }) {
