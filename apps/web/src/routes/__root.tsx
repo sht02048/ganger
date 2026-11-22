@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Toaster, WindowChrome, WindowDragFrame, documentStyles } from "@ganger/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   ErrorComponent,
@@ -114,6 +115,7 @@ const rootLoaderSchema = z.object({ titleBarHidden: z.boolean() });
 function RootError({ error }: ErrorComponentProps) {
   useReportCaughtError(error);
   const stale = useServerBuildStale();
+  useServerBuildWatch(useQueryClient());
   useEffect(() => {
     void serverBuild.check();
   }, []);

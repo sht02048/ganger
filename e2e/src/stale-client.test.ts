@@ -129,19 +129,34 @@ describe("서버 빌드가 바뀐 뒤 옛 화면(브라우저, 0180)", () => {
     await failServerFunctions(page);
     const buildCheck = page.waitForRequest("**/api/build");
 
-    await page.evaluate(() => {
-      const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
-      if (typeof router !== "object" || router === null) throw new Error("router is missing");
-      const invalidate: unknown = Reflect.get(router, "invalidate");
-      if (typeof invalidate !== "function") throw new Error("router.invalidate is missing");
-      const filter = (match: { routeId: string }) => match.routeId === "__root__";
-      void Reflect.apply(invalidate, router, [{ filter }]);
-    });
+    await invalidateRootRoute(page);
 
     const request = await buildCheck;
     expect(new URL(request.url()).pathname).toBe("/api/build");
 
     const reload = page.getByRole("button", { name: shell.serverBuild.reload });
+    await reload.waitFor();
+    await page.unroute("**/_serverFn/**");
+    await reload.click();
+    await page.waitForFunction(() => !("__staleMarker" in window));
+  }, 120_000);
+
+  it("루트 오류 화면은 서버가 내려가 확인에 실패해도 창으로 돌아오면 다시 확인한다", async (context) => {
+    const page = await openRuns(context);
+    await page.route("**/api/build", (route) => route.abort());
+    await failServerFunctions(page);
+    const failedCheck = page.waitForEvent("requestfailed", (request) =>
+      request.url().endsWith("/api/build"),
+    );
+    await invalidateRootRoute(page);
+    await failedCheck;
+    const reload = page.getByRole("button", { name: shell.serverBuild.reload });
+    expect(await reload.count()).toBe(0);
+
+    await page.unroute("**/api/build");
+    await reportServerBuild(page, "newer-build");
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+
     await reload.waitFor();
     await page.unroute("**/_serverFn/**");
     await reload.click();
@@ -162,6 +177,17 @@ describe("서버 빌드가 바뀐 뒤 옛 화면(브라우저, 0180)", () => {
     await page.waitForFunction(() => !("__staleMarker" in window));
   }, 120_000);
 });
+
+async function invalidateRootRoute(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
+    if (typeof router !== "object" || router === null) throw new Error("router is missing");
+    const invalidate: unknown = Reflect.get(router, "invalidate");
+    if (typeof invalidate !== "function") throw new Error("router.invalidate is missing");
+    const filter = (match: { routeId: string }) => match.routeId === "__root__";
+    void Reflect.apply(invalidate, router, [{ filter }]);
+  });
+}
 
 function retryButton(page: Page) {
   return page.getByRole("button", { name: shell.screenError.retry, exact: true });
