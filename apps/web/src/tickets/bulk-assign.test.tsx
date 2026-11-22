@@ -4,6 +4,7 @@ import { toTicketKey } from "@ganger/core";
 import { describe, expect, it } from "vitest";
 import { bulkAssignInput, submitBulkAssignment } from "@ganger/app/tickets/assign";
 import {
+  BLOCKER_UNREAD,
   assignableChildCount,
   blockerReadTargets,
   blockerWaitHint,
@@ -11,7 +12,7 @@ import {
   bulkChoices,
   selectedBulkIds,
 } from "@ganger/app/tickets/bulk-assign";
-import type { BulkAssignment } from "@ganger/app/tickets/bulk-assign";
+import type { BlockerHint, BulkAssignment } from "@ganger/app/tickets/bulk-assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
 import type { TicketRun, TicketView } from "@ganger/app/tickets/model";
 import { renderWithMessages } from "../testing/render";
@@ -172,15 +173,66 @@ describe("하위 티켓 처음 선택(0172)", () => {
     expect(choices.every((choice) => !choice.selectable && !choice.initiallySelected)).toBe(true);
   });
 
-  it("N은 고를 수 있는 하위 티켓만 세고, 선행 티켓은 할당 전 티켓만 읽는다", () => {
+  it("N은 고를 수 있는 하위 티켓만 세고, 선행 티켓은 고를 수 있는 티켓을 모두 읽는다(0176)", () => {
     const children = [
       child("ACME-1"),
       child("ACME-2", { runs: [ended("failed")] }),
       child("ACME-3", { trackerState: { name: "Done", category: "completed" } }),
       child("ACME-4", { mapping: null, assignability: { kind: "no-mapping" } }),
+      child("ACME-5", { runs: [ended("canceled")] }),
+      child("ACME-6", { runs: [ended("succeeded")] }),
     ];
-    expect(assignableChildCount(children)).toBe(2);
-    expect(blockerReadTargets(children).map((ticket) => ticket.key)).toEqual(["ACME-1"]);
+    expect(assignableChildCount(children)).toBe(3);
+    expect(blockerReadTargets(children).map((ticket) => ticket.key)).toEqual([
+      "ACME-1",
+      "ACME-2",
+      "ACME-5",
+    ]);
+  });
+
+  it("선행 티켓을 읽지 못하면 체크하지 않지만 고를 수 있다(0176)", () => {
+    const ticket = child("ACME-1");
+    const choices = bulkChoices([ticket], new Map([[ticket.id, BLOCKER_UNREAD]]));
+    expect(choices[0]).toMatchObject({
+      kind: "blocker-unread",
+      selectable: true,
+      initiallySelected: false,
+      waitingOn: { state: "unread" },
+    });
+    expect([...selectedBulkIds(choices, new Set([ticket.id]), new Map())]).toEqual([]);
+    const sent = bulkAssignmentsFor(choices, new Set([ticket.id]));
+    expect(sent.map((one) => one.ticketKey)).toEqual(["ACME-1"]);
+  });
+
+  it("지난 런이 Failed·Canceled여도 선행 안내를 달고 처음에 체크하지 않는다(0176)", () => {
+    const failed = child("ACME-1", { runs: [ended("failed")] });
+    const canceled = child("ACME-2", { runs: [ended("canceled")] });
+    const choices = bulkChoices(
+      [failed, canceled],
+      new Map<string, BlockerHint>([
+        [failed.id, { state: "waiting", key: "ACME-8", rest: 0 }],
+        [canceled.id, { state: "canceled", key: "ACME-9", rest: 0 }],
+      ]),
+    );
+    expect(choices[0]).toMatchObject({
+      kind: "failed",
+      initiallySelected: false,
+      waitingOn: { state: "waiting", key: "ACME-8" },
+    });
+    expect(choices[1]).toMatchObject({
+      kind: "canceled",
+      initiallySelected: false,
+      waitingOn: { state: "canceled", key: "ACME-9" },
+    });
+  });
+
+  it("고를 수 없는 줄에는 선행 안내를 달지 않는다(0176)", () => {
+    const ticket = child("ACME-1", { runs: [ended("succeeded")] });
+    const [choice] = bulkChoices(
+      [ticket],
+      new Map([[ticket.id, { state: "waiting", key: "ACME-9", rest: 0 }]]),
+    );
+    expect(choice).toMatchObject({ kind: "succeeded", waitingOn: null });
   });
 
   it("끝나지 않은 선행 티켓의 첫 키와 나머지 수를 알려 주고, 취소된 선행 티켓이 있으면 그 키를 먼저 알린다", () => {

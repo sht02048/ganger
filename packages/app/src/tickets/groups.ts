@@ -214,6 +214,11 @@ export function groupTickets(tickets: ReadonlyArray<TicketView>): TicketGrouping
   return { groups: byStage(groups, (group) => group.stage), loose: byStage(loose, ticketStage) };
 }
 
+function matchesFilterInGroup(child: TicketView, filter: TicketFilter): boolean {
+  if (filter !== "all" && child.isParentIssue) return false;
+  return matchesFilter(child, filter);
+}
+
 export function visibleGrouping(
   grouping: TicketGrouping,
   filter: TicketFilter,
@@ -223,7 +228,8 @@ export function visibleGrouping(
   for (const group of grouping.groups) {
     const rootMatches = matchesSearch(group.root, query);
     const children = group.children.filter(
-      (child) => matchesFilter(child, filter) && (rootMatches || matchesSearch(child, query)),
+      (child) =>
+        matchesFilterInGroup(child, filter) && (rootMatches || matchesSearch(child, query)),
     );
     if (children.length > 0) groups.push({ group, children });
   }

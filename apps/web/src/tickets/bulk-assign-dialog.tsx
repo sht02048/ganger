@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
 import type { BulkAssignInput, BulkAssignResult } from "@ganger/app/tickets/assign";
 import {
+  BLOCKER_UNREAD,
   blockerReadTargets,
   blockerWaitHint,
   bulkAssignmentsFor,
@@ -12,7 +13,7 @@ import {
   selectedBulkIds,
 } from "@ganger/app/tickets/bulk-assign";
 import type {
-  BlockerWaitHint,
+  BlockerHint,
   BulkAssignItemResult,
   BulkChoice,
 } from "@ganger/app/tickets/bulk-assign";
@@ -32,37 +33,62 @@ export interface BulkAssignDialogProps {
   finalFocus: () => HTMLElement | null;
 }
 
+async function readBlockerHint(
+  read: BulkAssignDialogProps["onReadBlockers"],
+  ticket: TicketView,
+): Promise<BlockerHint | null> {
+  try {
+    const result = await read(ticket);
+    return result.ok ? blockerWaitHint(result.blockers) : BLOCKER_UNREAD;
+  } catch {
+    return BLOCKER_UNREAD;
+  }
+}
+
 function useBlockerHints(
   targets: ReadonlyArray<TicketView>,
   onReadBlockers: BulkAssignDialogProps["onReadBlockers"],
   open: boolean,
-): ReadonlyMap<string, BlockerWaitHint> {
-  const [hints, setHints] = useState<ReadonlyMap<string, BlockerWaitHint>>(new Map());
-  const firstTargets = useRef(targets);
+): { hints: ReadonlyMap<string, BlockerHint>; reading: boolean } {
+  const [hints, setHints] = useState<ReadonlyMap<string, BlockerHint>>(new Map());
+  const [settled, setSettled] = useState<ReadonlySet<string>>(new Set());
+  const requested = useRef(new Set<string>());
+  const queue = useRef<TicketView[]>([]);
+  const readers = useRef(0);
   const readBlockers = useRef(onReadBlockers);
-  const dialogOpen = useRef(open);
+  const readsAllowed = useRef(false);
   useEffect(() => {
-    dialogOpen.current = open;
+    readsAllowed.current = open;
+    return () => {
+      readsAllowed.current = false;
+    };
   }, [open]);
   useEffect(() => {
-    let stopped = false;
-    const queue = [...firstTargets.current];
+    for (const ticket of targets) {
+      if (requested.current.has(ticket.id)) continue;
+      requested.current.add(ticket.id);
+      queue.current.push(ticket);
+    }
     const readNext = async (): Promise<void> => {
-      for (let ticket = queue.shift(); ticket !== undefined; ticket = queue.shift()) {
-        const id = ticket.id;
-        const result = await readBlockers.current(ticket).catch(() => null);
-        if (stopped || !dialogOpen.current) return;
-        if (result === null || !result.ok) continue;
-        const hint = blockerWaitHint(result.blockers);
-        if (hint !== null) setHints((current) => new Map(current).set(id, hint));
+      try {
+        while (readsAllowed.current) {
+          const ticket = queue.current.shift();
+          if (ticket === undefined) return;
+          const hint = await readBlockerHint(readBlockers.current, ticket);
+          if (!readsAllowed.current) return;
+          if (hint !== null) setHints((current) => new Map(current).set(ticket.id, hint));
+          setSettled((current) => new Set(current).add(ticket.id));
+        }
+      } finally {
+        readers.current -= 1;
       }
     };
-    for (let reader = 0; reader < BLOCKER_READS_AT_ONCE; reader += 1) void readNext();
-    return () => {
-      stopped = true;
-    };
-  }, []);
-  return hints;
+    while (readers.current < BLOCKER_READS_AT_ONCE && queue.current.length > 0) {
+      readers.current += 1;
+      void readNext();
+    }
+  }, [targets]);
+  return { hints, reading: targets.some((ticket) => !settled.has(ticket.id)) };
 }
 
 type Outcome = { kind: "results"; results: BulkAssignItemResult[] } | { kind: "failed" } | null;
@@ -79,7 +105,7 @@ export function BulkAssignDialog({
   const t = useTranslations("tickets.bulkAssign");
   const tResult = useTranslations("tickets.bulkAssign.result");
   const targets = useMemo(() => blockerReadTargets(group.children), [group.children]);
-  const hints = useBlockerHints(targets, onReadBlockers, open);
+  const { hints, reading } = useBlockerHints(targets, onReadBlockers, open);
   const choices = useMemo(() => bulkChoices(group.children, hints), [group.children, hints]);
   const [firstSelected] = useState<ReadonlySet<string>>(
     () =>
@@ -98,7 +124,7 @@ export function BulkAssignDialog({
   const count = assignments.length;
 
   const submit = () => {
-    if (sending.current || count === 0) return;
+    if (sending.current || reading || count === 0) return;
     sending.current = true;
     setPending(true);
     setOutcome(null);
@@ -147,7 +173,10 @@ export function BulkAssignDialog({
           <Button
             variant="primary"
             disabled={count === 0}
-            busy={{ active: pending, label: t("submitting") }}
+            busy={{
+              active: pending || reading,
+              label: pending ? t("submitting") : t("checkingBlockers"),
+            }}
             onClick={submit}
           >
             {t("submit", { count })}
@@ -181,23 +210,31 @@ export function BulkChoiceList({
 }) {
   const t = useTranslations("tickets.bulkAssign");
   const tHint = useTranslations("tickets.bulkAssign.hint");
+  const blockerHintOf = (hint: BlockerHint | null): string | null => {
+    if (hint === null) return null;
+    switch (hint.state) {
+      case "waiting":
+        return tHint("waiting", { key: hint.key, rest: hint.rest });
+      case "canceled":
+        return tHint("blocker-canceled", { key: hint.key, rest: hint.rest });
+      case "unread":
+        return tHint("blocker-unread");
+    }
+  };
   const hintOf = (choice: BulkChoice): string | null => {
     switch (choice.kind) {
       case "ready":
         return null;
       case "waiting":
-        return choice.waitingOn === null
-          ? null
-          : tHint("waiting", { key: choice.waitingOn.key, rest: choice.waitingOn.rest });
       case "blocker-canceled":
-        return choice.waitingOn === null
-          ? null
-          : tHint("blocker-canceled", {
-              key: choice.waitingOn.key,
-              rest: choice.waitingOn.rest,
-            });
+      case "blocker-unread":
+        return blockerHintOf(choice.waitingOn);
       case "failed":
-      case "canceled":
+      case "canceled": {
+        const blocker = blockerHintOf(choice.waitingOn);
+        const run = tHint(choice.kind);
+        return blocker === null ? run : tHint("runAndBlocker", { run, blocker });
+      }
       case "succeeded":
       case "done":
       case "no-mapping":
