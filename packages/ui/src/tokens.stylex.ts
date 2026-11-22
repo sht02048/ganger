@@ -138,6 +138,7 @@ export const motion = stylex.defineVars({
   durationItemEnter: "220ms",
   durationItemExit: "160ms",
   durationLineEnter: "200ms",
+  durationLineFade: "120ms",
   durationArrival: "1200ms",
   durationPillColor: "150ms",
   durationPillPop: "180ms",

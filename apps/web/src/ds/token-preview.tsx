@@ -77,6 +77,7 @@ const motionKeys = [
   "durationItemEnter",
   "durationItemExit",
   "durationLineEnter",
+  "durationLineFade",
   "durationArrival",
   "durationPillColor",
   "durationPillPop",

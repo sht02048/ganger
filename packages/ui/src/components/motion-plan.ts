@@ -122,6 +122,47 @@ export function keepsViewTransition(
   return changeCount <= MOTION_BURST_LIMIT && changedStyles.every((style) => style === "slide");
 }
 
+export type IssueGroupPhase = "opening" | "closing";
+
+export const ISSUE_LINE_STAGGER_MS = 30;
+export const ISSUE_LINE_STAGGER_ROWS = 8;
+export const ISSUE_LINE_MOTION_MAX_CHILDREN = 30;
+const ISSUE_GROUP_SETTLE_MARGIN_MS = 34;
+
+export function issueGroupPhaseFor(
+  opening: boolean,
+  reducedMotion: boolean,
+): IssueGroupPhase | null {
+  if (reducedMotion) return null;
+  return opening ? "opening" : "closing";
+}
+
+export function hasIssueLineMotion(childCount: number): boolean {
+  return childCount <= ISSUE_LINE_MOTION_MAX_CHILDREN;
+}
+
+export function issueLineDelayMs(index: number, childCount: number): number {
+  if (!hasIssueLineMotion(childCount)) return 0;
+  return Math.min(index, ISSUE_LINE_STAGGER_ROWS - 1) * ISSUE_LINE_STAGGER_MS;
+}
+
+export function issueGroupSettleMs(input: {
+  phase: IssueGroupPhase;
+  childCount: number;
+  openMs: number;
+  closeMs: number;
+  lineEnterMs: number;
+  lineFadeMs: number;
+}): number {
+  const { phase, childCount, openMs, closeMs, lineEnterMs, lineFadeMs } = input;
+  const lines = hasIssueLineMotion(childCount);
+  const longest =
+    phase === "closing"
+      ? Math.max(closeMs, lines ? lineFadeMs : 0)
+      : Math.max(openMs, lines ? lineEnterMs + issueLineDelayMs(childCount - 1, childCount) : 0);
+  return longest + ISSUE_GROUP_SETTLE_MARGIN_MS;
+}
+
 export function reconcileMotionRows<T>(
   previous: readonly MotionRow<T>[],
   items: readonly T[],

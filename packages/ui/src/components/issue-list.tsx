@@ -1,6 +1,24 @@
 import * as stylex from "@stylexjs/stylex";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { ChevronDownIcon, ChevronRightIcon } from "./icons";
+import { ChevronRightIcon } from "./icons";
+import {
+  hasIssueLineMotion,
+  issueGroupPhaseFor,
+  issueGroupSettleMs,
+  issueLineDelayMs,
+} from "./motion-plan";
+import type { IssueGroupPhase } from "./motion-plan";
+import { motionTokenMs } from "./motion-token";
 import { Tooltip } from "./tooltip";
 import {
   breakpoints,
@@ -12,6 +30,8 @@ import {
   size,
   space,
 } from "../tokens.stylex";
+
+export type { IssueGroupPhase };
 
 export const ISSUE_STATE_KINDS = ["todo", "in-progress", "done", "canceled"] as const;
 export type IssueStateKind = (typeof ISSUE_STATE_KINDS)[number];
@@ -240,7 +260,7 @@ export interface IssueRowProps {
   onSelect: () => void;
   indent: IssueRowIndent;
   surface?: IssueRowSurface;
-  toggle?: { expanded: boolean; label: string; onToggle: () => void };
+  toggle?: { expanded: boolean; label: string; onToggle: () => void; moving?: boolean };
   icon: ReactNode;
   ticketKey: string;
   title: string;
@@ -299,7 +319,16 @@ export function IssueRow({
                 />
               }
             >
-              {toggle.expanded ? <ChevronDownIcon /> : <ChevronRightIcon />}
+              <span
+                data-chevron={toggle.expanded ? "down" : "right"}
+                {...stylex.props(
+                  styles.chevron,
+                  toggle.expanded && styles.chevronDown,
+                  toggle.moving === true && styles.chevronMoving,
+                )}
+              >
+                <ChevronRightIcon />
+              </span>
             </Tooltip>
           )}
           <span
@@ -362,9 +391,211 @@ export function IssueGroupLabel({
   );
 }
 
+const NO_PHASES: ReadonlyMap<string, IssueGroupPhase> = new Map();
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+export interface IssueGroupMotion {
+  phases: ReadonlyMap<string, IssueGroupPhase>;
+  toggle: (groupId: string, opening: boolean, childCount: number) => void;
+  cancel: (groupId: string) => void;
+}
+
+export function useIssueGroupMotion(resetKey: string): IssueGroupMotion {
+  const [stored, setStored] = useState(NO_PHASES);
+  const [seenResetKey, setSeenResetKey] = useState(resetKey);
+  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
+  let phases = stored;
+  if (seenResetKey !== resetKey) {
+    setSeenResetKey(resetKey);
+    setStored(NO_PHASES);
+    phases = NO_PHASES;
+  }
+
+  const stopTimer = useCallback((groupId: string) => {
+    const timer = timers.current.get(groupId);
+    if (timer !== undefined) clearTimeout(timer);
+    timers.current.delete(groupId);
+  }, []);
+
+  const settle = useCallback(
+    (groupId: string) => {
+      stopTimer(groupId);
+      setStored((current) => {
+        if (!current.has(groupId)) return current;
+        const next = new Map(current);
+        next.delete(groupId);
+        return next;
+      });
+    },
+    [stopTimer],
+  );
+
+  const toggle = useCallback(
+    (groupId: string, opening: boolean, childCount: number) => {
+      const phase = issueGroupPhaseFor(opening, prefersReducedMotion());
+      if (phase === null) {
+        settle(groupId);
+        return;
+      }
+      stopTimer(groupId);
+      setStored((current) => new Map(current).set(groupId, phase));
+      const settleMs = issueGroupSettleMs({
+        phase,
+        childCount,
+        openMs: motionTokenMs(motion.durationItemEnter),
+        closeMs: motionTokenMs(motion.durationItemExit),
+        lineEnterMs: motionTokenMs(motion.durationLineEnter),
+        lineFadeMs: motionTokenMs(motion.durationLineFade),
+      });
+      timers.current.set(
+        groupId,
+        setTimeout(() => settle(groupId), settleMs),
+      );
+    },
+    [settle, stopTimer],
+  );
+
+  useEffect(() => {
+    const running = timers.current;
+    return () => {
+      for (const timer of running.values()) clearTimeout(timer);
+      running.clear();
+    };
+  }, [resetKey]);
+
+  return useMemo(() => ({ phases, toggle, cancel: settle }), [phases, toggle, settle]);
+}
+
+type IssueLineState = "still" | "before" | "shown" | "fading";
+
+const IssueGroupBodyContext = createContext<{
+  state: IssueLineState;
+  staggered: boolean;
+  childCount: number;
+}>({ state: "still", staggered: false, childCount: 0 });
+
+export function IssueGroupBody({
+  phase,
+  childCount,
+  children,
+}: {
+  phase: IssueGroupPhase | undefined;
+  childCount: number;
+  children: ReactNode;
+}) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [started, setStarted] = useState(phase !== "opening");
+  const [staggered, setStaggered] = useState(phase === "opening");
+  if (phase === "closing" && staggered) setStaggered(false);
+  useLayoutEffect(() => {
+    if (started) return;
+    bodyRef.current?.getBoundingClientRect();
+    setStarted(true);
+  }, [started]);
+
+  const moving = phase !== undefined;
+  const closed = phase === "closing" || !started;
+  const lines = moving && hasIssueLineMotion(childCount);
+  let state: IssueLineState = "still";
+  if (lines) state = !started ? "before" : phase === "closing" ? "fading" : "shown";
+  const context = useMemo(() => ({ state, staggered, childCount }), [state, staggered, childCount]);
+  return (
+    <div
+      ref={bodyRef}
+      data-issue-group-body=""
+      data-issue-group-moving={phase}
+      inert={phase === "closing"}
+      {...stylex.props(
+        styles.groupBody,
+        moving && styles.groupBodyMoving,
+        phase === "opening" && styles.groupBodyOpening,
+        phase === "closing" && styles.groupBodyClosing,
+        closed && styles.groupBodyClosed,
+      )}
+    >
+      <div {...stylex.props(styles.groupClip, moving && styles.groupClipMoving)}>
+        <IssueGroupBodyContext.Provider value={context}>{children}</IssueGroupBodyContext.Provider>
+      </div>
+    </div>
+  );
+}
+
+export function IssueGroupLine({ index, children }: { index: number; children: ReactNode }) {
+  const { state, staggered, childCount } = useContext(IssueGroupBodyContext);
+  const delay = state === "shown" && staggered ? issueLineDelayMs(index, childCount) : 0;
+  return (
+    <div
+      data-issue-line={state}
+      {...(state === "still" ? {} : { style: { transitionDelay: `${delay}ms` } })}
+      {...stylex.props(
+        styles.line,
+        state === "before" && styles.lineBefore,
+        state === "shown" && styles.lineShown,
+        state === "fading" && styles.lineFading,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+const REDUCED_MOTION = "@media (prefers-reduced-motion: reduce)";
 const overlayed = { position: "relative", zIndex: 1 } as const;
 
 const styles = stylex.create({
+  chevron: { display: "inline-flex", transform: "rotate(0deg)" },
+  chevronDown: { transform: "rotate(90deg)" },
+  chevronMoving: {
+    transitionProperty: "transform",
+    transitionDuration: { default: motion.durationFast, [REDUCED_MOTION]: "0s" },
+    transitionTimingFunction: motion.easeOut,
+  },
+  groupBody: {
+    display: "grid",
+    flexShrink: 0,
+    gridTemplateColumns: "minmax(0, 1fr)",
+    gridTemplateRows: "1fr",
+    minWidth: 0,
+  },
+  groupBodyMoving: {
+    paddingBottom: space.s1,
+    marginBottom: space.s2,
+    borderBottomLeftRadius: radius.card,
+    borderBottomRightRadius: radius.card,
+    backgroundColor: colors.bgCard,
+    transitionProperty: "grid-template-rows",
+    transitionTimingFunction: motion.easeOut,
+  },
+  groupBodyOpening: {
+    transitionDuration: { default: motion.durationItemEnter, [REDUCED_MOTION]: "0s" },
+  },
+  groupBodyClosing: {
+    transitionDuration: { default: motion.durationItemExit, [REDUCED_MOTION]: "0s" },
+  },
+  groupBodyClosed: { gridTemplateRows: "0fr" },
+  groupClip: { display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 },
+  groupClipMoving: { overflow: "hidden" },
+  line: { display: "flow-root" },
+  lineBefore: { opacity: 0, transform: `translateY(calc(-1 * ${space.s1}))` },
+  lineShown: {
+    opacity: 1,
+    transform: "none",
+    transitionProperty: "opacity, transform",
+    transitionDuration: { default: motion.durationLineEnter, [REDUCED_MOTION]: "0s" },
+    transitionTimingFunction: motion.easeOut,
+  },
+  lineFading: {
+    opacity: 0,
+    transitionProperty: "opacity",
+    transitionDuration: { default: motion.durationLineFade, [REDUCED_MOTION]: "0s" },
+    transitionTimingFunction: motion.easeOut,
+  },
   frame: { display: "flex", flexDirection: "column", minWidth: 0, containerType: "inline-size" },
   list: { display: "flex", flexDirection: "column", minWidth: 0 },
   grid: {
