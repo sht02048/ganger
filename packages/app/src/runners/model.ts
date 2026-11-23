@@ -105,7 +105,7 @@ export interface RunnerView {
   sshTarget: string | null;
   orcaPath: string | null;
   usage: RunnerUsageView | null;
-  load: RunnerLoadView | null;
+  load?: RunnerLoadView | null;
 }
 
 export interface RunnersPage {

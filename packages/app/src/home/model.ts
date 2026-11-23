@@ -112,7 +112,7 @@ export interface DashboardRunner {
   capacity: number;
   usage: DashboardUsageLine | null;
   limits: DashboardUsageLimit[];
-  loadHigh: RunnerLoadHigh | null;
+  loadHigh?: RunnerLoadHigh | null;
 }
 
 export function limitedRunners(runners: RunnersSummary): DashboardRunner[] {
@@ -120,7 +120,7 @@ export function limitedRunners(runners: RunnersSummary): DashboardRunner[] {
 }
 
 export function loadHighRunners(runners: RunnersSummary): DashboardRunner[] {
-  return runners.list.filter((runner) => runner.loadHigh !== null);
+  return runners.list.filter((runner) => (runner.loadHigh ?? null) !== null);
 }
 
 export function readyAgainInMs(runner: DashboardRunner): number | null {

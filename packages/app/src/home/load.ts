@@ -37,6 +37,7 @@ export function loadHomePage(
   ws: string | undefined,
   now: Date,
   timeZone: string,
+  { includeLoad = false }: { includeLoad?: boolean } = {},
 ): HomePage {
   const workspaces = listWorkspaces(db).map((w) => ({ id: w.id, name: w.name }));
   const workspace = resolveWorkspace(workspaces, ws);
@@ -180,7 +181,9 @@ export function loadHomePage(
       used: used.get(runner.id) ?? 0,
       capacity: runner.capacity,
       ...dashboardUsage(runner, now),
-      loadHigh: runnerLoadHigh(runnerLoadView(runner.load, runner.online, now)),
+      ...(includeLoad
+        ? { loadHigh: runnerLoadHigh(runnerLoadView(runner.load, runner.online, now)) }
+        : {}),
     }))
     .toSorted((a, b) => Number(a.cause === null) - Number(b.cause === null));
   const endedToday = (run: StoredRun): boolean =>

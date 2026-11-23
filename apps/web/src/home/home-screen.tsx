@@ -682,8 +682,9 @@ function RunnerRow({ runner, href: rowHref }: { runner: DashboardRunner; href: s
 function RunnerUsage({ runner }: { runner: DashboardRunner }) {
   const t = useTranslations("home.runners");
   const names = useUsageNames();
-  if (runner.loadHigh !== null) {
-    const { cpuPercent, memoryPercent } = runner.loadHigh;
+  const loadHigh = runner.loadHigh ?? null;
+  if (loadHigh !== null) {
+    const { cpuPercent, memoryPercent } = loadHigh;
     return (
       <Text variant="meta" numeric tone="problem">
         {cpuPercent !== null

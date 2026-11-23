@@ -818,7 +818,7 @@ function useLoadHighSentence(runners: ReadonlyArray<RunnerView>): string | null 
   const t = useTranslations("runners");
   const list = new Intl.ListFormat(useLocale(), { type: "conjunction", style: "short" });
   const names = runners.flatMap((runner) => {
-    const high = runnerLoadHigh(runner.load);
+    const high = runnerLoadHigh(runner.load ?? null);
     if (high === null) return [];
     const parts = list.format([
       ...(high.cpuPercent === null ? [] : [t("load.cpu")]),
@@ -889,7 +889,7 @@ function useLoadItems(
 
 function RunnerLoadCell({ runner }: { runner: RunnerView }) {
   const t = useTranslations("runners.load");
-  const load = runner.load;
+  const load = runner.load ?? null;
   if (!runner.online) return <Text variant="meta">{t("offline")}</Text>;
   if (load === null) return <Text variant="meta">{t("notRead")}</Text>;
   if (load.kind === "unreadable") return <Text variant="meta">{t("unreadable")}</Text>;
@@ -920,7 +920,7 @@ function RunnerLoadSection({ runner }: { runner: RunnerView }) {
   const t = useTranslations("runners.panel.load");
   const tLoad = useTranslations("runners.load");
   const { ago } = useTime();
-  const load = runner.load;
+  const load = runner.load ?? null;
   return (
     <PanelSection
       titleRole="subheading"
