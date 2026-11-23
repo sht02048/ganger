@@ -171,6 +171,11 @@ export {
   type TextLinkProps,
 } from "./components/link";
 export {
+  SplitButton,
+  type SplitButtonOption,
+  type SplitButtonProps,
+} from "./components/split-button";
+export {
   Menu,
   MenuItem,
   MenuRadio,

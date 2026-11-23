@@ -16,6 +16,7 @@ import {
 } from "@ganger/core";
 import type { RunnerId, RunnerKind, TrackerConnectionId } from "@ganger/core";
 import {
+  clearMergeDenials,
   forgetWebhookReceipt,
   inTransaction,
   getAutoAssignLabel,
@@ -543,6 +544,7 @@ export async function saveGitHubToken(
     },
     now,
   );
+  clearMergeDenials(context.db);
   return { ok: true };
 }
 

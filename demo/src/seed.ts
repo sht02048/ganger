@@ -18,6 +18,7 @@ import type {
   AgentId,
   AgentResult,
   PrState,
+  PullRequestMergeInfo,
   PullRequestSignals,
   RunId,
   RunnerId,
@@ -444,9 +445,25 @@ function demoChecks(
           failedChecks: ["lint"],
           conflict: true,
           behindBy: 4,
+          merge: demoMerge({ blocked: "conflict", canWrite: true }),
         },
       }
-    : { ci: "success", signals: { ...base, open: true, conflict: false, behindBy: 2 } };
+    : {
+        ci: "success",
+        signals: {
+          ...base,
+          open: true,
+          conflict: false,
+          behindBy: 2,
+          merge: demoMerge({ blocked: null, canWrite: prNumber % 3 !== 0 }),
+        },
+      };
+}
+
+function demoMerge(
+  state: Pick<PullRequestMergeInfo, "blocked" | "canWrite">,
+): PullRequestMergeInfo {
+  return { methods: ["squash", "merge"], defaultMethod: "squash", ...state };
 }
 
 const ACTIVE_TICKETS = { ACME: [1, 2, 3, 4, 5, 6, 7, 8, 9, 21, 22, 23, 24, 25, 26, 27], GLX: [2] };

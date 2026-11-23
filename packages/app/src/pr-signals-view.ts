@@ -1,5 +1,5 @@
 import { summarizeRunOutcome } from "@ganger/core";
-import type { CiState } from "@ganger/core";
+import type { CiState, MergeBlock, MergeMethod } from "@ganger/core";
 import type { RunRecords, StoredRun } from "@ganger/db";
 import { isWebUrl } from "./format/url.js";
 import type { CiView } from "./run-detail/model.js";
@@ -87,4 +87,35 @@ export function prDetailsOf(
       agoMs: Math.max(0, now.getTime() - new Date(commit.committedAt).getTime()),
     })),
   };
+}
+
+export interface MergeView {
+  methods: MergeMethod[];
+  defaultMethod: MergeMethod;
+  blocked: MergeBlock | null;
+  noPermission: boolean;
+}
+
+export function mergeViewOf(run: StoredRun, records: RunRecords): MergeView | null {
+  const signals = records.pullRequest?.signals ?? null;
+  if (signals === null || !signals.open || !isStillReread(run, records)) return null;
+  const merge = signals.merge;
+  if (merge === undefined || merge.defaultMethod === null || merge.methods.length === 0) {
+    return null;
+  }
+  return {
+    methods: [...merge.methods],
+    defaultMethod: merge.defaultMethod,
+    blocked: merge.blocked,
+    noPermission: merge.canWrite === false || signals.mergeDeniedAt !== undefined,
+  };
+}
+
+export function settledPrStateOf(
+  records: RunRecords,
+): { state: "merged" | "closed"; at: Date | null } | null {
+  const signals = records.pullRequest?.signals ?? null;
+  const settled = signals?.settled;
+  if (signals === null || signals.open || settled === undefined) return null;
+  return { state: settled.state, at: settled.at === null ? null : new Date(settled.at) };
 }

@@ -5,6 +5,7 @@ import { markAllTrackersChanged } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
 import { loadHomePage } from "@ganger/app/home/load";
+import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
   answerOnceInput,
@@ -71,6 +72,16 @@ export const answerQuestion = createServerFn({ method: "POST" })
 export const answerHumanCheck = createServerFn({ method: "POST" })
   .validator(humanCheckOnceInput)
   .handler(({ data }) => submitHumanCheckOnce(getDatabase(), data, new Date()));
+
+export const mergePullRequest = createServerFn({ method: "POST" })
+  .validator(mergePrInput)
+  .handler(({ data }) =>
+    mergeRunPullRequest(
+      { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() },
+      data,
+      () => new Date(),
+    ),
+  );
 
 export const denyPermission = createServerFn({ method: "POST" })
   .validator(denyInput)

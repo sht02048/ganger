@@ -33,6 +33,7 @@ import {
   MenuRadio,
   MenuRadioOption,
   MenuSeparator,
+  SplitButton,
   PlusIcon,
   PanelBlock,
   PanelFooter,
@@ -152,6 +153,7 @@ export function ComponentSections() {
   const [sheetTab, setSheetTab] = useState<"run" | "pr">("pr");
   const [selected, setSelected] = useState<RunId>("r1051");
   const [workspace, setWorkspace] = useState("commerce");
+  const [mergeMethod, setMergeMethod] = useState<"squash" | "merge">("squash");
   const [agent, setAgent] = useState<string | null>(null);
   const [graphFirst, setGraphFirst] = useState(true);
   const [web, setWeb] = useState(true);
@@ -493,6 +495,20 @@ export function ComponentSections() {
                   {t("menu.cancel")}
                 </MenuItem>
               </Menu>
+            </div>
+            <div {...stylex.props(styles.narrow)}>
+              <SplitButton<"squash" | "merge">
+                value={mergeMethod}
+                options={[
+                  { value: "squash", label: t("menu.splitSquash") },
+                  { value: "merge", label: t("menu.splitMerge") },
+                ]}
+                onValueChange={setMergeMethod}
+                menuLabel={t("menu.splitMenu")}
+                onClick={() => showToast(t("menu.splitDone"))}
+              >
+                {t(mergeMethod === "squash" ? "menu.splitSquash" : "menu.splitMergeButton")}
+              </SplitButton>
             </div>
           </Demo>
         </Section>

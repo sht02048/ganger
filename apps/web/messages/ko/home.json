@@ -182,7 +182,8 @@
       "baseValue": {
         "upToDate": "최신이에요",
         "behind": "{count}커밋 뒤예요",
-        "unknown": "알 수 없어요"
+        "unknown": "알 수 없어요",
+        "mustUpdate": "base를 받아야 머지할 수 있어요"
       },
       "state": "상태",
       "merged": "Merged",
@@ -191,7 +192,44 @@
       "link": "PR",
       "linkValue": "{pr} {title}",
       "branches": "{head} → {base}",
-      "commits": "커밋 {count}개 · 마지막 {ago}"
+      "commits": "커밋 {count}개 · 마지막 {ago}",
+      "rules": "규칙",
+      "rulesValue": {
+        "blocked": "보호 규칙이 머지를 막고 있어요",
+        "draft": "Draft PR이라 머지할 수 없어요"
+      },
+      "merge": {
+        "button": {
+          "squash": "Squash 머지",
+          "merge": "Merge commit 머지",
+          "rebase": "Rebase 머지"
+        },
+        "option": {
+          "squash": "Squash 머지",
+          "merge": "Merge commit",
+          "rebase": "Rebase"
+        },
+        "methodMenu": "머지 방식",
+        "busy": "머지하는 중…",
+        "noPermission": "토큰에 머지 권한이 없어요",
+        "toSettings": "Settings에서 바꾸기",
+        "done": "PR을 머지했어요",
+        "failed": {
+          "no-write-access": "토큰에 머지 권한이 없어요. Settings에서 바꿔 주세요",
+          "blocked": "레포 규칙이 머지를 막았어요",
+          "blockedBecause": "레포 규칙이 머지를 막았어요: {message}",
+          "head-changed": "PR에 새 커밋이 올라왔어요. 다시 확인하고 머지해 주세요",
+          "method-not-allowed": "레포가 허용하지 않는 방식이에요",
+          "not-open": "이미 머지했거나 닫힌 PR이에요",
+          "not-found": "PR을 찾지 못했어요",
+          "no-pull-request": "이 런에는 PR이 없어요",
+          "no-code-host": "이 저장소를 다룰 GitHub 토큰이 없어요. Settings에서 넣어 주세요",
+          "unauthorized": "GitHub 토큰이 맞지 않아요. Settings에서 새로 넣어 주세요",
+          "rate-limited": "GitHub 요청이 많아 잠시 막혔어요. 조금 뒤에 다시 해 주세요",
+          "network": "GitHub에 연결하지 못했어요. 다시 해 주세요",
+          "request-reused": "같은 요청을 다른 방식으로 보냈어요. 다시 눌러 주세요"
+        }
+      }
     }
   },
   "question": {

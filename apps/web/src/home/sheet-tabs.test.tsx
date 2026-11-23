@@ -8,6 +8,8 @@ import { homeMessages } from "./messages";
 import { PrTabContent } from "./sheet-pr-tab";
 import { initialSheetTab, prTabDot, showsPrTab } from "./sheet-tabs";
 
+const unusedMerge = () => Promise.reject(new Error("unused"));
+
 const base = {
   id: toRunId("run-1"),
   ticketId: "ticket-ACME-1",
@@ -48,6 +50,7 @@ function pr(over: Partial<HomePullRequest> = {}): HomePullRequest {
     title: null,
     baseBranch: null,
     commits: [],
+    merge: null,
     ...over,
   };
 }
@@ -156,7 +159,7 @@ describe("「PR」 탭 보이기와 점(티켓 0199)", () => {
 });
 
 function prTab(run: HomeRun): string {
-  return renderWithMessages(<PrTabContent run={run} />, homeMessages);
+  return renderWithMessages(<PrTabContent run={run} onMerge={unusedMerge} />, homeMessages);
 }
 
 const p = homeJson.sheet.pr;

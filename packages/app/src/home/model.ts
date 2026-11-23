@@ -8,7 +8,7 @@ import type {
   SummaryOutcome,
   TicketKey,
 } from "@ganger/core";
-import type { PrCommitView, PrSignalsView } from "../pr-signals-view.js";
+import type { MergeView, PrCommitView, PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { CiView } from "../run-detail/model.js";
 import type { RunnerLoadHigh } from "../runners/model.js";
@@ -50,6 +50,7 @@ export interface HomePullRequest {
   title: string | null;
   baseBranch: string | null;
   commits: ReadonlyArray<PrCommitView>;
+  merge: MergeView | null;
 }
 
 interface HomeRunBase {
