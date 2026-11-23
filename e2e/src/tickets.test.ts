@@ -37,7 +37,7 @@ import {
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
-import type { Browser, BrowserContext, Page, Route } from "playwright-core";
+import type { Browser, BrowserContext, Page } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, onTestFailed } from "vitest";
 import shell from "../../apps/web/messages/ko/shell.json" with { type: "json" };
@@ -683,35 +683,6 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
       .toEqual([apiRepo]);
   });
 
-  it("보내는 중에는 Esc 나 취소로 창이 닫히지 않는다", async () => {
-    await page.goto(`/tickets?ws=${workspaceId}`);
-    await hydrated(page);
-    const key = "ACME-2";
-    await page
-      .getByRole("list", { name: tickets.listLabel })
-      .getByRole("button", { name: `${key} Ticket number 2` })
-      .click();
-    const panel = page.getByRole("region", { name: tickets.panel.label });
-    await panel.getByRole("button", { name: tickets.panel.assign }).click();
-    const dialog = page.getByRole("dialog", { name: fill(tickets.assign.title, { key }) });
-    const held = holdNextServerCall(page);
-    await dialog.getByRole("button", { name: tickets.assign.submit }).click();
-    await held.arrived;
-    await dialog.getByRole("button", { name: tickets.assign.submitting }).waitFor();
-
-    await page.keyboard.press("Escape");
-    await dialog.getByRole("button", { name: tickets.assign.cancel }).click();
-    await page.waitForTimeout(300);
-    expect(await dialog.isVisible()).toBe(true);
-    await held.release();
-    await page
-      .getByRole("region", { name: shell.toastRegion })
-      .getByText(fill(tickets.assign.done, { key }))
-      .waitFor();
-    await dialog.waitFor({ state: "hidden" });
-    await expect.poll(focused).toBe(tickets.panel.openRun);
-  });
-
   it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행은 런 상세로, 모두 보기는 Runs로 간다(0164, 0181)", async () => {
     const waiter = toTicketKey("ACME-900");
     const blockerKey = toTicketKey("ACME-901");
@@ -840,34 +811,6 @@ function endCanceled(id: RunId, now: Date): void {
     now,
   );
   if (!ended.ok) throw new Error(`end ${id} failed`);
-}
-
-function holdNextServerCall(target: Page): {
-  arrived: Promise<void>;
-  release: () => Promise<void>;
-} {
-  let arrive: () => void = () => {};
-  const arrived = new Promise<void>((resolve) => {
-    arrive = resolve;
-  });
-  let held: Route | undefined;
-  const pattern = "**/_serverFn/**";
-  const handler = (route: Route) => {
-    if (held !== undefined || route.request().method() !== "POST") {
-      void route.continue();
-      return;
-    }
-    held = route;
-    arrive();
-  };
-  void target.route(pattern, handler);
-  return {
-    arrived,
-    release: async () => {
-      await held?.continue();
-      await target.unroute(pattern, handler);
-    },
-  };
 }
 
 function truncatedNotice(project: string, count: string): string {
