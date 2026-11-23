@@ -9,6 +9,7 @@ import {
   submitDenial,
   submitHumanCheckAnswer,
 } from "@ganger/app/home/actions";
+import { mobileContinueBlock } from "@ganger/app/devices/run-retry";
 import { pendingInput } from "@ganger/app/home/load";
 import { mcpClientName } from "@ganger/app/mcp/actions";
 import type { McpWriteTool } from "@ganger/app/mcp/actions";
@@ -56,6 +57,7 @@ import { loadTicketsPage } from "@ganger/app/tickets/load";
 import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import {
+  continueRunBlock,
   getMcpWriteAllowed,
   getRun,
   listRunners,
@@ -150,7 +152,7 @@ const CONTINUE_ERRORS: Record<string, string> = {
   "not-started": "The run never started, so it has no work to continue.",
   superseded: "A later run of this ticket has already started.",
   "worktree-removing": "The run's worktree is being removed.",
-  "worktree-settled": "The run's worktree was already cleaned up.",
+  "worktree-settled": "Only a Failed run whose worktree remains can be continued.",
   "active-run": "This ticket already has a run in progress.",
   "previous-agent":
     "The previous agent may still be running. The operator can stop it on Run detail first.",
@@ -614,7 +616,7 @@ export function registerWriteTools(
     {
       title: "Continue from a run",
       description:
-        "Starts a new run that continues an ended run in its kept worktree, the same as Continue on Run detail. The message goes to a coding agent that runs commands, so confirm it with the operator first. Ganger refuses with the reason when the run cannot be continued.",
+        "Starts a new run that continues a Failed run in the worktree it left, the same as Continue on Run detail. The message goes to a coding agent that runs commands, so confirm it with the operator first. Ganger refuses with the reason when the run cannot be continued.",
       annotations: WRITE,
     },
     {
@@ -631,18 +633,24 @@ export function registerWriteTools(
       const run = findRun(runId);
       if (run === null) return noRun(runId);
       let replayed = false;
+      const failedRunBlock = () =>
+        continueRunBlock(context.db, run.id) ?? mobileContinueBlock(context.db, run.id);
+      const blocked = requestId === undefined ? failedRunBlock() : null;
       const result =
-        requestId === undefined
-          ? continueRunRequest(context.db, run.id, message, context.now())
-          : continueRunOnce(
-              context.db,
-              { runId: run.id, requestId },
-              message,
-              context.now(),
-              () => {
-                replayed = true;
-              },
-            );
+        blocked !== null
+          ? { ok: false as const, reason: blocked }
+          : requestId === undefined
+            ? continueRunRequest(context.db, run.id, message, context.now())
+            : continueRunOnce(
+                context.db,
+                { runId: run.id, requestId },
+                message,
+                context.now(),
+                failedRunBlock,
+                () => {
+                  replayed = true;
+                },
+              );
       if (!result.ok) {
         return rejected({
           target: run.ticket.key,

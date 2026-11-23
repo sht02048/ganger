@@ -194,7 +194,7 @@
       "not-started": "시작하지 않은 런이에요",
       "superseded": "이 티켓의 더 새로운 런이 있어요",
       "worktree-removing": "워크트리를 지우는 중이에요",
-      "worktree-settled": "워크트리를 이미 정리했어요",
+      "worktree-settled": "워크트리가 남은 Failed 런만 이어서 맡길 수 있어요",
       "previous-agent": "이전 에이전트가 아직 돌고 있을 수 있어요",
       "request-reused": "같은 요청 ID를 다른 내용으로 보냈어요",
       "taken": "다른 Workspace가 이미 쓰고 있어요",

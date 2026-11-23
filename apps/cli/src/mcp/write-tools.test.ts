@@ -29,7 +29,15 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { toQuestionId, toRunId, toTrackerConnectionId, toTrackerProjectId } from "@ganger/core";
+import {
+  toAgentRef,
+  toQuestionId,
+  toRunId,
+  toTrackerConnectionId,
+  toTrackerProjectId,
+  toWorktreeRef,
+} from "@ganger/core";
+import type { RunId } from "@ganger/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createMcpServer } from "./server.js";
@@ -715,27 +723,67 @@ describe("MCP 멈추기·재개(0190)", () => {
 describe("MCP 이어서 맡기기(0190)", () => {
   beforeEach(() => allowWrites());
 
-  const agentGone = () => recordAgentCheck(seeded.db, seeded.ended, "gone", { stopHandled: true });
+  let failed: RunId;
+
+  beforeEach(() => {
+    failed = queueRun(seeded.db, "ACME-7", 40);
+    const started = changeRunState(
+      seeded.db,
+      failed,
+      {
+        to: "running",
+        started: {
+          worktree: toWorktreeRef("wt-ACME-7"),
+          branch: "acme/ACME-7",
+          agentRef: toAgentRef("agent-ACME-7"),
+        },
+      },
+      at(41),
+    );
+    const ended = changeRunState(
+      seeded.db,
+      failed,
+      { to: "ended", agentResult: "reported-failure", prState: "none" },
+      at(42),
+    );
+    if (!started.ok || !ended.ok) throw new Error("fail ACME-7");
+  });
+
+  const agentGone = (runId: RunId = failed) =>
+    recordAgentCheck(seeded.db, runId, "gone", { stopHandled: true });
 
   it("허용이 꺼져 있으면 보이지 않고 새 런을 만들지 않는다", async () => {
     allowWrites(false);
     agentGone();
     await connect();
     expect(await toolNames()).not.toContain("continue_run");
-    const off = await call("continue_run", { runId: seeded.ended, message: "이어서 해 주세요" });
+    const off = await call("continue_run", { runId: failed, message: "이어서 해 주세요" });
     expect(off.isError).toBe(true);
-    expect(mcpLog(seeded.ended)).toEqual([]);
+    expect(mcpLog(failed)).toEqual([]);
   });
 
-  it("끝난 런을 이어서 새 런을 만들고 새 런 기록에 MCP 출처를 남긴다", async () => {
+  it("성공한 런은 requestId 가 있든 없든 이어서 맡기지 않는다", async () => {
+    agentGone(seeded.ended);
+    await connect();
+    const plain = await call("continue_run", { runId: seeded.ended, message: "이어서" });
+    const keyed = await call("continue_run", {
+      runId: seeded.ended,
+      message: "이어서",
+      requestId: "mcp-continue-succeeded",
+    });
+    expect(plain.json["reason"]).toBe("worktree-settled");
+    expect(keyed.json["reason"]).toBe("worktree-settled");
+  });
+
+  it("Failed 런을 이어서 새 런을 만들고 새 런 기록에 MCP 출처를 남긴다", async () => {
     agentGone();
     await connect("hermes");
     const continued = await call("continue_run", {
-      runId: seeded.ended,
+      runId: failed,
       message: "테스트를 고쳐 주세요",
     });
     expect(continued.isError).toBe(false);
-    expect(continued.json["continuedFrom"]).toBe(seeded.ended);
+    expect(continued.json["continuedFrom"]).toBe(failed);
     const next = toRunId(z.string().parse(continued.json["runId"]));
     expect(getRun(seeded.db, next)).toMatchObject({ state: "queued" });
 
@@ -751,25 +799,25 @@ describe("MCP 이어서 맡기기(0190)", () => {
   it("말이 없거나 공백이면 런을 만들지 않는다", async () => {
     agentGone();
     await connect();
-    expect((await call("continue_run", { runId: seeded.ended })).isError).toBe(true);
-    expect((await call("continue_run", { runId: seeded.ended, message: "  " })).isError).toBe(true);
-    expect(listRunMcpActions(seeded.db, seeded.ended)).toEqual([]);
+    expect((await call("continue_run", { runId: failed })).isError).toBe(true);
+    expect((await call("continue_run", { runId: failed, message: "  " })).isError).toBe(true);
+    expect(listRunMcpActions(seeded.db, failed)).toEqual([]);
   });
 
   it("서버가 막으면 이유와 함께 거절하고 원래 런에 기록한다", async () => {
     await connect();
     const running = await call("continue_run", { runId: seeded.waiting, message: "이어서" });
-    const agentAlive = await call("continue_run", { runId: seeded.ended, message: "이어서" });
+    const agentAlive = await call("continue_run", { runId: failed, message: "이어서" });
     expect(running.json["reason"]).toBe("not-ended");
     expect(agentAlive.json["reason"]).toBe("previous-agent");
-    expect(mcpLog(seeded.ended)).toEqual([["continue_run", "rejected", "previous-agent"]]);
+    expect(mcpLog(failed)).toEqual([["continue_run", "rejected", "previous-agent"]]);
   });
 
   it("같은 requestId 는 같은 새 런을 돌려주고, 다른 말이면 거절한다", async () => {
     agentGone();
     await connect();
     const args = {
-      runId: seeded.ended,
+      runId: failed,
       message: "이어서 해 주세요",
       requestId: "mcp-continue-0190",
     };
