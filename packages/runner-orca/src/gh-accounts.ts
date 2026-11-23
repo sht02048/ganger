@@ -23,7 +23,8 @@ const host = z
   .max(260);
 const login = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,99})$/);
 
-const ACCOUNT_LINE = /(?:Logged in to|Failed to log in to) (\S+) account (\S+) \(/;
+const ACCOUNT_LINE = /(?:Logged in to|log in to) (\S+) account (\S+) \(/;
+const ANY_ACCOUNT_LINE = / account \S+ \(| as \S+ \(/;
 const LEGACY_ACCOUNT_LINE = /Logged in to (\S+) as (\S+) \(/;
 const ACTIVE_LINE = /^\s*-\s*Active account:\s*(true|false)\s*$/;
 const LOGGED_OUT_LINE = /not logged in(?:to)? (?:to )?any GitHub hosts/i;
@@ -40,16 +41,21 @@ export function parseGhAccounts(output: string): GhAccountsReading {
   if (lines.some((line) => line.trim() === GH_MISSING_MARK)) return { kind: "not-installed" };
   const accounts: GhAccount[] = [];
   let activeKnown = false;
+  let current: GhAccount | null = null;
   for (const line of lines) {
     const account = accountOf(line);
     if (account !== null) {
       accounts.push(account);
+      current = account;
+      continue;
+    }
+    if (ANY_ACCOUNT_LINE.test(line)) {
+      current = null;
       continue;
     }
     const active = ACTIVE_LINE.exec(line)?.[1];
-    const last = accounts.at(-1);
-    if (active !== undefined && last !== undefined) {
-      last.active = active === "true";
+    if (active !== undefined && current !== null) {
+      current.active = active === "true";
       activeKnown = true;
     }
   }

@@ -71,6 +71,33 @@ describe("parseGhAccounts", () => {
     });
   });
 
+  test("a timed-out account is still listed with its own active mark", () => {
+    const output = `github.com
+  ✓ Logged in to github.com account acme-bot (keyring)
+  - Active account: false
+  X Timeout trying to log in to github.com account acme-ci (keyring)
+  - Active account: true`;
+    expect(parseGhAccounts(output)).toEqual({
+      kind: "logged-in",
+      accounts: [
+        { host: "github.com", login: "acme-bot", active: false },
+        { host: "github.com", login: "acme-ci", active: true },
+      ],
+    });
+  });
+
+  test("an account line it cannot accept never lends its active mark to the account above", () => {
+    const output = `github.com
+  ✓ Logged in to github.com account acme-bot (keyring)
+  - Active account: false
+  ? Something new about github.com account $(bad) (keyring)
+  - Active account: true`;
+    expect(parseGhAccounts(output)).toEqual({
+      kind: "logged-in",
+      accounts: [{ host: "github.com", login: "acme-bot", active: false }],
+    });
+  });
+
   test("no login is logged-out in both the current and older wording", () => {
     expect(parseGhAccounts(LOGGED_OUT)).toEqual({ kind: "logged-out" });
     expect(parseGhAccounts(LEGACY_LOGGED_OUT)).toEqual({ kind: "logged-out" });
