@@ -10,8 +10,10 @@ Read [`AGENTS.md`](./AGENTS.md) for the working rules, [`GLOSSARY.md`](./GLOSSAR
 | `apps/worker`              | Long-running daemon for the assignment queue, runner commands, and run and PR polling     |
 | `apps/cli`                 | `init`, `start`, `logs`, `mcp`, and launchd/systemd service registration                  |
 | `apps/desktop`             | macOS desktop app (Electron): window, tray, and notifications; runs the server bundle     |
+| `apps/mobile`              | iOS app (Expo) with its own design system and an in-app demo mode                         |
 | `packages/core`            | Domain logic and the Tracker, Runner, and CodeHost adapter interfaces                     |
 | `packages/app`             | What each screen reads and writes, shared by the web server functions and `ganger mcp`    |
+| `packages/api`             | `/api/v1` request and response contract (zod schemas), shared by the server and the app   |
 | `packages/db`              | SQLite (WAL) schema, access, and migrations                                               |
 | `packages/log`             | Server log writing and reading                                                            |
 | `packages/ui`              | Design system (StyleX + UI SDK)                                                           |
@@ -38,12 +40,13 @@ pnpm install   # also installs the lefthook pre-commit hook
 | --------------------------- | ---------------------------------------------------------------------- |
 | `pnpm dev`                  | Runs `pnpm dev:web` and opens the desktop app on it                    |
 | `pnpm dev:web`              | Runs the web app (hot reload) and the worker with fake adapters        |
+| `pnpm dev:mobile`           | Runs the seeded demo server and the Expo dev server for `apps/mobile`  |
 | `pnpm typecheck`            | Type-checks every package with TypeScript 7 (`tsc`)                    |
 | `pnpm lint`                 | Runs oxlint in type-aware mode                                         |
 | `pnpm format`               | Formats with oxfmt                                                     |
 | `pnpm format:check`         | Checks formatting                                                      |
 | `pnpm test`                 | Runs Vitest (browser tests need Google Chrome)                         |
-| `pnpm check:colors`         | Checks for raw color values outside `packages/ui`                      |
+| `pnpm check:colors`         | Checks for raw color values outside `packages/ui` and mobile tokens    |
 | `pnpm check:lengths`        | Checks for raw px/rem/em lengths in `apps/web` styles                  |
 | `pnpm build`                | Builds the web app, the worker, the CLI, and the desktop app           |
 | `pnpm smoke:web`            | Starts the production web build and checks a page                      |

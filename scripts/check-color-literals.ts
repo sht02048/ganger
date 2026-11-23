@@ -24,6 +24,7 @@ const SKIP_DIRS = new Set(["node_modules", "dist", ".turbo", ".output", "coverag
 
 const SKIP_FILES = new Set(["routeTree.gen.ts"]);
 const ALLOWED_ROOT = join("packages", "ui");
+const MOBILE_TOKENS = "apps/mobile/src/design/tokens.ts";
 
 const COLOR_FUNCTION =
   /(?<![\w.-])(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|color-mix|light-dark)\(/gi;
@@ -213,6 +214,7 @@ export function isChecked(path: string): boolean {
   if (normalized === ALLOWED_ROOT.split(sep).join("/") || normalized.startsWith("packages/ui/")) {
     return false;
   }
+  if (normalized === MOBILE_TOKENS) return false;
   const parts = normalized.split("/");
   if (parts.some((p) => SKIP_DIRS.has(p))) return false;
   const name = parts.at(-1) ?? "";

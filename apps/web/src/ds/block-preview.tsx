@@ -24,6 +24,7 @@ import {
   Chip,
   CloseIcon,
   CodeBlock,
+  QrCode,
   DataTable,
   DataTableBody,
   DataTableCell,
@@ -73,6 +74,7 @@ import {
   StepNav,
   StepNavItem,
   Text,
+  RowLink,
   TextLink,
   Textarea,
   VisuallyHidden,
@@ -84,7 +86,7 @@ import {
   StatusPill,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
 
 export const blockSectionIds = [
@@ -94,6 +96,7 @@ export const blockSectionIds = [
   "choices",
   "question",
   "codeBlock",
+  "qrCode",
   "dataTable",
   "outcomes",
   "steps",
@@ -213,6 +216,7 @@ export function BlockSections() {
   const [chips, setChips] = useState<ReadonlyArray<string>>([t("chips.runner"), t("chips.days")]);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const kanbanHead = useRef<HTMLElement | null>(null);
 
   return (
     <>
@@ -239,6 +243,7 @@ export function BlockSections() {
               <TextLink href="#links" tone="plain">
                 {t("links.plain")}
               </TextLink>
+              <RowLink href="#links">{t("links.row")}</RowLink>
             </span>
             <Text variant="ui" tone="problem">
               {t("links.problemTone")}
@@ -344,6 +349,14 @@ export function BlockSections() {
                 {t("codeBlock.log")}
               </CodeBlock>
             </div>
+          </Demo>
+        </Section>
+      </div>
+
+      <div id="qrCode">
+        <Section title={tNav("qrCode")} note={t("qrCode.note")}>
+          <Demo>
+            <QrCode value={t("qrCode.value")} label={t("qrCode.label")} />
           </Demo>
         </Section>
       </div>
@@ -554,7 +567,14 @@ export function BlockSections() {
       <div id="kanban">
         <Section title={tNav("kanban")} note={t("kanban.note")}>
           <div {...stylex.props(styles.kanban)}>
-            <KanbanColumn title={t("kanban.column")} count={2}>
+            <KanbanColumn
+              title={t("kanban.column")}
+              count={2}
+              headLink={{ href: "#kanban", label: t("kanban.headLink") }}
+              focusRef={(element) => {
+                kanbanHead.current = element;
+              }}
+            >
               <KanbanCards>
                 <li>
                   <KanbanCard
@@ -608,6 +628,22 @@ export function BlockSections() {
                 </li>
                 <li>
                   <KanbanCard
+                    ticketKey={t("kanban.checkKey")}
+                    tag={<StatusPill status="human-check">{t("kanban.checkTag")}</StatusPill>}
+                    title={t("kanban.checkTitle")}
+                    meta={t("kanban.meta")}
+                    time={t("kanban.time")}
+                    actionFullWidth
+                    action={
+                      <Button variant="check" block>
+                        {t("kanban.checkAction")}
+                      </Button>
+                    }
+                    onOpen={() => setSheetOpen(true)}
+                  />
+                </li>
+                <li>
+                  <KanbanCard
                     title={t("kanban.plainTitle")}
                     prChips={<PrChip kind="behind">{t("kanban.prBehind")}</PrChip>}
                     meta={t("kanban.meta")}
@@ -622,6 +658,11 @@ export function BlockSections() {
                 </li>
               </KanbanCards>
               <KanbanSubheading>{t("kanban.subheading")}</KanbanSubheading>
+              <div>
+                <Button variant="ghost" onClick={() => kanbanHead.current?.focus()}>
+                  {t("kanban.focusHead")}
+                </Button>
+              </div>
             </KanbanColumn>
           </div>
         </Section>

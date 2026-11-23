@@ -1,5 +1,6 @@
 import { toRunId, toTicketKey } from "@ganger/core";
-import { Text } from "@ganger/ui";
+import { Button, KanbanCard, Text } from "@ganger/ui";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import homeJson from "../../messages/ko/home.json" with { type: "json" };
@@ -16,6 +17,8 @@ import { loadHomePage } from "@ganger/app/home/load";
 import { homeMessages } from "./messages";
 import type { HomePage, HomeRun, InputWait } from "@ganger/app/home/model";
 import type { PrSignalsView } from "@ganger/app/pr-signals-view";
+import type { QueuedReason } from "@ganger/app/runs/model";
+import { useQueuedReasonText } from "../labels";
 
 const reject = () => Promise.reject(new Error("unused"));
 
@@ -73,6 +76,14 @@ function balanced(html: string, start: number, tag: string): string {
 function section(html: string, name: string): string {
   const start = html.indexOf(`<section aria-label="${name}"`);
   return start < 0 ? "" : balanced(html, start, "section");
+}
+
+function checkActionClasses(html: string): { slot: string; button: string } {
+  const match = /<span class="([^"]*)"><button\b([^>]*data-variant="check"[^>]*)>/.exec(html);
+  return {
+    slot: match?.[1] ?? "",
+    button: /class="([^"]*)"/.exec(match?.[2] ?? "")?.[1] ?? "",
+  };
 }
 
 function actionsOf(html: string) {
@@ -277,11 +288,11 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       expect(done.indexOf(row(done, tagged))).toBeLessThan(subheading);
   });
 
-  it("처리할 일 없이 끝난 카드가 3장을 넘으면 3장만 보이고 Runs 링크를 둔다", () => {
+  it("처리할 일 없이 끝난 카드가 5장을 넘으면 5장만 보이고 더 보기나 Runs 링크를 두지 않는다 (0186)", () => {
     const page = seededPage();
     const merged = page.endedRecently.find((run) => run.ticketKey === "ACME-1");
     if (merged === undefined) throw new Error("no ACME-1");
-    const extra = [1, 2, 3, 4].map((n) => ({
+    const extra = [1, 2, 3, 4, 5, 6].map((n) => ({
       ...merged,
       id: toRunId(`run-extra-${n}`),
       ticketKey: toTicketKey(`ACME-${40 + n}`),
@@ -291,8 +302,24 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       "Done",
     );
     const settled = done.slice(done.indexOf(homeJson.board.settled));
+    expect(SETTLED_VISIBLE).toBe(5);
     expect(rows(settled)).toHaveLength(SETTLED_VISIBLE);
-    expect(settled).toMatch(/<a href="\/runs\?ws=ws-commerce"[^>]*>Runs에서 모두 보기<\/a>/);
+    expect(settled).not.toContain("Runs에서 모두 보기");
+    expect(actionsOf(settled).filter(({ label }) => label.includes("더 보기"))).toEqual([]);
+  });
+
+  it("Done 칸 머리만 끝난 런 모두를 보여 주는 Runs 링크다 (0186)", () => {
+    const html = render(seededPage());
+    const head = section(html, "Done").match(/<a href="([^"]+)" aria-label="([^"]+)"/);
+    expect(head?.[1]?.replaceAll("&amp;", "&")).toBe("/runs?ws=ws-commerce&view=all");
+    expect(head?.[2]).toMatch(/^Done \d+, Runs에서 보기$/);
+    for (const name of ["Queued", "Running"])
+      expect(section(html, name)).not.toContain("Runs에서 보기");
+  });
+
+  it("모든 Workspace 보기의 Done 칸 머리도 끝난 런 모두 탭으로 간다 (0186)", () => {
+    const done = section(render({ ...seededPage(), workspace: { kind: "all" } }), "Done");
+    expect(done).toMatch(/<a href="\/runs\?view=all" aria-label="Done \d+, Runs에서 보기"/);
   });
 
   it("Done 칸 머리 개수는 보이는 카드 수 제한과 상관없이 칸에 든 런 전체다 (0163)", () => {
@@ -397,6 +424,56 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     ]);
   });
 
+  describe("Human Check 카드(티켓 0189)", () => {
+    const humanCheck: Extract<InputWait, { kind: "human-check" }> = {
+      kind: "human-check",
+      questionId: "q-check",
+      body: "미리보기를 확인해 주세요\n둘째 줄",
+      answered: false,
+    };
+
+    it("답하지 않은 카드는 내용 문구 없이 check 색 폭 전체 확인하기를 둔다", () => {
+      const card = row(render(withInput(seededPage(), humanCheck)), "ACME-11");
+      expect(text(card)).not.toContain("미리보기를 확인해 주세요");
+      const button = /<button[^>]*data-variant="check"[^>]*>/.exec(card)?.[0] ?? "";
+      expect(button).toContain("aria-describedby=");
+      expect(text(card)).toContain(homeJson.card.check);
+      const fullWidthCard = renderToString(
+        <KanbanCard
+          ticketKey="ACME-11"
+          title="제목"
+          actionFullWidth
+          action={
+            <Button variant="check" block>
+              {homeJson.card.check}
+            </Button>
+          }
+          onOpen={() => undefined}
+        />,
+      );
+      expect(checkActionClasses(card)).toEqual(checkActionClasses(fullWidthCard));
+      expect(checkActionClasses(card).slot).not.toBe("");
+      expect(checkActionClasses(card).button).not.toBe("");
+    });
+
+    it("답한 카드는 문구와 답했어요를 그대로 보이고 버튼이 없다", () => {
+      const card = row(
+        render(withInput(seededPage(), { ...humanCheck, answered: true })),
+        "ACME-11",
+      );
+      expect(text(card)).toContain("미리보기를 확인해 주세요");
+      expect(text(card)).toContain(homeJson.card.answered);
+      expect(card).not.toContain('data-variant="check"');
+    });
+
+    it("Question 카드의 답하기는 secondary 그대로이고 질문 문구를 보인다", () => {
+      const card = row(render(withInput(seededPage(), question)), "ACME-11");
+      expect(text(card)).toContain(question.body);
+      expect(card).toMatch(/data-variant="secondary"[^>]*>답하기</);
+      expect(card).not.toContain('data-variant="check"');
+    });
+  });
+
   it("답을 보낸 질문과 거절을 보낸 권한 대기는 카드에 결과를 보이고 답하기를 두지 않는다", () => {
     const answered = row(
       render(withInput(seededPage(), { ...question, answered: true })),
@@ -468,6 +545,125 @@ describe("Dashboard 칸반(티켓 0100)", () => {
 
     expect(body).toContain(homeJson.card.cancelling);
     expect(body).toContain(first.workspace.name);
+  });
+
+  describe("칩과 아랫줄이 선행 티켓을 두 번 말하지 않는다(0183)", () => {
+    const active = {
+      key: "ACME-11",
+      title: "앞 티켓",
+      stateName: "In Progress",
+      stateCategory: "started",
+    };
+    const canceled = {
+      key: "ACME-10",
+      title: "취소된 티켓",
+      stateName: "Canceled",
+      stateCategory: "canceled",
+    };
+    const finished = {
+      key: "ACME-9",
+      title: "끝난 티켓",
+      stateName: "Done",
+      stateCategory: "completed",
+    };
+    const cardWith = (queuedReason: QueuedReason) => {
+      const page = seededPage();
+      const first = page.queued[0];
+      if (first === undefined) throw new Error("no queued run");
+      const queued = page.queued.map((run) =>
+        run.id === first.id && run.state === "queued" ? { ...run, queuedReason } : run,
+      );
+      return row(render({ ...page, queued }), first.ticketKey);
+    };
+    const footOf = (card: string) => {
+      const footId = /aria-describedby="[^"]*?([^" ]+foot)"/.exec(card)?.[1] ?? "";
+      return text(card.slice(card.indexOf(`id="${footId}"`)));
+    };
+
+    it.each([
+      [
+        "기다림",
+        { kind: "blockers-waiting", blockers: [active], finished: [finished] },
+        homeJson.card.blockerLine.waiting,
+      ],
+      [
+        "취소",
+        { kind: "blockers-stuck", cause: "canceled", blocker: canceled, blockers: [canceled] },
+        homeJson.card.blockerLine.canceled,
+      ],
+      [
+        "읽지 못함",
+        { kind: "blockers-stuck", cause: "unreadable", blocker: active, blockers: [active] },
+        homeJson.card.blockerLine.unreadable,
+      ],
+      [
+        "순환",
+        { kind: "blockers-stuck", cause: "cycle", blocker: active, blockers: [active] },
+        homeJson.card.blockerLine.cycle,
+      ],
+    ] satisfies [string, QueuedReason, string][])(
+      "%s 카드의 키는 칩에만 있다",
+      (_name, reason, line) => {
+        const card = cardWith(reason);
+        const foot = footOf(card);
+        expect(foot).toContain(line);
+        expect(foot).not.toMatch(/ACME-(9|10|11)\b/);
+        expect(card).toContain("data-blocker-state");
+        expect(text(card)).toMatch(/ACME-(10|11)/);
+      },
+    );
+
+    it("순환 카드는 원인 티켓의 칩만 멈춤으로 보인다", () => {
+      const inCycle = { ...active, key: "ACME-12" };
+      const card = cardWith({
+        kind: "blockers-stuck",
+        cause: "cycle",
+        blocker: inCycle,
+        blockers: [canceled, active, inCycle],
+      });
+      const chipOf = (state: string) => {
+        const [, chip = ""] = card.split(`data-blocker-state="${state}"`);
+        return text(`<span ${chip.split("data-blocker-state")[0] ?? ""}`);
+      };
+      expect(card.match(/data-blocker-state="stuck"/g)).toHaveLength(1);
+      expect(chipOf("stuck")).toContain("ACME-12");
+      expect(chipOf("stuck")).toContain(domain.blocker.stuckCause.cycle);
+      expect(chipOf("canceled")).toContain("ACME-10");
+      expect(chipOf("active")).toContain("ACME-11");
+    });
+
+    it("칩의 키와 상태는 카드 버튼의 설명으로 전해진다", () => {
+      const card = cardWith({ kind: "blockers-waiting", blockers: [active] });
+      const chipsId = /aria-describedby="[^"]*?([^" ]+chips)/.exec(card)?.[1] ?? "";
+      const chips = card.slice(card.indexOf(`id="${chipsId}"`));
+      expect(chipsId).not.toBe("");
+      expect(text(chips)).toContain("ACME-11");
+      expect(text(chips)).toContain("In Progress");
+    });
+
+    it("기다리는 선행 티켓 없이 끝난 칩만 있으면 기다린다고 말하지 않는다", () => {
+      const foot = footOf(
+        cardWith({ kind: "blockers-waiting", blockers: [], finished: [finished] }),
+      );
+      expect(foot).not.toContain(homeJson.card.blockerLine.waiting);
+      expect(foot).toContain(domain.queuedReason.behind);
+    });
+
+    it("칩이 없는 Queued 카드의 문장은 그대로다", () => {
+      expect(text(cardWith({ kind: "starting" }))).toContain(domain.queuedReason.starting);
+      expect(
+        text(
+          cardWith({ kind: "blockers-stuck", cause: "unreadable", blocker: null, blockers: [] }),
+        ),
+      ).toContain(domain.queuedReason["blocker-unreadable-unknown"]);
+    });
+
+    it("다른 화면이 쓰는 기다림 문장은 키를 그대로 말한다", () => {
+      function Reason() {
+        return useQueuedReasonText()({ kind: "blockers-waiting", blockers: [active] });
+      }
+      expect(text(renderWithMessages(<Reason />, homeMessages))).toBe("ACME-11을 기다려요");
+    });
   });
 
   it("Queued 까닭은 러너 이름에 맞는 조사로 쓴다", () => {
@@ -568,7 +764,7 @@ describe("Runners", () => {
     const html = section(render(seededPage()), "Runners");
     const offline = row(html, "runner-b");
     expect(dots(offline)).toEqual(["offline"]);
-    expect(offline).toContain('href="/runners?sel=runner-b"');
+    expect(offline).toContain('href="/runners?ws=ws-commerce&amp;sel=runner-b"');
     expect(offline).toMatch(/role="img" aria-label="1자리 중 0자리 사용" data-tone="problem"/);
     expect(text(offline)).toBe("Offline runner-b 0/1");
     const online = row(html, "runner-a");
@@ -580,7 +776,7 @@ describe("Runners", () => {
     expect(html).toMatch(/<h3[^>]*>러너 1대에 문제가 있어요<\/h3>/);
     expect(text(html)).toContain("Offline이에요: runner-b(2 hr)");
     expect(html).toMatch(
-      /<a href="\/runners" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
+      /<a href="\/runners\?ws=ws-commerce" data-variant="secondary"[^>]*>Runners에서 고치기<\/a>/,
     );
   });
 
@@ -600,6 +796,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-full",
@@ -610,6 +807,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-auth",
@@ -620,6 +818,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
           ],
         },
@@ -652,6 +851,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-free",
@@ -662,6 +862,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-over",
@@ -672,6 +873,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-off",
@@ -682,6 +884,7 @@ describe("Runners", () => {
               capacity: 4,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-auth",
@@ -692,6 +895,7 @@ describe("Runners", () => {
               capacity: 4,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
           ],
         },
@@ -762,8 +966,67 @@ describe("문구", () => {
   });
 });
 
+describe("Runners 부하(0191)", () => {
+  const base = {
+    cause: null,
+    offlineMs: null,
+    used: 1,
+    capacity: 2,
+    limits: [],
+    usage: { provider: "claude", window: "weekly" as const, usedPercent: 72 },
+  };
+  const calm = { ...base, id: "r-b", name: "runner-b", loadHigh: null };
+  const hot = {
+    ...base,
+    id: "r-a",
+    name: "runner-a",
+    loadHigh: { cpuPercent: 92, memoryPercent: null },
+  };
+  const pageWith = (list: HomePage["runners"]["list"]): HomePage => ({
+    ...seededPage(),
+    runners: { list },
+  });
+
+  it("보통이면 사용량 줄을 그대로 두고 문제 상자를 띄우지 않는다", () => {
+    const runners = section(render(pageWith([calm])), "Runners");
+    expect(text(row(runners, "runner-b"))).toBe("Online runner-b Claude 주간 72% 1/2");
+    expect(text(runners)).not.toContain("부하");
+  });
+
+  it("높으면 둘째 줄을 이유로 바꾸고 상자에 묶음과 안내를 더한다", () => {
+    const runners = section(render(pageWith([hot, calm])), "Runners");
+    expect(text(row(runners, "runner-a"))).toContain("CPU 92% · 5분 넘게 높아요");
+    expect(text(row(runners, "runner-a"))).not.toContain("Claude 주간");
+    expect(text(runners)).toContain("러너 1대의 부하가 높아요");
+    expect(text(runners)).toContain("CPU 부하가 높아요: runner-a · 5분 넘게 92%");
+    expect(text(runners)).toContain("새 런은 그대로 받아요. 느려질 수 있어요.");
+    expect(text(runners)).toContain("Runners에서 보기");
+    expect(text(runners)).not.toContain("문제가 있어요");
+  });
+
+  it("다른 러너 문제와 함께면 기존 제목에 부하 묶음을 더한다", () => {
+    const offline = {
+      ...calm,
+      id: "r-c",
+      name: "runner-c",
+      cause: "offline" as const,
+    };
+    const runners = section(render(pageWith([offline, hot])), "Runners");
+    expect(text(runners)).toContain("러너 1대에 문제가 있어요");
+    expect(text(runners)).toContain("러너 1대의 부하가 높아요");
+    expect(text(runners)).toContain("Runners에서 고치기");
+  });
+});
+
 describe("Runners 공급자 사용량(0086)", () => {
-  const base = { cause: null, offlineMs: null, used: 1, capacity: 2, limits: [] };
+  const base = {
+    cause: null,
+    offlineMs: null,
+    used: 1,
+    capacity: 2,
+    limits: [],
+    loadHigh: null,
+  };
 
   it("러너 행 아래에 가장 높은 사용량을 숫자로, 90% 이상이면 빨강 글자로 보인다", () => {
     const html = section(
@@ -1015,6 +1278,8 @@ describe("Dashboard 멈추기·재개(0118)", () => {
     const paused = row(section(render(page), homeJson.column.running), "ACME-10");
     expect(pillsOf(paused)).toEqual([{ status: "paused", label: domain.runState.paused }]);
     expect(buttonsOf(paused).map((button) => button.label)).toContain(homeJson.card.resume);
+    expect(paused).toMatch(/data-variant="secondary"[^>]*>재개하기</);
+    expect(paused).not.toContain('data-variant="check"');
     expect(paused).not.toContain(homeJson.card.menu.replace("{key}", "ACME-10"));
     expect(text(paused)).toContain("20 min");
     expect(text(paused)).toContain(domain.pauseSource.operator);

@@ -1,6 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
 import {
-  ChevronRightIcon,
   Dialog,
   DialogClose,
   InfoTip,
@@ -16,7 +15,7 @@ import {
   VisuallyHidden,
   linkStyles,
 } from "@ganger/ui";
-import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
+import { breakpoints, size } from "@ganger/ui/tokens.stylex";
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type {
@@ -33,6 +32,7 @@ import {
   RevertedMessage,
   useAutoSave,
 } from "./row-state";
+import { PROJECT_EDITOR_SELECTOR } from "./blocked-editor";
 import { AutoAssignLabelPicker } from "./label-picker";
 import { MappingEditor, ReloadFromTracker, autoAssignLabelOf } from "./mapping-editor";
 import {
@@ -43,7 +43,12 @@ import {
   type ProjectDetailActions,
   type SettingsActions,
 } from "./settings-screen";
-import { plainSettingsLink, type RenderSettingsLink } from "./settings-page";
+import {
+  SettingsBackLink,
+  plainSettingsLink,
+  projectRowId,
+  type RenderSettingsLink,
+} from "./settings-page";
 
 export interface ProjectDetailScreenProps {
   page: SettingsPage;
@@ -83,17 +88,12 @@ export function ProjectDetailScreen({
   const tm = useTranslations("settings.mapping");
   const workspace = page.workspace;
   const bound = findBoundProject(workspace, connectionId, projectId);
-  const back = renderLink(
-    { kind: "settings" },
-    {
-      ...stylex.props(linkStyles("quiet"), styles.crumb),
-      children: (
-        <>
-          {t("breadcrumb")}
-          <ChevronRightIcon />
-        </>
-      ),
-    },
+  const back = (
+    <SettingsBackLink
+      label={t("back")}
+      rowId={projectRowId(connectionId, projectId)}
+      renderLink={renderLink}
+    />
   );
   if (workspace === null || bound === null) {
     return (
@@ -122,7 +122,7 @@ export function ProjectDetailScreen({
       }
     >
       <EditorProvider
-        blockedSelector="#repo"
+        blockedSelector={PROJECT_EDITOR_SELECTOR}
         {...(renderGuard === undefined ? {} : { renderGuard })}
       >
         <SettingsLayout>
@@ -418,7 +418,6 @@ function RemoveRow({
 }
 
 const styles = stylex.create({
-  crumb: { display: "inline-flex", alignItems: "center", gap: space.s1 },
   select: {
     display: "flex",
     width: { default: size.settingsControlWidth, [breakpoints.settingsRowStacked]: "100%" },

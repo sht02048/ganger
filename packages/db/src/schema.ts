@@ -119,6 +119,8 @@ export const runners = sqliteTable(
     offlineSince: timeMs("offline_since"),
     providerUsage: text("provider_usage"),
     providerUsageReadAt: timeMs("provider_usage_read_at"),
+    load: text("load"),
+    loadReadAt: timeMs("load_read_at"),
     createdAt: timeMs("created_at").notNull(),
   },
   (t) => [
@@ -724,5 +726,50 @@ export const changeEventsPruned = sqliteTable(
   (t) => [
     check("change_events_pruned_single", sql`${t.id} = 1`),
     check("change_events_pruned_through", sql`${t.throughSeq} >= 0`),
+  ],
+);
+
+export const devices = sqliteTable(
+  "devices",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timeMs("created_at").notNull(),
+    lastSeenAt: timeMs("last_seen_at"),
+    expoPushToken: text("expo_push_token"),
+    notificationsEnabled: integer("notifications_enabled", { mode: "boolean" })
+      .notNull()
+      .default(false),
+    notifyQuestion: integer("notify_question", { mode: "boolean" }).notNull().default(true),
+    notifyPermission: integer("notify_permission", { mode: "boolean" }).notNull().default(true),
+    notifyHumanCheckRequest: integer("notify_human_check_request", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    notifyFailedDisconnected: integer("notify_failed_disconnected", { mode: "boolean" })
+      .notNull()
+      .default(true),
+    notifyRunnerIssue: integer("notify_runner_issue", { mode: "boolean" }).notNull().default(true),
+  },
+  (t) => [uniqueIndex("devices_token_hash").on(t.tokenHash)],
+);
+
+export const devicePushDeliveries = sqliteTable(
+  "device_push_deliveries",
+  {
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => notificationEvents.id, { onDelete: "cascade" }),
+    firstSentAt: timeMs("first_sent_at"),
+    remindedAt: timeMs("reminded_at"),
+    clearedAt: timeMs("cleared_at"),
+    bundleId: text("bundle_id"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.deviceId, t.eventId] }),
+    index("device_push_deliveries_event").on(t.eventId),
   ],
 );

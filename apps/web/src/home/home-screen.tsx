@@ -17,14 +17,13 @@ import {
   SegmentedTabs,
   StatusDot,
   Text,
-  TextLink,
   showToast,
 } from "@ganger/ui";
 import type { PillStatus } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { useUsageNames } from "../labels";
@@ -36,6 +35,7 @@ import {
   dashboardBoard,
   freeCapacity,
   limitedRunners,
+  loadHighRunners,
   readyAgainInMs,
   runnerIssues,
   todoGroupOf,
@@ -44,7 +44,7 @@ import {
 import { cardTag, RunCard } from "./run-card";
 import type { SheetMode } from "./run-card";
 import { RunSheet } from "./run-sheet";
-import type { SheetTarget } from "./run-sheet";
+import type { SheetSentHandler, SheetTarget } from "./run-sheet";
 import { href } from "./run-text";
 
 export { runHref } from "./run-text";
@@ -92,7 +92,7 @@ export interface HomeScreenProps {
 
 export const COLUMN_VISIBLE = 6;
 export const DONE_TODO_VISIBLE = 4;
-export const SETTLED_VISIBLE = 3;
+export const SETTLED_VISIBLE = 5;
 
 interface CardHost {
   all: boolean;
@@ -100,6 +100,7 @@ interface CardHost {
   lastTags: ReadonlyMap<RunId, PillStatus | null>;
   selectedId: RunId | null;
   revealedId: RunId | null;
+  sheetRunId: RunId | null;
   cardRef: (id: RunId) => (element: HTMLButtonElement | null) => void;
   focusCard: (id: RunId) => void;
   onOpen: (run: HomeRun, tagged: boolean, mode: SheetMode) => void;
@@ -132,6 +133,35 @@ export function HomeScreen({
   const [open, setOpen] = useState(false);
   const [revealedId, setRevealedId] = useState<RunId | null>(null);
   const shownRunId = useRef<RunId | undefined>(undefined);
+  const columnHeads = useRef(new Map<BoardColumn, HTMLElement>());
+  const [sheetOpening, setSheetOpening] = useState(0);
+  const liveSheetOpening = useRef<number | null>(null);
+  const sentCardFocus = useRef<SentCardFocus | null>(null);
+  useEffect(() => {
+    liveSheetOpening.current = open ? sheetOpening : null;
+  }, [open, sheetOpening]);
+  useLayoutEffect(() => {
+    const followed = sentCardFocus.current;
+    if (followed === null) return;
+    if (open || page.workspace.kind === "none" || followed.scope !== workspaceScope) {
+      sentCardFocus.current = null;
+      return;
+    }
+    const held = followed.element;
+    if (held === null) return;
+    const active = document.activeElement;
+    const card = cards.current.get(followed.run.id) ?? null;
+    const removedWhileFocused = !held.isConnected && (active === null || active === document.body);
+    const leavingWhileFocused = active === held && card !== held;
+    if (removedWhileFocused || leavingWhileFocused) {
+      const next =
+        card ?? columnHeads.current.get(boardColumnOf(dashboardBoard(page), followed.run)) ?? null;
+      if (next !== null && next !== active) next.focus();
+      followed.element = next;
+    } else if (active !== held && active?.closest('[role="dialog"]') == null) {
+      sentCardFocus.current = null;
+    }
+  }, [page, open, workspaceScope]);
   useControlFailureToasts(page);
   useEffect(() => {
     if (page.workspace.kind === "none") return;
@@ -153,6 +183,7 @@ export function HomeScreen({
     const tagged = page.attention.some((item) => item.run.id === run.id);
     setRevealedId(run.id);
     setTarget({ run, tagged, mode: opensAnswer(run) ? "answer" : "summary" });
+    setSheetOpening((count) => count + 1);
     setOpen(true);
   }, [openRunId, page, onOpenRunShown]);
   if (page.workspace.kind === "none") {
@@ -173,6 +204,7 @@ export function HomeScreen({
     listKey: `${workspaceScope}:${view}`,
     selectedId: open && target !== null ? target.run.id : null,
     revealedId,
+    sheetRunId: target?.run.id ?? null,
     cardRef: (id) => (element) => {
       if (element === null) cards.current.delete(id);
       else cards.current.set(id, element);
@@ -180,6 +212,7 @@ export function HomeScreen({
     focusCard: (id) => cards.current.get(id)?.focus(),
     onOpen: (run, tagged, mode) => {
       setTarget({ run, tagged, mode });
+      setSheetOpening((count) => count + 1);
       setOpen(true);
     },
     onControl: (run, control, focusAfter) => {
@@ -202,10 +235,23 @@ export function HomeScreen({
       );
     },
   };
+  const columnHeadRef = (column: BoardColumn) => (element: HTMLElement | null) => {
+    if (element === null) columnHeads.current.delete(column);
+    else columnHeads.current.set(column, element);
+  };
+  const onSheetSent: SheetSentHandler = (run, sent) => {
+    showToast(t(`sheetSent.${sent}`, { key: run.ticketKey }));
+    if (liveSheetOpening.current !== sheetOpening) return;
+    sentCardFocus.current = { run, scope: workspaceScope, element: null };
+    setOpen(false);
+  };
   const runningTodo = new Set(board.running.todo.map((run) => run.id));
   const humanChecks = board.running.todo.filter((run) => todoGroupOf(run) === "check");
   const otherTodo = board.running.todo.filter((run) => todoGroupOf(run) !== "check");
   const todoIds = new Set(page.attention.map(({ run }) => run.id));
+  const doneCount = todoOnly
+    ? board.done.todo.length
+    : board.done.todo.length + board.done.rest.length;
   return (
     <ScreenLayout
       header={
@@ -235,7 +281,11 @@ export function HomeScreen({
         <div {...stylex.props(styles.frame)}>
           <div {...stylex.props(styles.board)}>
             <MotionScope key={workspaceScope} move="card">
-              <KanbanColumn title={t("column.queued")} count={todoOnly ? 0 : board.queued.length}>
+              <KanbanColumn
+                title={t("column.queued")}
+                count={todoOnly ? 0 : board.queued.length}
+                focusRef={columnHeadRef("queued")}
+              >
                 <CardList
                   runs={todoOnly ? [] : board.queued}
                   tagged={() => false}
@@ -246,6 +296,7 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.running")}
+                focusRef={columnHeadRef("running")}
                 count={
                   todoOnly
                     ? board.running.todo.length
@@ -283,11 +334,12 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.done")}
-                count={
-                  todoOnly
-                    ? board.done.todo.length
-                    : board.done.todo.length + board.done.rest.length
-                }
+                count={doneCount}
+                focusRef={columnHeadRef("done")}
+                headLink={{
+                  href: endedRunsHref(page),
+                  label: t("board.doneLink", { column: t("column.done"), count: doneCount }),
+                }}
               >
                 <CardList
                   runs={board.done.todo}
@@ -302,11 +354,11 @@ export function HomeScreen({
                   }
                   host={host}
                 />
-                <SettledCards runs={todoOnly ? [] : board.done.rest} page={page} host={host} />
+                <SettledCards runs={todoOnly ? [] : board.done.rest} host={host} />
               </KanbanColumn>
             </MotionScope>
             <div {...stylex.props(styles.runners)}>
-              <RunnersSection runners={page.runners.list} />
+              <RunnersSection runners={page.runners.list} runnersPath={runnersHref(page)} />
             </div>
           </div>
         </div>
@@ -318,11 +370,20 @@ export function HomeScreen({
           }
           open={open}
           onOpenChange={setOpen}
-          finalFocus={() => (target === null ? null : (cards.current.get(target.run.id) ?? null))}
+          finalFocus={() => {
+            if (target === null) return null;
+            const element =
+              cards.current.get(target.run.id) ??
+              columnHeads.current.get(boardColumnOf(board, target.run)) ??
+              null;
+            if (sentCardFocus.current !== null) sentCardFocus.current.element = element;
+            return element;
+          }}
           all={all}
           onAnswer={onAnswer}
           onHumanCheck={onHumanCheck}
           onDeny={onDeny}
+          onSent={onSheetSent}
           onControl={host.onControl}
         />
       </div>
@@ -346,6 +407,23 @@ function boardRuns(board: ReturnType<typeof dashboardBoard>): HomeRun[] {
     ...board.done.todo,
     ...board.done.rest,
   ];
+}
+
+type BoardColumn = "queued" | "running" | "done";
+
+interface SentCardFocus {
+  run: HomeRun;
+  scope: string;
+  element: HTMLElement | null;
+}
+
+function boardColumnOf(board: ReturnType<typeof dashboardBoard>, sheetRun: HomeRun): BoardColumn {
+  const isSheetRun = (run: HomeRun) => run.id === sheetRun.id;
+  if (board.queued.some(isSheetRun)) return "queued";
+  if (board.done.todo.some(isSheetRun) || board.done.rest.some(isSheetRun)) return "done";
+  if (board.running.todo.some(isSheetRun) || board.running.rest.some(isSheetRun)) return "running";
+  if (sheetRun.state === "queued") return "queued";
+  return sheetRun.state === "ended" ? "done" : "running";
 }
 
 function opensAnswer(run: HomeRun): boolean {
@@ -487,10 +565,10 @@ function AnimatedCards({
   );
 }
 
-function SettledCards({ runs, page, host }: { runs: HomeRun[]; page: HomePage; host: CardHost }) {
+function SettledCards({ runs, host }: { runs: HomeRun[]; host: CardHost }) {
   const t = useTranslations("home.board");
   const first = runs.slice(0, SETTLED_VISIBLE);
-  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.revealedId);
+  const revealed = runs.slice(SETTLED_VISIBLE).find((run) => run.id === host.sheetRunId);
   const visible = revealed === undefined ? first : [...first, revealed];
   return (
     <div data-settled={runs.length === 0 ? undefined : ""} {...stylex.props(styles.settled)}>
@@ -501,16 +579,17 @@ function SettledCards({ runs, page, host }: { runs: HomeRun[]; page: HomePage; h
         resetKey={`${host.listKey}:${revealed?.id ?? "first"}`}
         host={host}
       />
-      {runs.length > visible.length ? (
-        <div {...stylex.props(styles.allRuns)}>
-          <TextLink href={runsHref(page)}>{t("allRuns")}</TextLink>
-        </div>
-      ) : null}
     </div>
   );
 }
 
-function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
+function RunnersSection({
+  runners,
+  runnersPath,
+}: {
+  runners: DashboardRunner[];
+  runnersPath: (sel?: string) => string;
+}) {
   const t = useTranslations("home");
   const { duration } = useTime();
   const issues = runnerIssues({ list: runners });
@@ -541,6 +620,9 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
     }),
   );
   const problemCount = new Set([...issues, ...limited].map((runner) => runner.id)).size;
+  const loadHigh = loadHighRunners({ list: runners });
+  const loadOnly = problemCount === 0 && loadHigh.length > 0;
+  const loadTitle = t("runners.loadTitle", { count: loadHigh.length });
   return (
     <Card surface="plain" label={t("section.runners")}>
       <Section
@@ -560,19 +642,19 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
           <div {...stylex.props(styles.sideBlock)}>
             <ul {...stylex.props(styles.rows)}>
               {runners.map((runner) => (
-                <RunnerRow key={runner.id} runner={runner} />
+                <RunnerRow key={runner.id} runner={runner} href={runnersPath(runner.id)} />
               ))}
             </ul>
-            {problemCount === 0 ? null : (
+            {problemCount === 0 && loadHigh.length === 0 ? null : (
               <ProblemCallout
-                title={t("runners.problemTitle", { count: problemCount })}
+                title={loadOnly ? loadTitle : t("runners.problemTitle", { count: problemCount })}
                 actions={
                   <a
-                    href="/runners"
+                    href={runnersPath()}
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
-                    {t("runners.fix")}
+                    {loadOnly ? t("runners.loadView") : t("runners.fix")}
                   </a>
                 }
               >
@@ -591,6 +673,13 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
                     {line.text}
                   </p>
                 ))}
+                {loadHigh.length === 0 || loadOnly ? null : (
+                  <p {...stylex.props(styles.reset)}>{loadTitle}</p>
+                )}
+                {loadHigh.flatMap((runner) => loadLines(runner, t))}
+                {loadHigh.length === 0 ? null : (
+                  <p {...stylex.props(styles.reset)}>{t("runners.loadNote")}</p>
+                )}
               </ProblemCallout>
             )}
           </div>
@@ -598,6 +687,29 @@ function RunnersSection({ runners }: { runners: DashboardRunner[] }) {
       </Section>
     </Card>
   );
+}
+
+function loadLines(runner: DashboardRunner, t: ReturnType<typeof useTranslations<"home">>) {
+  const { cpuPercent, memoryPercent } = runner.loadHigh ?? {
+    cpuPercent: null,
+    memoryPercent: null,
+  };
+  return [
+    ...(cpuPercent === null
+      ? []
+      : [
+          <p key={`${runner.id}:cpu`} {...stylex.props(styles.reset)}>
+            {t("runners.loadCpu", { name: runner.name, percent: Math.round(cpuPercent) })}
+          </p>,
+        ]),
+    ...(memoryPercent === null
+      ? []
+      : [
+          <p key={`${runner.id}:memory`} {...stylex.props(styles.reset)}>
+            {t("runners.loadMemory", { name: runner.name, percent: Math.round(memoryPercent) })}
+          </p>,
+        ]),
+  ];
 }
 
 function runnerStatus(runner: DashboardRunner): PillStatus {
@@ -611,14 +723,14 @@ function runnerStatus(runner: DashboardRunner): PillStatus {
   }
 }
 
-function RunnerRow({ runner }: { runner: DashboardRunner }) {
+function RunnerRow({ runner, href: rowHref }: { runner: DashboardRunner; href: string }) {
   const t = useTranslations("home.runners");
   const statusName = useStatusName();
   const status = runnerStatus(runner);
   return (
     <li data-runner={runner.id}>
       <Row
-        href={href("/runners", { sel: runner.id })}
+        href={rowHref}
         leading={<StatusDot status={status}>{statusName(status)}</StatusDot>}
         trailing={
           <CapacityCells
@@ -643,6 +755,17 @@ function RunnerRow({ runner }: { runner: DashboardRunner }) {
 function RunnerUsage({ runner }: { runner: DashboardRunner }) {
   const t = useTranslations("home.runners");
   const names = useUsageNames();
+  const loadHigh = runner.loadHigh ?? null;
+  if (loadHigh !== null) {
+    const { cpuPercent, memoryPercent } = loadHigh;
+    return (
+      <Text variant="meta" numeric tone="problem">
+        {cpuPercent !== null
+          ? t("rowLoadCpu", { percent: Math.round(cpuPercent) })
+          : t("rowLoadMemory", { percent: Math.round(memoryPercent ?? 0) })}
+      </Text>
+    );
+  }
   if (runner.usage === null) return null;
   const { provider, window, usedPercent } = runner.usage;
   return (
@@ -660,10 +783,14 @@ function RunnerUsage({ runner }: { runner: DashboardRunner }) {
   );
 }
 
-function runsHref(page: HomePage): string {
-  return page.workspace.kind === "one"
-    ? href("/runs", { ws: page.workspace.workspace.id })
-    : "/runs";
+function runnersHref(page: HomePage): (sel?: string) => string {
+  const ws = page.workspace.kind === "one" ? { ws: page.workspace.workspace.id } : {};
+  return (sel) => href("/runners", { ...ws, ...(sel === undefined ? {} : { sel }) });
+}
+
+function endedRunsHref(page: HomePage): string {
+  const ws = page.workspace.kind === "one" ? { ws: page.workspace.workspace.id } : {};
+  return href("/runs", { ...ws, view: "all" });
 }
 
 const styles = stylex.create({
@@ -706,7 +833,6 @@ const styles = stylex.create({
     gap: space.s2,
     minWidth: 0,
   },
-  allRuns: { paddingInline: space.s1 },
   sideBlock: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
   runnerText: { display: "flex", flexDirection: "column", gap: space.px2, minWidth: 0 },
   rows: {

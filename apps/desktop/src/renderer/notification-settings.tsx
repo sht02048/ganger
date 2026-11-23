@@ -59,6 +59,10 @@ export function NotificationSettings({
   useEffect(() => {
     titleRef.current?.focus();
   }, []);
+  const reconnected = view.deviceLink === "reconnected";
+  useEffect(() => {
+    if (reconnected) titleRef.current?.focus();
+  }, [reconnected]);
   const save = (next: NotificationSettingsView) => {
     onChange(next);
     window.desktopNotifications
@@ -76,6 +80,26 @@ export function NotificationSettings({
           </h1>
           <Text variant="body">{t("summary")}</Text>
         </header>
+        <span role="status" {...stylex.props(styles.status)}>
+          {reconnected ? <Text variant="meta">{t("deviceLink.done")}</Text> : null}
+        </span>
+        {view.deviceLink === "connected" || reconnected ? null : (
+          <ProblemCallout
+            title={t("deviceLink.title")}
+            actions={
+              <Button
+                disabled={view.deviceLink === "reconnecting"}
+                onClick={() => void window.desktopNotifications?.reconnectDevice()}
+              >
+                {view.deviceLink === "reconnecting"
+                  ? t("deviceLink.reconnecting")
+                  : t("deviceLink.action")}
+              </Button>
+            }
+          >
+            {view.deviceLink === "failed" ? t("deviceLink.failed") : t("deviceLink.body")}
+          </ProblemCallout>
+        )}
         {view.permission === "denied" ? (
           <ProblemCallout
             title={t("permissionOff.title")}
@@ -145,5 +169,6 @@ const styles = stylex.create({
   },
   header: { display: "flex", flexDirection: "column", gap: space.s2 },
   title: { outline: "none" },
+  status: { display: "contents" },
   groups: { display: "flex", flexDirection: "column", gap: space.s1 },
 });

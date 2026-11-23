@@ -52,8 +52,7 @@
     "parentLine": "↳ {key} {title}"
   },
   "row": {
-    "merged": "PR {pr} 머지",
-    "mergedNoNumber": "PR 머지",
+    "pullRequest": "PR {pr}",
     "assign": "할당",
     "newRun": "새 런",
     "answer": "답하기",
@@ -91,7 +90,7 @@
     "lastRun": "마지막 런",
     "noRun": "아직 런이 없어요",
     "noRunnerName": "러너 정하기 전",
-    "pullRequest": "PR {pr} {state}",
+    "pullRequest": "<link>PR {pr}</link> {state}",
     "prState": "PR {state}",
     "next": {
       "parent-issue": "상위 이슈는 이 화면에서 할당하지 않아요. 하위 티켓을 할당해 주세요.",
@@ -147,22 +146,34 @@
     "trigger": "하위 {count, number}개 할당",
     "triggerLabel": "하위 {count, number}개 할당, {key}",
     "title": "하위 티켓 할당하기",
-    "description": "{key} {title}의 하위 티켓을 맡겨요. 러너 자리가 나는 순서대로 시작해요.",
+    "description": "{key} {title} · 화살표를 따라 앞 티켓이 끝나면 시작해요",
     "listLabel": "할당할 하위 티켓",
     "submit": "{count, number}개 할당하기",
     "submitting": "할당하는 중…",
     "checkingBlockers": "선행 티켓 확인 중…",
     "close": "닫기",
+    "scrollLabel": "하위 티켓 관계도",
+    "columnNow": "바로",
+    "columnNext": "다음",
+    "columnLater": "그 뒤",
+    "legend": "빨간 테두리는 할당해도 시작하지 못해요",
+    "unavailable": "고를 수 없는 하위 티켓 {count, number}개",
+    "cycle": "{keys} 티켓이 서로 기다려요",
+    "outsideKey": "{key} · {state}",
+    "outsideUnreadKey": "선행 티켓",
+    "outsideUnreadTitle": "읽지 못했어요",
+    "note": {
+      "now": "바로 시작해요",
+      "after": "{key}{rest, plural, =0 {} other { 외 #개}} 뒤에 시작해요",
+      "held": "할당해도 시작하지 못해요. {key}{rest, plural, =0 {} other { 외 #개}} 티켓이 먼저 시작해야 해요",
+      "cycle": "할당해도 시작하지 못해요. {key}{rest, plural, =0 {} other { 외 #개}} 티켓과 서로 기다려요"
+    },
     "hint": {
-      "waiting": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 끝날 때까지 Queued로 남아요",
       "blocker-canceled": "{key}{rest, plural, =0 {} other { 외 #개}} 티켓이 취소돼서 할당하면 Queued에 멈춰요",
       "blocker-unread": "선행 티켓을 읽지 못했어요",
       "runAndBlocker": "{run} · {blocker}",
       "failed": "지난 런이 Failed예요",
-      "canceled": "지난 런이 Canceled예요",
-      "succeeded": "지난 런이 Succeeded예요. 새 런은 티켓 패널에서 시작해요",
-      "done": "이미 끝난 티켓이에요",
-      "no-mapping": "Mapping이 없어요"
+      "canceled": "지난 런이 Canceled예요"
     },
     "result": {
       "assigned": "{count, number}개 할당했어요.",

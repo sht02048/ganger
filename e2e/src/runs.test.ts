@@ -294,6 +294,57 @@ describe("Runs 화면(브라우저, 0056)", () => {
     expect(await overflow(page)).toBe(0);
   });
 
+  it("끝난 런 표의 PR 링크는 새 탭으로 열고 패널을 열지 않으며, Tab 으로 닿는다(0184)", async (context) => {
+    const ended = listRuns(db)
+      .flatMap((run) => (run.state === "ended" ? [run] : []))
+      .sort((a, b) => b.endedAt.getTime() - a.endedAt.getTime())
+      .at(1);
+    if (ended === undefined) throw new Error("no ended run");
+    const prUrl = "https://code.example.com/acme/web/pull/184";
+    updateRunRecords(db, ended.id, {
+      pullRequest: {
+        id: toPullRequestId("184"),
+        displayId: "#184",
+        url: prUrl,
+        ci: "success",
+        checkedAt: new Date(),
+        signals: null,
+      },
+    });
+
+    const page = await newPage(context, { width: 1280, height: 900 });
+    await page
+      .context()
+      .route("https://code.example.com/**", (route) =>
+        route.fulfill({ contentType: "text/html", body: "<title>PR</title>" }),
+      );
+    await page.goto(`/runs?ws=${workspaceId}&view=all`);
+    await waitForScreenQuerySettled(page, runsListKey);
+    const row = page.getByRole("option", { name: new RegExp(`^${ended.ticket.key}(\\D|$)`) });
+    const link = row.getByRole("link", { name: "PR #184" });
+    await link.waitFor();
+
+    const [clicked] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+    await clicked.waitForLoadState();
+    expect(clicked.url()).toBe(prUrl);
+    await clicked.close();
+    expect(await page.getByRole("dialog").count()).toBe(0);
+    expect(new URL(page.url()).searchParams.has("sel")).toBe(false);
+
+    await row.focus();
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.textContent))
+      .toBe("PR #184");
+    const [pressed] = await Promise.all([
+      page.context().waitForEvent("page"),
+      page.keyboard.press("Enter"),
+    ]);
+    await pressed.close();
+    expect(await page.getByRole("dialog").count()).toBe(0);
+    expect(new URL(page.url()).searchParams.has("sel")).toBe(false);
+  });
+
   it("머리글과 첫 행 사이에 8px 을 두고, 머리글을 숨긴 좁은 폭에서는 빈 틈을 남기지 않는다(0141)", async (context) => {
     const headGapAt = async (width: number) => {
       const page = await newPage(context, { width, height: 900 });

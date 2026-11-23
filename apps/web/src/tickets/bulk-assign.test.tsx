@@ -16,7 +16,7 @@ import type { BlockerHint, BulkAssignment } from "@ganger/app/tickets/bulk-assig
 import { loadTicketsPage } from "@ganger/app/tickets/load";
 import type { TicketRun, TicketView } from "@ganger/app/tickets/model";
 import { renderWithMessages } from "../testing/render";
-import { BulkAssignAnnouncement, BulkAssignOutcome, BulkChoiceList } from "./bulk-assign-dialog";
+import { BulkAssignAnnouncement, BulkAssignOutcome } from "./bulk-assign-dialog";
 import { ticketsMessages } from "./messages";
 import { connection, docsProject, now, setupTickets, webProject, webRepo } from "./test-fixtures";
 
@@ -375,70 +375,6 @@ describe("한 번에 할당(0172)", () => {
 
 describe("하위 티켓 할당 대화상자(0172)", () => {
   const text = (html: string) => html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-
-  it("체크 기본값과 고를 수 없는 이유를 보인다", () => {
-    const tickets = [
-      child("ACME-1"),
-      child("ACME-2", { runs: [ended("failed")] }),
-      child("ACME-3", { mapping: null, assignability: { kind: "no-mapping" } }),
-      child("ACME-4", { trackerState: { name: "Done", category: "completed" } }),
-    ];
-    const choices = bulkChoices(tickets);
-    const selected = new Set(
-      choices.filter((choice) => choice.initiallySelected).map((choice) => choice.ticket.id),
-    );
-    const html = renderWithMessages(
-      <BulkChoiceList choices={choices} selected={selected} disabled={false} onToggle={() => {}} />,
-      ticketsMessages,
-    );
-    expect([...html.matchAll(/aria-checked="(true|false)"/g)].map((m) => m[1])).toEqual([
-      "true",
-      "false",
-      "false",
-      "false",
-    ]);
-    expect(text(html)).toContain("지난 런이 Failed예요");
-    expect(text(html)).toContain("Mapping이 없어요");
-    expect(text(html)).toContain("이미 끝난 티켓이에요");
-  });
-
-  it("선행 티켓 안내를 해요체로 보인다", () => {
-    const ticket = child("ACME-1");
-    const choices = bulkChoices(
-      [ticket],
-      new Map([[ticket.id, { state: "waiting", key: "ACME-9", rest: 1 }]]),
-    );
-    const html = renderWithMessages(
-      <BulkChoiceList
-        choices={choices}
-        selected={new Set([ticket.id])}
-        disabled={false}
-        onToggle={() => {}}
-      />,
-      ticketsMessages,
-    );
-    expect(text(html)).toContain("ACME-9 외 1개 티켓이 끝날 때까지 Queued로 남아요");
-  });
-
-  it("취소된 선행 티켓 안내를 보이고 체크하지 않은 채 고를 수 있게 둔다", () => {
-    const ticket = child("ACME-1");
-    const choices = bulkChoices(
-      [ticket],
-      new Map([[ticket.id, { state: "canceled", key: "ACME-9", rest: 0 }]]),
-    );
-    const html = renderWithMessages(
-      <BulkChoiceList
-        choices={choices}
-        selected={selectedBulkIds(choices, new Set([ticket.id]), new Map())}
-        disabled={false}
-        onToggle={() => {}}
-      />,
-      ticketsMessages,
-    );
-    expect(text(html)).toContain("ACME-9 티켓이 취소돼서 할당하면 Queued에 멈춰요");
-    expect(html).toContain('aria-checked="false"');
-    expect(html).not.toContain('aria-disabled="true"');
-  });
 
   it("결과를 role=status로 티켓별로 알리고 단일 할당 오류 문구를 다시 쓴다", () => {
     const outcome = {

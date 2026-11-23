@@ -79,6 +79,104 @@ function withChildrenOfParent(page: TicketsPage, parentKey: string, keys: string
   };
 }
 
+describe("끝난 런의 PR 번호 링크(0184)", () => {
+  const prUrl = "https://code.example.com/acme/web/pull/138";
+  const withPr = (
+    page: TicketsPage,
+    key: string,
+    prState: "open" | "merged" | "closed",
+    url: string | null = prUrl,
+  ): TicketsPage => ({
+    ...page,
+    tickets: page.tickets.map((ticket) =>
+      ticket.key === key
+        ? {
+            ...ticket,
+            runs: ticket.runs.map((run) =>
+              run.state === "ended"
+                ? {
+                    ...run,
+                    prState,
+                    laterPrState: null,
+                    pullRequest: { displayId: "#13850", url },
+                  }
+                : run,
+            ),
+          }
+        : ticket,
+    ),
+  });
+
+  it.each(["merged", "open", "closed"] as const)(
+    "목록 런 칸은 PR 이 %s 이어도 요약 결과 뒤에 번호 링크만 붙인다",
+    async (state) => {
+      const { context } = setupTickets();
+      const page = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", state);
+      const list = render(page).split("<aside")[0] ?? "";
+      expect(rowTexts(list).get("ACME-1")).toMatch(/Succeeded\s*·\s*PR #13850/);
+      expect(rowTexts(list).get("ACME-1")).not.toMatch(/머지|병합/);
+      expect(list).toContain(`href="${prUrl}"`);
+      expect(list).toContain('target="_blank"');
+    },
+  );
+
+  it("PR 이 없으면 런 칸에 아무것도 붙이지 않는다", async () => {
+    const { context } = setupTickets();
+    const rows = rowTexts(render(await loadTicketsPage(context, undefined, now)));
+    expect(rows.get("ACME-2")).not.toContain("PR #");
+  });
+
+  it("주소가 웹 주소가 아니면 번호를 글로만 보인다", async () => {
+    const { context } = setupTickets();
+    const page = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", "merged", null);
+    const list = render(page).split("<aside")[0] ?? "";
+    expect(rowTexts(list).get("ACME-1")).toContain("PR #13850");
+    expect(list).not.toContain("/pull/138");
+  });
+
+  it("상위 이슈 패널의 하위 티켓 줄은 링크를 행 버튼 밖에 둔다", async () => {
+    const { context } = setupTickets();
+    const page = withPr(
+      withChildrenOfParent(await loadTicketsPage(context, undefined, now), "ACME-6", ["ACME-1"]),
+      "ACME-1",
+      "open",
+    );
+    const panel = render(page, { selectedId: ticketId("conn-acme", "ACME-6") }).split("<aside")[1];
+    expect(text(panel ?? "")).toMatch(/Succeeded\s*·\s*PR #13850/);
+    expect(panel).toContain(`href="${prUrl}"`);
+    expect(panel).not.toMatch(/<button(?:(?!<\/button>).)*\/pull\/138/s);
+  });
+
+  it("PR 상태가 없는 런도 카드에 목록과 같은 번호 링크를 보인다", async () => {
+    const { context } = setupTickets();
+    const loaded = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", "open");
+    const page: TicketsPage = {
+      ...loaded,
+      tickets: loaded.tickets.map((ticket) =>
+        ticket.key === "ACME-1"
+          ? {
+              ...ticket,
+              runs: ticket.runs.map((run) =>
+                run.state === "ended" ? { ...run, prState: "none" as const } : run,
+              ),
+            }
+          : ticket,
+      ),
+    };
+    const panel = render(page, { selectedId: ticketId("conn-acme", "ACME-1") }).split("<aside")[1];
+    expect(text(panel ?? "")).toContain("PR #13850");
+    expect(panel).toContain(`href="${prUrl}"`);
+  });
+
+  it("마지막 런 카드는 번호를 링크로 두고 PR 상태를 함께 말한다", async () => {
+    const { context } = setupTickets();
+    const page = withPr(await loadTicketsPage(context, undefined, now), "ACME-1", "merged");
+    const panel = render(page, { selectedId: ticketId("conn-acme", "ACME-1") }).split("<aside")[1];
+    expect(text(panel ?? "")).toContain("PR #13850 병합됨");
+    expect(panel).toContain(`href="${prUrl}"`);
+  });
+});
+
 describe("하위 티켓 한 번에 할당 버튼(0172)", () => {
   const trigger = (count: number, key: string) => `aria-label="하위 ${count}개 할당, ${key}"`;
 
@@ -132,7 +230,8 @@ describe("Tickets 화면", () => {
   it("행은 키 · 제목 · 런을 보이고, 트래커 상태는 런 칸에 쓰지 않는다", async () => {
     const { context } = setupTickets();
     const rows = rowTexts(render(await loadTicketsPage(context, undefined, now)));
-    expect(rows.get("ACME-1")).toContain("PR 머지");
+    expect(rows.get("ACME-1")).toContain("Succeeded");
+    expect(rows.get("ACME-1")).not.toContain("머지");
     expect(rows.get("ACME-2")).toContain("Failed");
     expect(rows.get("ACME-3")).toContain("Running");
     expect(rows.get("ACME-4")).toContain("Queued");
@@ -302,7 +401,14 @@ describe("Tickets 화면", () => {
               ...t,
               runs: t.runs.map((run) =>
                 run.state === "ended"
-                  ? { ...run, pullRequest: "#12", laterPrState: "merged" as const }
+                  ? {
+                      ...run,
+                      pullRequest: {
+                        displayId: "#12",
+                        url: "https://code.example.com/acme/web/pull/12",
+                      },
+                      laterPrState: "merged" as const,
+                    }
                   : run,
               ),
             }

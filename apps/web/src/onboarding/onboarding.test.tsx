@@ -4,6 +4,7 @@ import {
   toCodeHostKind,
   toRunnerProjectId,
   toLabelId,
+  toTrackerConnectionId,
   toTrackerKind,
   toTrackerProjectId,
   toTrackerStateId,
@@ -13,6 +14,7 @@ import { FakeCodeHost, FakeTracker } from "@ganger/core/testing";
 import {
   SecretBox,
   completeRunnerCheckRequest,
+  getWorkspaceTrackerProject,
   listPendingRunnerCheckRequests,
   listRunners,
   listTrackerConnections,
@@ -41,7 +43,14 @@ import { settingsMessages } from "../settings/messages";
 import { SettingsScreen } from "../settings/settings-page";
 import { buttonsOf } from "../testing/buttons";
 import { renderWithMessages } from "../testing/render";
-import { isOnboardingComplete, loadOnboardingPage, setUpFirstWorkspace } from "./load";
+import {
+  createNewWorkspace,
+  firstWorkspaceInput,
+  isOnboardingComplete,
+  loadOnboardingPage,
+  newWorkspaceInput,
+  setUpFirstWorkspace,
+} from "./load";
 import { onboardingMessages } from "./messages";
 import { runnerSetupMessages } from "../runner-setup/messages";
 import {
@@ -640,6 +649,7 @@ describe("다섯 단계를 마치기", () => {
         workspaceView="one"
         ws={ws}
         actions={noopActions}
+        onCreateWorkspace={() => {}}
       />,
       settingsMessages,
     );
@@ -847,6 +857,49 @@ describe("다섯 단계를 마치기", () => {
     expect(listProjects).toHaveBeenCalledTimes(1);
     expect(atWorkspace.trackerProjects[0]?.projects.map((p) => p.name)).toEqual(["Web"]);
     expect((await loadOnboardingPage(f.context, undefined, now)).trackerProjects).toHaveLength(1);
+  });
+
+  it("새 Workspace 는 있던 Workspace 를 고치지 않고 새 id 로 만들고, 못 넣으면 아무것도 남기지 않는다", async () => {
+    const f = fixture();
+    await connectTracker(f);
+    const project = { connectionId: connectionId(f), projectId: webProject, name: "Web" };
+    const free = { ...project, projectId: "tp-free", name: "Free" };
+    expect(setUpFirstWorkspace(f.context, { name: "Acme", projects: [project] }, now)).toEqual({
+      ok: true,
+    });
+    const first = listWorkspaces(f.context.db)[0]?.id;
+
+    expect(createNewWorkspace(f.context, { name: "Labs", projects: [free, project] }, now)).toEqual(
+      { ok: false, reason: "taken" },
+    );
+    expect(
+      createNewWorkspace(
+        f.context,
+        { name: "Labs", projects: [free, { ...free, connectionId: "missing" }] },
+        now,
+      ),
+    ).toEqual({ ok: false, reason: "not-found" });
+    expect(listWorkspaces(f.context.db).map((w) => w.name)).toEqual(["Acme"]);
+
+    const created = createNewWorkspace(f.context, { name: "Labs", projects: [free] }, now);
+    if (!created.ok) throw new Error(created.reason);
+    expect(created.name).toBe("Labs");
+    expect(created.id).not.toBe(first);
+    const names = new Map(listWorkspaces(f.context.db).map((w) => [w.id, w.name]));
+    expect(names.get(toWorkspaceId(created.id))).toBe("Labs");
+    expect(first === undefined ? undefined : names.get(first)).toBe("Acme");
+    expect(
+      getWorkspaceTrackerProject(
+        f.context.db,
+        toTrackerConnectionId(free.connectionId),
+        toTrackerProjectId(free.projectId),
+      )?.workspaceId,
+    ).toBe(created.id);
+  });
+
+  it("새 Workspace 입력은 트래커 프로젝트 하나 이상을 요구한다", () => {
+    expect(newWorkspaceInput.safeParse({ name: "Labs", projects: [] }).success).toBe(false);
+    expect(firstWorkspaceInput.safeParse({ name: "Labs", projects: [] }).success).toBe(true);
   });
 
   it("Workspace 를 만들면서 고른 트래커 프로젝트를 한 번에 넣고, 하나라도 못 넣으면 아무것도 만들지 않는다", async () => {

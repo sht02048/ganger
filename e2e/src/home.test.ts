@@ -124,6 +124,100 @@ beforeEach(async (test) => {
 const longChoice =
   "Keep the cache in SQLite so that it survives restarts, and add a nightly job that removes entries older than thirty days from every table";
 
+const settledKeys = ["ACME-50", "ACME-51", "ACME-52", "ACME-53", "ACME-54", "ACME-55"];
+
+function doneHeadLink(target: Page): Locator {
+  const name = new RegExp(
+    `^${home.board.doneLink.replace("{column}", home.column.done).replace("{count}", "\\d+")}$`,
+  );
+  return target.getByRole("region", { name: home.column.done }).getByRole("link", { name });
+}
+
+function settledCards(target: Page): Locator {
+  return target
+    .getByRole("region", { name: home.column.done })
+    .locator("[data-settled] li[data-run]");
+}
+
+async function refetchScreen(target: Page): Promise<void> {
+  await target.evaluate(() => {
+    const field = (owner: unknown, name: string): unknown =>
+      typeof owner === "object" && owner !== null ? Reflect.get(owner, name) : undefined;
+    const router: unknown = Reflect.get(window, "__TSR_ROUTER__");
+    const client = field(field(field(router, "options"), "context"), "queryClient");
+    const invalidate = field(client, "invalidateQueries");
+    if (typeof invalidate === "function") Reflect.apply(invalidate, client, []);
+  });
+}
+
+describe("Done 칸 머리 링크(브라우저, 0186)", () => {
+  it("머리를 누르면 문서를 다시 불러오지 않고 끝난 런 모두를 보여 주는 Runs 로 간다", async () => {
+    await openHome(page);
+    await page.evaluate(() => {
+      Object.assign(globalThis, { doneHeadMarker: true });
+    });
+    await doneHeadLink(page).click();
+    await page.waitForURL((url) => url.pathname === "/runs");
+    const url = new URL(page.url());
+    expect(url.searchParams.get("ws")).toBe(workspaceId);
+    expect(url.searchParams.get("view")).toBe("all");
+    expect(await page.evaluate(() => "doneHeadMarker" in globalThis)).toBe(true);
+  });
+
+  it("수정 키로 누르면 Dashboard 를 그대로 두고 새 탭으로 연다", async () => {
+    await openHome(page);
+    const opened = context.waitForEvent("page");
+    await doneHeadLink(page).click({ modifiers: ["ControlOrMeta"] });
+    const tab = await opened;
+    try {
+      await tab.waitForURL((url) => url.pathname === "/runs");
+      expect(new URL(page.url()).pathname).toBe("/");
+    } finally {
+      await tab.close();
+    }
+  });
+
+  it("처리할 일 없이 끝난 카드는 5장만 보이고, 숨은 카드를 패널로 열면 그 카드도 보인다", async () => {
+    await openHome(page);
+    expect(await settledCards(page).count()).toBe(5);
+    const shown = await settledCards(page).allInnerTexts();
+    const hidden = settledKeys.find((key) => !shown.some((text) => text.includes(key)));
+    if (hidden === undefined) throw new Error("no hidden settled card");
+    await page.goto(`/?ws=${workspaceId}&run=${runIds.get(hidden)}`);
+    await hydrated(page);
+    const panel = page.getByRole("dialog");
+    await panel.getByRole("heading", { name: new RegExp(hidden) }).waitFor();
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    expect(await settledCards(page).count()).toBe(6);
+    expect(await focusedSoon(cardButton(page, hidden))).toBe(true);
+  });
+
+  it("패널을 연 카드가 새로 끝난 런에 밀려도 남고, 닫으면 포커스가 그 카드로 돌아온다", async () => {
+    await openHome(page);
+    const fifth = settledCards(page).nth(4);
+    const text = await fifth.innerText();
+    const opened = settledKeys.find((key) => text.includes(key));
+    if (opened === undefined) throw new Error("no fifth settled card");
+    await cardButton(page, opened).click();
+    const panel = page.getByRole("dialog");
+    await panel.getByRole("heading", { name: new RegExp(opened) }).waitFor();
+    ok(
+      changeRunState(db, startRun(toTicketKey("ACME-56")), {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "merged",
+      }),
+    );
+    await refetchScreen(page);
+    await card(page, "ACME-56").waitFor({ state: "attached" });
+    expect(await card(page, opened).count()).toBe(1);
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    expect(await focusedSoon(cardButton(page, opened))).toBe(true);
+  });
+});
+
 describe("알림에서 Dashboard 열기(브라우저, 0103)", () => {
   it("주소의 run 으로 그 카드 상세 패널을 연 채로 열고, 주소에서 run 을 지운다", async () => {
     await page.goto(`/?ws=${workspaceId}&run=${runIds.get("ACME-34")}`);
@@ -217,9 +311,12 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(unansweredQuestions("ACME-4")).toEqual(["q-4"]);
 
     await send.click();
-    const status = panel.getByRole("status");
-    await status.getByText(home.question.answered).waitFor();
-    expect(await focusedSoon(status)).toBe(true);
+    await panel.waitFor({ state: "hidden" });
+    await page
+      .locator('[data-slot="toast-title"]')
+      .getByText(home.sheetSent.answered.replace("{key}", "ACME-4"))
+      .waitFor();
+    expect(await focusedSoon(cardButton(page, "ACME-4"))).toBe(true);
     expect(answerOf("ACME-4")).toBe("Yes");
     await card(page, "ACME-4").getByText(home.card.answered).waitFor();
   });
@@ -255,7 +352,7 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(unansweredQuestions("ACME-6")).toEqual(["q-6"]);
     await input.fill("Ship it on Friday.");
     await page.keyboard.press("ControlOrMeta+Enter");
-    await panel.getByRole("status").getByText(home.question.answered).waitFor();
+    await panel.waitFor({ state: "hidden" });
     expect(answerOf("ACME-6")).toBe("Ship it on Friday.");
   });
 
@@ -337,7 +434,7 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     await page.unroute("**/_serverFn/**");
   });
 
-  it("Permission 카드의 패널은 러너에서 허용하라고 안내하고, 거절을 보내면 결과를 status 로 알린다", async () => {
+  it("Permission 카드의 패널은 러너에서 허용하라고 안내하고, 거절을 보내면 패널을 닫고 토스트로 알린다(0193)", async () => {
     await openHome(page);
     await cardButton(page, "ACME-5").click();
     const panel = page.getByRole("dialog");
@@ -345,11 +442,11 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     await panel.getByText("rm -rf build").waitFor();
     await panel.getByLabel(home.permission.reasonLabel).fill("Keep the build folder.");
     await panel.getByRole("button", { name: home.permission.send }).click();
-    const status = panel.getByRole("status");
-    await status.getByText(home.permission.denied).waitFor();
-    expect(await focusedSoon(status)).toBe(true);
-    await page.keyboard.press("Escape");
     await panel.waitFor({ state: "hidden" });
+    await page
+      .locator('[data-slot="toast-title"]')
+      .getByText(home.sheetSent.denied.replace("{key}", "ACME-5"))
+      .waitFor();
     expect(await focusedSoon(cardButton(page, "ACME-5"))).toBe(true);
   });
 
@@ -470,7 +567,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
   it("러너 문제는 Runners 열의 러너 행과 빨간 상자로 보인다(0069)", async () => {
     await openHome(page);
     const runners = page.getByRole("region", { name: home.section.runners });
-    const offline = runners.locator('a[href="/runners?sel=runner-b"]');
+    const offline = runners.locator(`a[href="/runners?ws=${workspaceId}&sel=runner-b"]`);
     await offline.getByText("runner-b", { exact: true }).waitFor();
     const capacity = home.runners.capacity.replace("{total}", "1").replace("{used}", "0");
     await offline.getByRole("img", { name: capacity, exact: true }).waitFor();
@@ -478,7 +575,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
       name: home.runners.problemTitle.replace("{count}", "1"),
     });
     expect(await problem.getByRole("link", { name: home.runners.fix }).getAttribute("href")).toBe(
-      "/runners",
+      `/runners?ws=${workspaceId}`,
     );
   });
 
@@ -594,6 +691,29 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
   });
 });
 
+describe("Done 처리할 일 카드 제한(브라우저, 0186)", () => {
+  it("패널을 열었던 처리할 일 카드가 새 카드에 밀려도 목록을 펼치지 않는다", async () => {
+    await openHome(page);
+    const done = page.getByRole("region", { name: home.column.done });
+    await done.locator("li[data-tag]").nth(3).locator('button[aria-haspopup="dialog"]').click();
+    const panel = page.getByRole("dialog");
+    await panel.waitFor();
+    await page.keyboard.press("Escape");
+    await panel.waitFor({ state: "hidden" });
+    ok(
+      changeRunState(db, startRun(toTicketKey("ACME-57")), {
+        to: "ended",
+        agentResult: "timed-out",
+        prState: "none",
+      }),
+    );
+    await refetchScreen(page);
+    await card(page, "ACME-57").waitFor();
+    expect(await done.locator("li[data-tag]").count()).toBe(4);
+    await done.getByRole("button", { name: /개 더 보기$/ }).waitFor();
+  });
+});
+
 function seed(db: Database): void {
   saveTrackerConnection(db, new SecretBox(encryptionKey), {
     id: connection,
@@ -669,6 +789,16 @@ function seed(db: Database): void {
         to: "ended",
         agentResult: "timed-out",
         prState: "none",
+      }),
+    );
+  }
+
+  for (const key of settledKeys) {
+    ok(
+      changeRunState(db, startRun(toTicketKey(key)), {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "merged",
       }),
     );
   }

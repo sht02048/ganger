@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -83,6 +83,23 @@ async function checkHostGuard(base: string): Promise<string | undefined> {
   return undefined;
 }
 
+async function checkClientBuildId(base: string): Promise<string | undefined> {
+  const response = await fetch(`${base}/api/build`);
+  const parsed: unknown = await response.json();
+  const buildId =
+    typeof parsed === "object" && parsed !== null && "buildId" in parsed ? parsed.buildId : null;
+  if (typeof buildId !== "string" || buildId === "dev") {
+    return `GET /api/build returned ${JSON.stringify(parsed)}`;
+  }
+  const assets = join(import.meta.dirname, "..", "apps", "web", "dist", "client", "assets");
+  const inClient = readdirSync(assets)
+    .filter((name) => name.endsWith(".js"))
+    .some((name) => readFileSync(join(assets, name), "utf8").includes(buildId));
+  if (!inClient) return `client assets do not carry the server build id ${buildId}`;
+  console.log(`GET /api/build -> ${buildId}, same id in client assets`);
+  return undefined;
+}
+
 const dir = mkdtempSync(join(tmpdir(), "ganger-smoke-"));
 const port = await freePort();
 let output = "";
@@ -113,7 +130,7 @@ try {
     failure = `GET /runs returned ${response.status}\n${[...new Set(errors)].join("\n")}`;
   } else {
     console.log(`GET /runs -> ${response.status}`);
-    failure = await checkHostGuard(base);
+    failure = (await checkHostGuard(base)) ?? (await checkClientBuildId(base));
   }
 } catch (error) {
   failure = error instanceof Error ? error.message : String(error);

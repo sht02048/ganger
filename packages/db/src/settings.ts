@@ -8,6 +8,7 @@ import type {
   RunnerErrorDetail,
   RunnerId,
   RunnerKind,
+  RunnerLoadReading,
   RunnerPrerequisite,
   RunnerProject,
   RunnerProjectId,
@@ -23,6 +24,7 @@ import {
   USAGE_WINDOW_KINDS,
   blockedProjectsOf,
   checkMappingRepos,
+  nextCpuHighSince,
   toRunnerProjectId,
   usageLimitsAt,
 } from "@ganger/core";
@@ -213,12 +215,19 @@ export interface StoredRunner {
   checkError: unknown;
   offlineSince: Date | null;
   providerUsage: StoredProviderUsage | null;
+  load: StoredRunnerLoad | null;
   projects: RunnerProject[];
 }
 
 export interface StoredProviderUsage {
   readAt: Date;
   reading: ProviderUsageReading;
+}
+
+export interface StoredRunnerLoad {
+  readAt: Date;
+  cpuHighSince: Date | null;
+  reading: RunnerLoadReading;
 }
 
 export function saveRunnerCapacity(db: Database, runnerId: RunnerId, capacity: number): boolean {
@@ -461,6 +470,75 @@ export function recordProviderUsage(
   });
 }
 
+const storedRunnerLoad = z.object({
+  cpuHighSince: z.number().nullable(),
+  reading: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("read"),
+      cpu: z.object({ percent: z.number(), loadAverage: z.number(), cores: z.number() }).nullable(),
+      memory: z
+        .object({
+          percent: z.number(),
+          usedBytes: z.number(),
+          totalBytes: z.number(),
+          pressure: z.enum(["normal", "high"]).nullable(),
+        })
+        .nullable(),
+      gpu: z.object({ percent: z.number(), name: z.string().nullable() }).nullable(),
+    }),
+    z.object({ kind: z.literal("unreadable") }),
+  ]),
+});
+
+function readRunnerLoad(text: string | null, readAt: Date | null): StoredRunnerLoad | null {
+  if (readAt === null) return null;
+  const unreadable: StoredRunnerLoad = {
+    readAt,
+    cpuHighSince: null,
+    reading: { kind: "unreadable" },
+  };
+  if (text === null) return unreadable;
+  let json: unknown;
+  try {
+    json = parseJson(text);
+  } catch {
+    return unreadable;
+  }
+  const parsed = storedRunnerLoad.safeParse(json);
+  if (!parsed.success) return unreadable;
+  return {
+    readAt,
+    cpuHighSince: parsed.data.cpuHighSince === null ? null : new Date(parsed.data.cpuHighSince),
+    reading: parsed.data.reading,
+  };
+}
+
+export function recordRunnerLoad(
+  db: Database,
+  input: { runnerId: RunnerId; readAt: Date; reading: RunnerLoadReading },
+): void {
+  inTransaction(db, () => {
+    const before = db
+      .select({ load: runners.load, readAt: runners.loadReadAt })
+      .from(runners)
+      .where(eq(runners.id, input.runnerId))
+      .get();
+    if (before === undefined) return;
+    const previous = readRunnerLoad(before.load, before.readAt);
+    const cpuHighSince = nextCpuHighSince(previous, input.reading, input.readAt);
+    const load = toJson(
+      { cpuHighSince: cpuHighSince?.getTime() ?? null, reading: input.reading },
+      "runner load",
+    );
+    db.update(runners)
+      .set({ load, loadReadAt: input.readAt })
+      .where(eq(runners.id, input.runnerId))
+      .run();
+    if (before.readAt === null || before.load !== load)
+      recordRunnerChange(db, input.runnerId, input.readAt);
+  });
+}
+
 export function listRunners(db: Database): StoredRunner[] {
   const projects = db
     .select()
@@ -486,6 +564,7 @@ export function listRunners(db: Database): StoredRunner[] {
       checkError: row.checkError === null ? null : parseJson(row.checkError),
       offlineSince: row.offlineSince,
       providerUsage: readProviderUsage(row.providerUsage, row.providerUsageReadAt),
+      load: readRunnerLoad(row.load, row.loadReadAt),
       projects: projects
         .filter((p) => p.runnerId === row.id)
         .map((p) => ({ id: p.projectId, displayName: p.displayName, setupState: p.setupState })),

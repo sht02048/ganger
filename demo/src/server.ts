@@ -18,6 +18,7 @@ const webRoot = join(repoRoot, "apps/web");
 export interface DevServer {
   url: string;
   devRoot: string;
+  issueDeviceToken(name: string): string;
   stop(): Promise<void>;
 }
 
@@ -118,6 +119,7 @@ export async function startDevServer(args: readonly string[]): Promise<DevServer
   return {
     url,
     devRoot,
+    issueDeviceToken: (name) => runtime.issueDeviceToken(name),
     stop: async () => {
       await Promise.all([runtime.stop(), server.close()]);
     },

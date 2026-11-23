@@ -70,7 +70,15 @@ import { McpScreen } from "./mcp-screen";
 import { BriefPreview } from "./workspace-brief";
 import settingsJson from "../../messages/ko/settings.json" with { type: "json" };
 import { ProjectDetailScreen, findBoundProject } from "./project-detail";
-import { ProjectCandidates, SettingsScreen, sectionProblems } from "./settings-page";
+import {
+  MCP_ROW_ID,
+  ProjectCandidates,
+  SettingsScreen,
+  connectionRowId,
+  projectRowId,
+  sectionProblems,
+  settingsHref,
+} from "./settings-page";
 import { RunnerCheck, RunnerForm, nameFromSshTarget, sshCheckCommand } from "./settings-screen";
 import type { ProjectDetailActions } from "./settings-screen";
 
@@ -186,6 +194,7 @@ function render(page: SettingsPage, runnerIssues = 0): string {
       workspaceView={page.workspace === null ? "all" : "one"}
       ws={page.workspace?.general.id}
       actions={noopActions}
+      onCreateWorkspace={() => {}}
     />,
     settingsMessages,
   );
@@ -679,6 +688,18 @@ describe("Mapping 여러 저장소와 Auto-assign Label 만들기(0115)", () => 
     expect((await loadSettingsPage(f.context, commerce, now)).workspace?.labels[0]?.labelId).toBe(
       null,
     );
+  });
+});
+
+describe("Settings 돌아가기 자리(0181)", () => {
+  it("하위 화면의 돌아가기는 그 줄의 id 를 해시로 가진다", () => {
+    for (const rowId of [projectRowId("c1", "p1"), connectionRowId("c1"), MCP_ROW_ID]) {
+      expect(settingsHref({ kind: "settings", rowId }, "ws-a")).toBe(`/settings?ws=ws-a#${rowId}`);
+    }
+  });
+
+  it("줄을 정하지 않으면 해시 없이 Settings 로 간다", () => {
+    expect(settingsHref({ kind: "settings" }, undefined)).toBe("/settings");
   });
 });
 
@@ -1353,12 +1374,14 @@ describe("Settings 화면", () => {
         workspaceView="none"
         ws={undefined}
         actions={noopActions}
+        onCreateWorkspace={() => {}}
       />,
       settingsMessages,
     );
     const workspace = sectionOf(none, "workspace");
     expect(textOf(workspace)).toContain("아직 Workspace가 없어요");
-    expect(workspace).toMatch(/href="\/onboarding\?step=4"[^>]*>Workspace 만들기</);
+    expect(workspace).toMatch(/<button[^>]*>Workspace 만들기</);
+    expect(workspace).not.toContain("/onboarding");
     expect(none).not.toContain('name="maxRunMinutes"');
     expect(none).not.toContain('<section id="projects"');
     expect(none).not.toContain('href="#projects"');
@@ -1400,7 +1423,9 @@ describe("Settings 화면", () => {
       webProject,
     );
     expect(html).toMatch(/<h1[^>]*>Web<\/h1>/);
-    expect(html).toMatch(/href="\/settings\?ws=ws-commerce"[^>]*>Settings/);
+    expect(html).toMatch(
+      /href="\/settings\?ws=ws-commerce#project-[^"]*" aria-label="Settings로 돌아가기"/,
+    );
     expect(textOf(html)).toContain("Acme 연결의 모든 프로젝트에 같이 써요");
     expect(textOf(html)).toContain("런이 시작되면 바꿀 상태");
   });

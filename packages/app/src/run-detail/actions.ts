@@ -1,12 +1,14 @@
 import {
   AGENT_MESSAGE_MAX_LENGTH,
   toAgentMessageRequestId,
+  toPermissionRequestId,
   toRunActionRequestId,
   toRunId,
 } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import {
   continueRun,
+  denyPermissionWait,
   getRun,
   getRunControlRequest,
   getRunWithRecords,
@@ -23,6 +25,7 @@ import { z } from "zod";
 import {
   AnswerRejectedError,
   answerInput,
+  denyInput,
   humanCheckAnswerInput,
   submitAnswer,
   submitHumanCheckAnswer,
@@ -207,6 +210,7 @@ export function controlRunOnce(
   key: RunActionKey,
   control: RunControl,
   now: Date,
+  onReplay?: () => void,
 ): RunActionResult {
   const controlFailed = (): boolean => {
     const request = getRunControlRequest(db, toRunId(key.runId));
@@ -219,7 +223,7 @@ export function controlRunOnce(
     [control],
     now,
     () => requestControl(db, key.runId, control, now),
-    { replayIsStale: controlFailed },
+    { replayIsStale: controlFailed, ...(onReplay === undefined ? {} : { onReplay }) },
   );
 }
 
@@ -228,6 +232,8 @@ export function continueRunOnce(
   key: RunActionKey,
   message: string,
   now: Date,
+  extraBlock: () => ContinueRunBlock | null = () => null,
+  onReplay?: () => void,
 ): ContinueRunActionResult {
   const from = toRunId(key.runId);
   return handleRunActionOnce<ContinueRunActionResult>(
@@ -240,11 +246,15 @@ export function continueRunOnce(
     },
     now,
     {
-      act: () => continueRunRequest(db, from, message, now),
-      replay: (resultRunId) =>
-        resultRunId === null
-          ? { ok: false, reason: REQUEST_REUSED }
-          : { ok: true, runId: resultRunId },
+      act: () => {
+        const reason = extraBlock();
+        return reason === null ? continueRunRequest(db, from, message, now) : { ok: false, reason };
+      },
+      replay: (resultRunId) => {
+        if (resultRunId === null) return { ok: false, reason: REQUEST_REUSED };
+        onReplay?.();
+        return { ok: true, runId: resultRunId };
+      },
       reused: () => ({ ok: false, reason: REQUEST_REUSED }),
       resultRunId: (result) => (result.ok ? result.runId : null),
       replayIsStale: (resultRunId) => {
@@ -253,6 +263,32 @@ export function continueRunOnce(
         return next === null || (next.state === "ended" && next.startedAt === null);
       },
     },
+  );
+}
+
+export const denyOnceInput = denyInput.extend({ requestId: runActionRequestId });
+
+export function denyPermissionOnce(
+  db: Database,
+  { requestId, ...denial }: z.infer<typeof denyOnceInput>,
+  now: Date,
+): RunActionResult {
+  return onceForRun(
+    db,
+    { runId: denial.runId, requestId },
+    "deny",
+    [denial.promptId, denial.reason],
+    now,
+    () =>
+      denyPermissionWait(
+        db,
+        {
+          runId: toRunId(denial.runId),
+          permissionId: toPermissionRequestId(denial.promptId),
+          reason: denial.reason,
+        },
+        now,
+      ),
   );
 }
 

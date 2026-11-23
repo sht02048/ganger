@@ -11,6 +11,7 @@ import { ASSIGN_REJECT_REASONS, TICKET_FILTERS } from "@ganger/app/tickets/model
 import type { AssignRejectReason } from "@ganger/app/tickets/model";
 import { INVALIDATED_KEYS } from "../../change-events/invalidation";
 import { ScreenMessages, defaultLocale } from "../../i18n";
+import { ticketRunTarget } from "../../navigation/back-target";
 import { okOrThrow, rejectionReasonOf, toMutationError } from "../../query/mutation-error";
 import { loadCachedRouteQuery, loadRouteQuery } from "../../query/route-query";
 import {
@@ -109,8 +110,8 @@ function TicketsRoute() {
         onPickWorkspace={(next) => {
           void navigate({ search: (prev) => ({ ...prev, ws: next, sel: undefined }) });
         }}
-        onOpenRun={(runId) => {
-          void navigate({ to: "/runs", search: (prev) => ({ ws: prev.ws, sel: runId }) });
+        onOpenRun={(runId, place) => {
+          void navigate(ticketRunTarget(runId, ws, place));
         }}
         onOpenRuns={(ticket) => {
           void navigate({

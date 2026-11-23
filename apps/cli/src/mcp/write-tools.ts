@@ -1,18 +1,26 @@
+import { randomUUID } from "node:crypto";
 import {
   AnswerRejectedError,
   DenyRejectedError,
+  HUMAN_CHECK_DECISIONS,
   answerInput,
   denyInput,
+  humanCheckAnswerInput,
   submitAnswer,
   submitDenial,
+  submitHumanCheckAnswer,
 } from "@ganger/app/home/actions";
+import { mobileContinueBlock } from "@ganger/app/devices/run-retry";
 import { pendingInput } from "@ganger/app/home/load";
 import { mcpClientName } from "@ganger/app/mcp/actions";
 import type { McpWriteTool } from "@ganger/app/mcp/actions";
 import { powerSettingsStore } from "@ganger/app/power-settings";
+import { requestControl } from "@ganger/app/run-control";
 import {
   cancelRunOnce,
   cancelRunRequest,
+  continueRunOnce,
+  controlRunOnce,
   MCP_ANSWER_ACTION,
   onceForRun,
   REQUEST_REUSED,
@@ -46,11 +54,14 @@ import type { SettingsContext } from "@ganger/app/settings/load";
 import { MAX_RUN_MINUTES } from "@ganger/app/settings/model";
 import { submitAssignment } from "@ganger/app/tickets/assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
-import { toRunId } from "@ganger/core";
-import type { RunId } from "@ganger/core";
+import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
+import type { RunControl, RunId } from "@ganger/core";
 import {
+  continueRunBlock,
   getMcpWriteAllowed,
   getRun,
+  getRunControlRequest,
+  inTransaction,
   listRunners,
   listTrackerConnections,
   listWorkspaceTrackerProjects,
@@ -123,6 +134,35 @@ const trackerProjectArg = z
   .max(200)
   .describe("Tracker project id or name, as get_settings gives it.");
 const runnerArg = z.string().min(1).max(200).describe("Runner id or name.");
+
+const MCP_HUMAN_CHECK_ACTION = "mcp-human-check";
+
+class OppositeControlPending extends Error {}
+
+const REUSED_ERROR = "This requestId was already used with different values.";
+
+const CONTROL_ERRORS: Record<string, string> = {
+  "not-found": "The run is gone.",
+  "already-ended": "The run has already ended.",
+  "not-running": "Only a Running run can be paused.",
+  "not-paused": "Only a Paused run can be resumed.",
+  cancelling: "The run is being canceled.",
+  "control-pending": "The runner is still handling the opposite request. Try again shortly.",
+  [REQUEST_REUSED]: REUSED_ERROR,
+};
+
+const CONTINUE_ERRORS: Record<string, string> = {
+  "not-found": "The run is gone.",
+  "not-ended": "Only an ended run can be continued.",
+  "not-started": "The run never started, so it has no work to continue.",
+  superseded: "A later run of this ticket has already started.",
+  "worktree-removing": "The run's worktree is being removed.",
+  "worktree-settled": "Only a Failed run whose worktree remains can be continued.",
+  "active-run": "This ticket already has a run in progress.",
+  "previous-agent":
+    "The previous agent may still be running. The operator can stop it on Run detail first.",
+  [REQUEST_REUSED]: REUSED_ERROR,
+};
 
 export interface WriteTools {
   readonly sync: () => void;
@@ -459,6 +499,200 @@ export function registerWriteTools(
         });
       }
       return outcome;
+    },
+  );
+
+  register(
+    "answer_human_check",
+    {
+      title: "Answer a Human Check",
+      description:
+        'Answers the Human Check a waiting run asked for, the same as "확인했어요" (confirmed) or "고쳐 주세요" (changes-requested) on the Dashboard or Run detail. This is a confirmation like approving a merge, so confirm with the operator first. The note is optional.',
+      annotations: WRITE,
+    },
+    {
+      runId: runIdArg,
+      questionId: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe("The id of the Human Check the operator saw, as get_run gives it."),
+      decision: z.enum(HUMAN_CHECK_DECISIONS),
+      note: z.string().optional().describe("Optional words to add to the answer."),
+      requestId: requestIdArg,
+    },
+    ({ runId, questionId, decision, note, requestId }) => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      const base = { target: run.ticket.key, runId: run.id };
+      const answerNow = (): Outcome => {
+        if (findRun(run.id)?.state === "ended") {
+          return rejected({
+            ...base,
+            reason: "already-ended",
+            error: "The run has ended, so the agent can no longer receive this answer.",
+          });
+        }
+        const input = screenChecked(
+          humanCheckAnswerInput,
+          { runId: run.id, questionId, decision, note: note ?? "" },
+          base,
+        );
+        if (!input.ok) return input.outcome;
+        try {
+          submitHumanCheckAnswer(context.db, input.data, context.now());
+        } catch (error) {
+          if (!(error instanceof AnswerRejectedError)) throw error;
+          if (error.reason === "not-found") {
+            return rejected({
+              ...base,
+              reason: "no-human-check",
+              error: `The run has no Human Check with the id "${questionId}".`,
+            });
+          }
+          return rejected({
+            ...base,
+            reason: error.reason,
+            error: `Could not answer the Human Check: ${error.reason}.`,
+          });
+        }
+        return done({ ...base, serverHandles: true });
+      };
+      if (requestId === undefined) return answerNow();
+      let outcome: Outcome = done({ ...base, serverHandles: true, replayed: true });
+      const handled = onceForRun(
+        context.db,
+        { runId: run.id, requestId },
+        MCP_HUMAN_CHECK_ACTION,
+        [questionId, decision, (note ?? "").trim()],
+        context.now(),
+        () => {
+          outcome = answerNow();
+          return outcome.ok ? { ok: true } : { ok: false, reason: outcome.reason };
+        },
+      );
+      if (!handled.ok && handled.reason === REQUEST_REUSED) {
+        return rejected({ ...base, reason: REQUEST_REUSED, error: REUSED_ERROR });
+      }
+      return outcome;
+    },
+  );
+
+  const controlTool =
+    (control: RunControl, verb: string) =>
+    ({ runId, requestId }: { runId: string; requestId?: string | undefined }): Outcome => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      const base = { target: run.ticket.key, runId: run.id };
+      let replayed = false;
+      let result: { ok: true } | { ok: false; reason: string };
+      try {
+        result = inTransaction(context.db, () => {
+          const requested =
+            requestId === undefined
+              ? requestControl(context.db, run.id, control, context.now())
+              : controlRunOnce(
+                  context.db,
+                  { runId: run.id, requestId },
+                  control,
+                  context.now(),
+                  () => {
+                    replayed = true;
+                  },
+                );
+          const stored = getRunControlRequest(context.db, run.id);
+          if (requested.ok && !replayed && stored?.control !== control) {
+            throw new OppositeControlPending();
+          }
+          return requested;
+        });
+      } catch (error) {
+        if (!(error instanceof OppositeControlPending)) throw error;
+        result = { ok: false, reason: "control-pending" };
+      }
+      if (!result.ok) {
+        return rejected({
+          ...base,
+          reason: result.reason,
+          error: `Could not ${verb}: ${CONTROL_ERRORS[result.reason] ?? result.reason}`,
+        });
+      }
+      return done({ ...base, serverHandles: true, replayed });
+    };
+
+  register(
+    "pause_run",
+    {
+      title: "Pause a run",
+      description:
+        "Pauses a Running run, the same as Pause on Run detail. The runner stops the agent's turn until the run is resumed. Sending the same requestId again does nothing more.",
+      annotations: WRITE,
+    },
+    { runId: runIdArg, requestId: requestIdArg },
+    controlTool("pause", "pause"),
+  );
+
+  register(
+    "resume_run",
+    {
+      title: "Resume a run",
+      description:
+        "Resumes a Paused run, the same as Resume on Run detail. If the runner failed to resume it, sending the same requestId tries again.",
+      annotations: WRITE,
+    },
+    { runId: runIdArg, requestId: requestIdArg },
+    controlTool("resume", "resume"),
+  );
+
+  register(
+    "continue_run",
+    {
+      title: "Continue from a run",
+      description:
+        "Starts a new run that continues a Failed run in the worktree it left, the same as Continue on Run detail. The message goes to a coding agent that runs commands, so confirm it with the operator first. Ganger refuses with the reason when the run cannot be continued.",
+      annotations: WRITE,
+    },
+    {
+      runId: runIdArg,
+      message: z
+        .string()
+        .trim()
+        .min(1)
+        .refine((text) => Array.from(text).length <= CONTINUE_MESSAGE_MAX_LENGTH)
+        .describe("What the operator wants the agent to do next. Required."),
+      requestId: requestIdArg,
+    },
+    ({ runId, message, requestId }) => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      let replayed = false;
+      const failedRunBlock = () =>
+        continueRunBlock(context.db, run.id) ?? mobileContinueBlock(context.db, run.id);
+      const result = continueRunOnce(
+        context.db,
+        { runId: run.id, requestId: requestId ?? randomUUID() },
+        message,
+        context.now(),
+        failedRunBlock,
+        () => {
+          replayed = true;
+        },
+      );
+      if (!result.ok) {
+        return rejected({
+          target: run.ticket.key,
+          runId: run.id,
+          reason: result.reason,
+          error: `Could not continue: ${CONTINUE_ERRORS[result.reason] ?? result.reason}`,
+        });
+      }
+      return done({
+        target: run.ticket.key,
+        runId: result.runId,
+        serverHandles: true,
+        replayed,
+        result: { runId: result.runId, continuedFrom: run.id },
+      });
     },
   );
 

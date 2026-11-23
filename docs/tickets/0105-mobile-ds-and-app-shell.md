@@ -1,5 +1,5 @@
 ---
-status: todo
+status: done
 blocked_by: []
 ---
 
@@ -11,18 +11,16 @@ Expo(React Native) 앱을 저장소에 더하고, 모바일 디자인 시스템�
 
 ## 범위
 
-- 모바일 앱 패키지를 pnpm 워크스페이스에 더하고, typecheck·lint·test가 CI `check`에서 돈다. iOS 빌드는 이 티켓에서 CI에 넣지 않는다. 색 검사(`check:colors`)는 `packages/ui` 밖의 색 리터럴을 막으므로, 모바일 토큰 위치를 허용 목록에 더한다(React Native는 oklch를 못 써 sRGB 값이 필요하다). turbo `build`가 모바일 패키지를 어떻게 다룰지도 정한다.
+- 모바일 앱 패키지를 pnpm 워크스페이스에 더하고, typecheck·lint·test가 CI `check`에서 돈다. iOS 빌드는 이 티켓에서 CI에 넣지 않는다. 색 검사(`check:colors`)의 허용 경로는 `packages/ui` 하나이므로, 모바일 토큰 위치를 허용 경로에 더한다(React Native는 oklch를 못 써 sRGB 값이 필요하다). 디자인 시스템 lint와 `check:lengths`는 `apps/web`만 봐서 모바일에 걸리지 않는다. 모바일의 규칙은 모바일 디자인 시스템 문서에 둔다. turbo `build`가 모바일 패키지를 어떻게 다룰지도 정하고, `bundle`·`smoke:bundle`의 서버 배포물에 모바일이 들어가지 않게 한다.
 - 모바일 디자인 시스템: 토큰(Ink, Paper, Ganger Yellow, 상태 색, 둥글기 카드 10·버튼 8·세그먼트 안 6·시트 16·알약 6)과 컴포넌트(카드, 세그먼트, 처리할 일 배지, 상태 알약, 시트, 스위치, 버튼). 사용 규칙 문서를 함께 둔다.
-- 데모 모드 화면: Dashboard(세그먼트 Queued · Running · Done, 처리할 일 꼬리표, 처리할 일만 스위치, Runners 버튼과 문제 배지), Runners(보기만), 설정, 빈 상태(마스코트). 문구는 메시지 파일로 둔다(ADR 0005).
-- 데모 데이터는 `demo/`를 import 하지 않는다(티켓 0047).
+- 데모 모드 화면: Dashboard(세그먼트 Queued · Running · Done, 처리할 일 꼬리표, Running 칸 맨 위 "확인해 주세요" 묶음, Paused 카드, Queued 이유와 선행 티켓 칩·멈춘 기다림 테두리, PR 칩, 취소 중, 처리할 일만 스위치, Runners 버튼과 문제 배지), Runners(보기만), 설정, 빈 상태(마스코트). Done 칸은 최근 7일이고 꼬리표는 Failed뿐이며, 나머지는 Succeeded·Canceled다. 머리 요약은 웹 `home.json`의 문장을 따른다. 문구는 메시지 파일로 둔다(ADR 0005).
+- 데모 데이터는 `apps/mobile/src/demo/`에 두고 모양은 `packages/api` 계약 타입으로 맞춘다. `demo/`를 import 하지 않는다(M44, 티켓 0047).
+- 모바일 토큰은 따로 두고 값은 브랜드 가이드·ADR 0010에 맞춘다. 같음을 비교하는 시험을 둔다(M34). 글꼴은 Pretendard다(M41).
+- 개발 명령 `pnpm dev:mobile`(M45): 시드된 데모 서버(`demo/`의 dev 서버)와 Expo 개발 서버를 함께 띄운다. 서버 없는 앱 안 데모 모드도 그대로 둔다. 개발 빌드의 자동 연결은 0106이 한다. 명령이 생기면 CONTRIBUTING의 개발 명령 목록에 적는다.
 - ADR 0010에 모바일 예외 두 가지를 적는다: 노란 처리할 일 배지(M19)를 강조색 용도에 더하고, 둥글기(카드 10, M20)가 웹(카드 12)과 다름을 적는다.
 - AGENTS.md와 README의 워크스페이스 앱 목록에 모바일 앱을 더한다.
-- 화면 문구: Runners 문제 카드의 "고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 해요" 안내, Human Check 카드의 "PR 보기"를 넣는다(스펙 0002 3·4절).
-- 이 티켓은 스펙 0002 10절의 세로 조각 결정으로 0103·0104를 기다리지 않는다.
-
-## 시작할 때 운영자와 정할 것
-
-- 디자인 토큰 원본을 웹과 함께 쓸지(스펙 0002 열린 질문 5), 글꼴(열린 질문 12), 데모 데이터의 자리(열린 질문 16), Done 칸 이름과 기간(열린 질문 4).
+- 화면 문구: Runners 문제 카드의 "고치기는 Ganger 웹이나 데스크톱 앱의 Runners에서 해요" 안내, Human Check 카드의 "확인하기", Paused 카드의 "재개하기"를 넣는다(스펙 0002 3·4절). 이 티켓에서 두 버튼은 데모 화면의 모양까지이고, 동작은 0107이 붙인다.
+- 이 티켓은 스펙 0002 10절의 세로 조각 결정으로 0104를 기다리지 않는다.
 
 ## 범위 밖
 
@@ -31,4 +29,5 @@ Expo(React Native) 앱을 저장소에 더하고, 모바일 디자인 시스템�
 ## 완료 조건
 
 - 데모 모드로 앱을 띄워 위 화면을 볼 수 있다. 화면별 스크린숏을 PR에 붙인다.
-- 컴포넌트 시험과 CI `check`가 통과한다.
+- 컴포넌트 시험, 모바일 토큰과 브랜드 값을 비교하는 시험, CI `check`가 통과한다.
+- `pnpm dev:mobile`로 데모 서버와 Expo 개발 서버가 함께 뜨고, 제품 앱이 `demo/`를 import 하지 않는다.

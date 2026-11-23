@@ -1,9 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
 import {
   Actions,
+  BackLink,
   Button,
   CloseIcon,
   Card,
+  DependencyGraph,
+  Spinner,
   Checkbox,
   DefinitionItem,
   DefinitionList,
@@ -29,6 +32,7 @@ import {
   MenuRadio,
   MenuRadioOption,
   MenuSeparator,
+  PlusIcon,
   PanelBlock,
   PanelFooter,
   PanelHeader,
@@ -147,6 +151,7 @@ export function ComponentSections() {
   const [selected, setSelected] = useState<RunId>("r1051");
   const [workspace, setWorkspace] = useState("commerce");
   const [agent, setAgent] = useState<string | null>(null);
+  const [graphFirst, setGraphFirst] = useState(true);
   const [web, setWeb] = useState(true);
   const [api, setApi] = useState(false);
 
@@ -163,6 +168,7 @@ export function ComponentSections() {
               <Button>{t("buttons.secondary")}</Button>
               <Button variant="danger">{t("buttons.danger")}</Button>
               <Button variant="ghost">{t("buttons.ghost")}</Button>
+              <Button variant="check">{t("buttons.check")}</Button>
               <Button compact outlined>
                 {t("buttons.outlined")}
               </Button>
@@ -436,9 +442,17 @@ export function ComponentSections() {
                 <MenuRadio value={workspace} onValueChange={setWorkspace}>
                   <MenuRadioOption value="commerce">{t("menu.commerce")}</MenuRadioOption>
                   <MenuRadioOption value="labs">{t("menu.labs")}</MenuRadioOption>
-                  <MenuSeparator />
+                  <MenuSeparator strong />
                   <MenuRadioOption value="all">{t("menu.all")}</MenuRadioOption>
                 </MenuRadio>
+                <MenuSeparator strong />
+                <MenuItem
+                  value="new"
+                  onSelect={() => showToast(t("menu.picked", { action: t("menu.newWorkspace") }))}
+                >
+                  <PlusIcon />
+                  {t("menu.newWorkspace")}
+                </MenuItem>
               </Menu>
             </div>
             <div {...stylex.props(styles.narrow)}>
@@ -531,6 +545,10 @@ export function ComponentSections() {
             >
               {t("tooltip.linkLabel")}
             </Tooltip>
+            <BackLink
+              label={t("tooltip.backLabel")}
+              render={(anchor) => <a href="#tooltip" {...anchor} />}
+            />
           </Demo>
         </Section>
       </div>
@@ -564,6 +582,64 @@ export function ComponentSections() {
               actions={<DialogClose>{t("dialog.cancel")}</DialogClose>}
             />
             <TriggerlessDialogPreview />
+          </Demo>
+        </Section>
+      </div>
+
+      <div id="dependencyGraph">
+        <Section title={t("nav.dependencyGraph")} note={t("dependencyGraph.note")}>
+          <Demo>
+            <DependencyGraph
+              label={t("dependencyGraph.label")}
+              scrollLabel={t("dependencyGraph.label")}
+              columns={[
+                { number: 1, label: t("dependencyGraph.first") },
+                { number: 2, label: t("dependencyGraph.second") },
+              ]}
+              nodes={[
+                {
+                  id: "ACME-11",
+                  column: 0,
+                  row: 0,
+                  ticketKey: "ACME-11",
+                  title: t("dependencyGraph.firstTicket"),
+                  tone: "default",
+                  check: {
+                    checked: graphFirst,
+                    disabled: false,
+                    description: t("dependencyGraph.firstNote"),
+                    onCheckedChange: setGraphFirst,
+                  },
+                },
+                {
+                  id: "ACME-9",
+                  column: 0,
+                  row: 1,
+                  ticketKey: "ACME-9 · In Progress",
+                  title: t("dependencyGraph.outsideTicket"),
+                  tone: "default",
+                },
+                {
+                  id: "ACME-13",
+                  column: 1,
+                  row: 0,
+                  ticketKey: "ACME-13",
+                  title: t("dependencyGraph.secondTicket"),
+                  tone: graphFirst ? "default" : "problem",
+                  check: {
+                    checked: true,
+                    disabled: false,
+                    description: t("dependencyGraph.secondNote"),
+                    onCheckedChange: () => {},
+                  },
+                },
+              ]}
+              edges={[
+                { from: "ACME-11", to: "ACME-13", tone: graphFirst ? "default" : "problem" },
+                { from: "ACME-9", to: "ACME-13", tone: "waiting" },
+              ]}
+            />
+            <Spinner />
           </Demo>
         </Section>
       </div>

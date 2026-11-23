@@ -116,6 +116,34 @@ export function ExternalIconLink({ href, label }: ExternalIconLinkProps) {
   );
 }
 
+export interface BackLinkRenderProps {
+  "aria-label": string;
+  "data-variant": "ghost";
+  className: string;
+}
+
+export interface BackLinkProps {
+  label: string;
+  render: (props: BackLinkRenderProps) => ReactElement<Record<string, unknown>>;
+}
+
+export function BackLink({ label, render }: BackLinkProps) {
+  return (
+    <Tooltip
+      content={label}
+      labelsTrigger
+      side="bottom"
+      render={render({
+        "aria-label": label,
+        "data-variant": "ghost",
+        className: cx(...buttonStyles("ghost"), styles.iconAction),
+      })}
+    >
+      <span aria-hidden="true">‹</span>
+    </Tooltip>
+  );
+}
+
 function ActionTrigger({ action, children }: { action: TooltipAction; children: ReactNode }) {
   const variant = action.variant ?? "secondary";
   const busy = action.busy === true;

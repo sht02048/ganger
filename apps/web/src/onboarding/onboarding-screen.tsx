@@ -104,6 +104,7 @@ export interface OnboardingScreenProps {
   onFinish: () => void;
   actions: OnboardingActions;
   direct: DirectEntry;
+  settingsBack?: ReactNode;
 }
 
 export function OnboardingScreen({
@@ -114,6 +115,7 @@ export function OnboardingScreen({
   onFinish,
   actions,
   direct,
+  settingsBack,
 }: OnboardingScreenProps) {
   const t = useTranslations("onboarding");
   const step: OnboardingStep = ONBOARDING_STEPS[index] ?? "tracker";
@@ -140,6 +142,7 @@ export function OnboardingScreen({
       <div {...stylex.props(styles.page, titleBarHidden && styles.pageBelowTitleBar)}>
         <StepList page={page} index={index} onStep={onStep} />
         <main {...stylex.props(styles.column)}>
+          {settingsBack === undefined ? null : <div>{settingsBack}</div>}
           <div {...stylex.props(styles.heading)}>
             {index === 0 ? <Mascot mood="default" size="small" /> : null}
             <Text variant="label" numeric>

@@ -67,15 +67,18 @@ export function PanelList({ children }: { children: ReactNode }) {
   return <ul {...stylex.props(styles.list)}>{children}</ul>;
 }
 
-export interface PanelListRowProps {
+interface PanelListRowBase {
   marker?: ReactNode;
   ticketKey?: string;
   title: string;
   done?: boolean;
   trailing?: ReactNode;
+  meta?: ReactNode;
   onClick?: () => void;
-  href?: string;
 }
+
+export type PanelListRowProps = PanelListRowBase &
+  ({ href?: string; after?: never } | { href?: never; after?: ReactNode });
 
 export function PanelListRow({
   marker,
@@ -83,10 +86,13 @@ export function PanelListRow({
   title,
   done,
   trailing,
+  meta,
   onClick,
   href,
+  after,
 }: PanelListRowProps) {
-  const content = (
+  const hasMeta = meta !== undefined && meta !== null;
+  const firstLine = (
     <>
       <span {...stylex.props(styles.marker)}>{marker}</span>
       {ticketKey === undefined ? null : (
@@ -108,22 +114,68 @@ export function PanelListRow({
       )}
     </>
   );
+  const content = hasMeta ? (
+    <span {...stylex.props(styles.lines)}>
+      <span {...stylex.props(styles.firstLine)}>{firstLine}</span>
+      <span
+        {...(typeof meta === "string" ? { title: meta } : {})}
+        {...stylex.props(textStyles("meta"), styles.rowMeta)}
+      >
+        {meta}
+      </span>
+    </span>
+  ) : (
+    firstLine
+  );
   return (
     <li {...stylex.props(styles.item)}>
       {href !== undefined ? (
         <a
           href={href}
-          {...stylex.props(styles.row, styles.rowButton, styles.rowLink, focusStyles.ringInset)}
+          {...stylex.props(
+            styles.row,
+            hasMeta && styles.rowTwoLines,
+            styles.rowButton,
+            styles.rowLink,
+            focusStyles.ringInset,
+          )}
         >
           {content}
         </a>
+      ) : after !== undefined && after !== null ? (
+        <div
+          {...stylex.props(
+            styles.row,
+            hasMeta && styles.rowTwoLines,
+            styles.rowWithAfter,
+            onClick && styles.rowButton,
+          )}
+        >
+          {onClick === undefined ? (
+            <span {...stylex.props(styles.rowMain)}>{content}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={onClick}
+              {...stylex.props(styles.rowMain, styles.rowMainButton, focusStyles.ringInset)}
+            >
+              {content}
+            </button>
+          )}
+          <span {...stylex.props(textStyles("meta"), styles.after)}>{after}</span>
+        </div>
       ) : onClick === undefined ? (
-        <div {...stylex.props(styles.row)}>{content}</div>
+        <div {...stylex.props(styles.row, hasMeta && styles.rowTwoLines)}>{content}</div>
       ) : (
         <button
           type="button"
           onClick={onClick}
-          {...stylex.props(styles.row, styles.rowButton, focusStyles.ringInset)}
+          {...stylex.props(
+            styles.row,
+            hasMeta && styles.rowTwoLines,
+            styles.rowButton,
+            focusStyles.ringInset,
+          )}
         >
           {content}
         </button>
@@ -206,7 +258,43 @@ const styles = stylex.create({
     },
     cursor: "pointer",
   },
+  rowTwoLines: { paddingBlock: space.s2 },
+  lines: {
+    display: "flex",
+    flexDirection: "column",
+    flexGrow: 1,
+    gap: space.px2,
+    minWidth: 0,
+  },
+  firstLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
+  rowMeta: {
+    paddingInlineStart: `calc(${size.dot} + ${space.s2})`,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
   rowLink: { textDecorationLine: "none" },
+  rowWithAfter: { position: "relative", gap: space.s1 },
+  rowMain: {
+    display: "flex",
+    flexGrow: 1,
+    flexShrink: 1,
+    alignItems: "center",
+    gap: space.s2,
+    minWidth: 0,
+    minHeight: size.panelListRow,
+    padding: 0,
+    borderWidth: 0,
+    backgroundColor: "transparent",
+    color: "inherit",
+    font: "inherit",
+    textAlign: "start",
+  },
+  rowMainButton: {
+    cursor: "pointer",
+    "::after": { content: '""', position: "absolute", inset: 0 },
+  },
+  after: { flexShrink: 0, whiteSpace: "nowrap" },
   marker: {
     display: "inline-flex",
     flexShrink: 0,

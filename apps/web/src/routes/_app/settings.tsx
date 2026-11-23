@@ -4,6 +4,8 @@ import { createTranslator } from "use-intl";
 import { resolveWorkspace } from "@ganger/app/shell/model";
 import { ScreenMessages, defaultLocale } from "../../i18n";
 import { loadCachedRouteQuery, loadRouteQuery } from "../../query/route-query";
+import { DevicesSection } from "../../settings/devices-section";
+import { devicesQuery, useDeviceActions } from "../../settings/devices-query";
 import { LogSection } from "../../settings/log-section";
 import { logSettingsQuery, useLogActions } from "../../settings/log-query";
 import { settingsMessages } from "../../settings/messages";
@@ -17,6 +19,7 @@ import {
 } from "../../settings/settings-query";
 import { routerSettingsLink } from "../../settings/settings-link";
 import { useSettingsActions, useSettingsQueryRefresh } from "../../settings/use-settings-actions";
+import { useOpenCreateWorkspace } from "../../shell/create-workspace";
 import { useShell } from "../../shell/shell-query";
 import { ScreenError } from "../../shell/screen-error";
 
@@ -33,6 +36,7 @@ export const Route = createFileRoute("/_app/settings")({
     await Promise.all([
       loadRouteQuery(load, settingsQuery(load.deps.ws)),
       loadRouteQuery(load, logSettingsQuery),
+      loadRouteQuery(load, devicesQuery),
       loadCachedRouteQuery(load, trackerProjectsQuery),
       loadCachedRouteQuery(load, boundProjectReadsQuery(load.context.queryClient, load.deps.ws)),
     ]);
@@ -48,6 +52,9 @@ function SettingsRoute() {
   const actions = useSettingsActions(useSettingsQueryRefresh());
   const { data: logView } = useSuspenseQuery(logSettingsQuery);
   const logActions = useLogActions();
+  const { data: devicesView } = useSuspenseQuery(devicesQuery);
+  const deviceActions = useDeviceActions();
+  const openCreateWorkspace = useOpenCreateWorkspace();
   return (
     <ScreenMessages messages={settingsMessages}>
       <SettingsScreen
@@ -56,8 +63,10 @@ function SettingsRoute() {
         workspaceView={resolveWorkspace(shell.workspaces, ws).kind}
         ws={ws}
         actions={actions}
+        onCreateWorkspace={openCreateWorkspace}
         renderLink={routerSettingsLink}
         renderGuard={(guard) => <NavigationGuard {...guard} />}
+        devices={<DevicesSection view={devicesView} actions={deviceActions} />}
         logs={<LogSection view={logView} actions={logActions} />}
       />
     </ScreenMessages>

@@ -53,13 +53,15 @@ export const getTitleBarHidden = createServerFn({ method: "GET" }).handler(() =>
 export const getShell = createServerFn({ method: "GET" }).handler(() => loadShell(getDatabase()));
 
 export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
-  loadRunnersPage(getDatabase(), new Date()),
+  loadRunnersPage(getDatabase(), new Date(), { includeLoad: true }),
 );
 
 export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))
   .handler(({ data }) =>
-    loadHomePage(getDatabase(), data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE))),
+    loadHomePage(getDatabase(), data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
+      includeLoad: true,
+    }),
   );
 
 export const answerQuestion = createServerFn({ method: "POST" })

@@ -12,6 +12,7 @@ import {
   toRunnerProjectId,
   toTicketKey,
   toTrackerStateId,
+  toPullRequestId,
 } from "@ganger/core";
 import type { RunId, TicketKey } from "@ganger/core";
 import { FakeTracker } from "@ganger/core/testing";
@@ -32,6 +33,7 @@ import {
   saveWorkspace,
   saveWorkspaceTrackerProject,
   toCodeHostConnectionId,
+  updateRunRecords,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
@@ -496,66 +498,6 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
     }
   });
 
-  it("상위 이슈에서 하위 2개를 한 번에 할당하면 두 런이 Queued가 되고 포커스가 패널 제목으로 간다(0172)", async () => {
-    setParent(true);
-    const otherChildKey = toTicketKey("ACME-601");
-    const otherChild = tracker.tickets.get(otherChildKey);
-    if (otherChild === undefined) throw new Error("no ACME-601");
-    tracker.tickets.set(otherChildKey, {
-      ...otherChild,
-      ancestors: [
-        {
-          id: "issue-600",
-          key: toTicketKey("ACME-600"),
-          title: "Ticket number 600",
-          url: "https://tracker.example.com/ACME-600",
-          state: { name: "Todo", category: "unstarted" },
-        },
-      ],
-    });
-    try {
-      await page.goto(`/tickets?ws=${workspaceId}`);
-      await hydrated(page);
-      await reread();
-      const list = page.getByRole("list", { name: tickets.listLabel });
-      await list.getByRole("button", { name: "ACME-600 Ticket number 600", exact: true }).click();
-      await page
-        .getByRole("region", { name: tickets.panel.label })
-        .getByRole("heading", { name: "Ticket number 600" })
-        .waitFor();
-      const label = `하위 2개 할당, ${parentKey}`;
-      await list.getByRole("button", { name: label }).click();
-
-      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
-      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
-      await expect
-        .poll(() => choices.getByRole("checkbox", { checked: true }).count())
-        .toBe(childKeys.length);
-      await dialog.getByRole("button", { name: "2개 할당하기" }).click();
-
-      await page
-        .getByRole("region", { name: shell.toastRegion })
-        .getByText("2개 할당했어요.")
-        .waitFor();
-      await dialog.waitFor({ state: "hidden" });
-      await expect.poll(focused).toContain("Ticket number 500");
-      for (const key of childKeys) {
-        const runs = listRuns(db, { ticket: { connection, key } });
-        expect(runs.map((run) => run.state)).toEqual(["queued"]);
-      }
-      await expect.poll(() => list.getByRole("button", { name: label }).count()).toBe(0);
-    } finally {
-      for (const key of childKeys) {
-        for (const run of listRuns(db, { ticket: { connection, key } })) {
-          if (run.state !== "ended") endCanceled(run.id, new Date());
-        }
-      }
-      tracker.tickets.set(otherChildKey, otherChild);
-      setParent(false);
-      await reread();
-    }
-  });
-
   it("선행 티켓이 취소된 하위 티켓은 체크되지 않은 채 남아 할당되지 않는다(0176)", async () => {
     const blockedKey = toTicketKey("ACME-801");
     const freeKey = toTicketKey("ACME-802");
@@ -594,7 +536,7 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       await list.getByRole("button", { name: "하위 2개 할당, ACME-800" }).click();
 
       const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
-      await dialog.getByText("ACME-700 티켓이 취소돼서 할당하면 Queued에 멈춰요").waitFor();
+      await dialog.getByText("ACME-700 · Canceled").waitFor();
       const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
       await expect.poll(() => choices.getByRole("checkbox", { checked: true }).count()).toBe(1);
       await dialog.getByRole("button", { name: "1개 할당하기" }).click();
@@ -609,6 +551,65 @@ describe("Tickets 상위 이슈 보기(브라우저, 0171)", () => {
       for (const run of listRuns(db, { ticket: { connection, key: freeKey } })) {
         if (run.state !== "ended") endCanceled(run.id, new Date());
       }
+      for (const { key, original } of originals) tracker.tickets.set(key, original);
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+    }
+  });
+
+  it("관계도에서 앞 티켓 체크를 풀면 뒤 티켓 상자가 빨간 테두리가 된다(0182)", async () => {
+    const firstKey = toTicketKey("ACME-811");
+    const nextKey = toTicketKey("ACME-812");
+    const originals = [firstKey, nextKey].map((key) => {
+      const original = tracker.tickets.get(key);
+      if (original === undefined) throw new Error(`no ${key}`);
+      tracker.tickets.set(key, {
+        ...original,
+        ancestors: [
+          {
+            id: "issue-810",
+            key: toTicketKey("ACME-810"),
+            title: "Ticket number 810",
+            url: "https://tracker.example.com/ACME-810",
+            state: { name: "Todo", category: "unstarted" },
+          },
+        ],
+      });
+      return { key, original };
+    });
+    tracker.relations.set(nextKey, {
+      priority: "none",
+      blockers: [
+        {
+          key: firstKey,
+          title: "Ticket number 811",
+          state: { id: toTrackerStateId("todo"), name: "Todo", category: "unstarted" },
+        },
+      ],
+    });
+    try {
+      await page.goto(`/tickets?ws=${workspaceId}`);
+      await hydrated(page);
+      await reread();
+      const list = page.getByRole("list", { name: tickets.listLabel });
+      await list.getByRole("button", { name: "하위 2개 할당, ACME-810" }).click();
+
+      const dialog = page.getByRole("dialog", { name: tickets.bulkAssign.title });
+      const choices = dialog.getByRole("group", { name: tickets.bulkAssign.listLabel });
+      const nextNode = choices.locator("[data-graph-node]").filter({ hasText: "ACME-812" });
+      await nextNode.waitFor();
+      expect(await nextNode.getAttribute("data-tone")).toBe("default");
+
+      await choices.getByRole("checkbox", { name: /ACME-811/ }).click();
+
+      await expect.poll(() => nextNode.getAttribute("data-tone")).toBe("problem");
+      expect(await nextNode.getByRole("checkbox").getAttribute("aria-checked")).toBe("true");
+      await dialog.getByText(tickets.bulkAssign.legend).waitFor();
+      await dialog.getByRole("button", { name: tickets.bulkAssign.close }).click();
+      await dialog.waitFor({ state: "hidden" });
+    } finally {
+      tracker.relations.delete(nextKey);
       for (const { key, original } of originals) tracker.tickets.set(key, original);
       await page.goto(`/tickets?ws=${workspaceId}`);
       await hydrated(page);
@@ -711,7 +712,7 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
     await expect.poll(focused).toBe(tickets.panel.openRun);
   });
 
-  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행과 모두 보기는 Runs로 간다(0164)", async () => {
+  it("관계 행은 그 티켓을 고르고 제목으로 포커스를 옮기고, 런 행은 런 상세로, 모두 보기는 Runs로 간다(0164, 0181)", async () => {
     const waiter = toTicketKey("ACME-900");
     const blockerKey = toTicketKey("ACME-901");
     const manyRuns = toTicketKey("ACME-902");
@@ -763,14 +764,53 @@ describe("Tickets 수동 할당(브라우저, 0054)", () => {
       .getByRole("button", { name: /Canceled/ })
       .first()
       .click();
-    await page.waitForURL((url) => url.pathname === "/runs");
-    expect(new URL(page.url()).searchParams.get("sel")).toBe(newest);
+    await page.waitForURL((url) => url.pathname === `/runs/${newest}`);
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
 
     await page.goto(ticketUrl(manyRuns));
     await hydrated(page);
     await runs.getByRole("button", { name: tickets.panel.runsAll }).click();
     await page.waitForURL((url) => url.pathname === "/runs");
     expect(new URL(page.url()).searchParams.get("project")).toContain(trackerProject);
+  });
+});
+
+describe("Tickets 목록의 PR 번호 링크(브라우저, 0184)", () => {
+  it("링크는 새 탭으로 열고 고른 티켓을 바꾸지 않는다", async () => {
+    const key = toTicketKey("ACME-7");
+    const selectedKey = toTicketKey("ACME-8");
+    const id = assignQueued(key);
+    endCanceled(id, new Date());
+    const prUrl = "https://code.example.com/acme/web/pull/138";
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("138"),
+        displayId: "#138",
+        url: prUrl,
+        ci: "success",
+        checkedAt: new Date(),
+        signals: null,
+      },
+    });
+    await page
+      .context()
+      .route("https://code.example.com/**", (route) =>
+        route.fulfill({ contentType: "text/html", body: "<title>PR</title>" }),
+      );
+    await page.goto(ticketUrl(selectedKey));
+    await hydrated(page);
+    const before = new URL(page.url()).searchParams.get("sel");
+
+    const row = page
+      .getByRole("list", { name: tickets.listLabel })
+      .getByRole("listitem")
+      .filter({ hasText: /ACME-7(?!\d)/ });
+    const link = row.getByRole("link", { name: "PR #138" });
+    const [opened] = await Promise.all([page.context().waitForEvent("page"), link.click()]);
+    await opened.waitForLoadState();
+    expect(opened.url()).toBe(prUrl);
+    await opened.close();
+    expect(new URL(page.url()).searchParams.get("sel")).toBe(before);
   });
 });
 

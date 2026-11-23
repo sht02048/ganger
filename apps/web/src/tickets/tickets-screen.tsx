@@ -28,6 +28,8 @@ import {
   PageHeader,
   PanelList,
   PanelListRow,
+  RowLink,
+  TextLink,
   PanelHeader,
   PanelSection,
   ProgressRing,
@@ -67,6 +69,7 @@ import type {
   TicketBlockersResult,
   TicketFilter,
   TicketRun,
+  TicketRunPullRequest,
   TicketView,
   TicketsPage,
 } from "@ganger/app/tickets/model";
@@ -94,6 +97,8 @@ import {
 } from "./ticket-rows";
 import type { TicketListBlock, TicketListRow } from "./ticket-rows";
 
+export type OpenRun = (runId: string, place?: "answer") => void;
+
 export interface TicketsScreenProps {
   page: TicketsPage;
   workspaces: ReadonlyArray<WorkspaceSummary>;
@@ -104,7 +109,7 @@ export interface TicketsScreenProps {
   onFilterChange: (filter: TicketFilter) => void;
   onSelect: (ticketId: string) => void;
   onPickWorkspace: (workspaceId: string) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   onAssign: (input: AssignInput) => Promise<AssignResult>;
   onAssignMany: (input: BulkAssignInput) => Promise<BulkAssignResult>;
@@ -671,7 +676,7 @@ interface TicketListRowViewProps {
   groupPhase: IssueGroupPhase | undefined;
   onSelect: (id: string) => void;
   onToggle: (group: TicketGroup, expanded: boolean) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
   onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
@@ -874,24 +879,33 @@ function TicketRunCell({ ticket }: { ticket: TicketView }) {
   const statusName = useStatusName();
   const run = lastRun(ticket);
   if (run === undefined) return <Text variant="meta">{t("unassigned")}</Text>;
-  if (run.state === "ended" && run.summary === "succeeded" && currentPrState(run) === "merged")
-    return (
-      <Text variant="meta" tone="muted">
-        {run.pullRequest === null
-          ? t("row.mergedNoNumber")
-          : t("row.merged", { pr: run.pullRequest })}
-      </Text>
-    );
   const status = runDisplayStatus(run);
   const name = statusName(status);
+  const pullRequest = endedPullRequest(run);
   return (
     <span {...stylex.props(styles.runLine)}>
       <StatusDot status={status} />
       <Text variant="meta">
         {run.state === "running" && run.runnerName !== null ? `${name} · ${run.runnerName}` : name}
+        {pullRequest === null ? null : (
+          <>
+            {" · "}
+            <RunPullRequestLink pullRequest={pullRequest} />
+          </>
+        )}
       </Text>
     </span>
   );
+}
+
+function endedPullRequest(run: TicketRun): TicketRunPullRequest | null {
+  return run.state === "ended" ? run.pullRequest : null;
+}
+
+function RunPullRequestLink({ pullRequest }: { pullRequest: TicketRunPullRequest }) {
+  const t = useTranslations("tickets.row");
+  const label = t("pullRequest", { pr: pullRequest.displayId });
+  return pullRequest.url === null ? label : <RowLink href={pullRequest.url}>{label}</RowLink>;
 }
 
 function GroupRunSummary({ group }: { group: TicketGroup }) {
@@ -937,7 +951,7 @@ function TicketRowActionButton({
 }: {
   ticket: TicketView;
   page: TicketsPage;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onAssign: TicketsScreenProps["onAssign"];
   onAssigned: (id: string) => void;
 }) {
@@ -948,7 +962,7 @@ function TicketRowActionButton({
   if (action === "answer" || action === "open-run") {
     if (run === undefined) return null;
     return (
-      <Button compact onClick={() => onOpenRun(run.id)}>
+      <Button compact onClick={() => onOpenRun(run.id, action === "answer" ? "answer" : undefined)}>
         {action === "answer" ? t("answer") : t("openRun")}
       </Button>
     );
@@ -982,7 +996,7 @@ function ParentIssuePanel({
   titleRef: RefObject<HTMLDivElement | null>;
   onBulkAssign: (group: TicketGroup, opener: HTMLElement) => void;
   onSelectTicket: (id: string) => void;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   focusTitle: boolean;
   onFocusedTitle: () => void;
@@ -1038,6 +1052,7 @@ function ParentIssuePanel({
             <PanelList>
               {children.map((child) => {
                 const run = lastRun(child);
+                const pullRequest = run === undefined ? null : endedPullRequest(run);
                 return (
                   <PanelListRow
                     key={child.id}
@@ -1051,6 +1066,16 @@ function ParentIssuePanel({
                     title={child.title}
                     done={child.trackerState.category === "completed"}
                     {...(run === undefined ? {} : { trailing: statusName(runDisplayStatus(run)) })}
+                    {...(pullRequest === null
+                      ? {}
+                      : {
+                          after: (
+                            <>
+                              {"· "}
+                              <RunPullRequestLink pullRequest={pullRequest} />
+                            </>
+                          ),
+                        })}
                     onClick={() => onSelectTicket(child.id)}
                   />
                 );
@@ -1317,7 +1342,7 @@ function TicketRuns({
   onOpenRuns,
 }: {
   ticket: TicketView;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
 }) {
   const t = useTranslations("tickets.panel");
@@ -1460,7 +1485,7 @@ function TicketPanel({
 }: {
   ticket: TicketView;
   page: TicketsPage;
-  onOpenRun: (runId: string) => void;
+  onOpenRun: OpenRun;
   onOpenRuns: (ticket: TicketView) => void;
   onSelectTicket: (ticketId: string) => void;
   focusTitle: boolean;
@@ -1598,14 +1623,28 @@ function TicketPanel({
 function RunPullRequest({ run }: { run: TicketRun & { state: "ended" } }) {
   const t = useTranslations("tickets.panel");
   const domain = useTranslations("domain");
+  const row = useTranslations("tickets.row");
   const state = currentPrState(run);
-  if (state === "none") return null;
-  const stateName = domain(`prState.${state}`);
+  const stateName = state === "none" ? null : domain(`prState.${state}`);
+  const pullRequest = run.pullRequest;
+  if (pullRequest === null)
+    return stateName === null ? null : (
+      <Text variant="meta">{t("prState", { state: stateName })}</Text>
+    );
+  const pr = pullRequest.displayId;
+  const link = (chunks: ReactNode) =>
+    pullRequest.url === null ? (
+      chunks
+    ) : (
+      <TextLink href={pullRequest.url} external>
+        {chunks}
+      </TextLink>
+    );
   return (
     <Text variant="meta">
-      {run.pullRequest === null
-        ? t("prState", { state: stateName })
-        : t("pullRequest", { pr: run.pullRequest, state: stateName })}
+      {stateName === null
+        ? link(row("pullRequest", { pr }))
+        : t.rich("pullRequest", { pr, state: stateName, link })}
     </Text>
   );
 }

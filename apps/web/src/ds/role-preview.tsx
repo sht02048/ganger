@@ -39,6 +39,7 @@ import {
   textStyles,
   UsageBar,
   UsageMeter,
+  LoadMeters,
 } from "@ganger/ui";
 import { colors, space } from "@ganger/ui/tokens.stylex";
 import { useState, type ReactNode } from "react";
@@ -280,6 +281,28 @@ export function RoleSections() {
                   tone="problem"
                 />
               </span>
+              <span {...stylex.props(styles.usageMeter)}>
+                <LoadMeters
+                  density="compact"
+                  items={[
+                    {
+                      id: "cpu",
+                      name: t("usage.loadCpu"),
+                      percent: 92,
+                      label: t("usage.loadCpu"),
+                      emptyText: t("usage.loadNone"),
+                      tone: "problem",
+                    },
+                    {
+                      id: "gpu",
+                      name: t("usage.loadGpu"),
+                      percent: null,
+                      label: t("usage.loadGpu"),
+                      emptyText: t("usage.loadNone"),
+                    },
+                  ]}
+                />
+              </span>
               <PanelSection
                 title={t("signals.title")}
                 detail={t("signals.detail")}
@@ -339,6 +362,13 @@ export function RoleSections() {
                     title={t("usage.listRowDone")}
                     trailing={statusName("succeeded")}
                     done
+                  />
+                  <PanelListRow
+                    marker={<StatusDot status="queued" />}
+                    ticketKey="ACME-15"
+                    title={t("usage.listRowWaiting")}
+                    meta={t("usage.listRowMeta")}
+                    onClick={() => {}}
                   />
                 </PanelList>
               </PanelSection>

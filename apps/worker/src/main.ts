@@ -1,6 +1,6 @@
 import { exitOnFatal, log, processStartFields, setupProcessLog } from "@ganger/log";
 import { bootWorker } from "./boot.js";
-import { listenForWake } from "./wake-listener.js";
+import { listenForDeviceActivity, listenForWake } from "./wake-listener.js";
 
 const processLog = setupProcessLog({ proc: "worker", env: process.env });
 exitOnFatal(process, log, (code) => process.exit(code));
@@ -8,6 +8,9 @@ exitOnFatal(process, log, (code) => process.exit(code));
 const { migrated, worker } = bootWorker({ env: process.env });
 log().info("process.started", { ...processStartFields(), migrated: migrated.length });
 listenForWake(process, () => worker.wake());
+listenForDeviceActivity(process, (deviceId, lastUsedAt) =>
+  worker.recordDeviceUse(deviceId, lastUsedAt),
+);
 
 let stopping = false;
 const stop = (signal: NodeJS.Signals): void => {

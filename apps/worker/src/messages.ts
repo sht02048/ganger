@@ -1,6 +1,11 @@
 import type { AgentResult, PrState, SummaryOutcome } from "@ganger/core";
 
 export const messages = {
+  push: {
+    title: "Ganger",
+    body: "처리할 일이 생겼어요",
+    bundleBody: (count: number) => `처리할 일이 ${count}개 생겼어요`,
+  },
   resume: {
     message: "운영자가 멈춘 작업을 다시 시작했어요. 멈춘 데서 이어서 진행해 주세요.",
     restartPreamble:

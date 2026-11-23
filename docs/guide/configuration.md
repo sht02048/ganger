@@ -28,6 +28,8 @@ The CLI keeps its files in one installation folder: `~/.ganger` by default, or t
 | `GANGER_LOG_MAX_MB` | `10`                                                    | Size at which a server log file rotates |
 | `GANGER_LOG_FILES`  | `5`                                                     | Rotated server log files to keep        |
 
+Mobile push goes through Expo Push only after a device turns on notifications. The worker sends to `https://exp.host/--/api/v2/push` by default. To use a different relay, set `GANGER_EXPO_PUSH_URL` in the environment of the process that runs `start`.
+
 `start` reads only `WEB_HOST`, `WEB_PORT`, `DATABASE_PATH`, and `ENCRYPTION_KEY` from `.env`. Set the `GANGER_LOG_*` variables in the environment of the process that runs `start`; a line for them in `.env` has no effect. A launchd or systemd service does not inherit your shell's variables and gets only `PATH`, so add them to the service file. For detailed logs without any variable, turn on **자세한 서버 로그** (detailed server logs) in Settings > **서버 로그와 진단** (server logs and diagnostics).
 
 ## Ticket state after a merge

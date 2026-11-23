@@ -8,12 +8,14 @@ import {
   CheckTick,
   RadioGroup,
   Chip,
+  BackLink,
   ExternalIconLink,
   PanelList,
   PanelListRow,
   PanelSection,
   StatusDot,
   CodeBlock,
+  QrCode,
   ScrollRegion,
   DataTable,
   DataTableBody,
@@ -177,6 +179,18 @@ describe("칩·링크·코드(티켓 0074)", () => {
     expect(html).toContain('title="아주 긴 트래커 상태 이름"');
   });
 
+  it("PanelListRow 의 meta 는 제목 줄 밖 둘째 줄이고, 주지 않으면 줄을 감싸지 않는다(0185)", () => {
+    const withMeta = renderToString(
+      <PanelListRow ticketKey="ACME-1" title="제목" meta="이유 · 45 min" onClick={noop} />,
+    );
+    expect(withMeta).toMatch(
+      /title="제목"[^>]*>제목<\/span><\/span><span title="이유 · 45 min"[^>]*>이유 · 45 min<\/span>/,
+    );
+
+    const withoutMeta = renderToString(<PanelListRow title="제목" onClick={noop} />);
+    expect(withoutMeta).toMatch(/<button[^>]*><span[^>]*><\/span><span title="제목"/);
+  });
+
   it("PanelSection 은 개수와 도움말을 제목 옆에 두고, 주지 않으면 제목만 그린다(0164)", () => {
     const html = renderToString(
       <PanelSection title="런" count={3} info={<i>도움말</i>} titleRole="subheading">
@@ -185,6 +199,14 @@ describe("칩·링크·코드(티켓 0074)", () => {
     );
     expect(html).toMatch(/런<\/h3><span[^>]*>3<\/span><i>도움말<\/i>/);
     expect(renderToString(<PanelSection title="런">본문</PanelSection>)).not.toContain("<i>");
+  });
+
+  it("BackLink 는 ‹ 만 보이고 돌아갈 곳을 이름으로 가진 링크다(0181)", () => {
+    const html = renderToString(
+      <BackLink label="Tickets로 돌아가기" render={(props) => <a href="/runs" {...props} />} />,
+    );
+    expect(html).toMatch(/<a href="\/runs"[^>]*aria-label="Tickets로 돌아가기"/);
+    expect(html).toContain('<span aria-hidden="true">‹</span>');
   });
 
   it("ExternalIconLink 는 이름을 가진 새 탭 링크다(0164)", () => {
@@ -236,6 +258,15 @@ describe("칩·링크·코드(티켓 0074)", () => {
         </TextLink>,
       ),
     ).toContain('target="_blank" rel="noreferrer"');
+  });
+
+  it("QrCode 는 이름 있는 그림이고 값마다 다른 모듈을 그린다", () => {
+    const first = renderToString(<QrCode value="ganger://connect?code=a" label="기기 연결 QR" />);
+    const second = renderToString(<QrCode value="ganger://connect?code=b" label="기기 연결 QR" />);
+    expect(first).toContain('role="img"');
+    expect(first).toContain('aria-label="기기 연결 QR"');
+    expect(first).toMatch(/<path d="M\d+ \d+h1v1h-1z/);
+    expect(first).not.toBe(second);
   });
 
   it("CodeBlock scroll 은 이름 있는 영역이라 키보드로 스크롤할 수 있다", () => {

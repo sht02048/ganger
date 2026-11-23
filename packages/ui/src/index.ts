@@ -50,7 +50,19 @@ export {
 export { Checkbox, type CheckboxProps } from "./components/checkbox";
 export { Chip, RemovableChip, type ChipProps, type RemovableChipProps } from "./components/chip";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
+export { QrCode, type QrCodeProps } from "./components/qr-code";
 export { ScrollRegion, type ScrollRegionProps } from "./components/scroll-region";
+export { Spinner } from "./components/spinner";
+export {
+  DependencyGraph,
+  type DependencyGraphCheck,
+  type DependencyGraphColumn,
+  type DependencyGraphEdge,
+  type DependencyGraphEdgeTone,
+  type DependencyGraphNode,
+  type DependencyGraphProps,
+  type DependencyGraphTone,
+} from "./components/dependency-graph";
 export {
   DataTable,
   DataTableBody,
@@ -112,6 +124,7 @@ export {
   ExternalIcon,
   InfoIcon,
   MoreIcon,
+  PlusIcon,
   UnknownIcon,
 } from "./components/icons";
 export {
@@ -142,8 +155,15 @@ export {
   KanbanSubheading,
   type KanbanCardProps,
   type KanbanColumnProps,
+  type KanbanHeadLink,
 } from "./components/kanban";
-export { TextLink, linkStyles, type LinkTone, type TextLinkProps } from "./components/link";
+export {
+  RowLink,
+  TextLink,
+  linkStyles,
+  type LinkTone,
+  type TextLinkProps,
+} from "./components/link";
 export {
   Menu,
   MenuItem,
@@ -307,9 +327,12 @@ export {
   type ToasterProps,
 } from "./components/toast";
 export {
+  BackLink,
   ExternalIconLink,
   InfoTip,
   Tooltip,
+  type BackLinkProps,
+  type BackLinkRenderProps,
   type ExternalIconLinkProps,
   type InfoTipProps,
   type TooltipAction,
@@ -338,6 +361,7 @@ export {
 } from "./components/settings-layout";
 export { UsageBar, usageText, type UsageBarProps, type UsageTone } from "./components/usage-bar";
 export { UsageMeter, type UsageMeterProps } from "./components/usage-meter";
+export { LoadMeters, type LoadMeterItem, type LoadMetersProps } from "./components/load-meters";
 export {
   PanelList,
   PanelListRow,

@@ -4,6 +4,7 @@ import { useDeferredValue } from "react";
 import { createTranslator } from "use-intl";
 import { z } from "zod";
 import { ScreenMessages, defaultLocale } from "../../i18n";
+import { backState } from "../../navigation/back-target";
 import {
   DEFAULT_ENDED_DAYS,
   ENDED_VIEWS,
@@ -97,7 +98,12 @@ function RunsRoute() {
           });
         }}
         onOpen={(id) => {
-          void navigate({ to: "/runs/$runId", params: { runId: id }, search: { ws } });
+          void navigate({
+            to: "/runs/$runId",
+            params: { runId: id },
+            search: { ws },
+            state: backState("runs"),
+          });
         }}
         onPickWorkspace={(next) => {
           void navigate({

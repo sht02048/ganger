@@ -1,5 +1,6 @@
 import { PRODUCT_DISPLAY_NAME } from "@ganger/cli/home";
 import { existsSync } from "node:fs";
+import { hostname } from "node:os";
 import { dirname, join } from "node:path";
 import {
   BrowserWindow,
@@ -16,6 +17,9 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent, MenuItemConstructorOptions } from "electron";
 import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
+import { ActivityReporter } from "../core/activity-report.js";
+import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
+import type { TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
 import {
   notificationId,
@@ -25,7 +29,7 @@ import {
 } from "../core/notification-ids.js";
 import type { FeedBatch } from "../core/notification-feed.js";
 import { DEFAULT_NOTIFICATION_PREFS, notificationPrefsSchema } from "../core/notification-prefs.js";
-import type { NotificationPrefs } from "../core/notification-prefs.js";
+import type { DeviceLinkState, NotificationPrefs } from "../core/notification-prefs.js";
 import { notificationText } from "../core/notification-text.js";
 import { Notifier } from "../core/notifier.js";
 import type { NotifierEffect } from "../core/notifier.js";
@@ -80,7 +84,9 @@ import {
   VIEW_CHANNEL,
 } from "../shared/view.js";
 import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
-import { navigationMenu } from "./navigation-menu.js";
+import { canStepHistory, navigationMenu } from "./navigation-menu.js";
+import type { HistoryDirection } from "./navigation-menu.js";
+import { screenOutlivedServerSwap, viewMenu } from "./view-menu.js";
 import {
   diagnosticsDownloadNotice,
   diagnosticsMenuItem,
@@ -115,6 +121,7 @@ export interface ControllerOptions {
   openedAtLogin: boolean;
   updater: Updater;
   devServerUrl: string | undefined;
+  tokenCipher: TokenCipher | null;
 }
 
 type Mode = "choosing" | "local" | "remote";
@@ -127,7 +134,9 @@ export class Controller {
   private mode: Mode = "choosing";
   private serverUrl: string | undefined;
   private readonly watch: ServerWatch;
-  private feed: { url: string; feed: NotificationFeed; notifier: Notifier } | undefined;
+  private feed:
+    | { url: string; feed: NotificationFeed; notifier: Notifier; activity: ActivityReporter }
+    | undefined;
   private catchUp = true;
   private readonly delivered = new Map<string, Notification>();
   private reminderTimer: NodeJS.Timeout | undefined;
@@ -144,10 +153,22 @@ export class Controller {
   private notifiedVersion = false;
   private serverVersion: string | null = null;
   private updateTimer: NodeJS.Timeout | undefined;
+  private readonly deviceLink: DeviceLink;
+  private deviceLinkState: DeviceLinkState = "connected";
+  private deviceRejectedNotice: Notification | undefined;
   quitting = false;
 
   constructor(options: ControllerOptions) {
     this.options = options;
+    this.deviceLink = new DeviceLink({
+      store: deviceTokenStore(options.settings, options.tokenCipher),
+      identify: async (origin) => {
+        const probed = await probeIdentity(origin, CONNECT_TIMEOUT_MS);
+        return probed.kind === "ours" ? probed.identity.instanceId : null;
+      },
+      register: (origin, requestId) =>
+        registerDesktop(origin, t("deviceName", { host: hostname() }), requestId),
+    });
     this.watch = new ServerWatch(options.local, { onChange: (state) => this.onWatch(state) });
     this.enrollment = new RunnerEnrollmentFlow({
       fetchOffer: (origin) => fetchOffer(origin),
@@ -169,6 +190,7 @@ export class Controller {
     powerMonitor.on("resume", () => {
       this.catchUp = true;
       this.feed?.feed.reconnect();
+      void this.feed?.activity.report();
     });
     this.offerTimer = setInterval(() => void this.pollOffer(), OFFER_POLL_MS);
     this.updateTimer = setTimeout(() => {
@@ -228,6 +250,7 @@ export class Controller {
     this.watch.stop();
     if (this.reminderTimer !== undefined) clearInterval(this.reminderTimer);
     this.feed?.feed.stop();
+    this.feed?.activity.stop();
     if (this.offerTimer !== undefined) clearInterval(this.offerTimer);
     if (this.updateTimer !== undefined) clearInterval(this.updateTimer);
     this.enrollment.stop();
@@ -282,9 +305,23 @@ export class Controller {
     this.setView({ screen: "local-starting" });
     this.refreshMenus();
     const result = await this.options.local.ensureRunning(this.swapHooks());
-    this.watch.adopt(result);
+    this.adoptEnsured(result);
     this.watch.start();
     this.afterEnsure(result);
+  }
+
+  private adoptEnsured(result: EnsureResult): void {
+    const reloadScreen = screenOutlivedServerSwap(result, this.serverUrl);
+    this.watch.adopt(result);
+    const window = this.window;
+    if (
+      reloadScreen &&
+      result.kind === "running" &&
+      window !== undefined &&
+      !window.isDestroyed()
+    ) {
+      void loadServerScreen(window, new URL("/", result.status.url).toString());
+    }
   }
 
   private swapHooks(): EnsureHooks {
@@ -312,7 +349,7 @@ export class Controller {
     this.watch.setWanted(true);
     this.setView({ screen: "local-starting" });
     const result = await this.options.local.ensureRunning(this.swapHooks());
-    this.watch.adopt(result);
+    this.adoptEnsured(result);
     this.afterEnsure(result);
   }
 
@@ -638,6 +675,7 @@ export class Controller {
     handle("open-system-notification-settings", () =>
       process.platform === "darwin" ? shell.openExternal(SYSTEM_NOTIFICATION_SETTINGS) : undefined,
     );
+    handle("reconnect-device", () => this.reconnectDevice());
     handle("enrollment-accept", () => {
       void this.enrollment.accept();
     });
@@ -753,19 +791,72 @@ export class Controller {
       prefs: () => this.notificationPrefs(),
       lastSeen: this.options.settings.read().notificationsSeen?.[url] ?? null,
     });
+    const activity = new ActivityReporter({
+      origin: url,
+      connection: () => this.deviceLink.connection(url),
+      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    });
     const feed = new NotificationFeed({
       origin: url,
       onBatch: (batch) => this.receiveNotifications(url, batch),
+      connection: () => this.deviceLink.connection(url),
+      onRejected: () => this.onDeviceRejected(url),
+      onTransport: (transport) => {
+        if (transport !== "down") void activity.report();
+      },
     });
-    this.feed = { url, feed, notifier };
+    this.feed = { url, feed, notifier, activity };
+    this.setDeviceLinkState("connected");
     feed.start();
+    activity.start();
+  }
+
+  private onDeviceRejected(url: string): void {
+    if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
+    const firstNotice =
+      this.deviceLinkState === "connected" || this.deviceLinkState === "reconnected";
+    this.setDeviceLinkState("rejected");
+    if (firstNotice) this.notifyDeviceRejected();
+  }
+
+  private notifyDeviceRejected(): void {
+    if (!Notification.isSupported() || !this.notificationPrefs().enabled) return;
+    const notification = new Notification({
+      title: t("notifications.deviceRejected.title"),
+      body: t("notifications.deviceRejected.body"),
+    });
+    notification.on("click", () => {
+      this.deviceRejectedNotice = undefined;
+      this.showNotificationSettings();
+    });
+    this.deviceRejectedNotice = notification;
+    notification.show();
+  }
+
+  private async reconnectDevice(): Promise<void> {
+    const current = this.feed;
+    if (current === undefined || this.deviceLinkState === "reconnecting") return;
+    this.setDeviceLinkState("reconnecting");
+    const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
+    if (this.feed !== current) return;
+    this.setDeviceLinkState(connected ? "reconnected" : "failed");
+    if (connected) current.feed.reconnect();
+  }
+
+  private setDeviceLinkState(state: DeviceLinkState): void {
+    if (this.deviceLinkState === state) return;
+    this.deviceLinkState = state;
+    this.sendNotificationSettings();
+    this.refreshMenus();
   }
 
   private stopFeed(): void {
     const current = this.feed;
     if (current === undefined) return;
     this.feed = undefined;
+    this.setDeviceLinkState("connected");
     current.feed.stop();
+    current.activity.stop();
     this.applyNotifications(current.url, current.notifier.clear());
   }
 
@@ -872,7 +963,11 @@ export class Controller {
   }
 
   private notificationSettingsView(): NotificationSettingsView {
-    return { ...this.notificationPrefs(), permission: this.notificationPermission };
+    return {
+      ...this.notificationPrefs(),
+      permission: this.notificationPermission,
+      deviceLink: this.deviceLinkState,
+    };
   }
 
   private sendNotificationSettings(): void {
@@ -946,17 +1041,38 @@ export class Controller {
           ],
         },
         { label: t("menu.edit"), role: "editMenu" },
-        { label: t("menu.view"), role: "viewMenu" },
+        viewMenu({ label: t("menu.view"), reloadLabel: t("menu.reload") }),
         navigationMenu({
           label: t("menu.navigate"),
           screenLabel: (screen) => t(`navigate.${screen}`),
+          backLabel: t("navigate.back"),
+          forwardLabel: t("navigate.forward"),
           enabled: this.serverUrl !== undefined,
           onNavigate: (screen) => this.navigateTo(screen),
+          onHistory: (direction) => this.stepHistory(direction),
         }),
         { label: t("menu.server"), submenu: items },
         { label: t("menu.window"), role: "windowMenu" },
       ]),
     );
+  }
+
+  private stepHistory(direction: HistoryDirection): void {
+    const window = this.window;
+    if (window === undefined || window.isDestroyed()) return;
+    const history = window.webContents.navigationHistory;
+    const allowed = canStepHistory(
+      {
+        activeIndex: history.getActiveIndex(),
+        length: history.length(),
+        urlAt: (index) => history.getEntryAtIndex(index).url,
+      },
+      direction,
+      this.serverUrl,
+    );
+    if (!allowed) return;
+    if (direction === "back") history.goBack();
+    else history.goForward();
   }
 
   private navigateTo(screen: NavScreen): void {
@@ -981,6 +1097,13 @@ export class Controller {
         click: () => this.showNotificationSettings(),
       },
     );
+    if (this.deviceLinkState === "rejected" || this.deviceLinkState === "failed") {
+      items.push({
+        id: "reconnect-device",
+        label: t("menu.reconnectDevice"),
+        click: () => void this.reconnectDevice(),
+      });
+    }
 
     const state = this.watch.state;
     const owned = this.mode === "local" && !("owner" in state && state.owner === "external");

@@ -54,7 +54,7 @@ import { checkWebhookAddress } from "../webhook-address.js";
 import type { PingFetch, WebhookAddressFailure } from "../webhook-address.js";
 import { remoteErrorOf, remoteErrorOfDetail, trackerConnectionView, trackerOf } from "./load.js";
 import type { SettingsContext } from "./load.js";
-import { MAX_MODEL_LENGTH, MAX_RUN_MINUTES } from "./model.js";
+import { MAX_MODEL_LENGTH, MAX_NAME_LENGTH, MAX_RUN_MINUTES } from "./model.js";
 import type {
   ConnectionSaveReason,
   LabelCreateResult,
@@ -67,7 +67,7 @@ import type {
 export const RUNNER_KIND: RunnerKind = toRunnerKind("orca");
 
 export const idSchema = z.string().trim().min(1);
-export const MAX_NAME_LENGTH = 200;
+export { MAX_NAME_LENGTH };
 export const nameSchema = z
   .string()
   .trim()

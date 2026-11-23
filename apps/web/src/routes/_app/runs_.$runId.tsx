@@ -1,5 +1,5 @@
 import { useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useLocation, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { createTranslator } from "use-intl";
 import { ScreenMessages, defaultLocale } from "../../i18n";
@@ -11,6 +11,7 @@ import {
   useRunDetailMutations,
 } from "../../run-detail/actions";
 import { runMessages } from "../../run-detail/messages";
+import { RUN_ANSWER_HASH, backTargetOf, originOfHistoryState } from "../../navigation/back-target";
 import { RunDetailScreen } from "../../run-detail/run-detail-screen";
 import { runDetailRunnerHref } from "../../runs/hrefs";
 import { runDetailQuery } from "../../runs/queries";
@@ -70,11 +71,19 @@ function RunDetail({ runId }: { runId: string }) {
     openLog();
   }, [openLog]);
 
+  const router = useRouter();
+  const historyOrigin = useLocation({ select: (location) => originOfHistoryState(location.state) });
+  const openAtAnswer = useLocation({ select: (location) => location.hash === RUN_ANSWER_HASH });
+  const backTarget = backTargetOf(historyOrigin);
   const search = ws === undefined ? "" : `?ws=${encodeURIComponent(ws)}`;
   return (
     <ScreenMessages messages={runMessages}>
       <RunDetailScreen
         page={page}
+        openAtAnswer={openAtAnswer}
+        {...(backTarget.kind === "history"
+          ? { back: { origin: backTarget.origin, go: () => router.history.back() } }
+          : {})}
         runsHref={`/runs${search}`}
         runHref={(id) => `/runs/${encodeURIComponent(id)}${search}`}
         runnerHref={(id) => runDetailRunnerHref(page, ws, id)}

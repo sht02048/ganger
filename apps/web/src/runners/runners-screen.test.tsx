@@ -88,9 +88,68 @@ function runner(overrides: Partial<RunnerView> & { id: string }): RunnerView {
     sshTarget: null,
     orcaPath: null,
     usage: null,
+    load: null,
     ...overrides,
   };
 }
+
+const readLoad = {
+  kind: "read" as const,
+  readAt: "2026-11-23T00:00:00.000Z",
+  agoMs: 2 * 60_000,
+  cpu: { percent: 92, loadAverage: 9.2, cores: 10, high: true },
+  memory: {
+    percent: 81,
+    usedBytes: 26 * 1024 ** 3,
+    totalBytes: 32 * 1024 ** 3,
+    pressure: "normal" as const,
+    high: false,
+  },
+  gpu: { percent: 12, name: "Apple GPU" },
+};
+
+describe("Runners 부하(0191)", () => {
+  it("목록에 막대 세 개와 %를 보이고 높은 값만 problem 으로 칠한다", () => {
+    const html = render({ runners: [runner({ id: "r-a", load: readLoad })] });
+    const row = rowsOf(html)[0]?.html ?? "";
+    expect(row.match(/role="meter"/g)?.length).toBeGreaterThanOrEqual(3);
+    expect(row).toMatch(/data-load="cpu" data-tone="problem"/);
+    expect(row).toMatch(/data-load="memory" data-tone="neutral"/);
+    expect(row).toContain('aria-label="r-a CPU 부하"');
+  });
+
+  it("GPU 를 못 읽으면 없음이라고 쓴다", () => {
+    const html = render({
+      runners: [runner({ id: "r-a", load: { ...readLoad, gpu: null } })],
+    });
+    expect(textOf(rowsOf(html)[0]?.html ?? "")).toContain("GPU 없음");
+  });
+
+  it("Offline 이면 지난 값 대신 읽지 못했다고 쓴다", () => {
+    const html = render({ runners: [runner({ id: "r-a", online: false, load: readLoad })] });
+    const row = textOf(rowsOf(html)[0]?.html ?? "");
+    expect(row).toContain("Offline이라 읽지 못했어요");
+    expect(row).not.toContain("92%");
+  });
+
+  it("상세의 부하 구역은 자리와 사용량 사이에 읽은 때와 값을 보인다", () => {
+    const text = textOf(panelHtml(render({ runners: [runner({ id: "r-a", load: readLoad })] })));
+    expect(text).toContain("코어 10개에 부하 9.2 · 5분 넘게 높아요");
+    expect(text).toContain("26 / 32 GB · 메모리 압박 보통");
+    expect(text).toContain("Apple GPU");
+    expect(text).toContain("2 min ago 읽음");
+    const load = text.indexOf("코어 10개");
+    expect(text.indexOf(panel.capacity)).toBeLessThan(load);
+    expect(load).toBeLessThan(text.indexOf(panel.usage.title, load));
+  });
+
+  it("머리 문장에 부하가 높은 러너를 더한다", () => {
+    const html = render({
+      runners: [runner({ id: "r-a", load: readLoad }), runner({ id: "r-b" })],
+    });
+    expect(textOf(html)).toContain("부하가 높아요: r-a(CPU).");
+  });
+});
 
 const callout = /<section aria-labelledby="[^"]*"[^>]*><div[^>]*><span aria-hidden="true"/;
 const recheckButtons = new RegExp(`<button(?:(?!</button>)[^])*>${panel.recheck}<`, "g");

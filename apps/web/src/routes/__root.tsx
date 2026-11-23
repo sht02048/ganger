@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import { Toaster, WindowChrome, WindowDragFrame, documentStyles } from "@ganger/ui";
+import { useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import {
   ErrorComponent,
@@ -24,6 +25,14 @@ import { RenderedChangeSeqProvider } from "../change-events/subscription";
 import { NotFoundScreen } from "../not-found/not-found-screen";
 import { useBrowserErrorWatch, useReportCaughtError } from "../shell/browser-error-watch";
 import { useDesktopUpdates } from "../shell/desktop-updates";
+import { useErrorScreenShown } from "../shell/screen-error";
+import {
+  serverBuild,
+  showsServerBuildNotice,
+  useServerBuildStale,
+  useServerBuildWatch,
+} from "../shell/server-build";
+import { ServerBuildToast } from "../shell/server-build-toast";
 import { UpdateToast } from "../shell/update-toast";
 import { ONBOARDING_PATH, isOpenPath, onboardingRedirect } from "../onboarding/model";
 import { getTimeZone, getTitleBarHidden } from "../server/functions";
@@ -105,6 +114,11 @@ const rootLoaderSchema = z.object({ titleBarHidden: z.boolean() });
 
 function RootError({ error }: ErrorComponentProps) {
   useReportCaughtError(error);
+  const stale = useServerBuildStale();
+  useServerBuildWatch(useQueryClient());
+  useEffect(() => {
+    void serverBuild.check();
+  }, []);
   const titleBarHidden = useRouterState({
     select: (state) =>
       rootLoaderSchema.safeParse(state.matches[0]?.loaderData).data?.titleBarHidden ?? false,
@@ -114,13 +128,16 @@ function RootError({ error }: ErrorComponentProps) {
       <WindowDragFrame>
         <ErrorComponent error={error} />
       </WindowDragFrame>
+      {stale ? <Toaster label={t("shell.toastRegion")} pinned={<ServerBuildToast />} /> : null}
     </WindowChrome>
   );
 }
 
 function RootLayout() {
   const { timeZone, titleBarHidden, onboardingComplete, changeSeq } = Route.useLoaderData();
+  const { queryClient } = Route.useRouteContext();
   useBrowserErrorWatch();
+  useServerBuildWatch(queryClient);
   useEffect(() => {
     rememberOnboardingComplete(onboardingComplete);
   }, [onboardingComplete]);
@@ -152,7 +169,12 @@ function TimeZoneSync({ timeZone }: { timeZone: string }) {
 function AppToaster() {
   const tShell = useTranslations("shell");
   const updates = useDesktopUpdates();
+  const stale = useServerBuildStale();
+  const errorScreen = useErrorScreenShown();
   const view = updates.kind === "desktop" ? updates.view : null;
+  if (showsServerBuildNotice({ stale, errorScreen })) {
+    return <Toaster label={tShell("toastRegion")} pinned={<ServerBuildToast />} />;
+  }
   if (updates.kind !== "desktop" || view === null || view.toast === null) {
     return <Toaster label={tShell("toastRegion")} />;
   }

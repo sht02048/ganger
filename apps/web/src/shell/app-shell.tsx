@@ -3,9 +3,11 @@ import {
   AppFrame,
   GangerMark,
   Menu,
+  MenuItem,
   MenuRadio,
   MenuRadioOption,
   MenuSeparator,
+  PlusIcon,
   RailBrand,
   RailLinkContent,
   RailNav,
@@ -23,6 +25,8 @@ import { ALL_WORKSPACES } from "@ganger/app/shell/model";
 import type { ShellData, WorkspaceChoice } from "@ganger/app/shell/model";
 import { navShortcuts } from "@ganger/app/shell/nav-shortcuts";
 import type { NavScreen, NavShortcut } from "@ganger/app/shell/nav-shortcuts";
+import { useOpenCreateWorkspace } from "./create-workspace";
+import type { OpenCreateWorkspace } from "./create-workspace";
 import { navIcons } from "./nav-icons";
 import { useDesktopNavigation } from "./desktop-navigation";
 import { useNavigationPending } from "./navigation-pending";
@@ -49,6 +53,7 @@ export function AppShell({
   const railLinks = useRef(new Map<NavScreen, HTMLAnchorElement>());
   const { inDesktopApp } = useDesktopNavigation((screen) => railLinks.current.get(screen)?.focus());
   const navigationPending = useNavigationPending();
+  const openCreateWorkspace = useOpenCreateWorkspace();
   const isCurrent = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);
   return (
@@ -60,6 +65,7 @@ export function AppShell({
             shell={shell}
             workspace={workspace}
             onWorkspaceChange={onWorkspaceChange}
+            onCreateWorkspace={openCreateWorkspace}
           />
           <RailNav label={t("nav.label")}>
             {[mainItems, bottomItems].map((items) => (
@@ -128,12 +134,16 @@ function RailLink({
   );
 }
 
-function WorkspaceSwitcher({
+export function WorkspaceSwitcher({
   shell,
   workspace,
   onWorkspaceChange,
-}: Pick<AppShellProps, "shell" | "workspace" | "onWorkspaceChange">) {
+  onCreateWorkspace,
+}: Pick<AppShellProps, "shell" | "workspace" | "onWorkspaceChange"> & {
+  onCreateWorkspace: OpenCreateWorkspace;
+}) {
   const t = useTranslations("shell.workspace");
+  const triggerRef = useRef<HTMLButtonElement>(null);
   if (workspace.kind === "none") {
     return (
       <RailStatic>
@@ -147,6 +157,7 @@ function WorkspaceSwitcher({
     <Menu
       variant="rail"
       label={t("switch", { workspace: name })}
+      triggerRef={triggerRef}
       trigger={<WorkspaceBadge name={name} initial={initialOf(name)} />}
     >
       <MenuRadio value={value} onValueChange={onWorkspaceChange}>
@@ -155,9 +166,14 @@ function WorkspaceSwitcher({
             {w.name}
           </MenuRadioOption>
         ))}
-        <MenuSeparator />
+        <MenuSeparator strong />
         <MenuRadioOption value={ALL_WORKSPACES}>{t("all")}</MenuRadioOption>
       </MenuRadio>
+      <MenuSeparator strong />
+      <MenuItem value="new-workspace" onSelect={() => onCreateWorkspace(triggerRef.current)}>
+        <PlusIcon />
+        {t("new")}
+      </MenuItem>
     </Menu>
   );
 }

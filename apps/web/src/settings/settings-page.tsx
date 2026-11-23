@@ -9,6 +9,8 @@ import {
   SectionNav,
   SettingsGroup,
   SettingsLayout,
+  BackLink,
+  type BackLinkRenderProps,
   SettingsLinkRow,
   SettingsRow,
   SettingsSection,
@@ -68,6 +70,7 @@ export const SETTINGS_SECTIONS = [
   "projects",
   "connections",
   "server",
+  "devices",
   "logs",
   "advanced",
 ] as const;
@@ -78,8 +81,7 @@ export type SettingsLinkTarget =
   | { kind: "connection"; connectionId: string }
   | { kind: "runners" }
   | { kind: "mcp" }
-  | { kind: "settings" }
-  | { kind: "createWorkspace" };
+  | { kind: "settings"; rowId?: string };
 
 export type RenderSettingsLink = (
   target: SettingsLinkTarget,
@@ -100,9 +102,7 @@ export function settingsHref(target: SettingsLinkTarget, ws: string | undefined)
     case "mcp":
       return `/settings/mcp${search}`;
     case "settings":
-      return `/settings${search}`;
-    case "createWorkspace":
-      return "/onboarding?step=4";
+      return `/settings${search}${target.rowId === undefined ? "" : `#${encodeURIComponent(target.rowId)}`}`;
   }
 }
 
@@ -114,14 +114,56 @@ export function projectRowId(connectionId: string, projectId: string): string {
   return `project-${connectionId}-${projectId}`;
 }
 
+export function connectionRowId(connectionId: string): string {
+  return `connection-${connectionId}`;
+}
+
+export const MCP_ROW_ID = "mcp-row";
+export const WEB_ADDRESS_ROW_ID = "web-address-row";
+
+function SettingsBackAnchor({
+  renderLink,
+  rowId,
+  children,
+  ...anchor
+}: BackLinkRenderProps & {
+  renderLink: RenderSettingsLink;
+  rowId: string | undefined;
+  children?: ReactNode;
+}) {
+  return renderLink(
+    { kind: "settings", ...(rowId === undefined ? {} : { rowId }) },
+    { ...anchor, children },
+  );
+}
+
+export function SettingsBackLink({
+  label,
+  rowId,
+  renderLink,
+}: {
+  label: string;
+  rowId?: string;
+  renderLink: RenderSettingsLink;
+}) {
+  return (
+    <BackLink
+      label={label}
+      render={(anchor) => <SettingsBackAnchor renderLink={renderLink} rowId={rowId} {...anchor} />}
+    />
+  );
+}
+
 export interface SettingsScreenProps {
   page: SettingsPage;
   runnerIssues: number;
   workspaceView: WorkspaceView;
   ws: string | undefined;
   actions: SettingsActions;
+  onCreateWorkspace: (focusBack: HTMLElement | null) => void;
   renderLink?: RenderSettingsLink;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
+  devices?: ReactNode;
   logs?: ReactNode;
 }
 
@@ -131,15 +173,20 @@ export function SettingsScreen({
   workspaceView,
   ws,
   actions,
+  onCreateWorkspace,
   renderLink = plainSettingsLink(ws),
   renderGuard,
+  devices,
   logs,
 }: SettingsScreenProps) {
   const t = useTranslations("settings");
   const workspace = page.workspace;
   const problems = sectionProblems(page, runnerIssues);
   const navItems: SectionNavItem[] = SETTINGS_SECTIONS.filter(
-    (id) => (workspace !== null || id !== "projects") && (logs !== undefined || id !== "logs"),
+    (id) =>
+      (workspace !== null || id !== "projects") &&
+      (devices !== undefined || id !== "devices") &&
+      (logs !== undefined || id !== "logs"),
   ).map((id) => ({
     id,
     label: t(`sections.${id}`),
@@ -155,7 +202,7 @@ export function SettingsScreen({
         >
           <SettingsSection id="workspace" title={t("sections.workspace")}>
             {workspace === null ? (
-              <NoWorkspace view={workspaceView} renderLink={renderLink} />
+              <NoWorkspace view={workspaceView} onCreate={onCreateWorkspace} />
             ) : (
               <WorkspaceRows workspace={workspace} actions={actions} />
             )}
@@ -182,10 +229,12 @@ export function SettingsScreen({
               <UpdatesRows />
             </SettingsGroup>
           </SettingsSection>
+          {devices}
           {logs}
           <SettingsSection id="advanced" title={t("sections.advanced")}>
             <SettingsGroup>
               <SettingsLinkRow
+                id={MCP_ROW_ID}
                 label={t("mcp.title")}
                 detail={page.install.mcp.writeAllowed ? t("mcp.rowWrite") : t("mcp.rowRead")}
                 render={(props) => renderLink({ kind: "mcp" }, props)}
@@ -230,12 +279,12 @@ export function sectionProblems(
   return problems;
 }
 
-function NoWorkspace({
+export function NoWorkspace({
   view,
-  renderLink,
+  onCreate,
 }: {
   view: WorkspaceView;
-  renderLink: RenderSettingsLink;
+  onCreate: (focusBack: HTMLElement | null) => void;
 }) {
   const t = useTranslations("settings.workspace");
   return (
@@ -243,12 +292,9 @@ function NoWorkspace({
       <SettingsRow
         label={view === "all" ? t("all") : t("none")}
         control={
-          view === "all"
-            ? undefined
-            : renderLink(
-                { kind: "createWorkspace" },
-                { ...stylex.props(linkStyles("action")), children: t("create") },
-              )
+          view === "all" ? undefined : (
+            <Button onClick={(event) => onCreate(event.currentTarget)}>{t("create")}</Button>
+          )
         }
       />
     </SettingsGroup>
@@ -877,6 +923,7 @@ function ConnectionRow({
   const detail = useConnectionWebhookDetail(connection, now);
   return (
     <SettingsLinkRow
+      id={connectionRowId(connection.id)}
       label={connection.name}
       detail={detail}
       detailTone={connection.webhook.kind === "rejected" ? "problem" : "default"}
@@ -990,6 +1037,7 @@ function WebAddressRow({
   const label = t("addresses.web");
   return (
     <SettingsRow
+      id={WEB_ADDRESS_ROW_ID}
       label={label}
       labelId={labelId}
       info={<InfoTip label={t("infoLabel", { label })} content={t("addresses.webInfo")} />}

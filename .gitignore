@@ -3,6 +3,8 @@
 node_modules/
 dist/
 .tanstack/
+.expo/
+apps/mobile/ios/
 .turbo/
 coverage/
 e2e/test-results/

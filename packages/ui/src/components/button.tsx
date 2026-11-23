@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode, Ref } from "react";
 import { cx, type StyleArg } from "../cx";
 import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "check";
 
 type SdkButtonProps = ComponentProps<typeof SdkButton>;
 
@@ -25,6 +25,7 @@ export interface ButtonProps {
   busy?: { active: boolean; label: ReactNode };
   compact?: boolean;
   outlined?: boolean;
+  block?: boolean;
 }
 
 export function Button({
@@ -34,6 +35,7 @@ export function Button({
   busy,
   compact,
   outlined,
+  block,
   ...props
 }: ButtonProps) {
   const busyNow = busy?.active === true;
@@ -55,6 +57,7 @@ export function Button({
           ...buttonStyles(variant, s.disabled || disabled),
           outlined === true && !(s.disabled || disabled) && styles.outlined,
           compact === true && styles.compact,
+          block === true && styles.block,
         )
       }
     >
@@ -94,12 +97,14 @@ export function buttonStyles(variant: ButtonVariant, disabled = false): Readonly
     variant === "primary" && styles.primary,
     variant === "danger" && styles.danger,
     variant === "ghost" && styles.ghost,
+    variant === "check" && styles.check,
     disabled && (variant === "ghost" ? styles.ghostDisabled : styles.disabled),
   ];
 }
 
 const styles = stylex.create({
   compact: { height: size.controlCompact, paddingInline: space.s2, fontSize: fontSize.small },
+  block: { width: "100%", height: size.controlLarge },
   labels: { display: "grid" },
   label: { gridArea: "1 / 1" },
   labelHidden: { visibility: "hidden" },
@@ -165,6 +170,13 @@ const styles = stylex.create({
     },
   },
   danger: { color: colors.problem },
+  check: {
+    backgroundColor: {
+      default: colors.checkSoft,
+      ":hover": { default: null, "@media (hover: hover)": colors.checkSoftHover },
+    },
+    color: colors.check,
+  },
   ghost: {
     backgroundColor: {
       default: "transparent",

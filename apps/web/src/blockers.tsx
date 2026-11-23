@@ -18,11 +18,26 @@ export function blockerChipState(stateCategory: string): BlockerChipState {
   }
 }
 
-export function BlockerChipList({ blockers }: { blockers: ReadonlyArray<BlockerView> }) {
+export function BlockerChipList({
+  blockers,
+  cycleKey = null,
+}: {
+  blockers: ReadonlyArray<BlockerView>;
+  cycleKey?: string | null;
+}) {
   const t = useTranslations("domain.blocker.stuckCause");
   return (
     <BlockerChips>
       {blockers.map((blocker) => {
+        if (blocker.key === cycleKey)
+          return (
+            <BlockerChip
+              key={blocker.key}
+              state="stuck"
+              ticketKey={blocker.key}
+              stateName={t("cycle")}
+            />
+          );
         const state = blockerChipState(blocker.stateCategory);
         return (
           <BlockerChip
