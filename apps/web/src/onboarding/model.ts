@@ -37,7 +37,7 @@ export function onboardingRedirect(pathname: string, complete: boolean): string 
 
 export interface SetupCounts {
   trackerConnections: number;
-  githubTokens: number;
+  githubConnections: number;
   runners: number;
   workspaces: number;
   mappings: number;
@@ -47,7 +47,7 @@ export interface SetupCounts {
 export function isSetupComplete(counts: SetupCounts): boolean {
   return (
     counts.trackerConnections > 0 &&
-    counts.githubTokens > 0 &&
+    counts.githubConnections > 0 &&
     counts.runners > 0 &&
     counts.workspaces > 0 &&
     counts.mappings > 0 &&
@@ -100,7 +100,7 @@ export function stepPassed(page: SettingsPage, step: OnboardingStep): boolean {
     case "tracker":
       return page.install.connections.length > 0;
     case "github":
-      return page.install.githubToken;
+      return page.install.githubConnected;
     case "runner":
       return page.install.runners.some(runnerPassed);
     case "workspace":

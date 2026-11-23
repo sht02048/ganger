@@ -37,6 +37,7 @@ import {
   Card,
   Checkbox,
   CheckboxDisclosure,
+  Disclosure,
   DefinitionItem,
   DefinitionList,
   Dialog,
@@ -1024,6 +1025,17 @@ describe("서버 렌더", () => {
     expect(html).toContain(`id="${describedBy}"`);
     expect(html).toMatch(new RegExp(`id="${describedBy}"[^>]*>다른 Workspace에 있어요<`));
     expect(labels[0]).not.toContain("aria-describedby");
+  });
+
+  it("Disclosure 는 처음에 접혀 있고, defaultOpen 이면 펼친 채로 그린다(티켓 0204)", () => {
+    const closed = renderToString(<Disclosure summary="요약">본문</Disclosure>);
+    const open = renderToString(
+      <Disclosure defaultOpen summary="요약">
+        본문
+      </Disclosure>,
+    );
+    expect(closed).toMatch(/<details(?![^>]*\sopen)[^>]*>/);
+    expect(open).toMatch(/<details[^>]*\sopen=""[^>]*>/);
   });
 
   it("CheckboxDisclosure 는 일부 상태와 펼치기를 따로 알리고, 접히면 내용을 그리지 않는다", () => {

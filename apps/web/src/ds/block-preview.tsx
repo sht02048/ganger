@@ -523,6 +523,9 @@ export function BlockSections() {
                   <Text variant="body">{t("disclosure.body")}</Text>
                 </Disclosure>
               </Card>
+              <Disclosure defaultOpen summary={t("disclosure.openSummary")}>
+                <Text variant="body">{t("disclosure.openBody")}</Text>
+              </Disclosure>
             </div>
           </Demo>
         </Section>

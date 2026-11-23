@@ -57,7 +57,7 @@ export const Route = createFileRoute("/onboarding")({
 });
 
 function OnboardingRoute() {
-  const { page, trackerProjects } = Route.useLoaderData();
+  const { page, trackerProjects, github } = Route.useLoaderData();
   const search = Route.useSearch();
   const { step } = search;
   const navigate = Route.useNavigate();
@@ -96,6 +96,7 @@ function OnboardingRoute() {
       <OnboardingScreen
         page={page}
         trackerProjects={trackerProjects}
+        github={github}
         index={resolveStep(page, step)}
         onStep={(index) => {
           void navigate({ search: { step: index + 1, from: search.from, ws: search.ws } });

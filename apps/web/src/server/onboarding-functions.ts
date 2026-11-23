@@ -10,11 +10,16 @@ import {
 } from "../onboarding/load";
 import { loadTrackerProjectChoices } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
-import { getAdapterRegistry, getSecretBox } from "./adapters";
+import { getAdapterRegistry, getGitHubAuth, getSecretBox } from "./adapters";
 import { getDatabase } from "./database";
 
 function context(): SettingsContext {
-  return { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() };
+  return {
+    db: getDatabase(),
+    secretBox: getSecretBox(),
+    registry: getAdapterRegistry(),
+    githubAuth: getGitHubAuth(),
+  };
 }
 
 export const getOnboardingComplete = createServerFn({ method: "GET" }).handler(() =>

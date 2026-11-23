@@ -17,8 +17,9 @@ import type {
 } from "@ganger/core";
 import { z } from "zod";
 import { readCiState } from "./ci.js";
+import type { GitHubAuth, GitHubCredential, RepoParts } from "./auth.js";
 import { GitHubError, GitHubHttp } from "./http.js";
-import type { GraphqlError, HttpOptions } from "./http.js";
+import type { GraphqlError } from "./http.js";
 import {
   PULL_REQUEST_BY_NUMBER,
   PULL_REQUESTS_BY_BRANCH,
@@ -80,19 +81,30 @@ const byNumber = z.object({
 const viewer = z.object({ viewer: z.object({ login: z.string() }) });
 const rateLimitOnly = z.object({ rateLimit });
 
-export interface GitHubCodeHostOptions extends HttpOptions {}
+export interface GitHubCodeHostOptions {
+  token?: string | null;
+  auth?: GitHubAuth | null;
+  fetch?: typeof fetch;
+  now?: () => Date;
+}
 
 export class GitHubCodeHost implements CodeHost {
   readonly kind: CodeHostKind = GITHUB_KIND;
-  private readonly http: GitHubHttp;
+  private readonly token: string | null;
+  private readonly auth: GitHubAuth | null;
+  private readonly fetchFn: typeof fetch | undefined;
+  private readonly now: (() => Date) | undefined;
 
   constructor(options: GitHubCodeHostOptions) {
-    this.http = new GitHubHttp(options);
+    this.token = options.token ?? null;
+    this.auth = options.auth ?? null;
+    this.fetchFn = options.fetch;
+    this.now = options.now;
   }
 
   async checkConnection(): Promise<ConnectionCheck<CodeHostErrorDetail>> {
     try {
-      await this.http.graphql(VIEWER, {}, viewer);
+      await this.call(null, (http) => http.graphql(VIEWER, {}, viewer));
       return { ok: true };
     } catch (error) {
       if (error instanceof GitHubError) return { ok: false, error: error.detail };
@@ -108,14 +120,15 @@ export class GitHubCodeHost implements CodeHost {
     repo: RepoRef,
     branch: string,
   ): Promise<ReadonlyArray<PullRequestSnapshot>> {
-    const { owner, name } = this.split(repo);
-    const { data, errors } = await this.http.graphql(
-      PULL_REQUESTS_BY_BRANCH,
-      { owner, repo: name, branch },
-      byBranch,
-    );
-    if (data.repository === null) throw repositoryMissing(errors);
-    return this.snapshots(owner, name, data.repository.pullRequests.nodes);
+    return this.call(this.split(repo), async (http, { owner, name }) => {
+      const { data, errors } = await http.graphql(
+        PULL_REQUESTS_BY_BRANCH,
+        { owner, repo: name, branch },
+        byBranch,
+      );
+      if (data.repository === null) throw repositoryMissing(errors);
+      return snapshots(http, owner, name, data.repository.pullRequests.nodes);
+    });
   }
 
   async findPullRequestsByTicketKey(
@@ -123,36 +136,39 @@ export class GitHubCodeHost implements CodeHost {
     ticketKey: TicketKey,
     opts: { createdSince: Date },
   ): Promise<ReadonlyArray<PullRequestSnapshot>> {
-    const { owner, name } = this.split(repo);
-    const { data } = await this.http.graphql(
-      PULL_REQUESTS_BY_SEARCH,
-      { q: searchQuery(owner, name, ticketKey, opts.createdSince) },
-      bySearch,
-    );
-    const since = opts.createdSince.getTime();
-    const nodes = data.search.nodes
-      .filter(
-        (pr) =>
-          pr.createdAt.getTime() >= since &&
-          (mentionsTicketKey(pr.title, ticketKey) || mentionsTicketKey(pr.body, ticketKey)),
-      )
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    return this.snapshots(owner, name, nodes);
+    return this.call(this.split(repo), async (http, { owner, name }) => {
+      const { data } = await http.graphql(
+        PULL_REQUESTS_BY_SEARCH,
+        { q: searchQuery(owner, name, ticketKey, opts.createdSince) },
+        bySearch,
+      );
+      const since = opts.createdSince.getTime();
+      const nodes = data.search.nodes
+        .filter(
+          (pr) =>
+            pr.createdAt.getTime() >= since &&
+            (mentionsTicketKey(pr.title, ticketKey) || mentionsTicketKey(pr.body, ticketKey)),
+        )
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return snapshots(http, owner, name, nodes);
+    });
   }
 
   async getPullRequest(repo: RepoRef, id: PullRequestId): Promise<PullRequestSnapshot | null> {
-    const { owner, name } = this.split(repo);
+    const parts = this.split(repo);
     if (!/^[1-9][0-9]*$/.test(id) || Number(id) > 2_147_483_647) return null;
-    const { data, errors } = await this.http.graphql(
-      PULL_REQUEST_BY_NUMBER,
-      { owner, repo: name, number: Number(id) },
-      byNumber,
-    );
-    if (data.repository === null) throw repositoryMissing(errors);
-    const node = data.repository.pullRequest;
-    if (node === null) return null;
-    const [snapshot] = await this.snapshots(owner, name, [node]);
-    return snapshot ?? null;
+    return this.call(parts, async (http, { owner, name }) => {
+      const { data, errors } = await http.graphql(
+        PULL_REQUEST_BY_NUMBER,
+        { owner, repo: name, number: Number(id) },
+        byNumber,
+      );
+      if (data.repository === null) throw repositoryMissing(errors);
+      const node = data.repository.pullRequest;
+      if (node === null) return null;
+      const [snapshot] = await snapshots(http, owner, name, [node]);
+      return snapshot ?? null;
+    });
   }
 
   async mergePullRequest(
@@ -160,26 +176,58 @@ export class GitHubCodeHost implements CodeHost {
     id: PullRequestId,
     input: MergePullRequestInput,
   ): Promise<MergeOutcome> {
-    const { owner, name } = this.split(repo);
+    const parts = this.split(repo);
     if (!/^[1-9][0-9]*$/.test(id)) return { ok: false, reason: "not-found", message: null };
-    const res = await this.http.put(
-      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls/${id}/merge`,
-      {
-        ...(input.method === null ? {} : { merge_method: input.method }),
-        ...(input.expectedHead === null ? {} : { sha: input.expectedHead }),
-      },
-    );
-    if (res.status === 200) return { ok: true };
-    if (this.http.isRateLimitedResponse(res) || res.status === 401) throw this.http.httpError(res);
-    const message = messageOf(res.body);
-    const reason = mergeRejectionOf(res.status, message);
-    if (reason === null) throw this.http.httpError(res);
-    return { ok: false, reason, message };
+    return this.call(parts, async (http, { owner, name }) => {
+      const res = await http.put(
+        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls/${id}/merge`,
+        {
+          ...(input.method === null ? {} : { merge_method: input.method }),
+          ...(input.expectedHead === null ? {} : { sha: input.expectedHead }),
+        },
+      );
+      if (res.status === 200) return { ok: true };
+      if (http.isRateLimitedResponse(res) || res.status === 401) throw http.httpError(res);
+      const message = messageOf(res.body);
+      const reason = mergeRejectionOf(res.status, message);
+      if (reason === null) throw http.httpError(res);
+      return { ok: false, reason, message };
+    });
   }
 
   async rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date }> {
-    const { data } = await this.http.graphql(RATE_LIMIT_ONLY, {}, rateLimitOnly);
-    return data.rateLimit;
+    return this.call(null, async (http) => {
+      const { data } = await http.graphql(RATE_LIMIT_ONLY, {}, rateLimitOnly);
+      return data.rateLimit;
+    });
+  }
+
+  private async credential(repo: RepoParts | null): Promise<GitHubCredential | null> {
+    if (this.auth === null) {
+      return this.token === null ? null : { token: this.token, source: { kind: "token" } };
+    }
+    return this.auth.credentialFor(repo, this.token);
+  }
+
+  private async call<P extends RepoParts | null, T>(
+    repo: P,
+    run: (http: GitHubHttp, repo: P) => Promise<T>,
+  ): Promise<T> {
+    const credential = await this.credential(repo);
+    if (credential === null) throw new GitHubError({ kind: "unauthorized" });
+    const http = new GitHubHttp({
+      token: credential.token,
+      ...(this.fetchFn === undefined ? {} : { fetch: this.fetchFn }),
+      ...(this.now === undefined ? {} : { now: this.now }),
+    });
+    try {
+      return await run(http, repo);
+    } catch (error) {
+      if (repo !== null && this.auth !== null && losesAccess(error)) {
+        this.auth.forget(repo, credential.source);
+      }
+      throw error;
+    }
   }
 
   private split(repo: RepoRef): { owner: string; name: string } {
@@ -187,30 +235,38 @@ export class GitHubCodeHost implements CodeHost {
     if (parts === null) throw new GitHubError({ kind: "not-found" });
     return parts;
   }
+}
 
-  private async snapshots(
-    owner: string,
-    name: string,
-    nodes: ReadonlyArray<PullRequestNode>,
-  ): Promise<PullRequestSnapshot[]> {
-    const ci = new Map<string, Promise<CiState>>();
-    const ciOf = (sha: string): Promise<CiState> => {
-      let state = ci.get(sha);
-      if (state === undefined) {
-        state = readCiState(this.http, owner, name, sha);
-        ci.set(sha, state);
-      }
-      return state;
-    };
-    return Promise.all(
-      nodes.map(async (node) => {
-        const read =
-          node.state === "OPEN" ? await readPullRequestSignals(this.http, owner, name, node) : null;
-        const state = read?.ci ?? (await ciOf(node.headRefOid));
-        return toSnapshot(node, state, read?.signals ?? null);
-      }),
-    );
-  }
+async function snapshots(
+  http: GitHubHttp,
+  owner: string,
+  name: string,
+  nodes: ReadonlyArray<PullRequestNode>,
+): Promise<PullRequestSnapshot[]> {
+  const ci = new Map<string, Promise<CiState>>();
+  const ciOf = (sha: string): Promise<CiState> => {
+    let state = ci.get(sha);
+    if (state === undefined) {
+      state = readCiState(http, owner, name, sha);
+      ci.set(sha, state);
+    }
+    return state;
+  };
+  return Promise.all(
+    nodes.map(async (node) => {
+      const read =
+        node.state === "OPEN" ? await readPullRequestSignals(http, owner, name, node) : null;
+      const state = read?.ci ?? (await ciOf(node.headRefOid));
+      return toSnapshot(node, state, read?.signals ?? null);
+    }),
+  );
+}
+
+function losesAccess(error: unknown): boolean {
+  return (
+    error instanceof GitHubError &&
+    (error.detail.kind === "unauthorized" || error.detail.kind === "not-found")
+  );
 }
 
 function toSnapshot(

@@ -62,6 +62,7 @@ let page: Page;
 const lockedHost = "settings.example.test";
 const projectPath = `/settings/projects/${connection}/${trackerProject}`;
 const connectionPath = `/settings/connections/${connection}`;
+const githubOpen = `${settings.github.label} ${settings.github.open}`;
 
 const settingsAdapters: Plugin = {
   name: "e2e-settings-adapters",
@@ -214,12 +215,12 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await openSettings(page);
     expect(await page.locator('input[type="password"]').count()).toBe(0);
     const connections = section(settings.sections.connections);
-    await connections.getByRole("button", { name: settings.change }).click();
+    await connections.getByRole("button", { name: githubOpen }).click();
+    await page.getByRole("textbox", { name: settings.github.token, exact: true }).waitFor();
     const githubSecrets = await secretAttributes();
     expect(githubSecrets.length).toBe(1);
     await connections.getByRole("link", { name: settings.github.guideLink }).waitFor();
-    await connections.getByRole("button", { name: settings.github.permissionsLabel }).hover();
-    await page.getByRole("tooltip").getByText("Pull requests 읽기", { exact: false }).waitFor();
+    await connections.getByText(settings.githubAuth.tokenPermissions).waitFor();
 
     await openSettings(page, connectionPath);
     expect(await page.locator('input[type="password"]').count()).toBe(0);
@@ -381,16 +382,12 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
       .click();
     const name = workspace.getByRole("textbox", { name: settings.workspace.name, exact: true });
     await name.fill("Acme Draft");
-    await section(settings.sections.connections)
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
     expect(await name.inputValue()).toBe("Acme Draft");
     expect(await page.getByRole("textbox", { name: settings.github.token }).count()).toBe(0);
     await workspace.getByRole("button", { name: settings.close }).click();
-    await section(settings.sections.connections)
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
     await page.getByRole("textbox", { name: settings.github.token }).waitFor();
   });
 
@@ -411,11 +408,9 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
   it("GitHub 토큰을 비운 채 저장하면 칸 아래에 토큰을 넣으라고 알린다", async () => {
     await openSettings(page);
     const connections = section(settings.sections.connections);
-    await connections
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await connections.getByRole("button", { name: githubOpen }).click();
     await connections.getByRole("button", { name: settings.github.save }).click();
-    await connections.getByText(settings.credentials.tokenRequired).waitFor();
+    await connections.getByText(settings.credentials.tokenRequired, { exact: true }).waitFor();
     const token = page.getByRole("textbox", { name: settings.github.token, exact: true });
     expect(await token.getAttribute("aria-invalid")).toBe("true");
   });

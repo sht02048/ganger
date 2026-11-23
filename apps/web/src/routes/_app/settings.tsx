@@ -1,4 +1,4 @@
-import { useSuspenseQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { createTranslator } from "use-intl";
 import { resolveWorkspace } from "@ganger/app/shell/model";
@@ -13,6 +13,7 @@ import { SettingsScreen } from "../../settings/settings-page";
 import { NavigationGuard } from "../../settings/navigation-guard";
 import {
   boundProjectReadsQuery,
+  githubAuthQuery,
   settingsQuery,
   trackerProjectsQuery,
   useSettingsPage,
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/_app/settings")({
       loadRouteQuery(load, logSettingsQuery),
       loadRouteQuery(load, devicesQuery),
       loadCachedRouteQuery(load, trackerProjectsQuery),
+      loadCachedRouteQuery(load, githubAuthQuery),
       loadCachedRouteQuery(load, boundProjectReadsQuery(load.context.queryClient, load.deps.ws)),
     ]);
   },
@@ -53,6 +55,7 @@ function SettingsRoute() {
   const { data: logView } = useSuspenseQuery(logSettingsQuery);
   const logActions = useLogActions();
   const { data: devicesView } = useSuspenseQuery(devicesQuery);
+  const { data: github } = useQuery(githubAuthQuery);
   const deviceActions = useDeviceActions();
   const openCreateWorkspace = useOpenCreateWorkspace();
   return (
@@ -68,6 +71,7 @@ function SettingsRoute() {
         renderGuard={(guard) => <NavigationGuard {...guard} />}
         devices={<DevicesSection view={devicesView} actions={deviceActions} />}
         logs={<LogSection view={logView} actions={logActions} />}
+        {...(github === undefined ? {} : { github })}
       />
     </ScreenMessages>
   );

@@ -7,7 +7,6 @@ import {
   addTrackerProjectInput,
   addressesInput,
   briefInput,
-  checkGitHubToken,
   checkTrackerConnection,
   connectionIdInput,
   createAutoAssignLabel,
@@ -42,6 +41,7 @@ import {
   webhookAddressInput,
 } from "@ganger/app/settings/actions";
 import { planFunnel } from "@ganger/app/funnel-setup";
+import { checkGitHubConnection, loadGitHubAuthView } from "@ganger/app/settings/github-auth";
 import type { WebhookSetupView } from "@ganger/app/settings/model";
 import { GANGER_YELLOW_HEX } from "@ganger/ui/brand-color";
 import { saveRunnerFindingOrca } from "@ganger/app/runner-setup/remote-orca";
@@ -52,7 +52,7 @@ import {
   loadTrackerProjectLists,
 } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
-import { getAdapterRegistry, getSecretBox } from "./adapters";
+import { getAdapterRegistry, getGitHubAuth, getSecretBox } from "./adapters";
 import { getDatabase } from "./database";
 import { serverMcpLaunch } from "./mcp-launch";
 import { installPowerSettings } from "./power-settings";
@@ -71,6 +71,7 @@ function context(): SettingsContext {
     db: getDatabase(),
     secretBox: getSecretBox(),
     registry: getAdapterRegistry(),
+    githubAuth: getGitHubAuth(),
     mcpLaunch: serverMcpLaunch(process.env, process.execPath),
     trackerReads: getTrackerReads(),
     autoAllowedHosts: autoAllowedAddresses(),
@@ -147,8 +148,12 @@ export const saveGitHubTokenSetting = createServerFn({ method: "POST" })
   .validator(githubTokenInput)
   .handler(({ data }) => saveGitHubToken(context(), data, new Date()));
 
-export const checkGitHubTokenNow = createServerFn({ method: "POST" }).handler(() =>
-  checkGitHubToken(context()),
+export const getGitHubAuthView = createServerFn({ method: "GET" }).handler(() =>
+  loadGitHubAuthView(context()),
+);
+
+export const checkGitHubNow = createServerFn({ method: "POST" }).handler(() =>
+  checkGitHubConnection(context(), new Date()),
 );
 
 export const saveRunnerSettings = createServerFn({ method: "POST" })

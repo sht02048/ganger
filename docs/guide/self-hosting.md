@@ -6,7 +6,7 @@ The orchestrator is a self-hosted tool. One operator runs one installation on th
 
 - `apps/web` and `apps/worker` run on the same machine and share one SQLite file.
 - A runner is an Orca environment that the orchestrator can reach over ssh.
-- Tracker connections, the GitHub token, runners, workspaces, and mappings are set up in web onboarding on first launch. Tokens are stored encrypted in the database. To add another workspace later, open the workspace menu at the top of the rail and choose **새 Workspace** (new workspace). A tracker project can belong to only one workspace.
+- Tracker connections, GitHub access, runners, workspaces, and mappings are set up in web onboarding on first launch. GitHub access uses the server machine's `gh` login first and a pasted token as the fallback (see [GitHub access](configuration.md#github-access)). Tokens are stored encrypted in the database. To add another workspace later, open the workspace menu at the top of the rail and choose **새 Workspace** (new workspace). A tracker project can belong to only one workspace.
 - `.env` holds only the minimum values needed to boot. See [Configuration](configuration.md).
 
 Related guides: [Configuration](configuration.md), [Networking and webhooks](networking.md), [Runners](runners.md), [MCP](mcp.md), [Troubleshooting](troubleshooting.md).

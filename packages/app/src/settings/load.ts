@@ -6,6 +6,7 @@ import type {
   TrackerConnectionId,
   WorkspaceBrief,
 } from "@ganger/core";
+import type { GitHubAuth } from "@ganger/codehost-github";
 import { ASK_GUIDE } from "@ganger/runner-orca/agent-brief";
 import {
   getAutoAssignLabel,
@@ -70,6 +71,7 @@ export interface SettingsContext {
   db: Database;
   secretBox: SecretBox;
   registry: AdapterRegistry;
+  githubAuth?: GitHubAuth;
   power?: PowerSettingsStore;
   mcpLaunch?: McpLaunch;
   trackerReads?: TrackerReads;
@@ -179,6 +181,17 @@ const remoteKindSchema = z.object({
   kind: z.enum(["unauthorized", "rate-limited", "not-found", "network"]),
 });
 
+const pastedToken = z.object({ token: z.string().min(1) });
+
+export function pastedGitHubToken(secrets: unknown): string | null {
+  const parsed = pastedToken.safeParse(secrets);
+  return parsed.success ? parsed.data.token : null;
+}
+
+export function hasPastedGitHubToken(connections: ReadonlyArray<{ secrets: unknown }>): boolean {
+  return connections.some((connection) => pastedGitHubToken(connection.secrets) !== null);
+}
+
 export function remoteErrorOfDetail(detail: unknown): RemoteError {
   const parsed = remoteKindSchema.safeParse(detail);
   return parsed.success ? parsed.data.kind : "network";
@@ -254,7 +267,8 @@ export function loadSettingsDb(
     workspace,
     install: {
       connections: connections.map((connection) => trackerConnectionView(db, connection, now)),
-      githubToken: listCodeHostConnections(db, secretBox).length > 0,
+      githubConnected: listCodeHostConnections(db, secretBox).length > 0,
+      githubToken: hasPastedGitHubToken(listCodeHostConnections(db, secretBox)),
       unreadPrRuns: countUnreadPrRuns(db),
       addresses: addressesView(getInstallSettings(db), context.autoAllowedHosts ?? []),
       power: powerView(context.power),
