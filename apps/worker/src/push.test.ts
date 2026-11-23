@@ -13,6 +13,7 @@ import type { NotificationCause, NotificationEventKind } from "@ganger/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
+  PUSH_CLEAR_EVENTS_PER_MESSAGE,
   PUSH_FAILURE_BACKOFF_MS,
   PUSH_RECEIPT_DELAY_MS,
   PUSH_REMIND_AFTER_MS,
@@ -300,8 +301,75 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     sync([]);
     await push.run();
     expect(expo.take()[0]?.data).toEqual({
-      clear: ["event-2", "event-3", "event-4", "bundle-1"],
+      clear: ["event-2", "bundle-1", "event-3", "event-4"],
     });
+  });
+
+  it("지운 뒤 다시 열린 사건은 10분이 차면 다시 알리고, 또 해결되면 다시 지운다", async () => {
+    addPushDevice();
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    sync([]);
+    await push.run();
+    expo.take();
+
+    advance(60_000);
+    sync([runCause(1)]);
+    await push.run();
+    expect(expo.take()).toEqual([]);
+
+    advance(PUSH_REMIND_AFTER_MS);
+    await push.run();
+    expect(expo.take().map((message) => message.data)).toEqual([
+      { eventId: 1, replaces: ["event-1"] },
+    ]);
+
+    sync([]);
+    await push.run();
+    expect(expo.take().map((message) => message.data)).toEqual([{ clear: ["event-1"] }]);
+  });
+
+  it("지울 사건이 많으면 4KiB 안의 메시지로 나눈다", async () => {
+    addPushDevice();
+    const count = PUSH_CLEAR_EVENTS_PER_MESSAGE * 2 + 1;
+    sync(Array.from({ length: count }, (_, index) => runCause(index + 1)));
+    const push = delivery();
+    await push.run();
+    expo.take();
+
+    sync([]);
+    await push.run();
+    const clears = expo.take();
+    expect(clears).toHaveLength(3);
+    expect(clears.every((message) => JSON.stringify(message).length < 4096)).toBe(true);
+    await push.run();
+    expect(expo.take()).toEqual([]);
+  });
+
+  it("한 기기의 표 오류는 다른 기기의 전송을 미루지 않는다", async () => {
+    const broken = "ExponentPushToken[broken]";
+    addPushDevice(broken);
+    addPushDevice("ExponentPushToken[healthy]");
+    expo.ticketFor = (message) =>
+      message.to === broken ? { status: "error", details: { error: "MessageTooBig" } } : null;
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    expo.take();
+
+    sync([runCause(1), runCause(2)]);
+    await push.run();
+    expect(expo.take().map((message) => message.to)).toEqual(["ExponentPushToken[healthy]"]);
+  });
+
+  it("모르는 표 상태가 와도 응답 전체를 버리지 않는다", async () => {
+    addPushDevice();
+    expo.ticketFor = () => ({ status: "later" });
+    sync([runCause(1)]);
+    await delivery().run();
+    expect(h.warnings.map((warning) => warning.event)).toContain("push.ticket_failed");
+    expect(h.warnings.map((warning) => warning.event)).not.toContain("push.send_failed");
   });
 
   it("보내기가 실패하면 기록하지 않고 잠시 뒤 다시 보낸다", async () => {

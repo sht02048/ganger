@@ -9,6 +9,7 @@ import {
   recordPushCleared,
   recordPushReminded,
   recordPushSent,
+  reopenClearedPushes,
 } from "@ganger/db";
 import type {
   Database,
@@ -30,6 +31,7 @@ export const PUSH_RECEIPT_GIVE_UP_MS = 60 * 60_000;
 export const PUSH_FAILURE_BACKOFF_MS = 60_000;
 const PUSH_REQUEST_TIMEOUT_MS = 5_000;
 const PUSH_BATCH_SIZE = 100;
+export const PUSH_CLEAR_EVENTS_PER_MESSAGE = 50;
 const RECEIPT_BATCH_SIZE = 1_000;
 const MAX_PENDING_RECEIPTS = 10_000;
 
@@ -82,29 +84,37 @@ function planClears(device: PushDevice, rows: ReadonlyArray<PushDelivery>): Plan
   const resolved = rows.filter(
     (row) => row.firstSentAt !== null && row.clearedAt === null && row.resolvedAt !== null,
   );
-  if (resolved.length === 0) return [];
-  const finishedBundles = new Set(
-    resolved.flatMap((row) =>
-      row.bundleId !== null &&
+  const bundled = new Set<string>();
+  const entries = resolved.map((row) => {
+    const ids = [eventPushId(row.eventId)];
+    const { bundleId } = row;
+    if (
+      bundleId !== null &&
+      !bundled.has(bundleId) &&
       rows
-        .filter((other) => other.bundleId === row.bundleId)
+        .filter((other) => other.bundleId === bundleId)
         .every((other) => other.resolvedAt !== null)
-        ? [row.bundleId]
-        : [],
-    ),
-  );
-  return [
-    {
+    ) {
+      bundled.add(bundleId);
+      ids.push(bundleId);
+    }
+    return { eventId: row.eventId, ids };
+  });
+  const pushes: PlannedPush[] = [];
+  for (let start = 0; start < entries.length; start += PUSH_CLEAR_EVENTS_PER_MESSAGE) {
+    const chunk = entries.slice(start, start + PUSH_CLEAR_EVENTS_PER_MESSAGE);
+    pushes.push({
       device,
       message: {
         to: device.token,
         contentAvailable: true,
         priority: "normal",
-        data: { clear: [...resolved.map((row) => eventPushId(row.eventId)), ...finishedBundles] },
+        data: { clear: chunk.flatMap((entry) => entry.ids) },
       },
-      effect: { kind: "cleared", eventIds: resolved.map((row) => row.eventId) },
-    },
-  ];
+      effect: { kind: "cleared", eventIds: chunk.map((entry) => entry.eventId) },
+    });
+  }
+  return pushes;
 }
 
 interface WindowMember {
@@ -184,7 +194,13 @@ function planFresh(
       row: null,
     })),
     ...rows
-      .filter((row) => row.firstSentAt !== null && row.resolvedAt === null && isTodo(row.kind))
+      .filter(
+        (row) =>
+          row.firstSentAt !== null &&
+          row.resolvedAt === null &&
+          isTodo(row.kind) &&
+          allows(device, row.kind),
+      )
       .map((row) => ({ eventId: row.eventId, createdAt: row.createdAt.getTime(), row })),
   ];
   return [...issues, ...todoWindows(members).flatMap((window) => planWindow(device, window))];
@@ -232,13 +248,11 @@ export function planPushes(input: {
   });
 }
 
-const ticketSchema = z.union([
-  z.object({ status: z.literal("ok"), id: z.string().min(1) }),
-  z.object({
-    status: z.literal("error"),
-    details: z.object({ error: z.string().optional() }).optional(),
-  }),
-]);
+const ticketSchema = z.object({
+  status: z.string(),
+  id: z.string().min(1).optional(),
+  details: z.object({ error: z.string().optional() }).optional(),
+});
 const sendResponseSchema = z.object({ data: z.array(ticketSchema) });
 const receiptSchema = z.object({
   status: z.string(),
@@ -269,9 +283,10 @@ export function createPushDelivery(options: {
   transport: Partial<PushTransport>;
 }): PushDeliveryRunner {
   const { db, now, logger } = options;
-  const url = options.transport.url ?? DEFAULT_EXPO_PUSH_URL;
+  const url = (options.transport.url ?? DEFAULT_EXPO_PUSH_URL).replace(/\/+$/u, "");
   const send = options.transport.fetch ?? fetch;
   const receipts: PendingReceipt[] = [];
+  const deviceRetryAt = new Map<string, number>();
   let retryAt = 0;
 
   const post = async (path: string, body: unknown): Promise<unknown> => {
@@ -307,7 +322,7 @@ export function createPushDelivery(options: {
     }
   };
 
-  const sendBatch = async (batch: ReadonlyArray<PlannedPush>, at: Date): Promise<boolean> => {
+  const sendBatch = async (batch: ReadonlyArray<PlannedPush>, at: Date): Promise<void> => {
     const { data: tickets } = sendResponseSchema.parse(
       await post(
         "send",
@@ -315,12 +330,11 @@ export function createPushDelivery(options: {
       ),
     );
     if (tickets.length !== batch.length) throw new Error("expo push ticket count mismatch");
-    let clean = true;
     const invalid = new Set<string>();
     batch.forEach((push, index) => {
       const ticket = tickets[index];
       if (ticket === undefined || invalid.has(push.device.id)) return;
-      if (ticket.status === "ok") {
+      if (ticket.status === "ok" && ticket.id !== undefined) {
         apply(push, at);
         if (receipts.length < MAX_PENDING_RECEIPTS) {
           receipts.push({
@@ -337,10 +351,9 @@ export function createPushDelivery(options: {
         invalidate(push.device.id, push.device.token);
         return;
       }
-      clean = false;
+      deviceRetryAt.set(push.device.id, at.getTime() + PUSH_FAILURE_BACKOFF_MS);
       logger.warn("push.ticket_failed", { error: ticket.details?.error ?? "unknown" });
     });
-    return clean;
   };
 
   const checkReceipts = async (at: number): Promise<void> => {
@@ -372,19 +385,19 @@ export function createPushDelivery(options: {
       const at = now();
       if (at.getTime() < retryAt) return;
       try {
+        reopenClearedPushes(db);
         const planned = planPushes({
-          devices: listPushDevices(db),
+          devices: listPushDevices(db).filter(
+            (device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime(),
+          ),
           open: listOpenNotificationEvents(db),
           deliveries: listPushDeliveries(db),
           now: at,
         });
-        let clean = true;
         for (let start = 0; start < planned.length; start += PUSH_BATCH_SIZE) {
-          const sent = await sendBatch(planned.slice(start, start + PUSH_BATCH_SIZE), at);
-          clean &&= sent;
+          await sendBatch(planned.slice(start, start + PUSH_BATCH_SIZE), at);
         }
         await checkReceipts(at.getTime());
-        if (!clean) retryAt = at.getTime() + PUSH_FAILURE_BACKOFF_MS;
       } catch (error) {
         retryAt = at.getTime() + PUSH_FAILURE_BACKOFF_MS;
         logger.warn("push.send_failed", {

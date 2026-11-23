@@ -229,3 +229,16 @@ export function recordPushCleared(
 ): void {
   markDeliveries(db, deviceId, eventIds, { clearedAt: now });
 }
+
+export function reopenClearedPushes(db: Database): void {
+  const open = db
+    .select({ id: notificationEvents.id })
+    .from(notificationEvents)
+    .where(isNull(notificationEvents.resolvedAt));
+  db.update(devicePushDeliveries)
+    .set({ clearedAt: null })
+    .where(
+      and(isNotNull(devicePushDeliveries.clearedAt), inArray(devicePushDeliveries.eventId, open)),
+    )
+    .run();
+}

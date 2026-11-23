@@ -28,6 +28,7 @@ export const LOG_EVENTS = {
   "push.address_invalid": "expo reported a device push address as invalid",
   "push.ticket_failed": "expo refused a push message",
   "push.send_failed": "could not send push messages",
+  "push.url_invalid": "ignored an invalid expo push address setting",
   "worker.log_tail_failed": "could not read a log tail",
 
   "run.assigned": "assigned a ticket to a run",

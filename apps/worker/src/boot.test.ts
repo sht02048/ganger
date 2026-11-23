@@ -1,4 +1,4 @@
-import { silentLogger } from "@ganger/log/testing";
+import { memoryLogger, silentLogger } from "@ganger/log/testing";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -35,6 +35,18 @@ describe("bootWorker", () => {
     const second = bootWorker({ env, registry: new AdapterRegistry(), logger: quiet });
     expect(second.migrated).toEqual([]);
     await second.worker.stop();
+  });
+
+  it("푸시 보낼 곳 주소가 틀려도 worker 는 뜨고 경고를 남긴다", async () => {
+    const logger = memoryLogger();
+    const env = {
+      DATABASE_PATH: join(dir, "data", "ganger.db"),
+      ENCRYPTION_KEY: key,
+      GANGER_EXPO_PUSH_URL: "not a url",
+    };
+    const { worker } = bootWorker({ env, registry: new AdapterRegistry(), logger });
+    await worker.stop();
+    expect(logger.entries.map((entry) => entry.event)).toContain("push.url_invalid");
   });
 
   it("부팅 설정이 틀리면 DB를 열기 전에 실패한다", () => {
