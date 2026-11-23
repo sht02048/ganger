@@ -35,6 +35,7 @@ import {
   ExpandableRow,
   Card,
   Checkbox,
+  CheckboxDisclosure,
   DefinitionItem,
   DefinitionList,
   Dialog,
@@ -891,6 +892,64 @@ describe("서버 렌더", () => {
     expect(html).toContain(`id="${describedBy}"`);
     expect(html).toMatch(new RegExp(`id="${describedBy}"[^>]*>다른 Workspace에 있어요<`));
     expect(labels[0]).not.toContain("aria-describedby");
+  });
+
+  it("CheckboxDisclosure 는 일부 상태와 펼치기를 따로 알리고, 접히면 내용을 그리지 않는다", () => {
+    const html = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="1개 고름 · 2개 넣을 수 있어요"
+        toggleLabel="Linear 프로젝트 목록"
+        checked={false}
+        indeterminate
+        onCheckedChange={noop}
+        expanded={false}
+        onExpandedChange={noop}
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(html).toContain('aria-checked="mixed"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-label="Linear 프로젝트 목록"');
+    expect(html).not.toContain("내용");
+  });
+
+  it("CheckboxDisclosure 는 펼치면 내용을 묶음으로 잇고, disabled 면 펼치기를 없앤다", () => {
+    const open = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="요약"
+        toggleLabel="목록"
+        checked
+        onCheckedChange={noop}
+        expanded
+        onExpandedChange={noop}
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(open).toContain('aria-expanded="true"');
+    expect(open).toContain('role="group"');
+    expect(open).toContain("내용");
+
+    const blocked = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="넣을 수 있는 프로젝트가 없어요"
+        toggleLabel="목록"
+        checked={false}
+        onCheckedChange={noop}
+        expanded
+        onExpandedChange={noop}
+        disabled
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(blocked).not.toContain("aria-expanded");
+    expect(blocked).not.toContain("내용");
+    expect(blocked).toContain('disabled=""');
   });
 
   it("Select 는 aria-label 을 트리거에 붙인다", () => {
