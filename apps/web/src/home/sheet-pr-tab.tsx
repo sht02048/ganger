@@ -1,19 +1,111 @@
 import * as stylex from "@stylexjs/stylex";
-import { CommitHistory, ExternalIconLink, SignalList, SignalRow, Text } from "@ganger/ui";
+import {
+  CommitHistory,
+  ExternalIconLink,
+  SignalList,
+  SignalRow,
+  SplitButton,
+  Text,
+  TextLink,
+  showToast,
+} from "@ganger/ui";
 import type { SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
+import { useId, useRef, useState } from "react";
 import { useLocale, useTranslations } from "use-intl";
+import type { MergePrResult } from "@ganger/app/home/merge-pr";
 import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
+import type { MergeView } from "@ganger/app/pr-signals-view";
+import type { MergeMethod, RunId } from "@ganger/core";
 import { useTime } from "../format/time";
 import { prCiFailed } from "./sheet-tabs";
 
-export function PrTabContent({ run }: { run: HomeRun }) {
+const GITHUB_TOKEN_SETTINGS_HREF = "/settings#connections";
+
+export type MergeHandler = (
+  runId: RunId,
+  method: MergeMethod,
+  expectedHead: string,
+) => Promise<MergePrResult>;
+
+export function PrTabContent({ run, onMerge }: { run: HomeRun; onMerge: MergeHandler }) {
   const pr = run.pullRequest;
+  const columnRef = useRef<HTMLDivElement>(null);
   return (
-    <div {...stylex.props(styles.column)}>
+    <div ref={columnRef} tabIndex={-1} {...stylex.props(styles.column)}>
+      {pr === null ? null : pr.state === "open" && pr.merge !== null ? (
+        <MergeControl
+          key={pr.displayId}
+          runId={run.id}
+          merge={pr.merge}
+          onMerge={onMerge}
+          onMerged={() => columnRef.current?.focus()}
+        />
+      ) : null}
       {pr === null ? <NoPullRequest run={run} /> : <PrStatusRows pr={pr} />}
     </div>
   );
+}
+
+function MergeControl({
+  runId,
+  merge,
+  onMerge,
+  onMerged,
+}: {
+  runId: RunId;
+  merge: MergeView;
+  onMerge: MergeHandler;
+  onMerged: () => void;
+}) {
+  const t = useTranslations("home.sheet.pr.merge");
+  const [picked, setPicked] = useState<MergeMethod>(merge.defaultMethod);
+  const [sending, setSending] = useState(false);
+  const noteId = useId();
+  const method = merge.methods.includes(picked) ? picked : merge.defaultMethod;
+  const describeFailure = useMergeFailure();
+  const send = async () => {
+    setSending(true);
+    try {
+      const result = await onMerge(runId, method, merge.headCommit);
+      showToast(result.ok ? t("done") : describeFailure(result));
+      if (result.ok) onMerged();
+    } catch {
+      showToast(t("failed.network"));
+    } finally {
+      setSending(false);
+    }
+  };
+  return (
+    <div data-merge-control="" {...stylex.props(styles.merge)}>
+      <SplitButton<MergeMethod>
+        value={method}
+        options={merge.methods.map((value) => ({ value, label: t(`option.${value}`) }))}
+        onValueChange={setPicked}
+        menuLabel={t("methodMenu")}
+        disabled={merge.blocked !== null || merge.noPermission}
+        busy={{ active: sending, label: t("busy") }}
+        onClick={() => void send()}
+        {...(merge.noPermission ? { describedBy: noteId } : {})}
+      >
+        {t(`button.${method}`)}
+      </SplitButton>
+      {merge.noPermission ? (
+        <Text variant="ui" tone="muted" as="p" id={noteId}>
+          {t("noPermission")} ·{" "}
+          <TextLink href={GITHUB_TOKEN_SETTINGS_HREF}>{t("toSettings")}</TextLink>
+        </Text>
+      ) : null}
+    </div>
+  );
+}
+
+function useMergeFailure(): (result: Extract<MergePrResult, { ok: false }>) => string {
+  const t = useTranslations("home.sheet.pr.merge.failed");
+  return (result) =>
+    result.reason === "blocked" && result.message !== null
+      ? t("blockedBecause", { message: result.message })
+      : t(result.reason);
 }
 
 function NoPullRequest({ run }: { run: HomeRun }) {
@@ -69,8 +161,10 @@ function PrCommits({ commits }: { commits: HomePullRequest["commits"] }) {
 
 function OpenPrRows({ pr }: { pr: HomePullRequest }) {
   const t = useTranslations("home.sheet.pr");
-  const conflict = pr.signals?.conflict ?? null;
+  const blocked = pr.merge?.blocked ?? null;
+  const conflict = blocked === "conflict" ? true : (pr.signals?.conflict ?? null);
   const behindBy = pr.signals?.behindBy ?? null;
+  const ruleBlocked = (blocked === "rules" && !prCiFailed(pr)) || blocked === "draft";
   return (
     <>
       <CiRow pr={pr} />
@@ -83,13 +177,20 @@ function OpenPrRows({ pr }: { pr: HomePullRequest }) {
               : "conflictValue.none",
         )}
       </SignalRow>
-      <SignalRow label={t("base")} tone={baseTone(behindBy)}>
-        {behindBy === null
-          ? t("baseValue.unknown")
-          : behindBy > 0
-            ? t("baseValue.behind", { count: behindBy })
-            : t("baseValue.upToDate")}
+      <SignalRow label={t("base")} tone={blocked === "behind" ? "problem" : baseTone(behindBy)}>
+        {blocked === "behind" && (behindBy === null || behindBy === 0)
+          ? t("baseValue.mustUpdate")
+          : behindBy === null
+            ? t("baseValue.unknown")
+            : behindBy > 0
+              ? t("baseValue.behind", { count: behindBy })
+              : t("baseValue.upToDate")}
       </SignalRow>
+      {ruleBlocked ? (
+        <SignalRow label={t("rules")} tone="problem">
+          {t(blocked === "draft" ? "rulesValue.draft" : "rulesValue.blocked")}
+        </SignalRow>
+      ) : null}
     </>
   );
 }
@@ -192,7 +293,13 @@ function baseTone(behindBy: number | null): SignalTone {
 }
 
 const styles = stylex.create({
-  column: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
+  column: {
+    display: "flex",
+    flexDirection: "column",
+    gap: space.s4,
+    minWidth: 0,
+  },
+  merge: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: space.s2 },
   empty: { display: "flex", flexDirection: "column", gap: space.s1 },
   linkLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
 });

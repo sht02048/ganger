@@ -13,6 +13,8 @@ import { appMessages, defaultLocale } from "../i18n";
 import { homeMessages } from "./messages";
 import { PrTabContent } from "./sheet-pr-tab";
 
+const unusedMerge = () => Promise.reject(new Error("unused"));
+
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 const p = homeJson.sheet.pr;
@@ -52,6 +54,7 @@ function pr(over: Partial<HomePullRequest> = {}): HomePullRequest {
     title: "Retry failed payments",
     baseBranch: "develop",
     commits,
+    merge: null,
     ...over,
   };
 }
@@ -97,7 +100,7 @@ function render(pullRequest: HomePullRequest) {
         messages={{ ...appMessages, ...homeMessages }}
         timeZone={DEFAULT_TIME_ZONE}
       >
-        <PrTabContent run={run(pullRequest)} />
+        <PrTabContent run={run(pullRequest)} onMerge={unusedMerge} />
       </IntlProvider>,
     );
   });

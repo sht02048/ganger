@@ -26,6 +26,39 @@ function fingerprintOf(request: RunActionRequest): string {
     .digest("hex");
 }
 
+export type RunActionRequestStatus = "new" | "handled" | "reused";
+
+export function runActionRequestStatus(
+  db: Database,
+  request: RunActionRequest,
+): RunActionRequestStatus {
+  const handled = db
+    .select({ fingerprint: runActionRequests.fingerprint })
+    .from(runActionRequests)
+    .where(
+      and(
+        eq(runActionRequests.runId, request.runId),
+        eq(runActionRequests.requestId, request.requestId),
+      ),
+    )
+    .get();
+  if (handled === undefined) return "new";
+  return handled.fingerprint === fingerprintOf(request) ? "handled" : "reused";
+}
+
+export function recordRunActionRequest(db: Database, request: RunActionRequest, now: Date): void {
+  db.insert(runActionRequests)
+    .values({
+      runId: request.runId,
+      requestId: request.requestId,
+      fingerprint: fingerprintOf(request),
+      resultRunId: null,
+      handledAt: now,
+    })
+    .onConflictDoNothing()
+    .run();
+}
+
 export function handleRunActionOnce<Result extends { ok: boolean }>(
   db: Database,
   request: RunActionRequest,

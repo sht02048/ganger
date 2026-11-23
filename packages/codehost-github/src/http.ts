@@ -24,6 +24,11 @@ export interface RestResponse {
 const API_URL = "https://api.github.com";
 const TIMEOUT_MS = 30_000;
 const USER_AGENT = "ganger";
+const GRAPHQL_ACCEPT = "application/vnd.github.merge-info-preview+json";
+const REST_HEADERS = {
+  accept: "application/vnd.github+json",
+  "x-github-api-version": "2022-11-28",
+};
 
 const graphqlErrors = z.array(
   z.object({
@@ -59,7 +64,7 @@ export class GitHubHttp {
     const res = await this.send(
       `${API_URL}/graphql`,
       "POST",
-      { "content-type": "application/json" },
+      { "content-type": "application/json", accept: GRAPHQL_ACCEPT },
       JSON.stringify({ query, variables }),
     );
     if (res.status !== 200) throw this.httpError(res);
@@ -81,10 +86,23 @@ export class GitHubHttp {
   }
 
   async get(path: string): Promise<RestResponse> {
-    return this.send(`${API_URL}${path}`, "GET", {
-      accept: "application/vnd.github+json",
-      "x-github-api-version": "2022-11-28",
-    });
+    return this.send(`${API_URL}${path}`, "GET", REST_HEADERS);
+  }
+
+  async put(path: string, body: Record<string, unknown>): Promise<RestResponse> {
+    return this.send(
+      `${API_URL}${path}`,
+      "PUT",
+      { ...REST_HEADERS, "content-type": "application/json" },
+      JSON.stringify(body),
+    );
+  }
+
+  isRateLimitedResponse(res: RestResponse): boolean {
+    return (
+      res.status === 429 ||
+      (res.status === 403 && (isRateLimited(res.headers) || mentionsRateLimit(res.body)))
+    );
   }
 
   httpError(res: RestResponse): GitHubError {
@@ -101,7 +119,7 @@ export class GitHubHttp {
 
   private async send(
     url: string,
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PUT",
     headers: Record<string, string>,
     body?: string,
   ): Promise<RestResponse> {

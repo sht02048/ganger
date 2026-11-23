@@ -34,6 +34,8 @@ export const LOG_EVENTS = {
   "run.assigned": "assigned a ticket to a run",
   "run.bulk_assign_failed": "could not assign one ticket of a bulk assignment",
   "run.continued": "started a new run that continues an ended run",
+  "run.merge_human_check_answer_failed":
+    "merged a run's pull request but could not answer the run's Human Check",
   "run.agent_check_failed": "could not check whether an ended run's agent is still alive",
   "run.runner_chosen": "chose a runner for a queued run",
   "run.state_changed": "changed run state",

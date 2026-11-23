@@ -30,6 +30,7 @@ function render(page: HomePage) {
       onHumanCheck={reject}
       onDeny={reject}
       onControl={reject}
+      onMerge={reject}
     />,
     homeMessages,
   );
@@ -44,6 +45,7 @@ function renderView(page: HomePage, view: DashboardView) {
       onHumanCheck={reject}
       onDeny={reject}
       onControl={reject}
+      onMerge={reject}
     />,
     homeMessages,
   );
@@ -1168,6 +1170,7 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
               title: null,
               baseBranch: null,
               commits: [],
+              merge: null,
             },
           }
         : run;

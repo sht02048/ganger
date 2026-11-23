@@ -19,7 +19,14 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
-import { isStillReread, prDetailsOf, prSignalsViewOf, toCiView } from "../pr-signals-view.js";
+import {
+  isStillReread,
+  mergeViewOf,
+  prDetailsOf,
+  prSignalsViewOf,
+  settledPrStateOf,
+  toCiView,
+} from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -56,6 +63,14 @@ function homePrStateOf(
     run.state === "ended" && (run.prState === "merged" || run.prState === "closed")
       ? run.prState
       : "open";
+  const settled = state === "open" ? settledPrStateOf(records) : null;
+  if (settled !== null) {
+    return {
+      state: settled.state,
+      settledAt: settled.at?.toISOString() ?? null,
+      settledAgoMs: settled.at === null ? null : Math.max(0, now.getTime() - settled.at.getTime()),
+    };
+  }
   return { state, settledAt: null, settledAgoMs: null };
 }
 
@@ -145,6 +160,7 @@ export function loadHomePage(
               ...homePrStateOf(run, records, now),
               branch: run.state === "queued" ? null : run.branch,
               ...prDetailsOf(records, now),
+              merge: takenOver.has(run.id) ? null : mergeViewOf(run, records),
             },
       cancelling: cancelling.has(run.id),
       control:

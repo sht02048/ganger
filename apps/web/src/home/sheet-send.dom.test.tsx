@@ -161,6 +161,7 @@ function draw(page: HomePage, actions: Partial<HomeScreenProps> = {}) {
           onHumanCheck={resolved}
           onDeny={resolved}
           onControl={() => Promise.resolve("requested")}
+          onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
           {...actions}
         />
       </IntlProvider>,
@@ -535,6 +536,7 @@ const failingPr: HomeRun["pullRequest"] = {
   title: null,
   baseBranch: null,
   commits: [],
+  merge: null,
 };
 
 function withEndedPr(page: HomePage, pullRequest: HomeRun["pullRequest"]): HomePage {

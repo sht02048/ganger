@@ -45,6 +45,7 @@ import {
   GroupHeader,
   Input,
   Menu,
+  SplitButton,
   RadioGroup,
   RadioOption,
   MenuItem,
@@ -586,6 +587,52 @@ describe("서버 렌더", () => {
     expect(busy).toContain('aria-disabled="true"');
     expect(idle).not.toContain("aria-busy");
     expect(idle).not.toContain("aria-disabled");
+  });
+
+  it("SplitButton 은 노란 주 버튼과 방식 메뉴 단추를 붙여 그리고, 끄면 둘 다 끈다(0201)", () => {
+    const options = [
+      { value: "squash", label: "Squash" },
+      { value: "merge", label: "Merge commit" },
+    ] as const;
+    const on = renderToString(
+      <SplitButton
+        value="squash"
+        options={options}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(on).toContain('data-variant="primary"');
+    expect(on).toContain('aria-label="방식"');
+    expect(on).toContain("Squash 머지");
+    const off = renderToString(
+      <SplitButton
+        value="squash"
+        options={options}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+        disabled
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(off.match(/ disabled=""/g)).toHaveLength(2);
+    const single = renderToString(
+      <SplitButton
+        value="squash"
+        options={[options[0]]}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(single).not.toContain('aria-label="방식"');
   });
 
   it("레일 Menu 는 펼침 화살표 없이 트리거 내용만 그린다", () => {

@@ -286,6 +286,12 @@ class PausableCodeHost implements CodeHost {
     return this.pause.run(() => this.inner.getPullRequest(...args));
   }
 
+  mergePullRequest(
+    ...args: Parameters<CodeHost["mergePullRequest"]>
+  ): ReturnType<CodeHost["mergePullRequest"]> {
+    return this.pause.run(() => this.inner.mergePullRequest(...args));
+  }
+
   rateLimit(): ReturnType<CodeHost["rateLimit"]> {
     return this.pause.run(() => this.inner.rateLimit());
   }

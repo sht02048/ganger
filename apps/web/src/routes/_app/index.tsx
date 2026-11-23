@@ -65,6 +65,7 @@ function HomeRoute() {
         onHumanCheck={actions.onHumanCheck}
         onDeny={actions.onDeny}
         onControl={actions.onControl}
+        onMerge={actions.onMerge}
         openRunId={run === undefined ? undefined : toRunId(run)}
         onOpenRunShown={clearOpenRun}
       />

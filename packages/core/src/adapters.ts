@@ -395,6 +395,45 @@ export interface PullRequestSignals {
   title?: string;
   baseBranch?: string;
   commits?: ReadonlyArray<PullRequestCommit>;
+  merge?: PullRequestMergeInfo;
+  settled?: { state: "merged" | "closed"; at: string | null };
+  mergeDeniedAt?: string;
+  operatorMergedAt?: string;
+}
+
+export const MERGE_METHODS = ["squash", "merge", "rebase"] as const;
+
+export type MergeMethod = (typeof MERGE_METHODS)[number];
+
+export const MERGE_BLOCKS = ["conflict", "behind", "rules", "draft"] as const;
+
+export type MergeBlock = (typeof MERGE_BLOCKS)[number];
+
+export interface PullRequestMergeInfo {
+  methods: ReadonlyArray<MergeMethod>;
+  defaultMethod: MergeMethod | null;
+  blocked: MergeBlock | null;
+  canWrite: boolean | null;
+}
+
+export const MERGE_REJECTIONS = [
+  "no-write-access",
+  "blocked",
+  "head-changed",
+  "method-not-allowed",
+  "not-open",
+  "not-found",
+] as const;
+
+export type MergeRejection = (typeof MERGE_REJECTIONS)[number];
+
+export type MergeOutcome =
+  | { ok: true }
+  | { ok: false; reason: MergeRejection; message: string | null };
+
+export interface MergePullRequestInput {
+  method: MergeMethod | null;
+  expectedHead: string | null;
 }
 
 export interface PullRequestCommit {
@@ -444,5 +483,10 @@ export interface CodeHost {
     opts: { createdSince: Date },
   ): Promise<ReadonlyArray<PullRequestSnapshot>>;
   getPullRequest(repo: RepoRef, id: PullRequestId): Promise<PullRequestSnapshot | null>;
+  mergePullRequest(
+    repo: RepoRef,
+    id: PullRequestId,
+    input: MergePullRequestInput,
+  ): Promise<MergeOutcome>;
   rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date } | null>;
 }

@@ -25,13 +25,21 @@ function response(input: {
   baseRefGone?: boolean;
   head?: string;
   history?: ReturnType<typeof historyPage>;
+  repo?: Record<string, unknown>;
+  mergeStateStatus?: string;
+  isDraft?: boolean;
 }) {
   const rollup = input.rollup ?? null;
   return {
     repository: {
+      ...input.repo,
       pullRequest: {
         state: input.state ?? "OPEN",
         mergeable: input.mergeable ?? "MERGEABLE",
+        ...(input.mergeStateStatus === undefined
+          ? {}
+          : { mergeStateStatus: input.mergeStateStatus }),
+        ...(input.isDraft === undefined ? {} : { isDraft: input.isDraft }),
         title: "Add login",
         baseRefName: "develop",
         history: input.history ?? historyPage([commitNode(input.head ?? HEAD, 0)]),
@@ -413,5 +421,94 @@ describe("PR 을 읽을 때 PR 정보 함께 읽기 (0150)", () => {
     expect(pr?.state).toBe("open");
     expect(pr?.signals).toMatchObject({ open: true, title: "Add login", conflict: false });
     expect(pr?.signals).not.toHaveProperty("commits");
+  });
+});
+
+describe("머지 정보 읽기 (0201)", () => {
+  const repoFields = {
+    mergeCommitAllowed: true,
+    squashMergeAllowed: true,
+    rebaseMergeAllowed: false,
+    viewerDefaultMergeMethod: "SQUASH",
+    viewerPermission: "WRITE",
+  };
+
+  it("레포가 허용한 방식만 Squash·Merge commit·Rebase 차례로 주고 레포 기본을 고른다", () => {
+    expect(read({ repo: repoFields, mergeStateStatus: "CLEAN" }).signals.merge).toEqual({
+      methods: ["squash", "merge"],
+      defaultMethod: "squash",
+      blocked: null,
+      canWrite: true,
+    });
+    expect(
+      read({
+        repo: { ...repoFields, rebaseMergeAllowed: true, viewerDefaultMergeMethod: "REBASE" },
+      }).signals.merge,
+    ).toMatchObject({ methods: ["squash", "merge", "rebase"], defaultMethod: "rebase" });
+  });
+
+  it("레포 기본이 허용 방식에 없으면 허용 방식의 첫째를 고른다", () => {
+    expect(
+      read({
+        repo: { ...repoFields, squashMergeAllowed: false, viewerDefaultMergeMethod: "SQUASH" },
+      }).signals.merge?.defaultMethod,
+    ).toBe("merge");
+  });
+
+  it("레포 규칙이 막는 이유를 충돌·Draft·뒤처짐·보호 규칙으로 나눈다", () => {
+    const blocked = (input: Parameters<typeof read>[0]) =>
+      read({ repo: repoFields, ...input }).signals.merge?.blocked;
+    expect(blocked({ mergeable: "CONFLICTING", mergeStateStatus: "DIRTY" })).toBe("conflict");
+    expect(blocked({ mergeable: "UNKNOWN", mergeStateStatus: "DIRTY" })).toBe("conflict");
+    expect(blocked({ mergeStateStatus: "DRAFT", isDraft: true })).toBe("draft");
+    expect(blocked({ mergeStateStatus: "BEHIND" })).toBe("behind");
+    expect(blocked({ mergeStateStatus: "BLOCKED" })).toBe("rules");
+    expect(blocked({ mergeStateStatus: "UNSTABLE" })).toBeNull();
+    expect(blocked({ mergeStateStatus: "HAS_HOOKS" })).toBeNull();
+    expect(blocked({ mergeStateStatus: "UNKNOWN" })).toBeNull();
+  });
+
+  it("읽기·분류 권한만 있으면 미리 쓰기 권한 없음으로, 모르면 비워 둔다", () => {
+    const canWrite = (viewerPermission: string | null) =>
+      read({ repo: { ...repoFields, viewerPermission } }).signals.merge?.canWrite;
+    expect(canWrite("ADMIN")).toBe(true);
+    expect(canWrite("MAINTAIN")).toBe(true);
+    expect(canWrite("READ")).toBe(false);
+    expect(canWrite("TRIAGE")).toBe(false);
+    expect(canWrite(null)).toBeNull();
+  });
+
+  it("레포 머지 설정을 받지 못하면 머지 정보를 두지 않는다", () => {
+    expect(read({}).signals).not.toHaveProperty("merge");
+  });
+
+  it("PR 정보 조회가 레포 머지 설정과 머지 상태를 함께 묻는다", async () => {
+    const { fetch, sent } = fakeFetch(
+      route({
+        graphql: (req) =>
+          req.graphql?.query.includes("query PullRequestSignals") === true
+            ? {
+                status: 200,
+                headers: { "content-type": "application/json" },
+                body: {
+                  data: response({
+                    repo: repoFields,
+                    mergeStateStatus: "BLOCKED",
+                    head: z.string().parse(req.graphql.variables["head"]),
+                  }),
+                },
+              }
+            : fixture("by-number"),
+      }),
+    );
+    const pr = await new GitHubCodeHost({ token: "t", fetch }).getPullRequest(
+      toRepoRef("acme/app"),
+      toPullRequestId("42"),
+    );
+    expect(pr?.signals?.merge).toMatchObject({ blocked: "rules", defaultMethod: "squash" });
+    const query = sent.find((req) => req.graphql?.query.includes("PullRequestSignals"));
+    expect(query?.graphql?.query).toContain("viewerDefaultMergeMethod");
+    expect(query?.graphql?.query).toContain("mergeStateStatus");
+    expect(query?.headers["accept"]).toBe("application/vnd.github.merge-info-preview+json");
   });
 });

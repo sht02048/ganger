@@ -106,6 +106,7 @@ describe("v1 Dashboard 계약", () => {
         title: null,
         baseBranch: null,
         commits: [],
+        merge: null,
       },
     };
     const dashboard = toV1Dashboard(

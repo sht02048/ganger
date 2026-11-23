@@ -238,7 +238,7 @@
     "ciRunning": "도는 중"
   },
   "menu": {
-    "note": "위는 Workspace 전환기처럼 하나를 고르는 메뉴, 아래는 행동 메뉴예요.",
+    "note": "위는 Workspace 전환기처럼 하나를 고르는 메뉴, 가운데는 행동 메뉴, 아래는 주 행동과 방식 메뉴를 붙인 split 버튼(「PR」 탭의 머지)이에요.",
     "label": "Workspace",
     "commerce": "Acme Commerce",
     "labs": "Acme Labs",
@@ -248,7 +248,12 @@
     "retry": "새 런 시작",
     "cancel": "런 멈추기",
     "openLog": "로그 보기",
-    "picked": "{action} 메뉴를 골랐어요"
+    "picked": "{action} 메뉴를 골랐어요",
+    "splitSquash": "Squash 머지",
+    "splitMerge": "Merge commit",
+    "splitMergeButton": "Merge commit 머지",
+    "splitMenu": "머지 방식",
+    "splitDone": "머지 버튼을 눌렀어요"
   },
   "form": {
     "note": "라벨은 위, 도움말은 아래예요. 오류는 입력 아래 빨간 글로 보여요.",
