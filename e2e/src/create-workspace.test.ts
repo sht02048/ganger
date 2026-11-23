@@ -165,10 +165,9 @@ describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", (
     const name = dialog.getByRole("textbox", { name: copy.name });
     await expect.poll(() => name.evaluate((el) => el === document.activeElement)).toBe(true);
 
-    const taken = dialog.getByRole("checkbox", { name: /Web/u });
-    await taken.waitFor();
-    expect(await taken.getAttribute("aria-disabled")).toBe("true");
-    await dialog.getByText("Acme에 있어요").waitFor();
+    await dialog.getByText("다른 Workspace에 있는 2개는 숨겼어요.").waitFor();
+    expect(await dialog.getByRole("checkbox", { name: /Web/u }).count()).toBe(0);
+    expect(await dialog.getByRole("checkbox", { name: /API/u }).count()).toBe(0);
     const submit = dialog.getByRole("button", { name: copy.submit, exact: true });
     expect(await submit.isDisabled()).toBe(true);
 

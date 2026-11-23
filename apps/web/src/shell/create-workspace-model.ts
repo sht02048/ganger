@@ -37,6 +37,59 @@ export function pickedProjects(
   );
 }
 
+export interface ProjectGroupChoice {
+  connectionId: string;
+  connectionName: string;
+  unreadable: boolean;
+  options: ReadonlyArray<{ key: string; name: string; picked: boolean }>;
+  pickedCount: number;
+  selection: "none" | "some" | "all";
+}
+
+export function projectGroupChoice(
+  group: ConnectionProjects,
+  picked: ReadonlySet<string>,
+): ProjectGroupChoice {
+  const options = group.projects
+    .filter((project) => project.owner.kind === "free")
+    .map((project) => {
+      const key = projectChoiceKey(group.connection.id, project.id);
+      return { key, name: project.name, picked: picked.has(key) };
+    });
+  const pickedCount = options.filter((option) => option.picked).length;
+  return {
+    connectionId: group.connection.id,
+    connectionName: group.connection.name,
+    unreadable: group.error !== null,
+    options,
+    pickedCount,
+    selection: pickedCount === 0 ? "none" : pickedCount === options.length ? "all" : "some",
+  };
+}
+
+export function withKeysPicked(
+  picked: ReadonlySet<string>,
+  keys: ReadonlyArray<string>,
+  on: boolean,
+): ReadonlySet<string> {
+  const next = new Set(picked);
+  for (const key of keys) {
+    if (on) next.add(key);
+    else next.delete(key);
+  }
+  return next;
+}
+
+export function startsExpanded(groupCount: number): boolean {
+  return groupCount === 1;
+}
+
+export function hiddenProjectCount(groups: ReadonlyArray<ConnectionProjects>): number {
+  return groups
+    .flatMap((group) => group.projects)
+    .filter((project) => project.owner.kind === "other").length;
+}
+
 export function canCreateWorkspace(
   name: string,
   projects: ReadonlyArray<NewWorkspaceProject>,

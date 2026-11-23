@@ -8,6 +8,7 @@ import {
   DependencyGraph,
   Spinner,
   Checkbox,
+  CheckboxDisclosure,
   DefinitionItem,
   DefinitionList,
   DetailPanel,
@@ -154,6 +155,12 @@ export function ComponentSections() {
   const [graphFirst, setGraphFirst] = useState(true);
   const [web, setWeb] = useState(true);
   const [api, setApi] = useState(false);
+  const [checkGroupOpen, setCheckGroupOpen] = useState(true);
+  const checkGroupPicked = Number(web) + Number(api);
+  const checkGroupSummary =
+    checkGroupPicked === 2
+      ? t("form.checkGroupAll")
+      : t("form.checkGroupSome", { picked: checkGroupPicked });
 
   const statusName = useStatusName();
   const current = runs.find((r) => r.id === selected) ?? runs[0];
@@ -520,6 +527,22 @@ export function ComponentSections() {
                   onCheckedChange={() => {}}
                 />
               </div>
+              <CheckboxDisclosure
+                label={t("form.checkGroup")}
+                summary={checkGroupSummary}
+                toggleLabel={t("form.checkGroupToggle", { summary: checkGroupSummary })}
+                checked={checkGroupPicked === 2}
+                indeterminate={checkGroupPicked === 1}
+                onCheckedChange={(on) => {
+                  setWeb(on);
+                  setApi(on);
+                }}
+                expanded={checkGroupOpen}
+                onExpandedChange={setCheckGroupOpen}
+              >
+                <Checkbox label={t("form.checkWeb")} checked={web} onCheckedChange={setWeb} />
+                <Checkbox label={t("form.checkApi")} checked={api} onCheckedChange={setApi} />
+              </CheckboxDisclosure>
             </div>
           </Demo>
         </Section>

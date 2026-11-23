@@ -48,6 +48,7 @@ export {
   type SurfaceRole,
 } from "./components/card";
 export { Checkbox, type CheckboxProps } from "./components/checkbox";
+export { CheckboxDisclosure, type CheckboxDisclosureProps } from "./components/checkbox-disclosure";
 export { Chip, RemovableChip, type ChipProps, type RemovableChipProps } from "./components/chip";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
 export { QrCode, type QrCodeProps } from "./components/qr-code";

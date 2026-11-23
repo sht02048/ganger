@@ -2,13 +2,12 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Button,
   Checkbox,
+  CheckboxDisclosure,
   Dialog,
   Field,
   Input,
   Text,
   linkStyles,
-  surfaceStyles,
-  textStyles,
 } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
 import { useId, useState } from "react";
@@ -18,12 +17,15 @@ import { MAX_NAME_LENGTH } from "@ganger/app/settings/model";
 import type { ConnectionProjects } from "@ganger/app/settings/model";
 import {
   canCreateWorkspace,
+  hiddenProjectCount,
   pickedProjects,
-  projectChoiceKey,
   projectChoiceNotice,
+  projectGroupChoice,
+  startsExpanded,
+  withKeysPicked,
   workspaceNameTooLong,
 } from "./create-workspace-model";
-import type { NewWorkspaceProject } from "./create-workspace-model";
+import type { NewWorkspaceProject, ProjectGroupChoice } from "./create-workspace-model";
 
 export type ProjectChoices =
   | { kind: "loading" }
@@ -87,13 +89,8 @@ export function CreateWorkspaceDialog({
     );
   };
 
-  const toggle = (key: string, on: boolean) => {
-    setPicked((previous) => {
-      const next = new Set(previous);
-      if (on) next.add(key);
-      else next.delete(key);
-      return next;
-    });
+  const toggle = (keys: ReadonlyArray<string>, on: boolean) => {
+    setPicked((previous) => withKeysPicked(previous, keys, on));
   };
 
   return (
@@ -177,13 +174,18 @@ function ProjectPicker({
 }: {
   choices: ProjectChoices;
   picked: ReadonlySet<string>;
-  onToggle: (key: string, on: boolean) => void;
+  onToggle: (keys: ReadonlyArray<string>, on: boolean) => void;
   onRetry: () => void;
   renderSettingsLink: (children: ReactNode) => ReactNode;
 }) {
   const t = useTranslations("shell.workspace.create");
   const legendId = useId();
+  const [expandedGroups, setExpandedGroups] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
   const notice = choices.kind === "ready" ? projectChoiceNotice(choices.groups) : null;
+  const hidden = choices.kind === "ready" ? hiddenProjectCount(choices.groups) : 0;
+  const initiallyExpanded = choices.kind === "ready" && startsExpanded(choices.groups.length);
   return (
     <fieldset aria-labelledby={legendId} {...stylex.props(styles.fieldset)}>
       <Text variant="ui" id={legendId}>
@@ -211,46 +213,83 @@ function ProjectPicker({
         </Text>
       )}
       {choices.kind === "ready"
-        ? choices.groups.map((group) => (
-            <div key={group.connection.id} {...stylex.props(surfaceStyles("inset"), styles.group)}>
-              <span {...stylex.props(textStyles("label"), styles.groupTitle)}>
-                {group.connection.name}
-              </span>
-              {group.error === null ? null : (
-                <Text variant="ui" as="p" tone="problem">
-                  {t("groupFailed")}
-                </Text>
-              )}
-              {group.projects.length === 0 && group.error === null ? (
-                <Text variant="meta">{t("groupEmpty")}</Text>
-              ) : null}
-              {group.projects.map((project) => {
-                const key = projectChoiceKey(group.connection.id, project.id);
-                const owner = project.owner;
-                return owner.kind === "free" ? (
-                  <Checkbox
-                    key={key}
-                    label={project.name}
-                    checked={picked.has(key)}
-                    onCheckedChange={(on) => onToggle(key, on)}
-                  />
-                ) : (
-                  <Checkbox
-                    key={key}
-                    label={project.name}
-                    {...(owner.kind === "other"
-                      ? { description: t("inOther", { workspace: owner.workspace.name }) }
-                      : {})}
-                    checked={false}
-                    disabled
-                    onCheckedChange={() => {}}
-                  />
-                );
-              })}
-            </div>
-          ))
+        ? choices.groups.map((group) => {
+            const choice = projectGroupChoice(group, picked);
+            return (
+              <ProjectGroup
+                key={choice.connectionId}
+                choice={choice}
+                expanded={expandedGroups.get(choice.connectionId) ?? initiallyExpanded}
+                onExpandedChange={(next) =>
+                  setExpandedGroups((previous) => new Map(previous).set(choice.connectionId, next))
+                }
+                onToggle={onToggle}
+              />
+            );
+          })
         : null}
+      {notice === null && hidden > 0 ? (
+        <Text variant="meta">{t("hiddenInOther", { count: hidden })}</Text>
+      ) : null}
     </fieldset>
+  );
+}
+
+function ProjectGroup({
+  choice,
+  expanded,
+  onExpandedChange,
+  onToggle,
+}: {
+  choice: ProjectGroupChoice;
+  expanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+  onToggle: (keys: ReadonlyArray<string>, on: boolean) => void;
+}) {
+  const t = useTranslations("shell.workspace.create");
+  const total = choice.options.length;
+  const summary = choice.unreadable
+    ? t("groupUnreadable")
+    : total === 0
+      ? t("groupNone")
+      : choice.selection === "all"
+        ? t("groupAll", { total })
+        : t("groupSome", { picked: choice.pickedCount, total });
+  return (
+    <CheckboxDisclosure
+      label={choice.connectionName}
+      summary={summary}
+      toggleLabel={t("groupToggle", { connection: choice.connectionName, summary })}
+      checked={choice.selection === "all"}
+      indeterminate={choice.selection === "some"}
+      onCheckedChange={(on) =>
+        onToggle(
+          choice.options.map((option) => option.key),
+          on,
+        )
+      }
+      expanded={expanded}
+      onExpandedChange={onExpandedChange}
+      disabled={total === 0}
+      {...(choice.unreadable
+        ? {
+            note: (
+              <Text variant="ui" as="p" tone="problem">
+                {t("groupFailed")}
+              </Text>
+            ),
+          }
+        : {})}
+    >
+      {choice.options.map((option) => (
+        <Checkbox
+          key={option.key}
+          label={option.name}
+          checked={option.picked}
+          onCheckedChange={(on) => onToggle([option.key], on)}
+        />
+      ))}
+    </CheckboxDisclosure>
   );
 }
 
@@ -266,11 +305,4 @@ const styles = stylex.create({
     minWidth: 0,
   },
   failed: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: space.s2 },
-  group: {
-    display: "flex",
-    flexDirection: "column",
-    paddingBlock: space.s2,
-    paddingInline: space.s1,
-  },
-  groupTitle: { paddingTop: space.s1, paddingInline: space.s3 },
 });

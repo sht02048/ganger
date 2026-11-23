@@ -258,7 +258,11 @@
     "checkWeb": "Web",
     "checkApi": "API",
     "checkMobile": "Mobile",
-    "checkMobileHint": "Acme Labs에 있어 고를 수 없어요"
+    "checkMobileHint": "Acme Labs에 있어 고를 수 없어요",
+    "checkGroup": "Linear",
+    "checkGroupSome": "{picked}개 고름 · 2개 넣을 수 있어요",
+    "checkGroupAll": "2개 모두 고름",
+    "checkGroupToggle": "Linear 프로젝트 목록, {summary}"
   },
   "issueList": {
     "note": "상위 이슈와 하위 티켓을 같은 다섯 칸으로 보여요. 고르기·펼치기·할 일은 서로 안에 들어가지 않은 단추예요. 상태 아이콘은 트래커 상태 분류를 모양으로만 보이고 색은 중립색이에요. 런 상태는 런 칸에 둬요.",

@@ -12,6 +12,14 @@ export function ChevronDownIcon() {
   );
 }
 
+export function MinusIcon() {
+  return (
+    <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
+      <path d="M4 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function CheckIcon() {
   return (
     <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16" fill="none">
