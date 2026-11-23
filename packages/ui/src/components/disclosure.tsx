@@ -7,14 +7,19 @@ import { focusStyles } from "./focus";
 export function Disclosure({
   summary,
   flat = false,
+  defaultOpen = false,
   children,
 }: {
   summary: ReactNode;
   flat?: boolean;
+  defaultOpen?: boolean;
   children: ReactNode;
 }) {
   return (
-    <details {...stylex.props(!flat && surfaceStyles("card"), styles.details, flat && styles.flat)}>
+    <details
+      {...(defaultOpen ? { open: true } : {})}
+      {...stylex.props(!flat && surfaceStyles("card"), styles.details, flat && styles.flat)}
+    >
       <summary {...stylex.props(styles.summary, focusStyles.ring)}>{summary}</summary>
       <div {...stylex.props(styles.body)}>{children}</div>
     </details>
