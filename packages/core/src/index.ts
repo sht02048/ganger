@@ -3,6 +3,7 @@ export * from "./agent-brief.js";
 export * from "./agent-message.js";
 export * from "./assignment.js";
 export * from "./blockers.js";
+export * from "./gh-accounts.js";
 export * from "./ids.js";
 export * from "./pr-state.js";
 export * from "./pull-request-record.js";

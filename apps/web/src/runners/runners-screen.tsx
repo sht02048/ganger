@@ -416,6 +416,7 @@ function RunnerPanel({
       <CapacityRuns runner={runner} ws={ws} />
       <RunnerLoadSection runner={runner} />
       <ProviderUsage runner={runner} />
+      <RunnerGhAccounts runner={runner} />
       {needsFix ? null : <CheckList runner={runner} target={target} />}
       <LeftWorktrees runner={runner} />
     </DetailPanel>
@@ -939,6 +940,42 @@ function RunnerLoadSection({ runner }: { runner: RunnerView }) {
     </PanelSection>
   );
 }
+
+function RunnerGhAccounts({ runner }: { runner: RunnerView }) {
+  const t = useTranslations("runners.panel.ghAccounts");
+  const { ago } = useTime();
+  const gh = runner.ghAccounts ?? null;
+  return (
+    <PanelSection
+      titleRole="subheading"
+      title={t("title")}
+      info={<InfoTip label={t("infoLabel")} content={t("info")} />}
+      {...(gh === null ? {} : { meta: t("readAgo", { time: ago(gh.readAt, gh.agoMs) }) })}
+    >
+      {gh === null ? (
+        <Text variant="ui">{t("notRead")}</Text>
+      ) : gh.kind === "logged-in" ? (
+        gh.accounts.map((account) => (
+          <Text key={`${account.host}/${account.login}`} variant="ui" as="p">
+            {t("account", {
+              login: account.login,
+              host: account.host,
+              active: String(account.active),
+            })}
+          </Text>
+        ))
+      ) : (
+        <Text variant="ui">{t(GH_STATE_MESSAGE[gh.kind])}</Text>
+      )}
+    </PanelSection>
+  );
+}
+
+const GH_STATE_MESSAGE = {
+  "logged-out": "loggedOut",
+  "not-installed": "notInstalled",
+  unreadable: "unreadable",
+} as const;
 
 function ProviderUsage({ runner }: { runner: RunnerView }) {
   const t = useTranslations("runners.panel.usage");

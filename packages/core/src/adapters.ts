@@ -20,6 +20,7 @@ import type {
   WorktreeRef,
 } from "./ids.js";
 import type { TicketPriority, TicketRelations } from "./blockers.js";
+import type { GhAccountsReading } from "./gh-accounts.js";
 import type { ProviderUsageReading } from "./provider-usage.js";
 import type { RunnerLoadReading } from "./runner-load.js";
 
@@ -333,6 +334,12 @@ export type AgentSendResult =
   | { kind: "delivered" }
   | { kind: "follow-up"; followUpRef: FollowUpRef };
 
+export interface UsageAndLoad {
+  usage: ProviderUsageReading;
+  load: RunnerLoadReading;
+  ghAccounts: GhAccountsReading;
+}
+
 export interface Runner {
   readonly kind: RunnerKind;
   readonly agentProtocol: string;
@@ -340,7 +347,7 @@ export interface Runner {
   checkHealth(): Promise<RunnerHealth>;
   listProjects(): Promise<ReadonlyArray<RunnerProject>>;
   readProviderUsage?(): Promise<ProviderUsageReading>;
-  readUsageAndLoad?(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }>;
+  readUsageAndLoad?(): Promise<UsageAndLoad>;
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef>;
 

@@ -33,6 +33,7 @@ import {
   inTransaction,
   recordPermissionWaits,
   recordProviderUsage,
+  recordGhAccounts,
   recordRunnerLoad,
   recordRunQuestions,
   recordRunnerCheck,
@@ -63,6 +64,7 @@ import {
   demoTicketBody,
   inProgressState,
   providerUsageFor,
+  ghAccountsFor,
   runnerLoadFor,
   runnerProjectId,
   seededConnections,
@@ -153,6 +155,11 @@ export async function seedDemo(
         reading: load,
       });
       recordRunnerLoad(db, { runnerId: runner.id, readAt, reading: load });
+      recordGhAccounts(db, {
+        runnerId: runner.id,
+        readAt,
+        reading: ghAccountsFor(runner.sshTarget),
+      });
     }
     return active;
   });

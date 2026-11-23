@@ -108,6 +108,17 @@
       "memoryNote": "{used} / {total} GB",
       "memoryPressureNote": "{used} / {total} GB · 메모리 압박 {pressure, select, high {높음} other {보통}}"
     },
+    "ghAccounts": {
+      "title": "GitHub (gh)",
+      "infoLabel": "GitHub (gh) 안내",
+      "info": "러너에서 gh에 로그인한 계정이에요. 에이전트는 이 계정으로 push하고 PR을 열어요.",
+      "readAgo": "{time} 읽음",
+      "notRead": "아직 gh 계정을 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
+      "unreadable": "gh 계정을 읽지 못했어요. 다음 점검 때 다시 읽어요.",
+      "notInstalled": "gh 없음",
+      "loggedOut": "로그인 안 됨",
+      "account": "{login} · {host}{active, select, true { · 사용 중} other {}}"
+    },
     "usage": {
       "title": "사용량",
       "privacyLabel": "사용량 정보 안내",

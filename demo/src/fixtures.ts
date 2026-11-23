@@ -11,6 +11,7 @@ import {
 import type {
   ProviderUsage,
   ProviderUsageReading,
+  GhAccountsReading,
   RunnerLoadReading,
   RunnerProject,
   TicketKey,
@@ -299,6 +300,19 @@ export function runnerLoadFor(sshTarget: string): RunnerLoadReading {
       pressure: "normal",
     },
     gpu: { percent: 12, name: "Apple GPU" },
+  };
+}
+
+export function ghAccountsFor(sshTarget: string): GhAccountsReading {
+  const target = sshTarget.toLowerCase();
+  if (target.includes(FAIL_OFFLINE)) return { kind: "not-installed" };
+  if (target.includes(FAIL_PUSH_AUTH)) return { kind: "logged-out" };
+  return {
+    kind: "logged-in",
+    accounts: [
+      { host: "github.com", login: "acme-bot", active: true },
+      { host: "github.com", login: "acme-ci", active: false },
+    ],
   };
 }
 

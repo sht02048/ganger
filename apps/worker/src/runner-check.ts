@@ -7,6 +7,7 @@ import {
   recordRunnerCheck,
   listRunners,
   recordProviderUsage,
+  recordGhAccounts,
   recordRunnerLoad,
   updateRunRecords,
 } from "@ganger/db";
@@ -95,13 +96,11 @@ async function readProviderUsage(
   }
   try {
     if (runner.readUsageAndLoad !== undefined) {
-      const { usage, load } = await runner.readUsageAndLoad();
-      recordProviderUsage(context.db, {
-        runnerId: stored.id,
-        readAt: context.now(),
-        reading: usage,
-      });
-      recordRunnerLoad(context.db, { runnerId: stored.id, readAt: context.now(), reading: load });
+      const { usage, load, ghAccounts } = await runner.readUsageAndLoad();
+      const readNow = context.now();
+      recordProviderUsage(context.db, { runnerId: stored.id, readAt: readNow, reading: usage });
+      recordRunnerLoad(context.db, { runnerId: stored.id, readAt: readNow, reading: load });
+      recordGhAccounts(context.db, { runnerId: stored.id, readAt: readNow, reading: ghAccounts });
       return;
     }
     const reading = await runner.readProviderUsage?.();

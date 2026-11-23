@@ -1,6 +1,7 @@
 import { AdapterError } from "../adapters.js";
 import { NO_TICKET_RELATIONS } from "../blockers.js";
 import type { TicketRelations } from "../blockers.js";
+import type { GhAccountsReading } from "../gh-accounts.js";
 import type { ProviderUsageReading } from "../provider-usage.js";
 import type { RunnerLoadReading } from "../runner-load.js";
 import type {
@@ -38,6 +39,7 @@ import type {
   TrackerConnectionCheck,
   TrackerEvent,
   TrackerLabel,
+  UsageAndLoad,
   TrackerProject,
   TrackerState,
   UnreportedStop,
@@ -267,6 +269,7 @@ export class FakeRunner implements Runner {
   projects: RunnerProject[] = [];
   providerUsage: ProviderUsageReading = { kind: "read", providers: [] };
   load: RunnerLoadReading = { kind: "unreadable" };
+  ghAccounts: GhAccountsReading = { kind: "unreadable" };
   failNextStart: RunnerErrorDetail | null = null;
   failNextControl: RunnerErrorDetail | null = null;
   nextSendStartsFollowUp: FollowUpRef | null = null;
@@ -392,9 +395,9 @@ export class FakeRunner implements Runner {
     return this.reach(() => this.providerUsage);
   }
 
-  async readUsageAndLoad(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }> {
+  async readUsageAndLoad(): Promise<UsageAndLoad> {
     const usage = await this.readProviderUsage();
-    return { usage, load: this.load };
+    return { usage, load: this.load, ghAccounts: this.ghAccounts };
   }
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef> {
