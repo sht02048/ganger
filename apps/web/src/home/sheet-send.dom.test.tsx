@@ -339,6 +339,36 @@ describe("Dashboard 패널 보내기(티켓 0193)", () => {
     expect(document.activeElement).toBe(cardButton(other.id));
   });
 
+  it("운영자가 빈 곳을 눌러 포커스를 풀면 다음 갱신에서 카드로 되돌리지 않는다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    const runId = targetRun(page).id;
+    draw(page);
+    await openSheet(runId);
+    await sendQuestion();
+    act(() => cardButton(runId).blur());
+    expect(document.activeElement).toBe(document.body);
+    draw({ ...page });
+    await settle();
+    expect(document.activeElement).toBe(document.body);
+    draw(movedToDone(page));
+    await settle();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("보낸 뒤 Workspace가 바뀌면 새 화면의 칸 제목으로 포커스를 옮기지 않는다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    const runId = targetRun(page).id;
+    draw(page);
+    await openSheet(runId);
+    await sendQuestion();
+    draw({
+      ...withoutRun(page),
+      workspace: { kind: "one", workspace: { id: "ws-other", name: "Other" } },
+    });
+    await settle();
+    expect(document.activeElement?.tagName).not.toBe("H2");
+  });
+
   it("보드에서 사라진 끝난 런의 패널을 닫으면 Done 칸 머리로 포커스를 돌린다", async () => {
     const page = loadSeededPage();
     draw(page);

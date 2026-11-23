@@ -143,23 +143,25 @@ export function HomeScreen({
   useLayoutEffect(() => {
     const followed = sentCardFocus.current;
     if (followed === null) return;
-    if (open || page.workspace.kind === "none") {
+    if (open || page.workspace.kind === "none" || followed.scope !== workspaceScope) {
       sentCardFocus.current = null;
       return;
     }
+    const held = followed.element;
+    if (held === null) return;
     const active = document.activeElement;
     const card = cards.current.get(followed.run.id) ?? null;
-    if (active === null || active === document.body || active === followed.element) {
+    const removedWhileFocused = !held.isConnected && (active === null || active === document.body);
+    const leavingWhileFocused = active === held && card !== held;
+    if (removedWhileFocused || leavingWhileFocused) {
       const next =
         card ?? columnHeads.current.get(boardColumnOf(dashboardBoard(page), followed.run)) ?? null;
       if (next !== null && next !== active) next.focus();
       followed.element = next;
-    } else if (active === card) {
-      followed.element = card;
-    } else if (active.closest('[role="dialog"]') === null) {
+    } else if (active !== held && active?.closest('[role="dialog"]') == null) {
       sentCardFocus.current = null;
     }
-  }, [page, open]);
+  }, [page, open, workspaceScope]);
   useControlFailureToasts(page);
   useEffect(() => {
     if (page.workspace.kind === "none") return;
@@ -240,7 +242,7 @@ export function HomeScreen({
   const onSheetSent: SheetSentHandler = (run, sent) => {
     showToast(t(`sheetSent.${sent}`, { key: run.ticketKey }));
     if (liveSheetOpening.current !== sheetOpening) return;
-    sentCardFocus.current = { run, element: null };
+    sentCardFocus.current = { run, scope: workspaceScope, element: null };
     setOpen(false);
   };
   const runningTodo = new Set(board.running.todo.map((run) => run.id));
@@ -411,6 +413,7 @@ type BoardColumn = "queued" | "running" | "done";
 
 interface SentCardFocus {
   run: HomeRun;
+  scope: string;
   element: HTMLElement | null;
 }
 
