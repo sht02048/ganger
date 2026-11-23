@@ -11,6 +11,7 @@ import {
 import { FakeTracker } from "@ganger/core/testing";
 import {
   SecretBox,
+  SecretBoxError,
   assignRun,
   migrate,
   openDatabase,
@@ -22,6 +23,7 @@ import {
 } from "@ganger/db";
 import { describe, expect, it } from "vitest";
 import type { RunDetail } from "../run-detail/model.js";
+import { loadRunTicketPageLink } from "../run-ticket-link.js";
 import { loadV1TicketLink, parseV1RunAction, toV1RunDetail } from "./run-actions.js";
 
 const detail: RunDetail = {
@@ -177,6 +179,16 @@ describe("loadV1TicketLink", () => {
       status: 404,
       reason: "not-found",
     });
+  });
+
+  it("비밀값을 열지 못하면 웹 경로는 503 안내이고 v1 은 예외를 그대로 둔다", async () => {
+    const { context, runId } = linkWorld("https://tracker.example.com/ACME-1");
+    const otherKey = { ...context, secretBox: new SecretBox(new Uint8Array(32).fill(9)) };
+    expect(await loadRunTicketPageLink(otherKey, runId)).toEqual({
+      status: 503,
+      reason: "tracker-unavailable",
+    });
+    await expect(loadV1TicketLink(otherKey, runId)).rejects.toBeInstanceOf(SecretBoxError);
   });
 
   it("트래커를 읽지 못하면 tracker-unavailable이다", async () => {

@@ -60,7 +60,7 @@ import type { RunNextStep } from "@ganger/app/run-next-step";
 import { useRunNextStepText } from "../run-next-step";
 import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlOutcome, RunControlView } from "@ganger/app/run-control-view";
-import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
+import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
 import type { RunControl, RunnerId } from "@ganger/core";
 import type { HumanCheckDecision } from "@ganger/app/home/actions";
 import type {
@@ -203,7 +203,7 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
           ].join(t("metaSeparator"))}
           actions={
             <ExternalIconLink
-              href={runTicketHref(run.id)}
+              href={runTicketHref(toRunId(run.id))}
               label={`${t("openInTracker")} (${t("newTab")})`}
             />
           }

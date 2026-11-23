@@ -1,6 +1,6 @@
 import { toRunId } from "@ganger/core";
 import type { AdapterRegistry } from "@ganger/core";
-import { getRun, getTrackerConnection } from "@ganger/db";
+import { SecretBoxError, getRun, getTrackerConnection } from "@ganger/db";
 import type { Database, SecretBox } from "@ganger/db";
 import { isWebUrl } from "./format/url.js";
 import { noticePageResponse } from "./host-blocked-page.js";
@@ -44,10 +44,23 @@ export async function loadRunTicketLink(
   }
 }
 
+export async function loadRunTicketPageLink(
+  context: RunTicketLinkContext,
+  runId: string,
+): Promise<RunTicketLink> {
+  try {
+    return await loadRunTicketLink(context, runId);
+  } catch (error) {
+    if (error instanceof SecretBoxError) return { status: 503, reason: "tracker-unavailable" };
+    throw error;
+  }
+}
+
 function httpsLocation(url: string): string | null {
   if (!isWebUrl(url)) return null;
   const parsed = new URL(url);
-  return parsed.protocol === "https:" ? parsed.href : null;
+  if (parsed.protocol !== "https:" || parsed.username !== "" || parsed.password !== "") return null;
+  return parsed.href;
 }
 
 export function runTicketResponse(

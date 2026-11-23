@@ -20,15 +20,18 @@ describe("runTicketResponse", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
 
-  it.each(["http://tracker.example.com/ACME-1", "javascript:alert(1)", "//evil.example", "nope"])(
-    "%s 로는 리다이렉트하지 않고 찾지 못함 안내를 보인다",
-    async (url) => {
-      const response = runTicketResponse(request, found(url), copy);
-      expect(response.status).toBe(404);
-      expect(response.headers.get("location")).toBeNull();
-      expect(await response.text()).toContain("찾지 못했어요");
-    },
-  );
+  it.each([
+    "http://tracker.example.com/ACME-1",
+    "https://user:secret@tracker.example.com/ACME-1",
+    "javascript:alert(1)",
+    "//evil.example",
+    "nope",
+  ])("%s 로는 리다이렉트하지 않고 찾지 못함 안내를 보인다", async (url) => {
+    const response = runTicketResponse(request, found(url), copy);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("location")).toBeNull();
+    expect(await response.text()).toContain("찾지 못했어요");
+  });
 
   it("티켓이 없으면 찾지 못함 안내를 보인다", async () => {
     const response = runTicketResponse(request, { status: 404, reason: "not-found" }, copy);
