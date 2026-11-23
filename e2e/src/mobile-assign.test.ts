@@ -206,6 +206,65 @@ describe("앱에서 이어서 맡기기", () => {
     expect(ticketRuns(run)).toHaveLength(3);
   });
 
+  it("이어 만든 런이 없어지면 같은 requestId를 다시 처리한다", async () => {
+    const run = await failedRun();
+    keepWorktree(run);
+    const body = { requestId: newRequestId(), message: "남은 시험을 고쳐 주세요" };
+    expect(act(run, "continue", body)).toEqual({ status: 200 });
+    const first = ticketRuns(run).at(-1);
+    if (first === undefined) throw new Error("이어 만든 런이 없다");
+    h.db.$client.prepare("DELETE FROM runs WHERE id = ?").run(first.id);
+    h.advance(1000);
+    expect(act(run, "continue", body)).toEqual({ status: 200 });
+    const remade = ticketRuns(run);
+    expect(remade).toHaveLength(2);
+    expect(remade.at(-1)?.id).not.toBe(first.id);
+  });
+
+  it("워크트리를 지운 Failed 런은 고를 수 없고 쓰기도 거절한다", async () => {
+    const run = await failedRun();
+    keepWorktree(run);
+    updateRunRecords(h.db, run.id, { worktreeRemovedAt: h.now });
+    expect(followUp(run)?.continue).toBe("not-offered");
+    expect(act(run, "continue", { requestId: newRequestId(), message: "이어 주세요" })).toEqual({
+      status: 409,
+      reason: "state-changed",
+    });
+    expect(ticketRuns(run)).toHaveLength(1);
+  });
+
+  it("워크트리를 잃고 끝난 런은 고를 수 없고 쓰기도 거절한다", async () => {
+    ticketSeq += 1;
+    const run = h.assign(`RETRY-${ticketSeq}`, projectA, runnerId);
+    mapped(run);
+    await worker.tick();
+    const ended = changeRunState(
+      h.db,
+      run.id,
+      { to: "ended", agentResult: "worktree-missing", prState: "none" },
+      h.now,
+    );
+    expect(ended.ok).toBe(true);
+    h.advance(1000);
+    keepWorktree(run);
+    expect(followUp(run)?.continue).toBe("not-offered");
+    expect(act(run, "continue", { requestId: newRequestId(), message: "이어 주세요" })).toEqual({
+      status: 409,
+      reason: "state-changed",
+    });
+    expect(ticketRuns(run)).toHaveLength(1);
+  });
+
+  it("처리한 요청은 뒤에 워크트리를 지워도 같은 requestId에 성공으로 답한다", async () => {
+    const run = await failedRun();
+    keepWorktree(run);
+    const body = { requestId: newRequestId(), message: "이어 주세요" };
+    expect(act(run, "continue", body)).toEqual({ status: 200 });
+    updateRunRecords(h.db, run.id, { worktreeRemovedAt: h.now });
+    expect(act(run, "continue", body)).toEqual({ status: 200 });
+    expect(ticketRuns(run)).toHaveLength(2);
+  });
+
   it("v1 글자 한도가 서버의 이어서 맡기기 한도와 같다", () => {
     const requestId = newRequestId();
     const fits = "가".repeat(CONTINUE_MESSAGE_MAX_LENGTH);

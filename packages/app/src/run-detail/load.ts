@@ -168,6 +168,16 @@ export function requestRunLogTail(db: Database, runId: string, now: Date): boole
   return true;
 }
 
+export function worktreeRemains(
+  run: StoredRun,
+  records: Pick<RunRecords, "worktreeRemovedAt">,
+): boolean {
+  return (
+    records.worktreeRemovedAt === null &&
+    !(run.state === "ended" && run.agentResult === "worktree-missing")
+  );
+}
+
 function continueOfferOf(
   db: Database,
   run: StoredRun,
@@ -181,11 +191,7 @@ function continueOfferOf(
     sourceNumber: ticketRuns.findIndex((other) => other.id === run.id) + 1,
     nextNumber: ticketRuns.length + 1,
     runnerName,
-    place:
-      records.worktreeRemovedAt === null &&
-      !(run.state === "ended" && run.agentResult === "worktree-missing")
-        ? "same-worktree"
-        : "recreated",
+    place: worktreeRemains(run, records) ? "same-worktree" : "recreated",
     hasReport: (records.reportBody?.trim() ?? "") !== "",
     hasWorkspaceBrief: brief !== null && (brief.before.trim() !== "" || brief.after.trim() !== ""),
     agent: records.agentCheck ?? "checking",

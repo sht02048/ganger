@@ -39,7 +39,7 @@ import type { RunActionResult } from "../run-detail/actions.js";
 import { loadRunDetail } from "../run-detail/load.js";
 import type { PendingInput, RunDetail } from "../run-detail/model.js";
 import { nextStepInputOfDetail, runNextStep } from "../run-next-step.js";
-import { isFailedRun, retryOfferOf, retryRunOnce } from "./run-retry.js";
+import { mobileContinueBlock, retryOfferOf, retryRunOnce } from "./run-retry.js";
 
 export type V1RunActionReply =
   | { status: 200 }
@@ -116,18 +116,19 @@ export function handleV1RunAction(
     case "continue": {
       const body = continueBodySchema.safeParse(raw);
       if (!body.success) return INVALID;
-      const source = getRun(db, toRunId(runId));
-      if (source === null) return replyOf({ ok: false, reason: "not-found" });
-      if (!isFailedRun(source)) return replyOf({ ok: false, reason: "state-changed" });
       const { requestId, message } = body.data;
-      return replyOf(continueRunOnce(db, { runId, requestId }, message, now));
+      return replyOf(
+        continueRunOnce(db, { runId, requestId }, message, now, () =>
+          mobileContinueBlock(db, runId),
+        ),
+      );
     }
   }
 }
 
 function continueOfferOf(run: RunDetail): V1ContinueOffer {
   if (run.status.state !== "ended" || run.status.summary !== "failed") return "not-offered";
-  if (run.continueOffer === null) return "not-offered";
+  if (run.continueOffer?.place !== "same-worktree") return "not-offered";
   return run.continueOffer.agent === "gone" ? "available" : "agent-running";
 }
 

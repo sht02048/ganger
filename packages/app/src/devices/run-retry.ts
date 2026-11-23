@@ -6,15 +6,29 @@ import {
   toRunActionRequestId,
   toRunId,
 } from "@ganger/core";
-import { getRun, handleRunActionOnce, listRunnerSnapshots, listRuns } from "@ganger/db";
-import type { Database, StoredRun } from "@ganger/db";
+import {
+  getRun,
+  getRunWithRecords,
+  handleRunActionOnce,
+  listRunnerSnapshots,
+  listRuns,
+} from "@ganger/db";
+import type { ContinueRunBlock, Database, StoredRun } from "@ganger/db";
 import { REQUEST_REUSED } from "../run-detail/actions.js";
 import type { RunActionResult } from "../run-detail/actions.js";
+import { worktreeRemains } from "../run-detail/load.js";
 import { assignInputRefusal, submitAssignment } from "../tickets/assign.js";
 import type { AssignInput } from "../tickets/assign.js";
 
 export function isFailedRun(run: StoredRun): boolean {
   return run.state === "ended" && summarizeRunOutcome(run).outcome === "failed";
+}
+
+export function mobileContinueBlock(db: Database, runId: string): ContinueRunBlock | null {
+  const found = getRunWithRecords(db, toRunId(runId));
+  if (found === null) return "not-found";
+  if (!isFailedRun(found.run)) return "worktree-settled";
+  return worktreeRemains(found.run, found.records) ? null : "worktree-settled";
 }
 
 function isLatestOfTicket(db: Database, run: StoredRun): boolean {
