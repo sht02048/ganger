@@ -2,7 +2,7 @@ import * as stylex from "@stylexjs/stylex";
 import { ExternalIconLink, SignalList, SignalRow, Text } from "@ganger/ui";
 import type { SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
-import { useTranslations } from "use-intl";
+import { useLocale, useTranslations } from "use-intl";
 import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
 import { useTime } from "../format/time";
 import { prCiFailed } from "./sheet-tabs";
@@ -71,11 +71,12 @@ function CiRow({ pr }: { pr: HomePullRequest }) {
   const t = useTranslations("home.sheet.pr");
   const failed = prCiFailed(pr);
   const failedChecks = failed ? (pr.signals?.failedChecks ?? []) : [];
+  const checkList = new Intl.ListFormat(useLocale(), { type: "conjunction" });
   return (
     <SignalRow
       label={t("ci")}
       tone={ciTone(pr, failed)}
-      {...(failedChecks.length === 0 ? {} : { detail: failedChecks.join(", ") })}
+      {...(failedChecks.length === 0 ? {} : { detail: checkList.format(failedChecks) })}
     >
       {useCiText(pr, failed)}
     </SignalRow>
@@ -93,7 +94,7 @@ function useCiText(pr: HomePullRequest, failed: boolean): string {
       failed: count,
     });
   }
-  if (pr.ci === "success") return total === null ? t("success") : t("passed", { count: total });
+  if (ciPassed(pr, failed)) return total === null ? t("success") : t("passed", { count: total });
   return t(pr.ci === "failure" ? "unknown" : pr.ci);
 }
 
@@ -130,9 +131,14 @@ function PrLinkRow({ pr }: { pr: HomePullRequest }) {
   );
 }
 
+function ciPassed(pr: HomePullRequest, failed: boolean): boolean {
+  if (failed) return false;
+  return pr.ci === "success" || (pr.ci === "failure" && pr.signals?.checkTotal != null);
+}
+
 function ciTone(pr: HomePullRequest, failed: boolean): SignalTone {
   if (failed) return "problem";
-  return pr.ci === "success" ? "pass" : "neutral";
+  return ciPassed(pr, failed) ? "pass" : "neutral";
 }
 
 function conflictTone(conflict: boolean | null): SignalTone {

@@ -607,6 +607,20 @@ describe("loadHomePage PR 신호(0167)", () => {
     expect(endedView(db, "ACME-43").pullRequest?.state).toBe("closed");
   });
 
+  it("더 읽지 않는 PR 의 저장된 CI 는 알 수 없음으로 내린다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-45",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-45").pullRequest?.ci).toBe("failure");
+    updateRunRecords(db, id, { worktreeRemovedAt: minutes(96) });
+    expect(endedView(db, "ACME-45").pullRequest).toMatchObject({ ci: "unknown", signals: null });
+  });
+
   it("끝날 때 이미 머지된 PR 은 머지 시각 없이 머지됨이다(티켓 0199)", () => {
     const { db } = seedDatabase();
     const id = addEndedRun(db, {

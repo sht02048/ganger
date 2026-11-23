@@ -19,7 +19,7 @@ export interface PrSignalsView {
   checkedAt: string;
 }
 
-function isStillReread(run: StoredRun, records: RunRecords): boolean {
+export function isStillReread(run: StoredRun, records: RunRecords): boolean {
   if (run.state !== "ended") return true;
   return (
     run.prState === "open" &&

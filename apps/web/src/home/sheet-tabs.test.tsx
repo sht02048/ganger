@@ -139,6 +139,13 @@ describe("「PR」 탭 보이기와 점(티켓 0199)", () => {
     });
   });
 
+  it("다시 읽지 않아 신호가 없는 PR 은 저장된 CI 실패로 빨간 점을 달거나 「PR」 탭으로 열지 않는다", () => {
+    const hidden = pr({ ci: "failure", signals: null });
+    expect(prTabDot(hidden)).toBeNull();
+    expect(initialSheetTab(ended(hidden), "summary")).toBe("run");
+    expect(prTab(ended(hidden))).not.toContain('data-signal-tone="problem"');
+  });
+
   it("신호를 읽지 못해 판단할 수 없으면 점을 두지 않는다", () => {
     expect(prTabDot(pr({ signals: null }))).toBeNull();
     expect(prTabDot(pr({ ci: "unknown", signals: { ...clean, conflict: null } }))).toBeNull();
@@ -167,7 +174,9 @@ describe("「PR」 탭 줄 목록(티켓 0199)", () => {
   it("CI 가 실패하면 실패 수와 실패한 체크 이름을 빨간 줄로 보인다", () => {
     const html = prTab(ended(failing));
     expect(html).toContain(p.ciValue.failedOf.replace("{total}", "4").replace("{failed}", "2"));
-    expect(html).toContain("lint, e2e (2)");
+    expect(html).toContain(
+      new Intl.ListFormat("ko", { type: "conjunction" }).format(["lint", "e2e (2)"]),
+    );
     expect(html).toContain('data-signal-tone="problem"');
   });
 
@@ -179,6 +188,12 @@ describe("「PR」 탭 줄 목록(티켓 0199)", () => {
     expect(html).toContain(p.ciValue.pending);
     expect(html).toContain(p.baseValue.behind.replace("{count}", "3"));
     expect(html).toContain('data-signal-tone="warning"');
+  });
+
+  it("저장된 CI 가 실패여도 새로 읽은 체크가 모두 통과면 통과로 보인다", () => {
+    const html = prTab({ ...running, pullRequest: pr({ ci: "failure" }) });
+    expect(html).toContain(p.ciValue.passed.replace("{count}", "4"));
+    expect(html).not.toContain('data-signal-tone="problem"');
   });
 
   it("충돌이 있으면 빨간 줄이다", () => {

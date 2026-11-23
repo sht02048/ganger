@@ -19,7 +19,7 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
-import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
+import { isStillReread, prSignalsViewOf, toCiView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -140,7 +140,8 @@ export function loadHomePage(
               displayId: pr.displayId,
               url: pr.url,
               signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
-              ci: toCiView(pr.ci),
+              ci:
+                takenOver.has(run.id) || !isStillReread(run, records) ? "unknown" : toCiView(pr.ci),
               ...homePrStateOf(run, records, now),
               branch: run.state === "queued" ? null : run.branch,
             },

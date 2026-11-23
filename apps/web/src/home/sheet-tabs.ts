@@ -16,7 +16,7 @@ export function showsPrTab(run: HomeRun): boolean {
 }
 
 export function prCiFailed(pr: HomePullRequest): boolean {
-  return pr.signals?.ciFailed ?? pr.ci === "failure";
+  return pr.signals?.ciFailed ?? false;
 }
 
 export function prHasProblem(pr: HomePullRequest | null): boolean {
