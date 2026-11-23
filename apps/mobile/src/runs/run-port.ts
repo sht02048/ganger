@@ -209,7 +209,7 @@ export function demoRunDetail(run: DashboardRun): V1RunDetail {
             problems: run.pullRequest.problems,
           },
     input: demoInput(run),
-    followUp:
+    nextActions:
       run.todoTag === "failed"
         ? { retry: "available", continue: "available" }
         : { retry: "not-offered", continue: "not-offered" },

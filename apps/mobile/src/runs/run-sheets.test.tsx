@@ -368,14 +368,14 @@ describe("런 상세", () => {
 });
 
 describe("다시 맡기기 시트", () => {
-  const withFollowUp = (followUp: V1RunDetail["followUp"]): V1RunDetail => ({
+  const withNextActions = (nextActions: V1RunDetail["nextActions"]): V1RunDetail => ({
     ...demoRunDetail(failedRun),
-    followUp,
+    nextActions,
   });
-  const UNAVAILABLE = "러너나 저장소가 바뀌어 여기서 맡길 수 없어요";
+  const UNAVAILABLE = "같은 러너와 저장소로 맡길 수 없어요";
 
   it("확인을 눌러야 다시 맡긴다", async () => {
-    const detail = withFollowUp({ retry: "available", continue: "not-offered" });
+    const detail = withNextActions({ retry: "available", continue: "not-offered" });
     const { port, write } = fakePort({ kind: "sent" }, detail);
     const { onClose } = await open({ kind: "retry", run: failedRun }, port);
     expect(document.body.textContent).toContain("같은 저장소·러너·에이전트");
@@ -386,7 +386,7 @@ describe("다시 맡기기 시트", () => {
   });
 
   it("맡길 수 없으면 버튼을 끄고 웹이나 데스크톱을 안내한다", async () => {
-    const detail = withFollowUp({ retry: "unavailable", continue: "not-offered" });
+    const detail = withNextActions({ retry: "unavailable", continue: "not-offered" });
     const { port, write } = fakePort({ kind: "sent" }, detail);
     await open({ kind: "retry", run: failedRun }, port);
     expect(document.body.textContent).toContain(UNAVAILABLE);
@@ -397,7 +397,7 @@ describe("다시 맡기기 시트", () => {
   });
 
   it("서버가 맡길 수 없다고 거절하면 같은 안내를 보이고 버튼을 끈다", async () => {
-    const detail = withFollowUp({ retry: "available", continue: "not-offered" });
+    const detail = withNextActions({ retry: "available", continue: "not-offered" });
     const { port } = fakePort({ kind: "refused", reason: "cannot-assign" }, detail);
     await open({ kind: "retry", run: failedRun }, port);
     await press("다시 맡기기");
@@ -406,18 +406,18 @@ describe("다시 맡기기 시트", () => {
   });
 
   it("이어서 맡기기는 서버가 허용할 때만 보인다", async () => {
-    const hidden = withFollowUp({ retry: "available", continue: "not-offered" });
+    const hidden = withNextActions({ retry: "available", continue: "not-offered" });
     await open({ kind: "retry", run: failedRun }, fakePort({ kind: "sent" }, hidden).port);
     expect(byLabel("이어서 맡기기")).toBeNull();
     for (const unmount of mounted.splice(0)) unmount();
-    const running = withFollowUp({ retry: "available", continue: "agent-running" });
+    const running = withNextActions({ retry: "available", continue: "agent-running" });
     await open({ kind: "retry", run: failedRun }, fakePort({ kind: "sent" }, running).port);
     expect(byLabel("이어서 맡기기")).toBeNull();
     expect(document.body.textContent).toContain("이전 에이전트가 멈춘 것을 확인하면");
   });
 
   it("이어서 맡기기는 말을 써야 보낼 수 있다", async () => {
-    const detail = withFollowUp({ retry: "available", continue: "available" });
+    const detail = withNextActions({ retry: "available", continue: "available" });
     const { port, write } = fakePort({ kind: "sent" }, detail);
     await open({ kind: "retry", run: failedRun }, port);
     await press("이어서 맡기기");

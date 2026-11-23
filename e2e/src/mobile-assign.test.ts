@@ -84,14 +84,14 @@ function ticketRuns(run: StoredRun): StoredRun[] {
   return listRuns(h.db, { ticket: run.ticket });
 }
 
-function followUp(run: StoredRun) {
-  return loadV1RunDetail(h.db, run.id, h.now)?.followUp;
+function nextActions(run: StoredRun) {
+  return loadV1RunDetail(h.db, run.id, h.now)?.nextActions;
 }
 
 describe("앱에서 다시 맡기기", () => {
   it("이전 런과 같은 저장소·러너·에이전트로 새 런을 만든다", async () => {
     const run = await failedRun();
-    expect(followUp(run)?.retry).toBe("available");
+    expect(nextActions(run)?.retry).toBe("available");
     expect(act(run, "retry", { requestId: newRequestId() })).toEqual({ status: 200 });
     const next = ticketRuns(run).at(-1);
     expect(next?.id).not.toBe(run.id);
@@ -133,7 +133,7 @@ describe("앱에서 다시 맡기기", () => {
     );
     expect(ended.ok).toBe(true);
     expect(getRun(h.db, run.id)?.runnerId).toBeNull();
-    expect(followUp(run)?.retry).toBe("unavailable");
+    expect(nextActions(run)?.retry).toBe("unavailable");
     expect(act(run, "retry", { requestId: newRequestId() })).toEqual({
       status: 409,
       reason: "cannot-assign",
@@ -144,7 +144,7 @@ describe("앱에서 다시 맡기기", () => {
   it("러너에서 저장소가 사라지면 맡길 수 없다", async () => {
     const run = await failedRun();
     h.setRunnerOnline(runnerId, true, [otherProject], false);
-    expect(followUp(run)?.retry).toBe("unavailable");
+    expect(nextActions(run)?.retry).toBe("unavailable");
     expect(act(run, "retry", { requestId: newRequestId() })).toEqual({
       status: 409,
       reason: "cannot-assign",
@@ -156,7 +156,7 @@ describe("앱에서 다시 맡기기", () => {
     const run = h.assign(`RETRY-${ticketSeq}`, projectA, runnerId);
     mapped(run);
     await endAs(run.id, "reported-success");
-    expect(followUp(run)).toEqual({ retry: "not-offered", continue: "not-offered" });
+    expect(nextActions(run)).toEqual({ retry: "not-offered", continue: "not-offered" });
     expect(act(run, "retry", { requestId: newRequestId() })).toEqual({
       status: 409,
       reason: "state-changed",
@@ -168,10 +168,10 @@ describe("앱에서 이어서 맡기기", () => {
   it("워크트리가 남은 Failed 런에서만 고를 수 있다", async () => {
     const kept = await failedRun();
     keepWorktree(kept);
-    expect(followUp(kept)?.continue).toBe("available");
+    expect(nextActions(kept)?.continue).toBe("available");
     const alive = await failedRun();
     keepWorktree(alive, "alive");
-    expect(followUp(alive)?.continue).toBe("agent-running");
+    expect(nextActions(alive)?.continue).toBe("agent-running");
   });
 
   it("말 없이 보낼 수 없다", async () => {
@@ -225,7 +225,7 @@ describe("앱에서 이어서 맡기기", () => {
     const run = await failedRun();
     keepWorktree(run);
     updateRunRecords(h.db, run.id, { worktreeRemovedAt: h.now });
-    expect(followUp(run)?.continue).toBe("not-offered");
+    expect(nextActions(run)?.continue).toBe("not-offered");
     expect(act(run, "continue", { requestId: newRequestId(), message: "이어 주세요" })).toEqual({
       status: 409,
       reason: "state-changed",
@@ -247,7 +247,7 @@ describe("앱에서 이어서 맡기기", () => {
     expect(ended.ok).toBe(true);
     h.advance(1000);
     keepWorktree(run);
-    expect(followUp(run)?.continue).toBe("not-offered");
+    expect(nextActions(run)?.continue).toBe("not-offered");
     expect(act(run, "continue", { requestId: newRequestId(), message: "이어 주세요" })).toEqual({
       status: 409,
       reason: "state-changed",

@@ -186,7 +186,7 @@ export function toV1RunDetail(run: RunDetail, retry: V1RetryOffer = "not-offered
             problems: prProblemsOf(run.pullRequest.signals),
           },
     input: run.status.state === "waiting-for-input" ? toRunInput(run.status.input) : null,
-    followUp: { retry, continue: continueOfferOf(run) },
+    nextActions: { retry, continue: continueOfferOf(run) },
   });
 }
 

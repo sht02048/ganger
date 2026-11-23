@@ -596,7 +596,7 @@ function RetryForm({
   onClose: () => void;
 }) {
   const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
-  const { retry, continue: continueOffer } = detail.followUp;
+  const { retry, continue: continueOffer } = detail.nextActions;
   if (retry === "not-offered") {
     return (
       <SheetBody>
@@ -718,7 +718,7 @@ function RetrySheet({
     >
       <DetailGate read={read}>
         {(detail) =>
-          continuing && detail.followUp.continue === "available" ? (
+          continuing && detail.nextActions.continue === "available" ? (
             <ContinueForm
               run={run}
               port={port}

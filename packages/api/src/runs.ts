@@ -158,7 +158,7 @@ export const runDetailSchema = z.object({
     })
     .nullable(),
   input: runInputSchema.nullable(),
-  followUp: z
+  nextActions: z
     .object({ retry: z.enum(V1_RETRY_OFFERS), continue: z.enum(V1_CONTINUE_OFFERS) })
     .default({ retry: "not-offered", continue: "not-offered" }),
 });
