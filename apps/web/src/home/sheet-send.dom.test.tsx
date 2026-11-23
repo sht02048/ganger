@@ -298,6 +298,79 @@ describe("Dashboard 패널 보내기(티켓 0193)", () => {
     expect(document.activeElement?.textContent).toBe(homeJson.column.running);
   });
 
+  it("패널이 닫힌 뒤 카드가 Done으로 옮겨져도 옮긴 카드로 포커스를 따라간다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    const runId = targetRun(page).id;
+    draw(page);
+    await openSheet(runId);
+    await sendQuestion();
+    expect(document.activeElement).toBe(cardButton(runId));
+    draw(movedToDone(page));
+    await settle();
+    const moved = cardButton(runId);
+    expect(moved.closest('section[aria-label="Done"]')).not.toBeNull();
+    expect(document.activeElement).toBe(moved);
+  });
+
+  it("Human Check를 보낸 뒤 런이 재개돼 다른 목록으로 옮겨져도 포커스를 따라간다", async () => {
+    const page = withInput(loadSeededPage(), checkInput);
+    const run = targetRun(page);
+    draw(page);
+    await openSheet(run.id);
+    await press(dialogButton(questionJson.humanCheck.confirm));
+    expect(document.activeElement).toBe(cardButton(run.id));
+    draw({ ...withoutRun(page), running: [{ ...baseRun(run.id, KEY), state: "running" }] });
+    await settle();
+    expect(document.activeElement).toBe(cardButton(run.id));
+  });
+
+  it("패널이 닫힌 뒤 운영자가 포커스를 옮겼으면 카드가 옮겨져도 빼앗지 않는다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    const runId = targetRun(page).id;
+    draw(page);
+    await openSheet(runId);
+    await sendQuestion();
+    const other = page.attention.find((item) => item.run.id !== runId)?.run;
+    if (other === undefined) throw new Error("no other run");
+    const elsewhere = cardButton(other.id);
+    act(() => elsewhere.focus());
+    draw(movedToDone(page));
+    await settle();
+    expect(document.activeElement).toBe(cardButton(other.id));
+  });
+
+  it("보드에서 사라진 끝난 런의 패널을 닫으면 Done 칸 머리로 포커스를 돌린다", async () => {
+    const page = loadSeededPage();
+    draw(page);
+    await openSheet("run-ended");
+    draw({ ...page, endedRecently: [] });
+    await press(dialogButton(homeJson.sheet.close));
+    expect(document.activeElement?.closest('section[aria-label="Done"]')).not.toBeNull();
+    expect(document.activeElement?.tagName).toBe("A");
+  });
+
+  it("보내는 중 닫았다가 같은 런을 다시 열면 앞선 성공이 새 패널을 닫지 않는다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    const runId = targetRun(page).id;
+    let finish = () => {};
+    const onAnswer = () =>
+      new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+    draw(page, { onAnswer });
+    await openSheet(runId);
+    await sendQuestion();
+    await press(dialogButton(homeJson.sheet.close));
+    await openSheet(runId);
+    await act(async () => {
+      finish();
+      await Promise.resolve();
+    });
+    await settle();
+    expect(dialog()).not.toBeNull();
+    expect(toast.mock.calls).toEqual([[fill(homeJson.sheetSent.answered)]]);
+  });
+
   it("보내는 동안 다른 런의 패널을 열었으면 그 패널을 닫지 않는다", async () => {
     const page = withInput(loadSeededPage(), questionInput);
     const runId = targetRun(page).id;
