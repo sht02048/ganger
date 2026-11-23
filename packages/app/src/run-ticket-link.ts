@@ -1,5 +1,5 @@
 import { toRunId } from "@ganger/core";
-import type { AdapterRegistry } from "@ganger/core";
+import type { AdapterRegistry, RunId } from "@ganger/core";
 import { SecretBoxError, getRun, getTrackerConnection } from "@ganger/db";
 import type { Database, SecretBox } from "@ganger/db";
 import { isWebUrl } from "./format/url.js";
@@ -46,7 +46,7 @@ export async function loadRunTicketLink(
 
 export async function loadRunTicketPageLink(
   context: RunTicketLinkContext,
-  runId: string,
+  runId: RunId,
 ): Promise<RunTicketLink> {
   try {
     return await loadRunTicketLink(context, runId);

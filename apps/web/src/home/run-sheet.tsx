@@ -530,6 +530,6 @@ const styles = stylex.create({
   foot: { display: "flex", justifyContent: "flex-end", gap: space.s3 },
   result: { outline: "none" },
   ticketLine: { display: "flex", alignItems: "flex-start", gap: space.s2, minWidth: 0 },
-  ticketText: { minWidth: 0, overflowWrap: "anywhere" },
+  ticketText: { minWidth: 0 },
   ticketLinkSlot: { display: "flex", alignItems: "center", flexShrink: 0, height: "1lh" },
 });
