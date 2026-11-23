@@ -54,6 +54,7 @@ export { CodeBlock, type CodeBlockProps } from "./components/code-block";
 export {
   CommitHistory,
   type CommitHistoryItem,
+  type CommitHistoryLoad,
   type CommitHistoryProps,
 } from "./components/commit-history";
 export { QrCode, type QrCodeProps } from "./components/qr-code";

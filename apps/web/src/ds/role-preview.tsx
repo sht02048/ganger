@@ -365,6 +365,17 @@ export function RoleSections() {
                     },
                   ]}
                 />
+                <CommitHistory
+                  summary={t("signals.commitsFailedSummary")}
+                  newTabLabel={t("signals.commitNewTab")}
+                  commits={[]}
+                  load={{
+                    kind: "failed",
+                    message: t("signals.commitsFailed"),
+                    retryLabel: t("signals.commitsRetry"),
+                    onRetry: () => {},
+                  }}
+                />
               </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>

@@ -417,7 +417,10 @@
     "commitAdd": "Add retry",
     "commitTimeRecent": "5 min ago",
     "commitTimeMiddle": "30 min ago",
-    "commitTimeOld": "1 hr ago"
+    "commitTimeOld": "1 hr ago",
+    "commitsFailedSummary": "커밋 12개 · 마지막 2 hr ago",
+    "commitsFailed": "커밋을 불러오지 못했어요",
+    "commitsRetry": "다시 시도"
   },
   "usage": {
     "note": "공급자 사용량 창의 쓴 비율이에요. 90% 이상이면 빨간 막대예요.",
