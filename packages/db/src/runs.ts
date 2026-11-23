@@ -1126,8 +1126,10 @@ function withStoredCommits(
   pr: { id: PullRequestId },
   signals: PullRequestSignals,
 ): PullRequestSignals {
-  if (signals.commits !== undefined || signals.open) return signals;
-  const stored = row?.prId === pr.id ? row.prSignals?.commits : undefined;
+  if (signals.commits !== undefined || row?.prId !== pr.id) return signals;
+  const storedSignals = row.prSignals;
+  const sameHead = storedSignals?.headCommit === signals.headCommit;
+  const stored = signals.open && !sameHead ? undefined : storedSignals?.commits;
   return stored === undefined ? signals : { ...signals, commits: stored };
 }
 

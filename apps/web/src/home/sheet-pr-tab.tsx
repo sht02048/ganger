@@ -149,11 +149,11 @@ function PrLinkRow({ pr }: { pr: HomePullRequest }) {
   return (
     <SignalRow label={t("pr.link")} {...(branches === null ? {} : { detail: branches })}>
       <span {...stylex.props(styles.linkLine)}>
-        <span {...stylex.props(styles.prName)}>
+        <Text variant="ui" wrap="anywhere">
           {pr.title === null
             ? pr.displayId
             : t("pr.linkValue", { pr: pr.displayId, title: pr.title })}
-        </span>
+        </Text>
         <ExternalIconLink
           href={pr.url}
           label={`${t("openPr", { pr: pr.displayId })} (${t("newTab")})`}
@@ -195,5 +195,4 @@ const styles = stylex.create({
   column: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
   empty: { display: "flex", flexDirection: "column", gap: space.s1 },
   linkLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
-  prName: { minWidth: 0, overflowWrap: "anywhere" },
 });

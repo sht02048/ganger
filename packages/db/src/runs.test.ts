@@ -892,7 +892,7 @@ describe("updateRunRecords", () => {
     });
   });
 
-  it("닫힌 PR 을 적을 때 커밋을 새로 읽지 않았으면 같은 PR 의 지난 커밋을 둔다 (0200)", () => {
+  it("커밋을 새로 읽지 않았으면 같은 PR 의 지난 커밋을 두되, 열린 PR 은 head 가 같을 때만 둔다 (0200)", () => {
     const db = seededDatabase();
     addRunner(db, { id: "r", capacity: 1, online: true, projects: [repoA] });
     const id = assignOk(db, "ENG-1");
@@ -936,6 +936,22 @@ describe("updateRunRecords", () => {
       ...base,
       open: false,
       commits,
+    });
+
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: true } },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals?.commits).toEqual(commits);
+    updateRunRecords(db, id, {
+      pullRequest: {
+        ...pullRequest,
+        headCommit: "def",
+        signals: { ...base, open: true, headCommit: "def" },
+      },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals?.commits).toBeUndefined();
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: true, commits } },
     });
 
     updateRunRecords(db, id, {

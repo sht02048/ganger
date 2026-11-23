@@ -389,7 +389,7 @@ describe("PR 을 읽을 때 PR 정보 함께 읽기 (0150)", () => {
     expect(sent.filter((req) => req.url.endsWith("/graphql"))).toHaveLength(2);
   });
 
-  it("다음 커밋 페이지를 읽지 못하면 그 회차의 PR 정보를 버린다 (0200)", async () => {
+  it("다음 커밋 페이지를 읽지 못하면 커밋만 빼고 나머지 PR 정보는 둔다 (0200)", async () => {
     const { fetch } = fakeFetch(
       route({
         graphql: (req) => {
@@ -411,6 +411,7 @@ describe("PR 을 읽을 때 PR 정보 함께 읽기 (0150)", () => {
     );
     const pr = await new GitHubCodeHost({ token: "t", fetch }).getPullRequest(repo, id);
     expect(pr?.state).toBe("open");
-    expect(pr?.signals).toBeNull();
+    expect(pr?.signals).toMatchObject({ open: true, title: "Add login", conflict: false });
+    expect(pr?.signals).not.toHaveProperty("commits");
   });
 });

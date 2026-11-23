@@ -114,17 +114,20 @@ async function readLaterCommitPages(
   http: GitHubHttp,
   pr: { owner: string; name: string; number: number },
   first: CommitHistory,
-): Promise<CommitHistory[]> {
+): Promise<CommitHistory[] | null> {
   const pages: CommitHistory[] = [];
   let pageInfo = first.pageInfo;
   while (pageInfo.hasNextPage && pageInfo.endCursor !== null) {
     if (pages.length >= MAX_LATER_COMMIT_PAGES) break;
-    const { data } = await http.graphql(
-      PULL_REQUEST_COMMITS_PAGE,
-      { owner: pr.owner, repo: pr.name, number: pr.number, after: pageInfo.endCursor },
-      pullRequestCommitsPageResponse,
-    );
-    const page = data.repository.pullRequest.history;
+    const read = await http
+      .graphql(
+        PULL_REQUEST_COMMITS_PAGE,
+        { owner: pr.owner, repo: pr.name, number: pr.number, after: pageInfo.endCursor },
+        pullRequestCommitsPageResponse,
+      )
+      .catch(() => null);
+    if (read === null) return null;
+    const page = read.data.repository.pullRequest.history;
     pages.push(page);
     pageInfo = page.pageInfo;
   }
@@ -138,7 +141,7 @@ function headMatches(data: SignalsResponse, headCommit: string): boolean {
 export function toSignalsRead(
   data: SignalsResponse,
   headCommit: string,
-  laterPages: ReadonlyArray<CommitHistory> = [],
+  laterPages: ReadonlyArray<CommitHistory> | null = [],
 ): PullRequestSignalsRead | null {
   const pr = data.repository.pullRequest;
   const commit = pr.commits.nodes.at(-1)?.commit;
@@ -161,7 +164,7 @@ export function toSignalsRead(
       behindBy: open ? (pr.baseRef?.compare?.behindBy ?? null) : null,
       title: pr.title,
       baseBranch: pr.baseRefName,
-      commits: newestFirst([pr.history, ...laterPages]),
+      ...(laterPages === null ? {} : { commits: newestFirst([pr.history, ...laterPages]) }),
     },
   };
 }
