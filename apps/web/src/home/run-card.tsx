@@ -37,6 +37,7 @@ interface CardParts {
   metaTone?: "problem";
   time?: ReactNode;
   action?: ReactNode;
+  actionFullWidth?: boolean;
   menu?: ReactNode;
 }
 
@@ -277,12 +278,13 @@ function useCardParts(
           return input.answered
             ? { detail: firstLineOf(input.body), meta: t("answered"), ...time }
             : {
-                detail: firstLineOf(input.body),
                 meta: runner,
                 ...time,
+                actionFullWidth: true,
                 action: (
                   <Button
-                    variant="secondary"
+                    variant="check"
+                    block
                     aria-describedby={titleId}
                     onClick={() => onOpen("answer")}
                   >

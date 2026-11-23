@@ -1,5 +1,6 @@
 import { toRunId, toTicketKey } from "@ganger/core";
-import { Text } from "@ganger/ui";
+import { Button, KanbanCard, Text } from "@ganger/ui";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import homeJson from "../../messages/ko/home.json" with { type: "json" };
@@ -75,6 +76,14 @@ function balanced(html: string, start: number, tag: string): string {
 function section(html: string, name: string): string {
   const start = html.indexOf(`<section aria-label="${name}"`);
   return start < 0 ? "" : balanced(html, start, "section");
+}
+
+function checkActionClasses(html: string): { slot: string; button: string } {
+  const match = /<span class="([^"]*)"><button\b([^>]*data-variant="check"[^>]*)>/.exec(html);
+  return {
+    slot: match?.[1] ?? "",
+    button: /class="([^"]*)"/.exec(match?.[2] ?? "")?.[1] ?? "",
+  };
 }
 
 function actionsOf(html: string) {
@@ -413,6 +422,56 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(layer.filter((b) => b.variant === "primary")).toEqual([
       { variant: "primary", label: questionJson.send },
     ]);
+  });
+
+  describe("Human Check 카드(티켓 0189)", () => {
+    const humanCheck: Extract<InputWait, { kind: "human-check" }> = {
+      kind: "human-check",
+      questionId: "q-check",
+      body: "미리보기를 확인해 주세요\n둘째 줄",
+      answered: false,
+    };
+
+    it("답하지 않은 카드는 내용 문구 없이 check 색 폭 전체 확인하기를 둔다", () => {
+      const card = row(render(withInput(seededPage(), humanCheck)), "ACME-11");
+      expect(text(card)).not.toContain("미리보기를 확인해 주세요");
+      const button = /<button[^>]*data-variant="check"[^>]*>/.exec(card)?.[0] ?? "";
+      expect(button).toContain("aria-describedby=");
+      expect(text(card)).toContain(homeJson.card.check);
+      const fullWidthCard = renderToString(
+        <KanbanCard
+          ticketKey="ACME-11"
+          title="제목"
+          actionFullWidth
+          action={
+            <Button variant="check" block>
+              {homeJson.card.check}
+            </Button>
+          }
+          onOpen={() => undefined}
+        />,
+      );
+      expect(checkActionClasses(card)).toEqual(checkActionClasses(fullWidthCard));
+      expect(checkActionClasses(card).slot).not.toBe("");
+      expect(checkActionClasses(card).button).not.toBe("");
+    });
+
+    it("답한 카드는 문구와 답했어요를 그대로 보이고 버튼이 없다", () => {
+      const card = row(
+        render(withInput(seededPage(), { ...humanCheck, answered: true })),
+        "ACME-11",
+      );
+      expect(text(card)).toContain("미리보기를 확인해 주세요");
+      expect(text(card)).toContain(homeJson.card.answered);
+      expect(card).not.toContain('data-variant="check"');
+    });
+
+    it("Question 카드의 답하기는 secondary 그대로이고 질문 문구를 보인다", () => {
+      const card = row(render(withInput(seededPage(), question)), "ACME-11");
+      expect(text(card)).toContain(question.body);
+      expect(card).toMatch(/data-variant="secondary"[^>]*>답하기</);
+      expect(card).not.toContain('data-variant="check"');
+    });
   });
 
   it("답을 보낸 질문과 거절을 보낸 권한 대기는 카드에 결과를 보이고 답하기를 두지 않는다", () => {
@@ -1152,6 +1211,8 @@ describe("Dashboard 멈추기·재개(0118)", () => {
     const paused = row(section(render(page), homeJson.column.running), "ACME-10");
     expect(pillsOf(paused)).toEqual([{ status: "paused", label: domain.runState.paused }]);
     expect(buttonsOf(paused).map((button) => button.label)).toContain(homeJson.card.resume);
+    expect(paused).toMatch(/data-variant="secondary"[^>]*>재개하기</);
+    expect(paused).not.toContain('data-variant="check"');
     expect(paused).not.toContain(homeJson.card.menu.replace("{key}", "ACME-10"));
     expect(text(paused)).toContain("20 min");
     expect(text(paused)).toContain(domain.pauseSource.operator);

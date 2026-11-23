@@ -47,6 +47,7 @@ const colorGroups = [
       "answerSoft",
       "check",
       "checkSoft",
+      "checkSoftHover",
       "problem",
       "problemSoft",
       "problemBorder",

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { sectionScrollTop } from "./components/settings-layout";
@@ -722,6 +723,41 @@ describe("서버 렌더", () => {
     const calm = renderToString(<KanbanCard ticketKey="ACME-15" title="알림 묶기" onOpen={noop} />);
     const classOfButton = (rendered: string) => /<button[^>]*class="([^"]*)"/.exec(rendered)?.[1];
     expect(classOfButton(html)).not.toBe(classOfButton(calm));
+  });
+
+  it("KanbanCard 키 있는 카드의 알약 줄과 제목 사이는 px6 이다(티켓 0189)", () => {
+    const source = readFileSync(new URL("./components/kanban.tsx", import.meta.url), "utf8");
+    expect(/identity: \{[^}]*rowGap: space\.px6,/.exec(source)).not.toBeNull();
+  });
+
+  it("KanbanCard actionFullWidth 는 행동의 자리만 바꾸고 기본 카드는 그대로다(티켓 0189)", () => {
+    const card = (actionFullWidth?: boolean) =>
+      renderToString(
+        <KanbanCard
+          ticketKey="ACME-15"
+          title="알림 묶기"
+          meta="runner-a"
+          action={<Button>확인하기</Button>}
+          {...(actionFullWidth === undefined ? {} : { actionFullWidth })}
+          onOpen={noop}
+        />,
+      );
+    const classes = (html: string) =>
+      [...html.matchAll(/class="([^"]*)"/g)].map((match) => match[1]);
+    expect(classes(card(false))).toEqual(classes(card()));
+    expect(classes(card(true))).not.toEqual(classes(card()));
+    const wide = card(true);
+    expect(wide.indexOf("확인하기")).toBeGreaterThan(wide.indexOf("</button>"));
+  });
+
+  it("Button check·block 은 고른 버튼에만 모양을 더한다(티켓 0189)", () => {
+    const classOf = (html: string) => /class="([^"]*)"/.exec(html)?.[1];
+    const plain = renderToString(<Button>확인하기</Button>);
+    const check = renderToString(<Button variant="check">확인하기</Button>);
+    const block = renderToString(<Button block>확인하기</Button>);
+    expect(check).toContain('data-variant="check"');
+    expect(classOf(check)).not.toBe(classOf(plain));
+    expect(classOf(block)).not.toBe(classOf(plain));
   });
 
   it("KanbanCard prChips 는 선행 칩 뒤, 바닥 줄 위에 두고 설명에 들어간다(티켓 0167)", () => {

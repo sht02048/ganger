@@ -624,6 +624,22 @@ export function BlockSections() {
                 </li>
                 <li>
                   <KanbanCard
+                    ticketKey={t("kanban.checkKey")}
+                    tag={<StatusPill status="human-check">{t("kanban.checkTag")}</StatusPill>}
+                    title={t("kanban.checkTitle")}
+                    meta={t("kanban.meta")}
+                    time={t("kanban.time")}
+                    actionFullWidth
+                    action={
+                      <Button variant="check" block>
+                        {t("kanban.checkAction")}
+                      </Button>
+                    }
+                    onOpen={() => setSheetOpen(true)}
+                  />
+                </li>
+                <li>
+                  <KanbanCard
                     title={t("kanban.plainTitle")}
                     prChips={<PrChip kind="behind">{t("kanban.prBehind")}</PrChip>}
                     meta={t("kanban.meta")}
