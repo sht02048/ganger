@@ -2,12 +2,20 @@ import {
   V1_RUN_ACTIONS,
   V1_RUN_REFUSALS,
   answerBodySchema,
+  continueBodySchema,
   denyBodySchema,
   humanCheckBodySchema,
   runDetailSchema,
   runKeyBodySchema,
 } from "@ganger/api";
-import type { V1RunAction, V1RunDetail, V1RunInput, V1RunRefusal } from "@ganger/api";
+import type {
+  V1ContinueOffer,
+  V1RetryOffer,
+  V1RunAction,
+  V1RunDetail,
+  V1RunInput,
+  V1RunRefusal,
+} from "@ganger/api";
 import { toRunId } from "@ganger/core";
 import type { AdapterRegistry } from "@ganger/core";
 import { getRun, getTrackerConnection } from "@ganger/db";
@@ -19,6 +27,7 @@ import { readQuestion } from "../question.js";
 import {
   answerOnceInput,
   cancelRunOnce,
+  continueRunOnce,
   controlRunOnce,
   denyOnceInput,
   humanCheckOnceInput,
@@ -30,6 +39,7 @@ import type { RunActionResult } from "../run-detail/actions.js";
 import { loadRunDetail } from "../run-detail/load.js";
 import type { PendingInput, RunDetail } from "../run-detail/model.js";
 import { nextStepInputOfDetail, runNextStep } from "../run-next-step.js";
+import { isFailedRun, retryOfferOf, retryRunOnce } from "./run-retry.js";
 
 export type V1RunActionReply =
   | { status: 200 }
@@ -98,7 +108,27 @@ export function handleV1RunAction(
       if (!body.success) return INVALID;
       return replyOf(cancelRunOnce(db, { runId, ...body.data }, now));
     }
+    case "retry": {
+      const body = runKeyBodySchema.safeParse(raw);
+      if (!body.success) return INVALID;
+      return replyOf(retryRunOnce(db, { runId, ...body.data }, now));
+    }
+    case "continue": {
+      const body = continueBodySchema.safeParse(raw);
+      if (!body.success) return INVALID;
+      const source = getRun(db, toRunId(runId));
+      if (source === null) return replyOf({ ok: false, reason: "not-found" });
+      if (!isFailedRun(source)) return replyOf({ ok: false, reason: "state-changed" });
+      const { requestId, message } = body.data;
+      return replyOf(continueRunOnce(db, { runId, requestId }, message, now));
+    }
   }
+}
+
+function continueOfferOf(run: RunDetail): V1ContinueOffer {
+  if (run.status.state !== "ended" || run.status.summary !== "failed") return "not-offered";
+  if (run.continueOffer === null) return "not-offered";
+  return run.continueOffer.agent === "gone" ? "available" : "agent-running";
 }
 
 function toRunInput(input: PendingInput): V1RunInput | null {
@@ -132,7 +162,7 @@ function summaryOf(run: RunDetail): V1RunDetail["summary"] {
   };
 }
 
-export function toV1RunDetail(run: RunDetail): V1RunDetail {
+export function toV1RunDetail(run: RunDetail, retry: V1RetryOffer = "not-offered"): V1RunDetail {
   return runDetailSchema.parse({
     id: run.id,
     ticketKey: run.ticketKey,
@@ -155,12 +185,15 @@ export function toV1RunDetail(run: RunDetail): V1RunDetail {
             problems: prProblemsOf(run.pullRequest.signals),
           },
     input: run.status.state === "waiting-for-input" ? toRunInput(run.status.input) : null,
+    followUp: { retry, continue: continueOfferOf(run) },
   });
 }
 
 export function loadV1RunDetail(db: Database, runId: string, now: Date): V1RunDetail | null {
   const page = loadRunDetail(db, runId, now);
-  return page.kind === "found" ? toV1RunDetail(page.run) : null;
+  if (page.kind !== "found") return null;
+  const stored = getRun(db, toRunId(runId));
+  return toV1RunDetail(page.run, stored === null ? "not-offered" : retryOfferOf(db, stored, now));
 }
 
 export type V1TicketLinkReply =

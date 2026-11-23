@@ -367,6 +367,75 @@ describe("런 상세", () => {
   });
 });
 
+describe("다시 맡기기 시트", () => {
+  const withFollowUp = (followUp: V1RunDetail["followUp"]): V1RunDetail => ({
+    ...demoRunDetail(failedRun),
+    followUp,
+  });
+  const UNAVAILABLE = "러너나 저장소가 바뀌어 여기서 맡길 수 없어요";
+
+  it("확인을 눌러야 다시 맡긴다", async () => {
+    const detail = withFollowUp({ retry: "available", continue: "not-offered" });
+    const { port, write } = fakePort({ kind: "sent" }, detail);
+    const { onClose } = await open({ kind: "retry", run: failedRun }, port);
+    expect(document.body.textContent).toContain("같은 저장소·러너·에이전트");
+    expect(write).not.toHaveBeenCalled();
+    await press("다시 맡기기");
+    expect(write.mock.calls[0]?.[1]).toEqual({ action: "retry" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("맡길 수 없으면 버튼을 끄고 웹이나 데스크톱을 안내한다", async () => {
+    const detail = withFollowUp({ retry: "unavailable", continue: "not-offered" });
+    const { port, write } = fakePort({ kind: "sent" }, detail);
+    await open({ kind: "retry", run: failedRun }, port);
+    expect(document.body.textContent).toContain(UNAVAILABLE);
+    expect(document.body.textContent).toContain("웹이나 데스크톱에서 맡겨 주세요");
+    expect(isDisabled("다시 맡기기")).toBe(true);
+    await press("다시 맡기기");
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("서버가 맡길 수 없다고 거절하면 같은 안내를 보이고 버튼을 끈다", async () => {
+    const detail = withFollowUp({ retry: "available", continue: "not-offered" });
+    const { port } = fakePort({ kind: "refused", reason: "cannot-assign" }, detail);
+    await open({ kind: "retry", run: failedRun }, port);
+    await press("다시 맡기기");
+    expect(document.body.textContent).toContain(UNAVAILABLE);
+    expect(isDisabled("다시 맡기기")).toBe(true);
+  });
+
+  it("이어서 맡기기는 서버가 허용할 때만 보인다", async () => {
+    const hidden = withFollowUp({ retry: "available", continue: "not-offered" });
+    await open({ kind: "retry", run: failedRun }, fakePort({ kind: "sent" }, hidden).port);
+    expect(byLabel("이어서 맡기기")).toBeNull();
+    for (const unmount of mounted.splice(0)) unmount();
+    const running = withFollowUp({ retry: "available", continue: "agent-running" });
+    await open({ kind: "retry", run: failedRun }, fakePort({ kind: "sent" }, running).port);
+    expect(byLabel("이어서 맡기기")).toBeNull();
+    expect(document.body.textContent).toContain("이전 에이전트가 멈춘 것을 확인하면");
+  });
+
+  it("이어서 맡기기는 말을 써야 보낼 수 있다", async () => {
+    const detail = withFollowUp({ retry: "available", continue: "available" });
+    const { port, write } = fakePort({ kind: "sent" }, detail);
+    await open({ kind: "retry", run: failedRun }, port);
+    await press("이어서 맡기기");
+    expect(document.body.textContent).toContain("이어서 맡길까요?");
+    expect(isDisabled("이어서 맡기기")).toBe(true);
+    await type("에이전트에게 할 말", "   ");
+    expect(isDisabled("이어서 맡기기")).toBe(true);
+    await press("이어서 맡기기");
+    expect(write).not.toHaveBeenCalled();
+    await type("에이전트에게 할 말", " 남은 시험을 고쳐 주세요 ");
+    await press("이어서 맡기기");
+    expect(write.mock.calls[0]?.[1]).toEqual({
+      action: "continue",
+      message: "남은 시험을 고쳐 주세요",
+    });
+  });
+});
+
 describe("카드 메뉴", () => {
   it("런 취소는 같은 시트 안에서 확인을 거쳐 보낸다", async () => {
     const { port, write } = fakePort();

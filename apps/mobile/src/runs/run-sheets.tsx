@@ -1,4 +1,4 @@
-import { V1_TEXT_MAX_LENGTH } from "@ganger/api";
+import { V1_CONTINUE_MESSAGE_MAX_LENGTH, V1_TEXT_MAX_LENGTH } from "@ganger/api";
 import type { V1HumanCheckDecision, V1RunDetail, V1RunInput, V1RunRefusal } from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
@@ -18,13 +18,17 @@ import {
 import { Text, TextLink } from "../design/text";
 import type { TextTone } from "../design/text";
 import { space } from "../design/tokens";
+import { agentName } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
 import { bodyParts, isWebLink } from "./body-parts";
 import type { RunPort, RunRead, RunWrite, RunWriteOutcome } from "./run-port";
 
 export type OpenRunSheet =
-  | { kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "menu"; run: DashboardRun }
+  | {
+      kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "menu" | "retry";
+      run: DashboardRun;
+    }
   | { kind: "notice"; title: string; message: string };
 
 function refusalKey(action: RunWrite["action"], reason: V1RunRefusal): MessageKey {
@@ -44,6 +48,9 @@ function refusalKey(action: RunWrite["action"], reason: V1RunRefusal): MessageKe
     case "not-paused":
     case "cancelling":
     case "request-reused":
+    case "active-run":
+    case "previous-agent":
+    case "cannot-assign":
       return `actions.refused.run.${reason}`;
     case "already-answered":
     case "already-denied":
@@ -573,6 +580,168 @@ function MenuSheet({
   );
 }
 
+function RetryForm({
+  run,
+  detail,
+  port,
+  disabled,
+  onContinue,
+  onClose,
+}: {
+  run: DashboardRun;
+  detail: V1RunDetail;
+  port: RunPort;
+  disabled: boolean;
+  onContinue: () => void;
+  onClose: () => void;
+}) {
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { retry, continue: continueOffer } = detail.followUp;
+  if (retry === "not-offered") {
+    return (
+      <SheetBody>
+        <ContextLine run={run} />
+        <SheetMessage message={t("actions.refused.run.state-changed")} tone="secondary" />
+      </SheetBody>
+    );
+  }
+  return (
+    <>
+      <SheetBody>
+        <ContextLine run={run} />
+        {retry === "available" ? (
+          <>
+            <Text variant="body" tone="primary">
+              {t("actions.retry.body")}
+            </Text>
+            <Text variant="meta">
+              {t("actions.retry.same", {
+                runner: detail.runner?.name ?? t("card.noRunner"),
+                agent: agentName(detail.agent),
+              })}
+            </Text>
+          </>
+        ) : (
+          <SheetMessage message={t("actions.retry.unavailable")} tone="secondary" />
+        )}
+        {continueOffer === "agent-running" ? (
+          <Text variant="meta">{t("actions.continue.agentRunning")}</Text>
+        ) : null}
+      </SheetBody>
+      <SheetFooter>
+        <SheetMessage message={message} tone={messageTone} />
+        <Button
+          variant="primary"
+          label={sending ? t("actions.sending") : t("actions.retry.confirm")}
+          disabled={disabled || sending || refused || retry !== "available"}
+          onPress={() => void send({ action: "retry" })}
+        />
+        {continueOffer === "available" ? (
+          <Button
+            label={t("actions.continue.open")}
+            disabled={disabled || sending}
+            onPress={onContinue}
+          />
+        ) : null}
+      </SheetFooter>
+    </>
+  );
+}
+
+function ContinueForm({
+  run,
+  port,
+  disabled,
+  onBack,
+  onClose,
+}: {
+  run: DashboardRun;
+  port: RunPort;
+  disabled: boolean;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState("");
+  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const trimmed = text.trim();
+  return (
+    <>
+      <SheetBody>
+        <ContextLine run={run} />
+        <Text variant="body" tone="primary">
+          {t("actions.continue.body")}
+        </Text>
+        <TextField
+          multiline
+          label={t("actions.continue.messageLabel")}
+          placeholder={t("actions.continue.messagePlaceholder")}
+          maxLength={V1_CONTINUE_MESSAGE_MAX_LENGTH}
+          value={text}
+          onChangeText={setText}
+        />
+      </SheetBody>
+      <SheetFooter>
+        <SheetMessage message={message} tone={messageTone} />
+        <Button
+          variant="primary"
+          label={sending ? t("actions.sending") : t("actions.continue.confirm")}
+          disabled={disabled || sending || refused || trimmed === ""}
+          onPress={() => void send({ action: "continue", message: trimmed })}
+        />
+        <Button label={t("actions.continue.back")} disabled={sending} onPress={onBack} />
+      </SheetFooter>
+    </>
+  );
+}
+
+function RetrySheet({
+  run,
+  port,
+  disabled,
+  onClose,
+}: {
+  run: DashboardRun;
+  port: RunPort;
+  disabled: boolean;
+  onClose: () => void;
+}) {
+  const read = useRunDetail(port, run);
+  const [continuing, setContinuing] = useState(false);
+  const closeSheet = useCloseUnlessSending(onClose);
+  return (
+    <Sheet
+      visible
+      composed
+      title={continuing ? t("actions.continue.title") : t("actions.retry.title")}
+      closeLabel={t("common.close")}
+      onClose={closeSheet}
+    >
+      <DetailGate read={read}>
+        {(detail) =>
+          continuing && detail.followUp.continue === "available" ? (
+            <ContinueForm
+              run={run}
+              port={port}
+              disabled={disabled}
+              onBack={() => setContinuing(false)}
+              onClose={onClose}
+            />
+          ) : (
+            <RetryForm
+              run={run}
+              detail={detail}
+              port={port}
+              disabled={disabled}
+              onContinue={() => setContinuing(true)}
+              onClose={onClose}
+            />
+          )
+        }
+      </DetailGate>
+    </Sheet>
+  );
+}
+
 function RunDetailBody({ detail }: { detail: V1RunDetail }) {
   const { summary, pullRequest } = detail;
   return (
@@ -717,6 +886,16 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
     case "menu":
       return (
         <MenuSheet
+          key={sheet.run.id}
+          run={sheet.run}
+          port={port}
+          disabled={disabled}
+          onClose={onClose}
+        />
+      );
+    case "retry":
+      return (
+        <RetrySheet
           key={sheet.run.id}
           run={sheet.run}
           port={port}

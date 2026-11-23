@@ -87,30 +87,42 @@ export function submitBulkAssignment(
   return { results: [...unique.values()].map((one) => assignOneOfMany(db, one, now)) };
 }
 
-export function submitAssignment(db: Database, input: AssignInput, now: Date): AssignResult {
-  const connection = toTrackerConnectionId(input.connection);
-  const trackerProject = toTrackerProjectId(input.trackerProject);
-  const mapping = getMapping(db, connection, trackerProject);
-  if (mapping === null) return { ok: false, reason: "no-mapping" };
+export function assignInputRefusal(db: Database, input: AssignInput): AssignRejectReason | null {
+  const mapping = getMapping(
+    db,
+    toTrackerConnectionId(input.connection),
+    toTrackerProjectId(input.trackerProject),
+  );
+  if (mapping === null) return "no-mapping";
 
   const knownAgent =
     input.agent === mapping.agent ||
     listWorkspaceTrackerProjects(db).some(
       (project) => getMapping(db, project.connection, project.projectId)?.agent === input.agent,
     );
-  if (!knownAgent) return { ok: false, reason: "unknown-agent" };
+  if (!knownAgent) return "unknown-agent";
 
   const runnerProject = toRunnerProjectId(input.runnerProject);
-  if (!mapping.repos.some((repo) => repo.project === runnerProject)) {
-    return { ok: false, reason: "unknown-repo" };
-  }
+  if (!mapping.repos.some((repo) => repo.project === runnerProject)) return "unknown-repo";
 
   if (input.runnerId !== null) {
     const runner = listRunners(db).find((r) => r.id === input.runnerId);
     if (runner === undefined || !runner.projects.some((p) => p.id === runnerProject)) {
-      return { ok: false, reason: "unknown-runner" };
+      return "unknown-runner";
     }
   }
+  return null;
+}
+
+export function submitAssignment(db: Database, input: AssignInput, now: Date): AssignResult {
+  const refusal = assignInputRefusal(db, input);
+  if (refusal !== null) return { ok: false, reason: refusal };
+
+  const connection = toTrackerConnectionId(input.connection);
+  const trackerProject = toTrackerProjectId(input.trackerProject);
+  const runnerProject = toRunnerProjectId(input.runnerProject);
+  const mapping = getMapping(db, connection, trackerProject);
+  if (mapping === null) return { ok: false, reason: "no-mapping" };
 
   const result = assignRun(db, {
     ticket: { connection, key: toTicketKey(input.ticketKey) },

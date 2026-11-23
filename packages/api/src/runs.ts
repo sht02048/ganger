@@ -2,7 +2,15 @@ import { z } from "zod";
 import { prProblemSchema } from "./dashboard.js";
 import { v1ResponseSchema } from "./envelope.js";
 
-export const V1_RUN_ACTIONS = ["answer", "human-check", "deny", "resume", "cancel"] as const;
+export const V1_RUN_ACTIONS = [
+  "answer",
+  "human-check",
+  "deny",
+  "resume",
+  "cancel",
+  "retry",
+  "continue",
+] as const;
 export type V1RunAction = (typeof V1_RUN_ACTIONS)[number];
 
 export function v1RunPath(runId: string): string {
@@ -49,6 +57,24 @@ export type V1DenyBody = z.infer<typeof denyBodySchema>;
 
 export const runKeyBodySchema = z.strictObject({ requestId: requestIdSchema });
 export type V1RunKeyBody = z.infer<typeof runKeyBodySchema>;
+
+export const V1_CONTINUE_MESSAGE_MAX_LENGTH = 8_000;
+
+export const continueBodySchema = z.strictObject({
+  requestId: requestIdSchema,
+  message: z
+    .string()
+    .trim()
+    .min(1)
+    .refine((text) => Array.from(text).length <= V1_CONTINUE_MESSAGE_MAX_LENGTH),
+});
+export type V1ContinueBody = z.infer<typeof continueBodySchema>;
+
+export const V1_RETRY_OFFERS = ["available", "unavailable", "not-offered"] as const;
+export type V1RetryOffer = (typeof V1_RETRY_OFFERS)[number];
+
+export const V1_CONTINUE_OFFERS = ["available", "agent-running", "not-offered"] as const;
+export type V1ContinueOffer = (typeof V1_CONTINUE_OFFERS)[number];
 
 export const runActionResponseSchema = v1ResponseSchema(z.object({ accepted: z.literal(true) }));
 
@@ -132,6 +158,9 @@ export const runDetailSchema = z.object({
     })
     .nullable(),
   input: runInputSchema.nullable(),
+  followUp: z
+    .object({ retry: z.enum(V1_RETRY_OFFERS), continue: z.enum(V1_CONTINUE_OFFERS) })
+    .default({ retry: "not-offered", continue: "not-offered" }),
 });
 export type V1RunDetail = z.infer<typeof runDetailSchema>;
 

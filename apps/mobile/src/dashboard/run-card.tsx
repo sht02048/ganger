@@ -110,7 +110,7 @@ function noteOf(run: DashboardRun): string | null {
   return null;
 }
 
-export type RunCardAction = "answer" | "human-check" | "deny" | "resume" | "detail";
+export type RunCardAction = "answer" | "human-check" | "deny" | "resume" | "detail" | "retry";
 
 function actionOf(
   run: DashboardRun,
@@ -220,6 +220,13 @@ export function RunCard({
           onPress={() => onAction(action.action)}
         />
       )}
+      {run.todoTag === "failed" ? (
+        <Button
+          label={t("card.retry")}
+          disabled={actionsDisabled}
+          onPress={() => onAction("retry")}
+        />
+      ) : null}
       {onMenu === undefined || run.state === "ended" ? null : (
         <Button
           compact

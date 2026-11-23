@@ -263,7 +263,7 @@ describe("늦게 간 쓰기", () => {
 });
 
 describe("requestId(M25)", () => {
-  it.each(["answer", "human-check", "deny", "resume", "cancel"] as const)(
+  it.each(["answer", "human-check", "deny", "resume", "cancel", "retry", "continue"] as const)(
     "%s는 requestId가 없으면 거절한다",
     async (action) => {
       const run = await startedRun();
@@ -273,6 +273,8 @@ describe("requestId(M25)", () => {
         deny: { promptId: "p", reason: "" },
         resume: {},
         cancel: {},
+        retry: {},
+        continue: { message: "이어 주세요" },
       };
       expect(await refused(await post(run.id, action, bodies[action]))).toEqual({
         status: 400,
