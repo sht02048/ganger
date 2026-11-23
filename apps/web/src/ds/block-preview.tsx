@@ -86,7 +86,7 @@ import {
   StatusPill,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
 
 export const blockSectionIds = [
@@ -216,6 +216,7 @@ export function BlockSections() {
   const [chips, setChips] = useState<ReadonlyArray<string>>([t("chips.runner"), t("chips.days")]);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const kanbanHead = useRef<HTMLElement | null>(null);
 
   return (
     <>
@@ -570,6 +571,9 @@ export function BlockSections() {
               title={t("kanban.column")}
               count={2}
               headLink={{ href: "#kanban", label: t("kanban.headLink") }}
+              focusRef={(element) => {
+                kanbanHead.current = element;
+              }}
             >
               <KanbanCards>
                 <li>
@@ -654,6 +658,11 @@ export function BlockSections() {
                 </li>
               </KanbanCards>
               <KanbanSubheading>{t("kanban.subheading")}</KanbanSubheading>
+              <div>
+                <Button variant="ghost" onClick={() => kanbanHead.current?.focus()}>
+                  {t("kanban.focusHead")}
+                </Button>
+              </div>
             </KanbanColumn>
           </div>
         </Section>

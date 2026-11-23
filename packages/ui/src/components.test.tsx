@@ -657,6 +657,33 @@ describe("서버 렌더", () => {
     expect(plain).not.toContain("<a ");
   });
 
+  it("KanbanColumn focusRef 를 주면 링크 없는 제목만 코드로 포커스를 받을 수 있다(티켓 0193)", () => {
+    const focusRef = () => {};
+    const focusable = renderToString(
+      <KanbanColumn title="Running" count={1} focusRef={focusRef}>
+        <p>내용</p>
+      </KanbanColumn>,
+    );
+    expect(focusable).toMatch(/<h2[^>]*tabindex="-1"[^>]*>Running<\/h2>/i);
+    const linked = renderToString(
+      <KanbanColumn
+        title="Done"
+        count={1}
+        focusRef={focusRef}
+        headLink={{ href: "/runs", label: "Done 1" }}
+      >
+        <p>내용</p>
+      </KanbanColumn>,
+    );
+    expect(linked.toLowerCase()).not.toContain("tabindex");
+    const plain = renderToString(
+      <KanbanColumn title="Queued" count={1}>
+        <p>내용</p>
+      </KanbanColumn>,
+    );
+    expect(plain.toLowerCase()).not.toContain("tabindex");
+  });
+
   it("KanbanCard 는 패널을 여는 버튼 하나이고, 행동은 그 버튼 밖에 둔다(티켓 0100)", () => {
     const html = renderToString(
       <KanbanCard

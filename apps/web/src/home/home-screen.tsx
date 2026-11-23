@@ -23,7 +23,7 @@ import type { PillStatus } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
 import { useUsageNames } from "../labels";
@@ -44,7 +44,7 @@ import {
 import { cardTag, RunCard } from "./run-card";
 import type { SheetMode } from "./run-card";
 import { RunSheet } from "./run-sheet";
-import type { SheetTarget } from "./run-sheet";
+import type { SheetSentHandler, SheetTarget } from "./run-sheet";
 import { href } from "./run-text";
 
 export { runHref } from "./run-text";
@@ -133,6 +133,35 @@ export function HomeScreen({
   const [open, setOpen] = useState(false);
   const [revealedId, setRevealedId] = useState<RunId | null>(null);
   const shownRunId = useRef<RunId | undefined>(undefined);
+  const columnHeads = useRef(new Map<BoardColumn, HTMLElement>());
+  const [sheetOpening, setSheetOpening] = useState(0);
+  const liveSheetOpening = useRef<number | null>(null);
+  const sentCardFocus = useRef<SentCardFocus | null>(null);
+  useEffect(() => {
+    liveSheetOpening.current = open ? sheetOpening : null;
+  }, [open, sheetOpening]);
+  useLayoutEffect(() => {
+    const followed = sentCardFocus.current;
+    if (followed === null) return;
+    if (open || page.workspace.kind === "none" || followed.scope !== workspaceScope) {
+      sentCardFocus.current = null;
+      return;
+    }
+    const held = followed.element;
+    if (held === null) return;
+    const active = document.activeElement;
+    const card = cards.current.get(followed.run.id) ?? null;
+    const removedWhileFocused = !held.isConnected && (active === null || active === document.body);
+    const leavingWhileFocused = active === held && card !== held;
+    if (removedWhileFocused || leavingWhileFocused) {
+      const next =
+        card ?? columnHeads.current.get(boardColumnOf(dashboardBoard(page), followed.run)) ?? null;
+      if (next !== null && next !== active) next.focus();
+      followed.element = next;
+    } else if (active !== held && active?.closest('[role="dialog"]') == null) {
+      sentCardFocus.current = null;
+    }
+  }, [page, open, workspaceScope]);
   useControlFailureToasts(page);
   useEffect(() => {
     if (page.workspace.kind === "none") return;
@@ -154,6 +183,7 @@ export function HomeScreen({
     const tagged = page.attention.some((item) => item.run.id === run.id);
     setRevealedId(run.id);
     setTarget({ run, tagged, mode: opensAnswer(run) ? "answer" : "summary" });
+    setSheetOpening((count) => count + 1);
     setOpen(true);
   }, [openRunId, page, onOpenRunShown]);
   if (page.workspace.kind === "none") {
@@ -182,6 +212,7 @@ export function HomeScreen({
     focusCard: (id) => cards.current.get(id)?.focus(),
     onOpen: (run, tagged, mode) => {
       setTarget({ run, tagged, mode });
+      setSheetOpening((count) => count + 1);
       setOpen(true);
     },
     onControl: (run, control, focusAfter) => {
@@ -203,6 +234,16 @@ export function HomeScreen({
         },
       );
     },
+  };
+  const columnHeadRef = (column: BoardColumn) => (element: HTMLElement | null) => {
+    if (element === null) columnHeads.current.delete(column);
+    else columnHeads.current.set(column, element);
+  };
+  const onSheetSent: SheetSentHandler = (run, sent) => {
+    showToast(t(`sheetSent.${sent}`, { key: run.ticketKey }));
+    if (liveSheetOpening.current !== sheetOpening) return;
+    sentCardFocus.current = { run, scope: workspaceScope, element: null };
+    setOpen(false);
   };
   const runningTodo = new Set(board.running.todo.map((run) => run.id));
   const humanChecks = board.running.todo.filter((run) => todoGroupOf(run) === "check");
@@ -240,7 +281,11 @@ export function HomeScreen({
         <div {...stylex.props(styles.frame)}>
           <div {...stylex.props(styles.board)}>
             <MotionScope key={workspaceScope} move="card">
-              <KanbanColumn title={t("column.queued")} count={todoOnly ? 0 : board.queued.length}>
+              <KanbanColumn
+                title={t("column.queued")}
+                count={todoOnly ? 0 : board.queued.length}
+                focusRef={columnHeadRef("queued")}
+              >
                 <CardList
                   runs={todoOnly ? [] : board.queued}
                   tagged={() => false}
@@ -251,6 +296,7 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.running")}
+                focusRef={columnHeadRef("running")}
                 count={
                   todoOnly
                     ? board.running.todo.length
@@ -289,6 +335,7 @@ export function HomeScreen({
               <KanbanColumn
                 title={t("column.done")}
                 count={doneCount}
+                focusRef={columnHeadRef("done")}
                 headLink={{
                   href: endedRunsHref(page),
                   label: t("board.doneLink", { column: t("column.done"), count: doneCount }),
@@ -323,11 +370,20 @@ export function HomeScreen({
           }
           open={open}
           onOpenChange={setOpen}
-          finalFocus={() => (target === null ? null : (cards.current.get(target.run.id) ?? null))}
+          finalFocus={() => {
+            if (target === null) return null;
+            const element =
+              cards.current.get(target.run.id) ??
+              columnHeads.current.get(boardColumnOf(board, target.run)) ??
+              null;
+            if (sentCardFocus.current !== null) sentCardFocus.current.element = element;
+            return element;
+          }}
           all={all}
           onAnswer={onAnswer}
           onHumanCheck={onHumanCheck}
           onDeny={onDeny}
+          onSent={onSheetSent}
           onControl={host.onControl}
         />
       </div>
@@ -351,6 +407,23 @@ function boardRuns(board: ReturnType<typeof dashboardBoard>): HomeRun[] {
     ...board.done.todo,
     ...board.done.rest,
   ];
+}
+
+type BoardColumn = "queued" | "running" | "done";
+
+interface SentCardFocus {
+  run: HomeRun;
+  scope: string;
+  element: HTMLElement | null;
+}
+
+function boardColumnOf(board: ReturnType<typeof dashboardBoard>, sheetRun: HomeRun): BoardColumn {
+  const isSheetRun = (run: HomeRun) => run.id === sheetRun.id;
+  if (board.queued.some(isSheetRun)) return "queued";
+  if (board.done.todo.some(isSheetRun) || board.done.rest.some(isSheetRun)) return "done";
+  if (board.running.todo.some(isSheetRun) || board.running.rest.some(isSheetRun)) return "running";
+  if (sheetRun.state === "queued") return "queued";
+  return sheetRun.state === "ended" ? "done" : "running";
 }
 
 function opensAnswer(run: HomeRun): boolean {

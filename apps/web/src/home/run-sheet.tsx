@@ -42,6 +42,10 @@ export interface SheetTarget {
   mode: SheetMode;
 }
 
+export type SheetSent = "answered" | "confirmed" | "changes-requested" | "denied";
+
+export type SheetSentHandler = (run: HomeRun, sent: SheetSent) => void;
+
 export function RunSheet({
   target,
   open,
@@ -51,6 +55,7 @@ export function RunSheet({
   onAnswer,
   onHumanCheck,
   onDeny,
+  onSent,
   onControl,
 }: {
   target: SheetTarget | null;
@@ -61,6 +66,7 @@ export function RunSheet({
   onAnswer: (input: AnswerInput) => Promise<void>;
   onHumanCheck: (input: HumanCheckInput) => Promise<void>;
   onDeny: (input: DenyInput) => Promise<void>;
+  onSent: SheetSentHandler;
   onControl: SheetControl;
 }) {
   const t = useTranslations("home.sheet");
@@ -94,6 +100,7 @@ export function RunSheet({
           onAnswer={onAnswer}
           onHumanCheck={onHumanCheck}
           onDeny={onDeny}
+          onSent={onSent}
           onControl={onControl}
         />
         <RunFacts run={run} all={all} />
@@ -143,6 +150,7 @@ function SheetBody({
   onAnswer,
   onHumanCheck,
   onDeny,
+  onSent,
   onControl,
 }: {
   run: HomeRun;
@@ -150,6 +158,7 @@ function SheetBody({
   onAnswer: (input: AnswerInput) => Promise<void>;
   onHumanCheck: (input: HumanCheckInput) => Promise<void>;
   onDeny: (input: DenyInput) => Promise<void>;
+  onSent: SheetSentHandler;
   onControl: SheetControl;
 }) {
   const t = useTranslations("home.sheet");
@@ -183,7 +192,7 @@ function SheetBody({
       if (input === null) return <Text variant="body">{t("inputUnknown")}</Text>;
       switch (input.kind) {
         case "question":
-          return <AnswerBlock run={run} question={input} onAnswer={onAnswer} />;
+          return <AnswerBlock run={run} question={input} onAnswer={onAnswer} onSent={onSent} />;
         case "human-check":
           return (
             <HumanCheckBlock
@@ -191,10 +200,11 @@ function SheetBody({
               run={run}
               check={input}
               onHumanCheck={onHumanCheck}
+              onSent={onSent}
             />
           );
         case "permission":
-          return <DenyBlock run={run} permission={input} onDeny={onDeny} />;
+          return <DenyBlock run={run} permission={input} onDeny={onDeny} onSent={onSent} />;
       }
       return null;
     }
@@ -330,13 +340,12 @@ function RunFacts({ run, all }: { run: HomeRun; all: boolean }) {
   );
 }
 
-function useResultFocus() {
+function useRejectionFocus(rejected: boolean) {
   const resultRef = useRef<HTMLSpanElement>(null);
-  const [sent, setSent] = useState(false);
   useEffect(() => {
-    if (sent) resultRef.current?.focus();
-  }, [sent]);
-  return { resultRef, sent, markSent: () => setSent(true) };
+    if (rejected) resultRef.current?.focus();
+  }, [rejected]);
+  return resultRef;
 }
 
 function ResultText({
@@ -362,20 +371,22 @@ function AnswerBlock({
   run,
   question,
   onAnswer,
+  onSent,
 }: {
   run: HomeRun;
   question: Extract<InputWait, { kind: "question" }>;
   onAnswer: (input: AnswerInput) => Promise<void>;
+  onSent: SheetSentHandler;
 }) {
   const t = useTranslations("home.question");
-  const result = useResultFocus();
   const [rejected, setRejected] = useState<AnswerRejectReason | null>(null);
+  const resultRef = useRejectionFocus(rejected !== null);
   return (
     <PanelSection title={t("title")}>
       {rejected !== null ? (
-        <ResultText resultRef={result.resultRef}>{t(`rejected.${rejected}`)}</ResultText>
-      ) : result.sent || question.answered ? (
-        <ResultText resultRef={result.resultRef}>{t("answered")}</ResultText>
+        <ResultText resultRef={resultRef}>{t(`rejected.${rejected}`)}</ResultText>
+      ) : question.answered ? (
+        <ResultText resultRef={resultRef}>{t("answered")}</ResultText>
       ) : (
         <QuestionAnswer
           body={question.body}
@@ -387,8 +398,9 @@ function AnswerBlock({
               const reason = answerRejection(error);
               if (reason === null) throw error;
               setRejected(reason);
+              return;
             }
-            result.markSent();
+            onSent(run, "answered");
           }}
         />
       )}
@@ -400,20 +412,22 @@ function HumanCheckBlock({
   run,
   check,
   onHumanCheck,
+  onSent,
 }: {
   run: HomeRun;
   check: Extract<InputWait, { kind: "human-check" }>;
   onHumanCheck: (input: HumanCheckInput) => Promise<void>;
+  onSent: SheetSentHandler;
 }) {
   const t = useTranslations("home.humanCheck");
-  const result = useResultFocus();
   const [rejected, setRejected] = useState<AnswerRejectReason | null>(null);
+  const resultRef = useRejectionFocus(rejected !== null);
   return (
     <PanelSection title={t("title")}>
       {rejected !== null ? (
-        <ResultText resultRef={result.resultRef}>{t(`rejected.${rejected}`)}</ResultText>
-      ) : result.sent || check.answered ? (
-        <ResultText resultRef={result.resultRef}>{t("answered")}</ResultText>
+        <ResultText resultRef={resultRef}>{t(`rejected.${rejected}`)}</ResultText>
+      ) : check.answered ? (
+        <ResultText resultRef={resultRef}>{t("answered")}</ResultText>
       ) : (
         <HumanCheckAnswer
           body={check.body}
@@ -424,8 +438,9 @@ function HumanCheckBlock({
               const reason = answerRejection(error);
               if (reason === null) throw error;
               setRejected(reason);
+              return;
             }
-            result.markSent();
+            onSent(run, decision);
           }}
         />
       )}
@@ -437,20 +452,21 @@ function DenyBlock({
   run,
   permission,
   onDeny,
+  onSent,
 }: {
   run: HomeRun;
   permission: Permission;
   onDeny: (input: DenyInput) => Promise<void>;
+  onSent: SheetSentHandler;
 }) {
   const t = useTranslations("home.permission");
   const [reason, setReason] = useState("");
   const [state, setState] = useState<SendState>("idle");
   const [rejected, setRejected] = useState<DenyRejectReason | null>(null);
-  const result = useResultFocus();
+  const resultRef = useRejectionFocus(rejected !== null);
   if (rejected !== null)
-    return <ResultText resultRef={result.resultRef}>{t(`rejected.${rejected}`)}</ResultText>;
-  if (result.sent || permission.denied)
-    return <ResultText resultRef={result.resultRef}>{t("denied")}</ResultText>;
+    return <ResultText resultRef={resultRef}>{t(`rejected.${rejected}`)}</ResultText>;
+  if (permission.denied) return <ResultText resultRef={resultRef}>{t("denied")}</ResultText>;
   const sending = state === "sending";
   return (
     <form
@@ -462,7 +478,7 @@ function DenyBlock({
         onDeny({ runId: run.id, promptId: permission.promptId, reason: reason.trim() }).then(
           () => {
             setState("idle");
-            result.markSent();
+            onSent(run, "denied");
           },
           (error: unknown) => {
             const reason = denyRejection(error);
@@ -472,7 +488,6 @@ function DenyBlock({
             }
             setState("idle");
             setRejected(reason);
-            result.markSent();
           },
         );
       }}
