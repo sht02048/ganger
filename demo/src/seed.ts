@@ -434,7 +434,7 @@ function demoChecks(
       signals: { ...base, open: false, conflict: null, behindBy: null },
     };
   }
-  return prNumber % 2 === 0
+  return prNumber === MANY_COMMITS_PR
     ? {
         ci: "failure",
         signals: {
@@ -455,7 +455,7 @@ function demoChecks(
           open: true,
           conflict: false,
           behindBy: 2,
-          merge: demoMerge({ blocked: null, canWrite: prNumber % 3 !== 0 }),
+          merge: demoMerge({ blocked: null, canWrite: true }),
         },
       };
 }
