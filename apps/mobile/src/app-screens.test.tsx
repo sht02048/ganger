@@ -91,7 +91,7 @@ describe("Dashboard 데모", () => {
     press(tab(host, "Done"));
     const text = host.textContent ?? "";
     expect(byLabel(host, "런 상세")).not.toBeNull();
-    expect(byLabel(host, "다시 맡기기")).toBeNull();
+    expect(byLabel(host, "다시 맡기기")).not.toBeNull();
     expect(text.indexOf("ACME-119")).toBeLessThan(text.indexOf("처리할 일 없이 끝났어요"));
     expect(text).toContain("Succeeded");
     expect(text).toContain("Canceled");

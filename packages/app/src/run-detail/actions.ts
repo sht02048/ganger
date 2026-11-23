@@ -231,6 +231,7 @@ export function continueRunOnce(
   key: RunActionKey,
   message: string,
   now: Date,
+  extraBlock: () => ContinueRunBlock | null = () => null,
 ): ContinueRunActionResult {
   const from = toRunId(key.runId);
   return handleRunActionOnce<ContinueRunActionResult>(
@@ -243,7 +244,10 @@ export function continueRunOnce(
     },
     now,
     {
-      act: () => continueRunRequest(db, from, message, now),
+      act: () => {
+        const reason = extraBlock();
+        return reason === null ? continueRunRequest(db, from, message, now) : { ok: false, reason };
+      },
       replay: (resultRunId) =>
         resultRunId === null
           ? { ok: false, reason: REQUEST_REUSED }
