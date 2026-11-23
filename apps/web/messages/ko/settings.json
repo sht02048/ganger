@@ -230,7 +230,8 @@
     "sourceToken": "붙여 넣은 토큰으로 연결했어요",
     "sourceNone": "연결하지 않았어요. 이 서버 기계에서 gh auth login 을 하거나 토큰을 붙여 넣어 주세요",
     "sourceLoading": "gh 로그인을 확인하는 중…",
-    "open": "보기"
+    "open": "보기",
+    "sourceGhNotConnected": "gh 로그인이 있어요. 펼쳐서 다시 확인하면 연결해요"
   },
   "credentials": {
     "keyDescription": "연결을 확인하면 암호화해서 저장해요. 연결 이름은 Linear 조직 이름으로 정해요.",

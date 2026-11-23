@@ -970,7 +970,7 @@ function GitHubRow({
       : unread.other > 0
         ? t("github.unreadOther", { count: unread.other })
         : null;
-  const source = useGitHubSourceDetail(view);
+  const source = useGitHubSourceDetail(view, connected);
   const edit = useInlineEdit("github");
   const labelId = useId();
   const sourceMissing = view !== undefined && view.source === "none";

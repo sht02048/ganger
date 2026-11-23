@@ -586,6 +586,10 @@ describe("Settings 저장하고 다시 열기", () => {
     expect(textOf(sectionOf(render(page, 0, TOKEN_ONLY_VIEW), "connections"))).toContain(
       "붙여 넣은 토큰으로 연결했어요",
     );
+    const fresh = await loadSettingsPage(fixture().context, commerce, now);
+    expect(textOf(sectionOf(render(fresh, 0, gh(1)), "connections"))).toContain(
+      "gh 로그인이 있어요. 펼쳐서 다시 확인하면 연결해요",
+    );
   });
 
   it("Mapping 에서 권한을 미리 허용하라고 안내하고 러너는 고르지 않는다", async () => {

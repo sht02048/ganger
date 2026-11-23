@@ -30,9 +30,13 @@ export function useGitHubCheckReason(): (reason: string) => string | null {
   };
 }
 
-export function useGitHubSourceDetail(view: GitHubAuthView | undefined): string {
+export function useGitHubSourceDetail(
+  view: GitHubAuthView | undefined,
+  connected: boolean,
+): string {
   const t = useTranslations("settings.github");
   if (view === undefined) return t("sourceLoading");
+  if (view.source === "gh" && !connected) return t("sourceGhNotConnected");
   if (view.source === "gh" && view.cli.kind === "logged-in") {
     const [first, ...rest] = view.cli.accounts;
     if (first !== undefined) {
