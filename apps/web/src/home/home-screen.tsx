@@ -44,7 +44,7 @@ import {
 import { cardTag, RunCard } from "./run-card";
 import type { SheetMode } from "./run-card";
 import { RunSheet } from "./run-sheet";
-import type { SheetTarget } from "./run-sheet";
+import type { SheetSentHandler, SheetTarget } from "./run-sheet";
 import { href } from "./run-text";
 
 export { runHref } from "./run-text";
@@ -133,6 +133,11 @@ export function HomeScreen({
   const [open, setOpen] = useState(false);
   const [revealedId, setRevealedId] = useState<RunId | null>(null);
   const shownRunId = useRef<RunId | undefined>(undefined);
+  const columnHeads = useRef(new Map<BoardColumn, HTMLElement>());
+  const openSheetRunId = useRef<RunId | null>(null);
+  useEffect(() => {
+    openSheetRunId.current = open && target !== null ? target.run.id : null;
+  }, [open, target]);
   useControlFailureToasts(page);
   useEffect(() => {
     if (page.workspace.kind === "none") return;
@@ -204,6 +209,14 @@ export function HomeScreen({
       );
     },
   };
+  const columnHeadRef = (column: BoardColumn) => (element: HTMLElement | null) => {
+    if (element === null) columnHeads.current.delete(column);
+    else columnHeads.current.set(column, element);
+  };
+  const onSheetSent: SheetSentHandler = (run, sent) => {
+    showToast(t(`sheetSent.${sent}`, { key: run.ticketKey }));
+    if (openSheetRunId.current === run.id) setOpen(false);
+  };
   const runningTodo = new Set(board.running.todo.map((run) => run.id));
   const humanChecks = board.running.todo.filter((run) => todoGroupOf(run) === "check");
   const otherTodo = board.running.todo.filter((run) => todoGroupOf(run) !== "check");
@@ -240,7 +253,11 @@ export function HomeScreen({
         <div {...stylex.props(styles.frame)}>
           <div {...stylex.props(styles.board)}>
             <MotionScope key={workspaceScope} move="card">
-              <KanbanColumn title={t("column.queued")} count={todoOnly ? 0 : board.queued.length}>
+              <KanbanColumn
+                title={t("column.queued")}
+                count={todoOnly ? 0 : board.queued.length}
+                focusRef={columnHeadRef("queued")}
+              >
                 <CardList
                   runs={todoOnly ? [] : board.queued}
                   tagged={() => false}
@@ -251,6 +268,7 @@ export function HomeScreen({
               </KanbanColumn>
               <KanbanColumn
                 title={t("column.running")}
+                focusRef={columnHeadRef("running")}
                 count={
                   todoOnly
                     ? board.running.todo.length
@@ -289,6 +307,7 @@ export function HomeScreen({
               <KanbanColumn
                 title={t("column.done")}
                 count={doneCount}
+                focusRef={columnHeadRef("done")}
                 headLink={{
                   href: endedRunsHref(page),
                   label: t("board.doneLink", { column: t("column.done"), count: doneCount }),
@@ -323,11 +342,18 @@ export function HomeScreen({
           }
           open={open}
           onOpenChange={setOpen}
-          finalFocus={() => (target === null ? null : (cards.current.get(target.run.id) ?? null))}
+          finalFocus={() =>
+            target === null
+              ? null
+              : (cards.current.get(target.run.id) ??
+                columnHeads.current.get(boardColumnOf(board, target.run.id)) ??
+                null)
+          }
           all={all}
           onAnswer={onAnswer}
           onHumanCheck={onHumanCheck}
           onDeny={onDeny}
+          onSent={onSheetSent}
           onControl={host.onControl}
         />
       </div>
@@ -351,6 +377,14 @@ function boardRuns(board: ReturnType<typeof dashboardBoard>): HomeRun[] {
     ...board.done.todo,
     ...board.done.rest,
   ];
+}
+
+type BoardColumn = "queued" | "running" | "done";
+
+function boardColumnOf(board: ReturnType<typeof dashboardBoard>, id: RunId): BoardColumn {
+  if (board.queued.some((run) => run.id === id)) return "queued";
+  if ([...board.done.todo, ...board.done.rest].some((run) => run.id === id)) return "done";
+  return "running";
 }
 
 function opensAnswer(run: HomeRun): boolean {

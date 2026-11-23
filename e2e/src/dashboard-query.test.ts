@@ -158,7 +158,7 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     const panel = page.getByRole("dialog");
     await panel.getByRole("radio", { name: "SQLite" }).check();
     await panel.getByRole("button", { name: questionJson.send }).click();
-    await panel.getByRole("status").getByText(home.question.answered).waitFor();
+    await panel.waitFor({ state: "hidden" });
     await card(page, "ACME-1").getByText(home.card.answered).waitFor();
     await page.waitForTimeout(SETTLE_MS);
 
@@ -174,7 +174,7 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     const panel = page.getByRole("dialog");
     await panel.getByLabel(home.permission.reasonLabel).fill("Not now.");
     await panel.getByRole("button", { name: home.permission.send }).click();
-    await panel.getByRole("status").getByText(home.permission.denied).waitFor();
+    await panel.waitFor({ state: "hidden" });
     await page.waitForTimeout(SETTLE_MS);
 
     expect(serverCalls).toEqual(["denyPermission", "getHomePage"]);

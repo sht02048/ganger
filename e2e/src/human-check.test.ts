@@ -145,7 +145,7 @@ describe("Human Check 답하기(브라우저, 0148)", () => {
 
     const sheet = page.getByRole("dialog");
     await sheet.getByRole("button", { name: question.humanCheck.confirm }).click();
-    await sheet.getByRole("status").getByText(home.humanCheck.answered).waitFor();
+    await sheet.waitFor({ state: "hidden" });
     expect(listRunQuestions(db, sheetRun)[0]?.answer?.text).toBe("확인했어요");
   });
 });

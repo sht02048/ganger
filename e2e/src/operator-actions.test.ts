@@ -139,7 +139,7 @@ describe("운영자 핵심 동작(브라우저)", () => {
     const layer = page.getByRole("dialog");
     await layer.getByLabel(question.answerLabel).fill(answerText);
     await layer.getByRole("button", { name: question.send }).click();
-    await layer.getByRole("status").getByText(home.question.answered).waitFor();
+    await layer.waitFor({ state: "hidden" });
 
     const answered = listRunQuestions(db, questionRun).filter((q) => q.answer !== null);
     expect(answered.map((q) => [q.id, q.answer?.text])).toEqual([[questionId, answerText]]);

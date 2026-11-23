@@ -11,6 +11,7 @@ export interface KanbanColumnProps {
   count: number;
   note?: ReactNode;
   headLink?: KanbanHeadLink;
+  focusRef?: (element: HTMLElement | null) => void;
   children: ReactNode;
 }
 
@@ -19,10 +20,28 @@ export interface KanbanHeadLink {
   label: string;
 }
 
-export function KanbanColumn({ title, count, note, headLink, children }: KanbanColumnProps) {
+export function KanbanColumn({
+  title,
+  count,
+  note,
+  headLink,
+  focusRef,
+  children,
+}: KanbanColumnProps) {
+  const headingFocus =
+    focusRef === undefined || headLink !== undefined ? {} : { ref: focusRef, tabIndex: -1 };
   const name = (
     <>
-      <h2 {...stylex.props(textStyles("subheading"), styles.columnTitle)}>{title}</h2>
+      <h2
+        {...headingFocus}
+        {...stylex.props(
+          textStyles("subheading"),
+          styles.columnTitle,
+          focusRef !== undefined && headLink === undefined && focusStyles.target,
+        )}
+      >
+        {title}
+      </h2>
       <span {...stylex.props(styles.count)}>{count}</span>
     </>
   );
@@ -33,6 +52,7 @@ export function KanbanColumn({ title, count, note, headLink, children }: KanbanC
           name
         ) : (
           <a
+            ref={focusRef}
             href={headLink.href}
             aria-label={headLink.label}
             {...stylex.props(linkStyles("plain"), styles.headLink)}

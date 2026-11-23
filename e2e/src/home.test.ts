@@ -311,9 +311,12 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(unansweredQuestions("ACME-4")).toEqual(["q-4"]);
 
     await send.click();
-    const status = panel.getByRole("status");
-    await status.getByText(home.question.answered).waitFor();
-    expect(await focusedSoon(status)).toBe(true);
+    await panel.waitFor({ state: "hidden" });
+    await page
+      .locator('[data-slot="toast-title"]')
+      .getByText(home.sheetSent.answered.replace("{key}", "ACME-4"))
+      .waitFor();
+    expect(await focusedSoon(cardButton(page, "ACME-4"))).toBe(true);
     expect(answerOf("ACME-4")).toBe("Yes");
     await card(page, "ACME-4").getByText(home.card.answered).waitFor();
   });
@@ -349,7 +352,7 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(unansweredQuestions("ACME-6")).toEqual(["q-6"]);
     await input.fill("Ship it on Friday.");
     await page.keyboard.press("ControlOrMeta+Enter");
-    await panel.getByRole("status").getByText(home.question.answered).waitFor();
+    await panel.waitFor({ state: "hidden" });
     expect(answerOf("ACME-6")).toBe("Ship it on Friday.");
   });
 
@@ -431,7 +434,7 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     await page.unroute("**/_serverFn/**");
   });
 
-  it("Permission 카드의 패널은 러너에서 허용하라고 안내하고, 거절을 보내면 결과를 status 로 알린다", async () => {
+  it("Permission 카드의 패널은 러너에서 허용하라고 안내하고, 거절을 보내면 패널을 닫고 토스트로 알린다(0193)", async () => {
     await openHome(page);
     await cardButton(page, "ACME-5").click();
     const panel = page.getByRole("dialog");
@@ -439,11 +442,11 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     await panel.getByText("rm -rf build").waitFor();
     await panel.getByLabel(home.permission.reasonLabel).fill("Keep the build folder.");
     await panel.getByRole("button", { name: home.permission.send }).click();
-    const status = panel.getByRole("status");
-    await status.getByText(home.permission.denied).waitFor();
-    expect(await focusedSoon(status)).toBe(true);
-    await page.keyboard.press("Escape");
     await panel.waitFor({ state: "hidden" });
+    await page
+      .locator('[data-slot="toast-title"]')
+      .getByText(home.sheetSent.denied.replace("{key}", "ACME-5"))
+      .waitFor();
     expect(await focusedSoon(cardButton(page, "ACME-5"))).toBe(true);
   });
 
