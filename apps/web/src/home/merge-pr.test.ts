@@ -283,6 +283,14 @@ describe("런 패널에서 PR 머지하기 (0201)", () => {
     });
   });
 
+  it("머지 직후 다시 읽은 PR 이 아직 열려 있어도 머지됨으로 적는다", async () => {
+    const world = seedMergeWorld();
+    const stillOpen = snapshot();
+    world.codeHost.getPullRequest = () => Promise.resolve(stillOpen);
+    await world.merge({});
+    expect(homePr(world)).toMatchObject({ state: "merged", merge: null });
+  });
+
   it("다시 읽기에 실패해도 머지됨으로 적는다", async () => {
     const world = seedMergeWorld();
     world.codeHost.getPullRequest = () => Promise.reject(new Error("offline"));

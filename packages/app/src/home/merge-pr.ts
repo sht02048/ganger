@@ -26,6 +26,7 @@ import {
   worktreeTakenOverBy,
 } from "@ganger/db";
 import type { Database, RunActionRequest, RunRecords, SecretBox } from "@ganger/db";
+import { log } from "@ganger/log";
 import { z } from "zod";
 import { AnswerRejectedError, submitHumanCheckAnswer } from "./actions.js";
 
@@ -177,7 +178,7 @@ async function rereadPullRequest(
 ): Promise<void> {
   const operatorMerged = merged === null ? {} : { operatorMergedAt: at.toISOString() };
   const read = await host.codeHost.getPullRequest(host.repo, prId).catch(() => null);
-  if (read !== null) {
+  if (read !== null && (merged === null || read.state === "merged")) {
     updateRunRecords(context.db, runId, {
       pullRequest: pullRequestRecord(read, at, operatorMerged),
     });
@@ -224,7 +225,9 @@ function answerWaitingHumanCheck(db: Database, runId: RunId, at: Date): void {
         at,
       );
     } catch (error) {
-      if (!(error instanceof AnswerRejectedError)) throw error;
+      if (!(error instanceof AnswerRejectedError)) {
+        log().warn("run.merge_human_check_answer_failed", { runId, error });
+      }
     }
   }
 }

@@ -553,11 +553,13 @@ export async function checkGitHubToken(
 ): Promise<SaveResult<RemoteError | "not-found">> {
   const connection = listCodeHostConnections(context.db, context.secretBox)[0];
   if (connection === undefined) return { ok: false, reason: "not-found" };
-  return checkWith(() =>
+  const check = await checkWith(() =>
     context.registry
       .createCodeHost(connection.kind, { config: connection.config, secrets: connection.secrets })
       .checkConnection(),
   );
+  if (check.ok) clearMergeDenials(context.db);
+  return check;
 }
 
 async function checkWith<C extends { ok: true }>(
