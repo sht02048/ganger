@@ -49,7 +49,7 @@ export function nextCpuHighSince(
 }
 
 export function isCpuLoadHigh(cpuHighSince: Date | null, readAt: Date): boolean {
-  return cpuHighSince !== null && readAt.getTime() - cpuHighSince.getTime() >= CPU_HIGH_AFTER_MS;
+  return cpuHighSince !== null && readAt.getTime() - cpuHighSince.getTime() > CPU_HIGH_AFTER_MS;
 }
 
 export function isMemoryLoadHigh(memory: MemoryLoad | null): boolean {

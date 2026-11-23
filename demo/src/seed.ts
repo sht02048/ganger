@@ -147,7 +147,7 @@ export async function seedDemo(
       const load = runnerLoadFor(runner.sshTarget);
       recordRunnerLoad(db, {
         runnerId: runner.id,
-        readAt: new Date(readAt.getTime() - CPU_HIGH_AFTER_MS),
+        readAt: new Date(readAt.getTime() - CPU_HIGH_AFTER_MS - MINUTE),
         reading: load,
       });
       recordRunnerLoad(db, { runnerId: runner.id, readAt, reading: load });

@@ -5,6 +5,8 @@ export const LOAD_SECTION_MARK = "@@ganger-load:";
 export const USAGE_SECTION_MARK = "@@ganger-usage";
 
 export const READ_USAGE_AND_LOAD_SCRIPT = [
+  '"$1" account list --json',
+  `printf '\\n${USAGE_SECTION_MARK}\\n'`,
   `section() { printf '\\n${LOAD_SECTION_MARK}%s\\n' "$1"; }`,
   "section os; uname -s 2>/dev/null",
   'if [ "$(uname -s 2>/dev/null)" = Darwin ]; then',
@@ -20,19 +22,25 @@ export const READ_USAGE_AND_LOAD_SCRIPT = [
   "section meminfo; cat /proc/meminfo 2>/dev/null",
   "fi",
   "section nvidia; nvidia-smi --query-gpu=utilization.gpu,name --format=csv,noheader,nounits 2>/dev/null",
-  `printf '\\n${USAGE_SECTION_MARK}\\n'`,
-  '"$1" account list --json',
+  "exit 0",
 ].join("\n");
 
 const count = z.coerce.number().int().positive();
-const percent = z.coerce.number().finite().min(0).max(100);
+const pageCount = z.coerce.number().int().nonnegative();
+const percent = z
+  .string()
+  .trim()
+  .regex(/^\d+(?:\.\d+)?$/)
+  .transform(Number)
+  .pipe(z.number().finite().min(0).max(100));
 const loadAverage = z.coerce.number().finite().min(0);
 const gpuName = z.string().trim().min(1).max(80);
 
 export function splitUsageAndLoad(stdout: string): { load: string; usage: string } {
-  const at = stdout.indexOf(`\n${USAGE_SECTION_MARK}\n`);
-  if (at === -1) return { load: stdout, usage: "" };
-  return { load: stdout.slice(0, at), usage: stdout.slice(at + USAGE_SECTION_MARK.length + 2) };
+  const mark = `\n${USAGE_SECTION_MARK}\n`;
+  const at = stdout.indexOf(mark);
+  if (at === -1) return { load: "", usage: "" };
+  return { usage: stdout.slice(0, at), load: stdout.slice(at + mark.length) };
 }
 
 export function parseRunnerLoad(output: string): RunnerLoadReading {
@@ -88,7 +96,7 @@ function parseDarwinMemory(
   const pageSize = count.safeParse(/page size of (\d+) bytes/.exec(vmstat ?? "")?.[1]);
   if (!total.success || !pageSize.success || vmstat === undefined) return null;
   const pages = ["Pages active", "Pages wired down", "Pages occupied by compressor"].map((label) =>
-    count.safeParse(new RegExp(`^${label}:\\s+(\\d+)\\.`, "m").exec(vmstat)?.[1]),
+    pageCount.safeParse(new RegExp(`^${label}:\\s+(\\d+)\\.`, "m").exec(vmstat)?.[1]),
   );
   let usedPages = 0;
   for (const page of pages) {
@@ -107,10 +115,9 @@ function darwinPressure(text: string | undefined): MemoryLoad["pressure"] {
 
 function parseLinuxMemory(meminfo: string | undefined): MemoryLoad | null {
   if (meminfo === undefined) return null;
-  const kib = (label: string) =>
-    count.safeParse(new RegExp(`^${label}:\\s+(\\d+) kB`, "m").exec(meminfo)?.[1]);
-  const total = kib("MemTotal");
-  const available = kib("MemAvailable");
+  const kibText = (label: string) => new RegExp(`^${label}:\\s+(\\d+) kB`, "m").exec(meminfo)?.[1];
+  const total = count.safeParse(kibText("MemTotal"));
+  const available = pageCount.safeParse(kibText("MemAvailable"));
   if (!total.success || !available.success || available.data > total.data) return null;
   return memoryLoad((total.data - available.data) * 1024, total.data * 1024, null);
 }

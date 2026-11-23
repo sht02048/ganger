@@ -109,6 +109,29 @@ describe("parseRunnerLoad", () => {
     expect(reading.kind === "read" ? reading.memory?.percent : undefined).toBe(50);
   });
 
+  it("reads a Mac with nothing in the compressor", () => {
+    const output = darwin("1").replace(
+      "Pages occupied by compressor:                 50000.",
+      "Pages occupied by compressor:                 0.",
+    );
+    const reading = parseRunnerLoad(output);
+    expect(reading.kind === "read" ? reading.memory?.usedBytes : undefined).toBe(150000 * 16384);
+  });
+
+  it("reads Linux memory with nothing available as full", () => {
+    const reading = parseRunnerLoad(
+      [section("os", "Linux"), section("meminfo", "MemTotal: 1000 kB\nMemAvailable: 0 kB")].join(
+        "",
+      ),
+    );
+    expect(reading.kind === "read" ? reading.memory?.percent : undefined).toBe(100);
+  });
+
+  it("treats an empty NVIDIA utilization as no reading, not 0%", () => {
+    const reading = parseRunnerLoad(linux(" , NVIDIA RTX A"));
+    expect(reading.kind === "read" ? reading.gpu : undefined).toBeNull();
+  });
+
   it("is unreadable when nothing could be read", () => {
     expect(parseRunnerLoad("")).toEqual({ kind: "unreadable" });
     expect(parseRunnerLoad(section("os", "Plan9"))).toEqual({ kind: "unreadable" });
@@ -116,23 +139,28 @@ describe("parseRunnerLoad", () => {
 });
 
 describe("splitUsageAndLoad", () => {
-  it("separates the load sections from the usage JSON", () => {
-    const stdout = `${section("cores", "8")}\n${USAGE_SECTION_MARK}\n{"ok":true}\n`;
+  it("separates the usage JSON from the load sections", () => {
+    const stdout = `{"ok":true}\n${USAGE_SECTION_MARK}\n${section("cores", "8")}`;
     expect(splitUsageAndLoad(stdout)).toEqual({
+      usage: '{"ok":true}',
       load: section("cores", "8"),
-      usage: '{"ok":true}\n',
     });
   });
 
-  it("keeps the load when the usage command never started", () => {
-    const stdout = section("cores", "8");
-    expect(splitUsageAndLoad(stdout)).toEqual({ load: stdout, usage: "" });
+  it("has neither when the usage command never finished", () => {
+    expect(splitUsageAndLoad('{"ok":')).toEqual({ usage: "", load: "" });
   });
 });
 
 describe("READ_USAGE_AND_LOAD_SCRIPT", () => {
   it("takes the orca path only as a positional argument", () => {
     expect(READ_USAGE_AND_LOAD_SCRIPT).toContain('"$1" account list --json');
+  });
+
+  it("reads usage before any load command can hang", () => {
+    expect(READ_USAGE_AND_LOAD_SCRIPT.indexOf("account list")).toBeLessThan(
+      READ_USAGE_AND_LOAD_SCRIPT.indexOf("uname"),
+    );
   });
 
   it("uses no command that needs administrator rights", () => {

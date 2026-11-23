@@ -183,6 +183,7 @@ export function RunnersScreen({
               ) : (
                 <Table columns="minmax(0, 1fr)">
                   <ResponsiveColumnsHead
+                    fit="roomy"
                     lead={t("columns.runner")}
                     columns={[
                       { width: size.capacityCellsColumn, content: t("columns.capacity") },
@@ -257,6 +258,7 @@ function RunnerRow({ runner }: { runner: RunnerView }) {
     <TableRow value={runner.id} label={runner.name}>
       <TableCell>
         <ResponsiveColumns
+          fit="roomy"
           id={rowMarkerId(runner.id)}
           columns={[
             { width: size.capacityCellsColumn, content: <RunnerCapacity runner={runner} /> },
@@ -1095,7 +1097,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   highestQualifier: {
-    display: { default: "none", [breakpoints.responsiveColumnsStacked]: "block" },
+    display: { default: "none", [breakpoints.responsiveColumnsRoomyStacked]: "block" },
   },
   panelHead: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   statusLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },

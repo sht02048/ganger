@@ -264,7 +264,7 @@ export class OrcaRunner implements Runner {
     }
     const { load, usage } = splitUsageAndLoad(result.stdout);
     return {
-      usage: result.timedOut ? { kind: "unreadable" } : parseProviderUsage(usage),
+      usage: parseProviderUsage(usage),
       load: parseRunnerLoad(load),
     };
   }

@@ -49,12 +49,12 @@ describe("nextCpuHighSince", () => {
 });
 
 describe("isCpuLoadHigh", () => {
-  it("is not high before the streak has lasted five minutes", () => {
-    expect(isCpuLoadHigh(start, after(CPU_HIGH_AFTER_MS - 1))).toBe(false);
+  it("is not high until the streak has lasted exactly five minutes", () => {
+    expect(isCpuLoadHigh(start, after(CPU_HIGH_AFTER_MS))).toBe(false);
   });
 
-  it("is high once the streak has lasted five minutes", () => {
-    expect(isCpuLoadHigh(start, after(CPU_HIGH_AFTER_MS))).toBe(true);
+  it("is high once the streak has lasted over five minutes", () => {
+    expect(isCpuLoadHigh(start, after(CPU_HIGH_AFTER_MS + 1))).toBe(true);
   });
 
   it("is not high without a streak", () => {

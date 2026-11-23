@@ -7,10 +7,13 @@ export interface ResponsiveColumn {
   content: ReactNode;
 }
 
+export type ResponsiveColumnsFit = "default" | "roomy";
+
 export interface ResponsiveColumnsProps {
   id?: string;
   lead: ReactNode;
   columns: ReadonlyArray<ResponsiveColumn>;
+  fit?: ResponsiveColumnsFit;
 }
 
 export function responsiveColumnTemplates(widths: ReadonlyArray<string>): {
@@ -24,16 +27,17 @@ export function responsiveColumnTemplates(widths: ReadonlyArray<string>): {
   };
 }
 
-export function ResponsiveColumns({ id, lead, columns }: ResponsiveColumnsProps) {
+export function ResponsiveColumns({ id, lead, columns, fit = "default" }: ResponsiveColumnsProps) {
   const templates = responsiveColumnTemplates(columns.map((column) => column.width));
   return (
     <span {...stylex.props(styles.container)}>
       <span
         {...(id === undefined ? {} : { id })}
         data-columns="responsive"
-        {...stylex.props(styles.grid, dynamic.columns(templates.wide, templates.split))}
+        data-fit={fit}
+        {...stylex.props(styles.grid, dynamic[fit](templates.wide, templates.split))}
       >
-        <span {...stylex.props(styles.lead)}>{lead}</span>
+        <span {...stylex.props(styles.lead, leadFit[fit])}>{lead}</span>
         {columns.map((column, index) => (
           <span key={index} {...stylex.props(styles.cell)}>
             {column.content}
@@ -47,18 +51,25 @@ export function ResponsiveColumns({ id, lead, columns }: ResponsiveColumnsProps)
 export interface ResponsiveColumnsHeadProps {
   lead: ReactNode;
   columns: ReadonlyArray<ResponsiveColumn>;
+  fit?: ResponsiveColumnsFit;
 }
 
-export function ResponsiveColumnsHead({ lead, columns }: ResponsiveColumnsHeadProps) {
+export function ResponsiveColumnsHead({
+  lead,
+  columns,
+  fit = "default",
+}: ResponsiveColumnsHeadProps) {
   const templates = responsiveColumnTemplates(columns.map((column) => column.width));
   return (
     <div aria-hidden="true" {...stylex.props(styles.container, styles.headFrame)}>
       <span
         data-columns="head"
+        data-fit={fit}
         {...stylex.props(
           styles.grid,
-          dynamic.columns(templates.wide, templates.split),
+          dynamic[fit](templates.wide, templates.split),
           styles.head,
+          headFit[fit],
         )}
       >
         <span>{lead}</span>
@@ -81,7 +92,6 @@ const styles = stylex.create({
   },
   headFrame: { paddingInline: space.s3 },
   head: {
-    display: { default: "grid", [breakpoints.responsiveColumnsStacked]: "none" },
     height: size.tableHeadHeight,
     marginBottom: space.s2,
     color: colors.textTertiary,
@@ -93,17 +103,41 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: space.px2,
     minWidth: 0,
-    gridColumn: { default: "auto", [breakpoints.responsiveColumnsStacked]: "1 / -1" },
   },
   cell: { display: "grid", justifyItems: "start", minWidth: 0 },
 });
 
+const headFit = stylex.create({
+  default: {
+    display: { default: "grid", [breakpoints.responsiveColumnsStacked]: "none" },
+  },
+  roomy: {
+    display: { default: "grid", [breakpoints.responsiveColumnsRoomyStacked]: "none" },
+  },
+});
+
+const leadFit = stylex.create({
+  default: {
+    gridColumn: { default: "auto", [breakpoints.responsiveColumnsStacked]: "1 / -1" },
+  },
+  roomy: {
+    gridColumn: { default: "auto", [breakpoints.responsiveColumnsRoomyStacked]: "1 / -1" },
+  },
+});
+
 const dynamic = stylex.create({
-  columns: (wide: string, split: string) => ({
+  default: (wide: string, split: string) => ({
     gridTemplateColumns: {
       default: wide,
       [breakpoints.responsiveColumnsSplit]: split,
       [breakpoints.responsiveColumnsSingle]: "minmax(0, 1fr)",
+    },
+  }),
+  roomy: (wide: string, split: string) => ({
+    gridTemplateColumns: {
+      default: wide,
+      [breakpoints.responsiveColumnsRoomySplit]: split,
+      [breakpoints.responsiveColumnsRoomySingle]: "minmax(0, 1fr)",
     },
   }),
 });

@@ -128,7 +128,7 @@ describe("OrcaRunner.readUsageAndLoad", () => {
   test("reads usage and load over one ssh command", async () => {
     const exec = new ScriptedExec().on(
       "sh -c",
-      stdout(`${loadOutput}\n${USAGE_SECTION_MARK}\n${own("account-list.json")}`),
+      stdout(`${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}`),
     );
     const { usage, load } = await runnerWith(exec).readUsageAndLoad();
     expect(exec.commands()).toHaveLength(1);
@@ -137,16 +137,29 @@ describe("OrcaRunner.readUsageAndLoad", () => {
     expect(load).toMatchObject({ kind: "read", cpu: { percent: 50, cores: 8 } });
   });
 
-  test("keeps the load when the usage command times out", async () => {
+  test("keeps the usage when a load command hangs until the timeout", async () => {
     const exec = new ScriptedExec().on("sh -c", {
       exitCode: null,
-      stdout: `${loadOutput}\n${USAGE_SECTION_MARK}\n{"ok":`,
+      stdout: `${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}`,
       stderr: "",
       timedOut: true,
     });
     const { usage, load } = await runnerWith(exec).readUsageAndLoad();
-    expect(usage).toEqual({ kind: "unreadable" });
+    expect(usage.kind).toBe("read");
     expect(load.kind).toBe("read");
+  });
+
+  test("a usage command cut off by the timeout is unreadable", async () => {
+    const exec = new ScriptedExec().on("sh -c", {
+      exitCode: null,
+      stdout: '{"ok":',
+      stderr: "",
+      timedOut: true,
+    });
+    expect(await runnerWith(exec).readUsageAndLoad()).toEqual({
+      usage: { kind: "unreadable" },
+      load: { kind: "unreadable" },
+    });
   });
 
   test("an unreachable runner reads as unreadable for both", async () => {
