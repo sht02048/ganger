@@ -17,6 +17,8 @@ import { SettingsScreen } from "../settings/settings-screen";
 import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
+import { OfflineCache } from "./offline-cache";
+import type { CacheFiles } from "./offline-cache";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
 
@@ -114,6 +116,7 @@ export function LiveScreens({
   fetcher,
   pushDevice,
   pushMemory,
+  cacheFiles,
   onRejected,
   onDisconnected,
   onForgetLocal,
@@ -122,6 +125,7 @@ export function LiveScreens({
   fetcher: FetchLike;
   pushDevice: PushDevicePort;
   pushMemory: PushMemory;
+  cacheFiles: CacheFiles;
   onRejected: () => void;
   onDisconnected: () => void;
   onForgetLocal: () => Promise<boolean>;
@@ -131,6 +135,8 @@ export function LiveScreens({
     () => createV1Client(fetcher, { server, token }),
     [fetcher, server, token],
   );
+  const [cache] = useState(() => new OfflineCache(cacheFiles, server, () => Date.now()));
+  const clearCache = useCallback(() => void cache.clear().catch(() => undefined), [cache]);
   const [session] = useState(
     () =>
       new LiveSession(
@@ -139,13 +145,21 @@ export function LiveScreens({
           openStream: (handlers) => openChangeStream(fetcher, { server, token }, handlers),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           now: () => Date.now(),
-          onRejected,
+          onRejected: () => {
+            clearCache();
+            onRejected();
+          },
+          onDashboardRead: (workspaceId, data, fetchedAt, workspaces) =>
+            cache.saveDashboard(workspaceId, data, fetchedAt, workspaces),
         },
         INITIAL_DASHBOARD_VIEW.workspaceId,
       ),
   );
   const state = useSyncExternalStore(session.subscribe, session.getState);
-  const port = useMemo(() => createLiveRunPort(client, session), [client, session]);
+  const port = useMemo(
+    () => createLiveRunPort(client, session, undefined, cache),
+    [client, session, cache],
+  );
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [view, setView] = useState(INITIAL_DASHBOARD_VIEW);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -200,6 +214,16 @@ export function LiveScreens({
   }, [client, pushDevice, session]);
 
   useEffect(() => {
+    let current = true;
+    void cache.load().then((content) => {
+      if (current) session.restore(content);
+    });
+    return () => {
+      current = false;
+    };
+  }, [cache, session]);
+
+  useEffect(() => {
     session.setForeground(AppState.currentState !== "background");
     const subscription = AppState.addEventListener("change", (next) => {
       session.setForeground(next === "active");
@@ -229,6 +253,7 @@ export function LiveScreens({
     setDisconnecting(false);
     if (reply.ok || reply.failure.kind === "token-rejected") {
       session.stop();
+      clearCache();
       onDisconnected();
       return;
     }
@@ -236,8 +261,10 @@ export function LiveScreens({
   };
   const forgetLocal = async () => {
     setForgetFailed(false);
-    if (await onForgetLocal()) session.stop();
-    else setForgetFailed(true);
+    if (await onForgetLocal()) {
+      session.stop();
+      clearCache();
+    } else setForgetFailed(true);
   };
 
   const message = bandText(state, view.workspaceId, now);

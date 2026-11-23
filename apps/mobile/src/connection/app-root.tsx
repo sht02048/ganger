@@ -6,6 +6,7 @@ import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { ConnectScreen } from "./connect-screen";
 import { LiveScreens } from "./live-screens";
+import type { CacheFiles } from "./offline-cache";
 import type { PushDevicePort, PushMemory } from "../notifications/push-port";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
@@ -22,6 +23,7 @@ export function AppRoot({
   deviceName,
   pushDevice,
   pushMemory,
+  cacheFiles,
   allowPaste = __DEV__,
 }: {
   store: ConnectionStore;
@@ -30,6 +32,7 @@ export function AppRoot({
   deviceName: string;
   pushDevice: PushDevicePort;
   pushMemory: PushMemory;
+  cacheFiles: CacheFiles;
   allowPaste?: boolean;
 }) {
   const [route, setRoute] = useState<Route>({ kind: "loading" });
@@ -43,6 +46,7 @@ export function AppRoot({
     store.load().then(
       (stored) => {
         if (cancelled) return;
+        if (stored === null) void cacheFiles.removeAll().catch(() => undefined);
         setRoute(
           stored === null
             ? { kind: "connect", notice: null }
@@ -56,7 +60,7 @@ export function AppRoot({
     return () => {
       cancelled = true;
     };
-  }, [store, devConnection]);
+  }, [store, devConnection, cacheFiles]);
 
   const leave = useCallback(
     (notice: MessageKey) => {
@@ -82,6 +86,7 @@ export function AppRoot({
     try {
       await store.save(connection);
       await pushMemory.clear().catch(() => undefined);
+      await cacheFiles.remove(connection.server).catch(() => undefined);
       setRoute({ kind: "live", connection });
     } catch {
       await createV1Client(fetcher, connection).disconnect();
@@ -113,6 +118,7 @@ export function AppRoot({
           fetcher={fetcher}
           pushDevice={pushDevice}
           pushMemory={pushMemory}
+          cacheFiles={cacheFiles}
           onRejected={() => leave("connection.revoked")}
           onDisconnected={() => leave("connection.disconnected")}
           onForgetLocal={forgetLocal}

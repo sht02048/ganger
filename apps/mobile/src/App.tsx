@@ -10,6 +10,7 @@ import { StyleSheet } from "react-native";
 import { AppRoot } from "./connection/app-root";
 import { connectionStore } from "./connection/connection-store";
 import { bundledDevConnection } from "./connection/dev-connection";
+import { cacheFiles } from "./connection/offline-cache-files";
 import { platformFetch } from "./connection/platform-fetch";
 import { pushDevice } from "./notifications/push-device";
 import { pushMemory } from "./notifications/push-memory";
@@ -35,6 +36,7 @@ export default function App() {
           devConnection={DEV_CONNECTION}
           pushDevice={pushDevice}
           pushMemory={pushMemory}
+          cacheFiles={cacheFiles}
           deviceName={Constants.deviceName ?? t("connection.defaultDeviceName")}
         />
       </SafeAreaView>

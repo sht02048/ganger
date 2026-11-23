@@ -85,5 +85,10 @@ describe("푸시 빌드 설정(0109)", () => {
       keychainAccessGroup: "TEAM123456.com.example.ganger.shared",
       eas: { projectId: "project-1" },
     });
+    expect(config.ios?.["entitlements"]).toEqual({
+      "keychain-access-groups": ["TEAM123456.com.example.ganger.shared"],
+      "com.apple.developer.default-data-protection":
+        "NSFileProtectionCompleteUntilFirstUserAuthentication",
+    });
   });
 });

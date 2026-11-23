@@ -13,6 +13,7 @@ import type { PushMemory } from "../notifications/push-port";
 import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
+import type { CacheFiles } from "./offline-cache";
 import { POLL_INTERVAL_MS } from "./session";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
@@ -125,12 +126,33 @@ const memoryPush: PushMemory = {
   clear: () => Promise.resolve(),
 };
 
+function memoryCacheFiles() {
+  const saved = new Map<string, string>();
+  const files: CacheFiles = {
+    read: (server) => Promise.resolve(saved.get(server) ?? null),
+    write: (server, text) => {
+      saved.set(server, text);
+      return Promise.resolve();
+    },
+    remove: (server) => {
+      saved.delete(server);
+      return Promise.resolve();
+    },
+    removeAll: () => {
+      saved.clear();
+      return Promise.resolve();
+    },
+  };
+  return { files, saved };
+}
+
 const mounted: Array<() => void> = [];
 
 async function mount(
   store: ConnectionStore,
   fetcher: FetchLike,
   devConnection: { server: string; token: string } | null = null,
+  cacheFiles: CacheFiles = memoryCacheFiles().files,
 ) {
   const host = document.createElement("div");
   document.body.append(host);
@@ -150,6 +172,7 @@ async function mount(
           deviceName="Acme iPhone"
           pushDevice={webPushDevice}
           pushMemory={memoryPush}
+          cacheFiles={cacheFiles}
           allowPaste
         />
       </SafeAreaProvider>,
@@ -202,6 +225,98 @@ beforeEach(() => {
 afterEach(() => {
   for (const unmount of mounted.splice(0)) unmount();
   vi.useRealTimers();
+});
+
+describe("디스크 캐시(M56)", () => {
+  async function seededCache() {
+    const cache = memoryCacheFiles();
+    const server = fakeServer();
+    await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    for (const unmount of mounted.splice(0)) unmount();
+    return cache;
+  }
+
+  it("서버에 닿지 않고 켜면 캐시와 n분 전 기준 띠를 보이고 행동 버튼을 끈다", async () => {
+    const cache = await seededCache();
+    await advance(5 * 60_000);
+    const server = fakeServer();
+    server.state.mode = "offline";
+    const host = await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await advance(0);
+    expect(host.textContent).toContain("ACME-138");
+    expect(host.textContent).toContain("서버에 닿지 않아요 · 5분 전 기준");
+    const answer = document.body.querySelector('[aria-label^="답하기"]');
+    expect(answer?.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("켤 때 캐시를 띠 없이 보이고 새 내용으로 바꿔 끼운다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    let answer: (response: Response) => void = () => undefined;
+    const held: FetchLike = (url, init) =>
+      new URL(url).pathname === V1_PATHS.dashboard
+        ? new Promise((resolve) => (answer = resolve))
+        : server.fetcher(url, init);
+    const host = await mount(memoryStore(STORED).store, held, null, cache.files);
+    expect(host.textContent).toContain("ACME-138");
+    expect(host.textContent).not.toContain("기준");
+    const empty = busySnapshot(NOW).dashboardFor("all");
+    await act(async () => {
+      answer(
+        Response.json({
+          meta: META,
+          data: {
+            ...empty,
+            columns: {
+              queued: [],
+              running: { todo: [], rest: [] },
+              done: { todo: [], rest: [] },
+            },
+          },
+        }),
+      );
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(host.textContent).not.toContain("ACME-138");
+    expect(host.textContent).not.toContain("기준");
+  });
+
+  it("호환되지 않는 서버면 캐시와 업데이트 안내를 함께 보이고 행동 버튼을 끈다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    server.state.mode = "old-app";
+    const host = await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await advance(0);
+    expect(host.textContent).toContain("ACME-138");
+    expect(host.textContent).toContain("앱을 업데이트해 주세요.");
+    const answer = document.body.querySelector('[aria-label^="답하기"]');
+    expect(answer?.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("토큰이 거절되면 그 서버의 캐시를 지운다", async () => {
+    const cache = await seededCache();
+    expect(cache.saved.has(SERVER)).toBe(true);
+    const server = fakeServer();
+    server.state.mode = "revoked";
+    await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await advance(0);
+    expect(cache.saved.has(SERVER)).toBe(false);
+  });
+
+  it("연결을 끊으면 그 서버의 캐시를 지운다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await press("설정");
+    await press("이 기기 연결 끊기");
+    await advance(0);
+    expect(cache.saved.has(SERVER)).toBe(false);
+  });
+
+  it("캐시 파일에 기기 토큰을 넣지 않는다", async () => {
+    const cache = await seededCache();
+    expect(cache.saved.get(SERVER)).not.toContain(STORED.token);
+  });
 });
 
 describe("연결", () => {

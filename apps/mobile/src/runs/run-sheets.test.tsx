@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
 import { demoRunDetail } from "./run-port";
-import type { RunPort, RunWrite, RunWriteOutcome } from "./run-port";
+import type { RunPort, RunRead, RunWrite, RunWriteOutcome } from "./run-port";
 import { RunSheets } from "./run-sheets";
 import type { OpenRunSheet } from "./run-sheets";
 
@@ -154,6 +154,56 @@ async function type(label: string, value: string) {
 }
 
 const isDisabled = (label: string) => byLabel(label)?.getAttribute("aria-disabled") === "true";
+
+describe("캐시한 런 상세(M56)", () => {
+  function cachedPort(reply: Promise<RunRead<AppRunDetail>>) {
+    const { port, write } = fakePort();
+    const cached = demoRunDetail(questionRun);
+    return {
+      port: { ...port, cachedDetail: () => cached, detail: () => reply },
+      write,
+    };
+  }
+
+  it("새 내용이 오기 전에는 캐시를 보이되 보내기를 끈다", async () => {
+    const { port } = cachedPort(new Promise(() => undefined));
+    await open({ kind: "answer", run: questionRun }, port);
+    expect(document.body.textContent).toContain("어느 쪽으로 할까요?");
+    await press("오른쪽");
+    expect(isDisabled("보내기")).toBe(true);
+  });
+
+  it("새 내용이 오면 보내기를 켠다", async () => {
+    const { port } = cachedPort(Promise.resolve({ kind: "ok", value: demoRunDetail(questionRun) }));
+    await open({ kind: "answer", run: questionRun }, port);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await press("오른쪽");
+    expect(isDisabled("보내기")).toBe(false);
+  });
+
+  it("서버에 닿지 않으면 캐시를 둔 채 보내기를 끈다", async () => {
+    const { port } = cachedPort(Promise.resolve({ kind: "unavailable" }));
+    await open({ kind: "answer", run: questionRun }, port);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("어느 쪽으로 할까요?");
+    await press("오른쪽");
+    expect(isDisabled("보내기")).toBe(true);
+  });
+
+  it("서버가 런을 찾지 못하면 캐시 대신 그 사실을 보인다", async () => {
+    const { port } = cachedPort(Promise.resolve({ kind: "not-found" }));
+    await open({ kind: "answer", run: questionRun }, port);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("런을 찾지 못했어요");
+    expect(document.body.textContent).not.toContain("어느 쪽으로 할까요?");
+  });
+});
 
 describe("답하기 시트", () => {
   it("질문, 맥락, 선택지, 직접 쓰기, 고정된 안내와 보내기를 보인다", async () => {

@@ -42,6 +42,17 @@ export interface SessionDeps {
   timeZone: string;
   now: () => number;
   onRejected: () => void;
+  onDashboardRead?: (
+    workspaceId: string,
+    data: AppDashboard,
+    fetchedAt: number,
+    workspaces: V1Workspaces["workspaces"],
+  ) => void;
+}
+
+export interface SessionRestore {
+  dashboards: ReadonlyMap<string, DashboardEntry>;
+  workspaces: V1Workspaces["workspaces"];
 }
 
 const FAILURE_RANK: Record<V1Failure["kind"], number> = {
@@ -96,6 +107,7 @@ export class LiveSession {
   #workspaceId: string;
   #generation = 0;
   #trustEpoch = 0;
+  #readSucceeded = false;
   #active = false;
   #refreshing = false;
   #refreshAgain = false;
@@ -162,6 +174,18 @@ export class LiveSession {
     }
   }
 
+  restore({ dashboards, workspaces }: SessionRestore): void {
+    if (this.#state.phase === "rejected" || dashboards.size === 0) return;
+    const merged = new Map([...dashboards, ...this.#state.dashboards]);
+    const newest = Math.max(...[...dashboards.values()].map((entry) => entry.fetchedAt));
+    this.#setState({
+      ...this.#state,
+      dashboards: merged,
+      workspaces: this.#readSucceeded ? this.#state.workspaces : workspaces,
+      fetchedAt: this.#state.fetchedAt ?? newest,
+    });
+  }
+
   noteFailure(failure: V1Failure): void {
     if (!this.#active) return;
     this.#distrustActions();
@@ -191,6 +215,7 @@ export class LiveSession {
       this.#applyFailure(failure ?? { kind: "server-error" });
       return;
     }
+    this.#readSucceeded = true;
     const dashboards = new Map(this.#state.dashboards);
     const fetchedAt = now();
     dashboards.set(workspaceId, { data: dashboard.data, fetchedAt });
@@ -205,6 +230,12 @@ export class LiveSession {
       fetchedAt,
       actionsReady: trustEpoch === this.#trustEpoch,
     });
+    this.#deps.onDashboardRead?.(
+      workspaceId,
+      dashboard.data,
+      fetchedAt,
+      workspaces.data.workspaces,
+    );
     if (!this.#state.actionsReady) this.#refreshAgain = true;
     else if (this.#state.transport === "stream") this.#stopPolling();
   }

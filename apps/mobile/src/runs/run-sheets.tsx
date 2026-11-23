@@ -155,18 +155,34 @@ function useRunWrite(
   };
 }
 
-function useRunDetail(port: RunPort, run: DashboardRun): RunRead<AppRunDetail> | null {
-  const [read, setRead] = useState<RunRead<AppRunDetail> | null>(null);
+interface RunDetailView {
+  read: RunRead<AppRunDetail> | null;
+  fresh: boolean;
+}
+
+function cachedView(port: RunPort, run: DashboardRun): RunDetailView {
+  const cached = port.cachedDetail?.(run) ?? null;
+  return { read: cached === null ? null : { kind: "ok", value: cached }, fresh: false };
+}
+
+function useRunDetail(port: RunPort, run: DashboardRun): RunDetailView {
+  const [view, setView] = useState<RunDetailView>(() => cachedView(port, run));
   useEffect(() => {
     let live = true;
+    const shown = cachedView(port, run);
     void port.detail(run).then((next) => {
-      if (live) setRead(next);
+      if (!live) return;
+      setView(
+        next.kind === "unavailable" && shown.read !== null
+          ? shown
+          : { read: next, fresh: next.kind === "ok" },
+      );
     });
     return () => {
       live = false;
     };
   }, [port, run]);
-  return read;
+  return view;
 }
 
 async function openWebLink(url: string): Promise<boolean> {
@@ -460,7 +476,8 @@ function InputSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, sheet.run);
+  const { read, fresh } = useRunDetail(port, sheet.run);
+  const formDisabled = disabled || !fresh;
   const closeSheet = useCloseUnlessSending(onClose);
   const { run, kind } = sheet;
   const title =
@@ -476,10 +493,11 @@ function InputSheet({
           if (kind === "answer" && input?.kind === "question" && !input.answered) {
             return (
               <AnswerForm
+                key={input.questionId}
                 run={run}
                 input={input}
                 port={port}
-                disabled={disabled}
+                disabled={formDisabled}
                 onClose={onClose}
               />
             );
@@ -487,17 +505,25 @@ function InputSheet({
           if (kind === "human-check" && input?.kind === "human-check" && !input.answered) {
             return (
               <HumanCheckForm
+                key={input.questionId}
                 run={run}
                 input={input}
                 port={port}
-                disabled={disabled}
+                disabled={formDisabled}
                 onClose={onClose}
               />
             );
           }
           if (kind === "deny" && input?.kind === "permission" && !input.denied) {
             return (
-              <DenyForm run={run} input={input} port={port} disabled={disabled} onClose={onClose} />
+              <DenyForm
+                key={input.promptId}
+                run={run}
+                input={input}
+                port={port}
+                disabled={formDisabled}
+                onClose={onClose}
+              />
             );
           }
           const sameRequest =
@@ -791,7 +817,8 @@ function RetrySheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, run);
+  const { read, fresh } = useRunDetail(port, run);
+  const formDisabled = disabled || !fresh;
   const [continuing, setContinuing] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const sharedUnconfirmed = { value: unconfirmed, set: setUnconfirmed };
@@ -810,7 +837,7 @@ function RetrySheet({
             <ContinueForm
               run={run}
               port={port}
-              disabled={disabled}
+              disabled={formDisabled}
               sharedUnconfirmed={sharedUnconfirmed}
               onBack={() => setContinuing(false)}
               onClose={onClose}
@@ -820,7 +847,7 @@ function RetrySheet({
               run={run}
               detail={detail}
               port={port}
-              disabled={disabled}
+              disabled={formDisabled}
               sharedUnconfirmed={sharedUnconfirmed}
               onContinue={() => setContinuing(true)}
               onClose={onClose}
@@ -905,7 +932,7 @@ function DetailSheet({
   port: RunPort;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, run);
+  const { read } = useRunDetail(port, run);
   return (
     <Sheet
       visible

@@ -57,3 +57,5 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 ## 서버 연결
 
 연결과 갱신은 `src/connection/`에 둔다. 기기 토큰은 iOS 키체인(`expo-secure-store`, 이 기기에서만)에 두고, Expo web에서는 메모리에만 둔다. 개발 연결은 `__DEV__`일 때만 `EXPO_PUBLIC_GANGER_DEV_SERVER`·`EXPO_PUBLIC_GANGER_DEV_TOKEN`을 읽는다. ATS 예외는 `GANGER_MOBILE_BUILD=development`일 때만 `app.config.ts`가 더한다.
+
+마지막 Dashboard와 런 상세의 디스크 캐시는 `src/connection/offline-cache.ts`에 둔다(M56). iOS는 백업되지 않는 캐시 폴더에 쓰고, Expo web은 탭을 닫으면 사라지는 `sessionStorage`에 쓴다. 캐시 내용은 읽을 때 `@ganger/api`의 `app*` 스키마로 다시 검사한다.
