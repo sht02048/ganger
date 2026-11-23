@@ -710,9 +710,12 @@
     "active": "활성",
     "owners": "볼 수 있는 곳 · {owners}",
     "ownersUnknown": "볼 수 있는 곳을 읽지 못했어요",
+    "expired": "로그인이 만료됐어요",
     "singleAccount": "gh 버전이 낮아 활성 계정 하나만 써요. gh 2.40 이상이면 여러 계정을 함께 써요.",
     "loggedOutTitle": "gh에 로그인돼 있지 않아요",
     "loggedOutBody": "이 서버 기계에서 서버를 돌리는 사용자로 아래 명령을 실행해 로그인한 뒤 다시 확인해 주세요.",
+    "expiredTitle": "gh 계정의 로그인이 모두 만료됐어요",
+    "expiredBody": "이 서버 기계에서 서버를 돌리는 사용자로 아래 명령을 실행해 다시 로그인한 뒤 다시 확인해 주세요.",
     "commandLabel": "gh 로그인 명령",
     "copy": "복사",
     "copied": "명령을 복사했어요",
@@ -730,6 +733,8 @@
     "tokenSaved": "붙여 넣은 토큰도 저장해 뒀어요. gh가 없거나 gh 계정이 저장소를 볼 수 없을 때 써요.",
     "tokenFallback": "gh가 없거나 로그인돼 있지 않거나 gh 계정이 저장소를 볼 수 없을 때 이 토큰을 써요.",
     "tokenPermissions": "PR을 읽기만 하려면 Pull requests 읽기 권한을 줘요. Dashboard에서 머지까지 하려면 Pull requests와 Contents 쓰기 권한을 줘요.",
-    "close": "닫기"
+    "close": "닫기",
+    "diagnosesLabel": "PR을 읽지 못한 러너",
+    "diagnosisRuns": "런 {count}개 · {text}"
   }
 }

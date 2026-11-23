@@ -8,7 +8,7 @@ export { GITHUB_KIND, GitHubCodeHost, searchQuery } from "./github.js";
 export type { GitHubCodeHostOptions } from "./github.js";
 export { GitHubError } from "./http.js";
 export { summarizeRuns } from "./ci.js";
-export { GitHubAuth, defaultGitHubAuth } from "./auth.js";
+export { GitHubAuth, defaultGitHubAuth, usableAccountsOf } from "./auth.js";
 export type {
   CredentialSource,
   GhAccountView,
@@ -16,7 +16,7 @@ export type {
   GitHubAuthOptions,
   GitHubCredential,
 } from "./auth.js";
-export { GH_CLI_ENV, localGhRunner } from "./gh-cli.js";
+export { GH_CLI_ENV, localGhRunner, usableAccounts } from "./gh-cli.js";
 export type { GhAccount, GhCliStatus, GhRun, GhRunner } from "./gh-cli.js";
 
 export const TOKEN_ONLY = "token";

@@ -30,6 +30,8 @@ import {
   settledPrStateOf,
   toCiView,
 } from "../pr-signals-view.js";
+import { diagnosePrRead } from "../pr-read-diagnosis.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import type { PrCommitView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
@@ -99,7 +101,10 @@ export function loadHomePage(
   ws: string | undefined,
   now: Date,
   timeZone: string,
-  { includeLoad = false }: { includeLoad?: boolean } = {},
+  {
+    includeLoad = false,
+    serverGitHub = null,
+  }: { includeLoad?: boolean; serverGitHub?: ServerGitHub | null } = {},
 ): HomePage {
   const workspaces = listWorkspaces(db).map((w) => ({ id: w.id, name: w.name }));
   const workspace = resolveWorkspace(workspaces, ws);
@@ -224,6 +229,13 @@ export function loadHomePage(
           agentResult: run.agentResult,
           prState: run.prState,
           prReadError: records.prReadError,
+          prReadDiagnosis: diagnosePrRead(
+            records.prReadError,
+            runner === undefined
+              ? null
+              : { name: runner.name, ghAccounts: runner.ghAccounts?.reading ?? null },
+            serverGitHub,
+          ),
           summary: summarizeRunOutcome(run).outcome,
           endedAt: run.endedAt.toISOString(),
           endedAgoMs: Math.max(0, now.getTime() - run.endedAt.getTime()),

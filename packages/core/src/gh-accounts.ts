@@ -2,6 +2,7 @@ export interface GhAccount {
   host: string;
   login: string;
   active: boolean;
+  expired: boolean;
 }
 
 export type GhAccountsReading =

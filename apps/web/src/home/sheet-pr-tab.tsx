@@ -18,6 +18,7 @@ import type { HomeCommitSummary, HomePullRequest, HomeRun } from "@ganger/app/ho
 import type { MergeView, PrCommitView } from "@ganger/app/pr-signals-view";
 import type { MergeMethod, RunId } from "@ganger/core";
 import { useTime } from "../format/time";
+import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { prCiFailed } from "./sheet-tabs";
 
 const GITHUB_TOKEN_SETTINGS_HREF = "/settings#connections";
@@ -124,8 +125,20 @@ function useMergeFailure(): (result: Extract<MergePrResult, { ok: false }>) => s
 
 function NoPullRequest({ run }: { run: HomeRun }) {
   const t = useTranslations("home.sheet.pr");
+  const diagnosisText = usePrReadDiagnosisText();
   if (run.state === "ended") {
-    return <Text variant="body">{run.prState === "unknown" ? t("unread") : t("noneEnded")}</Text>;
+    if (run.prState !== "unknown") return <Text variant="body">{t("noneEnded")}</Text>;
+    const diagnosis = run.prReadDiagnosis ?? null;
+    return (
+      <div {...stylex.props(styles.empty)}>
+        <Text variant="body">{t("unread")}</Text>
+        {diagnosis === null ? null : (
+          <Text variant="ui" tone="muted" as="p">
+            {diagnosisText(diagnosis, "run")}
+          </Text>
+        )}
+      </div>
+    );
   }
   return (
     <div {...stylex.props(styles.empty)}>

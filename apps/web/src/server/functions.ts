@@ -1,10 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
-import { markAllTrackersChanged } from "@ganger/db";
+import { countUnreadPrRuns, listCodeHostConnections, markAllTrackersChanged } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
 import { loadHomePage, loadRunPrCommits, runPrCommitsInput } from "@ganger/app/home/load";
+import { loadServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
@@ -39,7 +40,7 @@ import {
 } from "@ganger/app/tickets/assign";
 import { loadTicketBlockers, loadTicketRuns, loadTrackerTickets } from "@ganger/app/tickets/load";
 import { TIME_ZONE_COOKIE, parseTimeZone } from "@ganger/app/time-zone";
-import { getAdapterRegistry, getSecretBox } from "./adapters";
+import { getAdapterRegistry, getGitHubAuth, getSecretBox } from "./adapters";
 import { getDatabase } from "./database";
 import { getTrackerReads } from "./tracker-reads";
 
@@ -59,11 +60,17 @@ export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
 
 export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))
-  .handler(({ data }) =>
-    loadHomePage(getDatabase(), data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    const serverGitHub =
+      countUnreadPrRuns(db)["no-access"] > 0
+        ? await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()))
+        : null;
+    return loadHomePage(db, data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
       includeLoad: true,
-    }),
-  );
+      serverGitHub,
+    });
+  });
 
 export const getRunPrCommits = createServerFn({ method: "GET" })
   .validator(runPrCommitsInput)

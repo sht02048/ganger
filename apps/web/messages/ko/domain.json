@@ -164,5 +164,9 @@
       "human-check": "확인하기",
       "paused": "재개하기"
     }
+  },
+  "prReadDiagnosis": {
+    "different": "러너({runner})는 {runnerLogin}{server, select, token { 계정} other {}}, 서버는 {server, select, token {붙여 넣은 토큰} other {{serverLogins} 계정}}으로 읽어요. {server, select, token {붙여 넣은 토큰이} other {서버 계정이}} {where, select, run {이 저장소를} other {그 저장소를}} 볼 수 없어요.",
+    "runnerUnknown": "서버는 {server, select, token {붙여 넣은 토큰} other {{serverLogins} 계정}}으로 읽어요. 러너({runner})의 gh 계정을 아직 몰라 서버 계정과 견줘 보지 못했어요."
   }
 }

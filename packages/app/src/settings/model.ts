@@ -3,6 +3,7 @@ import type { WorkspaceId } from "@ganger/db";
 import type { McpActionView } from "../mcp/actions.js";
 import type { CheckFailure } from "../prerequisites.js";
 import type { McpLaunch } from "./mcp-launch.js";
+import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
 
 export type RemoteError = "unauthorized" | "rate-limited" | "not-found" | "network" | "invalid";
 
@@ -220,6 +221,7 @@ export interface McpView {
 export interface GhAccountView {
   login: string;
   active: boolean;
+  expired?: boolean;
   owners: string[] | null;
 }
 
@@ -230,10 +232,16 @@ export type GhCliView =
 
 export type GitHubAuthSource = "gh" | "token" | "none";
 
+export interface RunnerPrReadDiagnosis {
+  runs: number;
+  diagnosis: PrReadDiagnosis;
+}
+
 export interface GitHubAuthView {
   cli: GhCliView;
   tokenSaved: boolean;
   source: GitHubAuthSource;
+  prReadDiagnoses?: RunnerPrReadDiagnosis[];
 }
 
 export interface InstallSettings {

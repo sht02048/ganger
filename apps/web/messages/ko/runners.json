@@ -117,7 +117,8 @@
       "unreadable": "gh 계정을 읽지 못했어요. 다음 점검 때 다시 읽어요.",
       "notInstalled": "gh 없음",
       "loggedOut": "로그인 안 됨",
-      "account": "{login} · {host}{active, select, true { · 사용 중} other {}}"
+      "account": "{login} · {host}{active, select, true { · 사용 중} other {}}",
+      "accountExpired": "{login} · {host}{active, select, true { · 사용 중} other {}} · 로그인이 만료됐어요"
     },
     "usage": {
       "title": "사용량",

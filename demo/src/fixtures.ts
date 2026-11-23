@@ -310,8 +310,9 @@ export function ghAccountsFor(sshTarget: string): GhAccountsReading {
   return {
     kind: "logged-in",
     accounts: [
-      { host: "github.com", login: "acme-bot", active: true },
-      { host: "github.com", login: "acme-ci", active: false },
+      { host: "github.com", login: "acme-bot", active: true, expired: false },
+      { host: "github.com", login: "acme-ci", active: false, expired: false },
+      { host: "github.com", login: "acme-old", active: false, expired: true },
     ],
   };
 }

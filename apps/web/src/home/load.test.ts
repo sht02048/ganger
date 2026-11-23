@@ -20,6 +20,7 @@ import {
   recordPermissionWaits,
   recordRunQuestions,
   resolvePermissionWaits,
+  recordGhAccounts,
   recordProviderUsage,
   recordRunnerCheck,
   recordRunnerLoad,
@@ -40,6 +41,7 @@ import {
 } from "../testing/seed";
 import { loadShell } from "@ganger/app/shell/load";
 import { loadHomePage, loadRunPrCommits } from "@ganger/app/home/load";
+import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import type { AttentionItem, HomeRun } from "@ganger/app/home/model";
 import { dashboardBoard, runnerIssues } from "@ganger/app/home/model";
@@ -741,6 +743,44 @@ describe("loadHomePage PR 신호(0167)", () => {
     const run = endedView(db, "ACME-42");
     expect(run.prReadError).toBe("no-access");
     expect(run.pullRequest?.signals).toBeNull();
+  });
+
+  it("저장소를 볼 수 없어 PR을 못 읽은 런은 러너와 서버의 gh 계정 진단을 담고, 토큰은 담지 않는다(0207)", () => {
+    const { db } = seedDatabase();
+    addEndedRun(db, {
+      key: "ACME-42",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "unknown",
+      prReadError: "no-access",
+    });
+    recordGhAccounts(db, {
+      runnerId: toRunnerId("runner-a"),
+      readAt: now,
+      reading: {
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: false }],
+      },
+    });
+    const view = (serverGitHub: ServerGitHub | null) => {
+      const run = loadHomePage(db, "ws-commerce", now, "UTC", { serverGitHub }).endedRecently.find(
+        (candidate) => candidate.ticketKey === "ACME-42",
+      );
+      if (run?.state !== "ended") throw new Error("no ended ACME-42");
+      return run.prReadDiagnosis;
+    };
+    const server = { ghLogins: ["my-personal"], tokenSaved: true, tokenOnly: false };
+    expect(view(server)).toEqual({
+      kind: "different",
+      runner: "runner-a",
+      runnerLogin: "acme-dev",
+      server: { kind: "gh", logins: ["my-personal"] },
+    });
+    expect(view({ ...server, ghLogins: ["Acme-Dev", "my-personal"] })).toBeNull();
+    expect(view(null)).toBeNull();
+    expect(
+      JSON.stringify(loadHomePage(db, "ws-commerce", now, "UTC", { serverGitHub: server })),
+    ).not.toMatch(/gho_|github_pat_/);
   });
 });
 
