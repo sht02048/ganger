@@ -553,7 +553,7 @@ describe("Dashboard 패널 탭(티켓 0199)", () => {
     );
     expect(tabs().map((tab) => tab.textContent)).toEqual([
       sheet.tabs.run,
-      `${sheet.tabs.pr}${sheet.tabs.prNone}`,
+      `${sheet.tabs.pr} ${sheet.tabs.prNone}`,
     ]);
     expect(selectedTab()).toBe(sheet.tabs.run);
   });
@@ -597,7 +597,7 @@ describe("Dashboard 패널 탭(티켓 0199)", () => {
     const pr = tabNamed("PR #42");
     expect(pr.getAttribute("aria-selected")).toBe("true");
     expect(pr.querySelector("[data-tab-dot]")?.getAttribute("data-tab-dot")).toBe("problem");
-    expect(pr.textContent).toBe(`PR #42${sheet.prDot.problem}`);
+    expect(pr.textContent).toBe(`PR #42 ${sheet.prDot.problem}`);
     expect(dialog()?.textContent).toContain("lint");
   });
 
@@ -612,7 +612,7 @@ describe("Dashboard 패널 탭(티켓 0199)", () => {
     expect(selectedTab()).toBe(sheet.tabs.run);
     await press(dialogButton(sheet.close));
     await openSummary("run-ended");
-    expect(selectedTab()).toBe(`PR #42${sheet.prDot.problem}`);
+    expect(selectedTab()).toBe(`PR #42 ${sheet.prDot.problem}`);
   });
 
   it("「PR」 탭에 다녀와도 「런」 탭에 쓰던 답이 남는다", async () => {

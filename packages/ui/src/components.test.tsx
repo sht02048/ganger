@@ -392,10 +392,10 @@ describe("서버 렌더", () => {
         </Tab>
       </Tabs>,
     );
-    expect(html).toMatch(/role="tab"[^>]*>PR<span[^>]*>없음<\/span>/);
+    expect(html).toMatch(/role="tab"[^>]*>PR<span[^>]*> 없음<\/span>/);
     expect(html).toContain('data-tab-dot="problem"');
     expect(html).toMatch(
-      /<span aria-hidden="true"[^>]*><\/span><span[^>]*>CI 실패나 충돌이 있어요<\/span>/,
+      /<span aria-hidden="true"[^>]*><\/span><span[^>]*> CI 실패나 충돌이 있어요<\/span>/,
     );
     const plain = renderToString(
       <Tabs value="run" onValueChange={noop} label="런 패널 보기">
@@ -1360,6 +1360,18 @@ describe("새 컴포넌트(티켓 0073)", () => {
     expect(html).toContain('data-signal-tone="none"');
     expect(html).not.toContain("<svg");
     expect(html).toContain("#571");
+  });
+
+  it("SignalRow detail 은 값 아래 줄에 흐린 글로 둔다(티켓 0199)", () => {
+    const html = renderToString(
+      <SignalList>
+        <SignalRow label="CI" tone="problem" detail="lint, e2e">
+          4개 중 2개 실패
+        </SignalRow>
+      </SignalList>,
+    );
+    expect(html.indexOf("4개 중 2개 실패")).toBeLessThan(html.indexOf("lint, e2e"));
+    expect(html).toMatch(/<dd[^>]*>.*lint, e2e.*<\/dd>/);
   });
 
   it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {

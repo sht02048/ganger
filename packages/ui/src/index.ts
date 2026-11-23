@@ -246,7 +246,12 @@ export {
   type IssueRowSurface,
   type IssueStateKind,
 } from "./components/issue-list";
-export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
+export {
+  StatusDot,
+  statusDotStyles,
+  toneDotStyles,
+  type StatusDotProps,
+} from "./components/status-dot";
 export {
   PILL_STATUSES,
   StatusPill,

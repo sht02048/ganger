@@ -72,15 +72,12 @@ function CiRow({ pr }: { pr: HomePullRequest }) {
   const failed = prCiFailed(pr);
   const failedChecks = failed ? (pr.signals?.failedChecks ?? []) : [];
   return (
-    <SignalRow label={t("ci")} tone={ciTone(pr, failed)}>
-      <span {...stylex.props(styles.stack)}>
-        <span>{useCiText(pr, failed)}</span>
-        {failedChecks.length === 0 ? null : (
-          <Text variant="meta" wrap="anywhere">
-            {failedChecks.join(", ")}
-          </Text>
-        )}
-      </span>
+    <SignalRow
+      label={t("ci")}
+      tone={ciTone(pr, failed)}
+      {...(failedChecks.length === 0 ? {} : { detail: failedChecks.join(", ") })}
+    >
+      {useCiText(pr, failed)}
     </SignalRow>
   );
 }
@@ -110,7 +107,7 @@ function SettledPrRow({ pr }: { pr: HomePullRequest }) {
       </SignalRow>
     );
   return (
-    <SignalRow label={t("state")} tone="pass">
+    <SignalRow label={t("state")}>
       {pr.settledAt === null || pr.settledAgoMs === null
         ? t("merged")
         : t("mergedAgo", { ago: ago(pr.settledAt, pr.settledAgoMs) })}
@@ -121,20 +118,13 @@ function SettledPrRow({ pr }: { pr: HomePullRequest }) {
 function PrLinkRow({ pr }: { pr: HomePullRequest }) {
   const t = useTranslations("home.sheet");
   return (
-    <SignalRow label={t("pr.link")}>
-      <span {...stylex.props(styles.stack)}>
-        <span {...stylex.props(styles.linkLine)}>
-          <span>{pr.displayId}</span>
-          <ExternalIconLink
-            href={pr.url}
-            label={`${t("openPr", { pr: pr.displayId })} (${t("newTab")})`}
-          />
-        </span>
-        {pr.branch === null ? null : (
-          <Text variant="meta" wrap="anywhere">
-            {pr.branch}
-          </Text>
-        )}
+    <SignalRow label={t("pr.link")} {...(pr.branch === null ? {} : { detail: pr.branch })}>
+      <span {...stylex.props(styles.linkLine)}>
+        <span>{pr.displayId}</span>
+        <ExternalIconLink
+          href={pr.url}
+          label={`${t("openPr", { pr: pr.displayId })} (${t("newTab")})`}
+        />
       </span>
     </SignalRow>
   );
@@ -158,6 +148,5 @@ function baseTone(behindBy: number | null): SignalTone {
 const styles = stylex.create({
   column: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
   empty: { display: "flex", flexDirection: "column", gap: space.s1 },
-  stack: { display: "flex", flexDirection: "column", gap: space.px2, minWidth: 0 },
   linkLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
 });

@@ -2,8 +2,10 @@ import * as stylex from "@stylexjs/stylex";
 import { Tabs as SdkTabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { createContext, use, type ReactNode } from "react";
 import { cx } from "../cx";
-import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
+import { colors, fontSize, fontWeight, motion, radius, space } from "../tokens.stylex";
+import { toneDotStyles } from "./status-dot";
 import type { StatusTone } from "./status-pill";
+import { visuallyHiddenStyles } from "./visually-hidden";
 
 export type TabsVariant = "underline" | "chips";
 
@@ -85,11 +87,11 @@ export function Tab({ value, children, count, attention, note, dot }: TabProps) 
           {count}
         </span>
       )}
-      {note === undefined ? null : <span {...stylex.props(styles.note)}>{note}</span>}
+      {note === undefined ? null : <span {...stylex.props(styles.note)}>{` ${note}`}</span>}
       {dot === undefined ? null : (
         <span data-tab-dot={dot.tone} {...stylex.props(styles.dotFrame)}>
-          <span aria-hidden="true" {...stylex.props(styles.dot, dotTones[dot.tone])} />
-          <span {...stylex.props(styles.screenReaderOnly)}>{dot.label}</span>
+          <span aria-hidden="true" {...stylex.props(...toneDotStyles(dot.tone))} />
+          <span {...stylex.props(visuallyHiddenStyles.hidden)}>{` ${dot.label}`}</span>
         </span>
       )}
     </TabsTab>
@@ -191,25 +193,4 @@ const styles = stylex.create({
   panel: { outline: "none" },
   note: { color: colors.textTertiary, fontSize: fontSize.ui },
   dotFrame: { position: "relative", display: "inline-flex", alignSelf: "center" },
-  dot: { width: size.dot, height: size.dot, borderRadius: radius.full },
-  screenReaderOnly: {
-    position: "absolute",
-    width: 1,
-    height: 1,
-    margin: -1,
-    padding: 0,
-    overflow: "hidden",
-    clipPath: "inset(50%)",
-    whiteSpace: "nowrap",
-    borderWidth: 0,
-  },
-});
-
-const dotTones = stylex.create({
-  answer: { backgroundColor: colors.answer },
-  check: { backgroundColor: colors.check },
-  problem: { backgroundColor: colors.problem },
-  progress: { backgroundColor: colors.progress },
-  merged: { backgroundColor: colors.merged },
-  idle: { backgroundColor: colors.idle },
 });

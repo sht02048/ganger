@@ -116,7 +116,6 @@
     "openPr": "PR {pr} 보기",
     "failed": "런이 실패했어요. 이유를 보고 Tickets에서 새 런을 맡길 수 있어요.",
     "agentResult": "에이전트 결과",
-    "prState": "PR 상태",
     "retry": "Tickets에서 다시 맡기기",
     "ticket": "티켓",
     "ticketValue": "{key} · {project}",
@@ -173,7 +172,6 @@
         "unavailable": "볼 수 없어요",
         "unknown": "알 수 없어요"
       },
-      "failedChecks": "실패한 체크",
       "conflict": "충돌",
       "conflictValue": {
         "none": "없어요",
@@ -190,8 +188,7 @@
       "merged": "Merged",
       "mergedAgo": "Merged · {ago}",
       "closed": "닫힘",
-      "link": "PR",
-      "branch": "{branch} 브랜치"
+      "link": "PR"
     }
   },
   "question": {

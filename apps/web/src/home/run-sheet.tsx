@@ -302,7 +302,9 @@ function useNowText(run: HomeRun, mode: SheetMode, tagged: boolean): ReactNode {
       return (
         <span {...stylex.props(styles.lines)}>
           <span>{text.unreachable(run)}</span>
-          <span>{t("disconnected")}</span>
+          <Text variant="ui" tone="muted">
+            {t("disconnected")}
+          </Text>
         </span>
       );
     case "waiting-for-input": {

@@ -14,10 +14,11 @@ export interface SignalRowProps {
   label: ReactNode;
   tone?: SignalTone;
   action?: ReactNode;
+  detail?: ReactNode;
   children: ReactNode;
 }
 
-export function SignalRow({ label, tone, action, children }: SignalRowProps) {
+export function SignalRow({ label, tone, action, detail, children }: SignalRowProps) {
   return (
     <div data-signal-tone={tone ?? "none"} {...stylex.props(styles.row)}>
       <dt {...stylex.props(styles.label)}>{label}</dt>
@@ -31,6 +32,7 @@ export function SignalRow({ label, tone, action, children }: SignalRowProps) {
           {children}
         </span>
         {action === undefined ? null : <span {...stylex.props(styles.action)}>{action}</span>}
+        {detail === undefined ? null : <span {...stylex.props(styles.detail)}>{detail}</span>}
       </dd>
     </div>
   );
@@ -106,4 +108,12 @@ const styles = stylex.create({
   },
   valueProblem: { color: colors.problem },
   action: { flexShrink: 0, fontSize: fontSize.small },
+  detail: {
+    flexBasis: "100%",
+    minWidth: 0,
+    paddingInlineStart: `calc(${size.icon} + ${space.s2})`,
+    color: colors.textTertiary,
+    fontSize: fontSize.small,
+    overflowWrap: "anywhere",
+  },
 });
