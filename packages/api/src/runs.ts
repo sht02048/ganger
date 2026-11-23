@@ -96,7 +96,7 @@ export const V1_NEXT_STEPS = [
 ] as const;
 export type V1NextStep = (typeof V1_NEXT_STEPS)[number];
 
-const runInputSchema = z.discriminatedUnion("kind", [
+export const runInputSchema = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("question"),
     questionId: z.string(),

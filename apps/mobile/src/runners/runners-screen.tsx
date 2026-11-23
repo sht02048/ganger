@@ -1,4 +1,4 @@
-import type { V1ProviderUsage, V1Runner, V1UsageLimit, V1UsageWindow } from "@ganger/api";
+import type { AppProviderUsage, AppRunner, AppUsageLimit, AppUsageWindow } from "@ganger/api";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -9,7 +9,7 @@ import { formatDuration, providerName } from "../format";
 import { t } from "../i18n";
 import { ScreenHeader } from "../screen-header";
 
-function limitText(limit: V1UsageLimit): string {
+function limitText(limit: AppUsageLimit): string {
   const window = t(`runners.window.${limit.window}`);
   const provider = providerName(limit.provider);
   return limit.resetsInMs === null
@@ -21,7 +21,7 @@ function limitText(limit: V1UsageLimit): string {
       });
 }
 
-function problemLines(runner: V1Runner): string[] {
+function problemLines(runner: AppRunner): string[] {
   const cause =
     runner.cause === "offline"
       ? [
@@ -31,17 +31,22 @@ function problemLines(runner: V1Runner): string[] {
         ]
       : runner.cause === "auth"
         ? [t("runners.auth")]
-        : [];
+        : runner.cause === "unknown"
+          ? [t("runners.unknownCause")]
+          : [];
   return [...cause, ...runner.limits.map(limitText)];
 }
 
-function ProblemCard({ runner }: { runner: V1Runner }) {
+function problemStatus(runner: AppRunner): "offline" | "runner-issue" | "unknown" {
+  if (runner.cause === "offline") return "offline";
+  return runner.cause === "unknown" && runner.limits.length === 0 ? "unknown" : "runner-issue";
+}
+
+function ProblemCard({ runner }: { runner: AppRunner }) {
+  const status = problemStatus(runner);
   return (
-    <Card emphasis="problem">
-      <StatusPill
-        status={runner.cause === "offline" ? "offline" : "runner-issue"}
-        label={t(runner.cause === "offline" ? "status.offline" : "status.runner-issue")}
-      />
+    <Card emphasis={status === "unknown" ? "none" : "problem"}>
+      <StatusPill status={status} label={t(`status.${status}`)} />
       <Text variant="title">{runner.name}</Text>
       {problemLines(runner).map((line) => (
         <Text key={line} variant="meta" tone="secondary">
@@ -53,7 +58,7 @@ function ProblemCard({ runner }: { runner: V1Runner }) {
   );
 }
 
-function UsageMeter({ provider, window }: { provider: string; window: V1UsageWindow }) {
+function UsageMeter({ provider, window }: { provider: string; window: AppUsageWindow }) {
   const label = t("runners.usage", {
     provider,
     window: t(`runners.window.${window.kind}`),
@@ -69,21 +74,22 @@ function UsageMeter({ provider, window }: { provider: string; window: V1UsageWin
   );
 }
 
-function RunnerUsage({ usage }: { usage: V1Runner["usage"] }) {
+function RunnerUsage({ usage }: { usage: AppRunner["usage"] }) {
   if (usage === null) return <Text variant="small">{t("runners.usageNotRead")}</Text>;
-  if (usage.kind === "unreadable") {
+  if (usage.kind !== "read") {
     return <Text variant="small">{t("runners.usageUnreadable")}</Text>;
   }
   const using = usage.providers.filter(
     (provider) => provider.status === "ok" || provider.status === "error",
   );
-  const namesWith = (status: V1ProviderUsage["status"]) =>
+  const namesWith = (status: AppProviderUsage["status"]) =>
     usage.providers
       .filter((provider) => provider.status === status)
       .map((provider) => providerName(provider.provider))
       .join(t("runners.usageListSeparator"));
   const signedOut = namesWith("signed-out");
   const unavailable = namesWith("unavailable");
+  const unknownStatus = namesWith("unknown");
   return (
     <>
       {using.map((provider) => (
@@ -95,11 +101,14 @@ function RunnerUsage({ usage }: { usage: V1Runner["usage"] }) {
       {unavailable === "" ? null : (
         <Text variant="small">{t("runners.usageUnavailable", { providers: unavailable })}</Text>
       )}
+      {unknownStatus === "" ? null : (
+        <Text variant="small">{t("runners.usageUnknown", { providers: unknownStatus })}</Text>
+      )}
     </>
   );
 }
 
-function ProviderWindows({ usage }: { usage: V1ProviderUsage }) {
+function ProviderWindows({ usage }: { usage: AppProviderUsage }) {
   const name = providerName(usage.provider);
   if (usage.status === "error") {
     return <Text variant="small">{t("runners.usageError", { provider: name })}</Text>;
@@ -109,23 +118,21 @@ function ProviderWindows({ usage }: { usage: V1ProviderUsage }) {
   }
   return (
     <>
-      {usage.windows.map((window) => (
-        <UsageMeter key={window.kind} provider={name} window={window} />
+      {usage.windows.map((window, index) => (
+        <UsageMeter key={`${window.kind}:${index}`} provider={name} window={window} />
       ))}
     </>
   );
 }
 
-function RunnerCard({ runner }: { runner: V1Runner }) {
-  const offline = runner.cause === "offline";
+function RunnerCard({ runner }: { runner: AppRunner }) {
+  const status =
+    runner.cause === "offline" ? "offline" : runner.cause === "unknown" ? "unknown" : "online";
   return (
     <Card>
       <View style={styles.runnerHead}>
         <Text variant="title">{runner.name}</Text>
-        <StatusPill
-          status={offline ? "offline" : "online"}
-          label={t(offline ? "status.offline" : "status.online")}
-        />
+        <StatusPill status={status} label={t(`status.${status}`)} />
       </View>
       <Text variant="meta">
         {t("runners.capacity", { total: runner.capacity, used: runner.used })}
@@ -141,7 +148,7 @@ export function RunnersScreen({
   band = null,
   loading = false,
 }: {
-  runners: ReadonlyArray<V1Runner>;
+  runners: ReadonlyArray<AppRunner>;
   onBack: () => void;
   band?: ReactNode;
   loading?: boolean;

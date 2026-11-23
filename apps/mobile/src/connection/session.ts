@@ -1,7 +1,8 @@
-import type { V1Dashboard, V1Runner, V1ThisDevice, V1Workspaces } from "@ganger/api";
+import type { AppDashboard, AppRunner, V1ThisDevice, V1Workspaces } from "@ganger/api";
 
 import type { V1Client, V1Failure, V1Result } from "./client";
 import type { ChangeStreamHandlers } from "./change-stream";
+import type { NeededUpdate } from "./version";
 
 export const POLL_INTERVAL_MS = 15_000;
 export const STREAM_RETRY_MS = 60_000;
@@ -17,7 +18,7 @@ export type SessionPhase =
   | "rejected";
 
 export interface DashboardEntry {
-  data: V1Dashboard;
+  data: AppDashboard;
   fetchedAt: number;
 }
 
@@ -26,8 +27,9 @@ export interface SessionState {
   transport: "stream" | "polling";
   dashboards: ReadonlyMap<string, DashboardEntry>;
   staleReason: "unreachable" | "server-error";
+  neededUpdate: NeededUpdate;
   workspaces: V1Workspaces["workspaces"];
-  runners: V1Runner[];
+  runners: AppRunner[];
   device: V1ThisDevice | null;
   serverVersion: string | null;
   fetchedAt: number | null;
@@ -83,6 +85,7 @@ export class LiveSession {
     transport: "polling",
     dashboards: new Map(),
     staleReason: "unreachable",
+    neededUpdate: "server",
     workspaces: [],
     runners: [],
     device: null,
@@ -214,7 +217,16 @@ export class LiveSession {
       failure.kind === "server-error" || failure.kind === "unreachable"
         ? failure.kind
         : this.#state.staleReason;
-    this.#setState({ ...this.#state, phase, serverVersion, staleReason, actionsReady: false });
+    const neededUpdate =
+      failure.kind === "incompatible" ? failure.update : this.#state.neededUpdate;
+    this.#setState({
+      ...this.#state,
+      phase,
+      serverVersion,
+      staleReason,
+      neededUpdate,
+      actionsReady: false,
+    });
     if (phase === "rejected") {
       this.stop();
       this.#deps.onRejected();

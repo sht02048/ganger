@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   CONTRACT_VERSION,
+  MIN_CLIENT_CONTRACT_VERSION,
   V1_DESKTOP_REGISTER_PATH,
   V1_DEVICE_ACTIVITY_PATH,
   V1_NOTIFICATION_PATHS,
@@ -189,7 +190,11 @@ function dashboard(token?: string): Promise<Response> {
   });
 }
 
-const META = { serverVersion: PRODUCT_VERSION, contractVersion: CONTRACT_VERSION };
+const META = {
+  serverVersion: PRODUCT_VERSION,
+  contractVersion: CONTRACT_VERSION,
+  minClientContractVersion: MIN_CLIENT_CONTRACT_VERSION,
+};
 
 function refused(status: number, reason: string) {
   return { status, reason, meta: META };
@@ -320,13 +325,13 @@ describe("기기 연결과 v1 Dashboard", () => {
   it("연결 코드로 토큰을 받아 Dashboard를 읽고 서버·계약 버전을 싣는다", async () => {
     const { token } = await connectedDevice();
     const response = await dashboard(token);
+    const rawMeta = response.clone();
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toBe("no-store");
     const body = dashboardResponseSchema.parse(await response.json());
-    expect(body.meta).toEqual({
-      serverVersion: PRODUCT_VERSION,
-      contractVersion: CONTRACT_VERSION,
-    });
+    const raw: unknown = await rawMeta.json();
+    expect(raw).toMatchObject({ meta: META });
+    expect(body.meta).toEqual(META);
     expect(body.data.summary.todo.answer).toBe(1);
     expect(body.data.columns.running.todo[0]).toMatchObject({
       ticketKey: "ACME-1",

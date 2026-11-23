@@ -9,7 +9,7 @@ export const dashboardWorkspaceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("one"), workspace: workspaceSchema }),
 ]);
 
-const blockerSchema = z.object({
+export const blockerSchema = z.object({
   key: z.string(),
   title: z.string(),
   stateName: z.string(),
@@ -95,7 +95,7 @@ const runControlSchema = z.discriminatedUnion("status", [
   }),
 ]);
 
-const runBaseSchema = z.object({
+export const runBaseSchema = z.object({
   id: z.string(),
   ticketId: z.string(),
   ticketKey: z.string(),

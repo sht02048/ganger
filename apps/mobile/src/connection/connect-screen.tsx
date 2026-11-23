@@ -20,8 +20,9 @@ function failureMessage(failure: ConnectFailure): MessageKey {
     case "unreachable":
     case "server-error":
     case "host-blocked":
-    case "incompatible":
       return `connection.error.${failure.kind}`;
+    case "incompatible":
+      return `connection.update.${failure.update}`;
   }
 }
 

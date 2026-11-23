@@ -9,6 +9,10 @@ export default defineProject({
   resolve: {
     alias: [
       { find: /^react-native$/, replacement: "react-native-web" },
+      {
+        find: /^expo-crypto$/,
+        replacement: fileURLToPath(new URL("./src/testing/expo-crypto.ts", import.meta.url)),
+      },
       { find: /^react-native-svg$/, replacement: esmEntry("react-native-svg") },
       {
         find: /^react-native-safe-area-context$/,

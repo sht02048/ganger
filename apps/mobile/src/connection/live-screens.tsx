@@ -19,7 +19,6 @@ import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
-import { MINIMUM_SERVER_VERSION } from "./version";
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -45,15 +44,6 @@ export function staleBandText(
   return t("connection.band.staleHours", { reason, hours: Math.floor(ago / HOUR_MS) });
 }
 
-function incompatibleText(serverVersion: string | null): string {
-  return serverVersion === null
-    ? t("connection.band.incompatible")
-    : t("connection.band.incompatibleVersion", {
-        version: serverVersion,
-        minimum: MINIMUM_SERVER_VERSION,
-      });
-}
-
 function bandText(state: SessionState, workspaceId: string, now: number): string | null {
   switch (state.phase) {
     case "stale": {
@@ -65,7 +55,7 @@ function bandText(state: SessionState, workspaceId: string, now: number): string
     case "host-blocked":
       return t("connection.band.hostBlocked");
     case "incompatible":
-      return incompatibleText(state.serverVersion);
+      return t(`connection.update.${state.neededUpdate}`);
     case "loading":
     case "live":
     case "rejected":
@@ -73,7 +63,7 @@ function bandText(state: SessionState, workspaceId: string, now: number): string
   }
 }
 
-function statusText({ phase, staleReason }: SessionState): string {
+function statusText({ phase, staleReason, neededUpdate }: SessionState): string {
   switch (phase) {
     case "live":
       return t("settings.connectionLive");
@@ -84,7 +74,7 @@ function statusText({ phase, staleReason }: SessionState): string {
     case "host-blocked":
       return t("settings.connectionHostBlocked");
     case "incompatible":
-      return t("settings.connectionIncompatible");
+      return t(`connection.update.${neededUpdate}`);
     case "loading":
     case "rejected":
       return t("settings.connectionLoading");

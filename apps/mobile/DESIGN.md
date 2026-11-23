@@ -15,6 +15,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 ## 색
 
 - 상태 색은 ADR 0010 5번을 따른다. 보라는 사람이 답·허용, 청록은 사람이 확인, 빨강은 문제, 초록은 진행·정상, 파랑은 성공, 회색은 대기·멈춤이다.
+- 뜻을 모르는 상태(`unknown`)는 어떤 상태 색도 빌리지 않고 컨트롤 면과 비활성 글자색을 쓴다.
 - 노랑(Ganger Yellow)은 주 버튼, 고른 칸, 처리할 일 배지에만 쓴다. 상태 색으로 쓰지 않는다.
 - 노랑 위 글자는 Ink다.
 
@@ -29,7 +30,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `Segment`       | Dashboard의 Queued · Running · Done                                       |
 | `TodoBadge`     | 처리할 일이 있는 칸에만 붙는 노란 수                                      |
 | `IssueBadge`    | Runners 버튼의 문제 러너 수. 버튼 전체를 빨갛게 하지 않는다               |
-| `StatusPill`    | 점 + 상태 이름. 카드 하나에 상태 하나만 보인다                            |
+| `StatusPill`    | 점 + 상태 이름. 카드 하나에 상태 하나만 보인다. 모르는 값은 `unknown`     |
 | `Chip`          | 선행 티켓과 PR 칩. CI 실패·충돌은 `problem`, 뒤처짐은 중립색              |
 | `Button`        | `primary`는 화면의 주 행동 하나, 카드 행동은 `secondary`, 위험은 `danger` |
 | `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                |
@@ -39,7 +40,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `RadioRow`      | 질문 선택지. 모두 같은 모양이고 고르기만 해서는 보내지 않는다             |
 | `TextLink`      | 글 안의 웹 주소. 노랑을 쓰지 않고 밑줄로 보인다                           |
 | `CameraFrame`   | QR을 읽는 카메라 미리 보기의 정사각형 틀                                  |
-| `NoticeBand`    | 화면 맨 위 연결 문제 띠("n분 전 기준", Host 거절, 서버 버전)              |
+| `NoticeBand`    | 화면 맨 위 연결 문제 띠("n분 전 기준", Host 거절, 업데이트 안내)          |
 | `Sheet`         | 아래에서 올라오는 레이어. 안의 주 행동 하나는 노란 버튼을 쓸 수 있다      |
 | `SheetBody`     | `composed` 시트의 스크롤 영역                                             |
 | `SheetFooter`   | `composed` 시트 아래에 고정한 안내와 보내기                               |
@@ -51,7 +52,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 
 ## 데모 데이터
 
-앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). Dashboard와 Runners 데이터는 `@ganger/api`의 `V1Dashboard`, `V1Runner` 모양이다.
+앱 안 데모 데이터는 `src/demo/`에 둔다. 저장소의 `demo/` 패키지를 import 하지 않는다(M44, 티켓 0047). Dashboard와 Runners 데이터는 `@ganger/api`의 `V1Dashboard`, `V1Runner` 모양이고, 화면은 모르는 값까지 담는 `AppDashboard`, `AppRunner`로 읽는다.
 
 ## 서버 연결
 

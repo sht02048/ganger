@@ -1,5 +1,5 @@
 import { dashboardSchema } from "@ganger/api";
-import type { V1Dashboard } from "@ganger/api";
+import type { AppDashboard } from "@ganger/api";
 import { describe, expect, it } from "vitest";
 
 import { busySnapshot, emptySnapshot } from "../demo/data";
@@ -12,7 +12,7 @@ import {
   firstColumn,
   hasNoRuns,
 } from "./model";
-import type { DashboardRun, EndedRun, QueuedRun } from "./model";
+import type { DashboardRun, EndedRun, QueuedRun, UnknownStateRun } from "./model";
 
 const NOW = new Date(2026, 10, 23, 12, 0, 0);
 const MINUTE = 60_000;
@@ -51,7 +51,7 @@ function endedRun(key: string, summary: EndedRun["summary"]): EndedRun {
   };
 }
 
-function dashboardWith(columns: Partial<V1Dashboard["columns"]>): V1Dashboard {
+function dashboardWith(columns: Partial<AppDashboard["columns"]>): AppDashboard {
   const empty = emptySnapshot().dashboardFor(ALL_WORKSPACES);
   return { ...empty, columns: { ...empty.columns, ...columns } };
 }
@@ -215,7 +215,7 @@ describe("Queued 이유", () => {
 });
 
 describe("머리 요약", () => {
-  const summaryOf = (summary: Partial<V1Dashboard["summary"]>) => ({
+  const summaryOf = (summary: Partial<AppDashboard["summary"]>) => ({
     ...emptySnapshot().dashboardFor(ALL_WORKSPACES),
     summary: { ...emptySnapshot().dashboardFor(ALL_WORKSPACES).summary, ...summary },
   });
@@ -244,3 +244,62 @@ describe("머리 요약", () => {
     );
   });
 });
+
+describe("Done 칸의 모르는 상태", () => {
+  it("끝난 런과 따로 담아 개수에 넣는다", () => {
+    const ended = endedRun("S", "succeeded");
+    const unknownRun: UnknownStateRun = {
+      id: "unknown-run",
+      ticketId: ended.ticketId,
+      ticketKey: "U",
+      ticketTitle: ended.ticketTitle,
+      trackerProject: ended.trackerProject,
+      workspace: ended.workspace,
+      runner: ended.runner,
+      agent: ended.agent,
+      waitMs: ended.waitMs,
+      executionMs: ended.executionMs,
+      pullRequest: ended.pullRequest,
+      cancelling: ended.cancelling,
+      control: ended.control,
+      todoTag: null,
+      state: "unknown",
+    };
+    const board = buildBoard(dashboardWith({ done: { todo: [], rest: [ended, unknownRun] } }));
+    expect(board.done.unknownState.map((run) => run.ticketKey)).toEqual(["U"]);
+    expect(board.done.settledTotal).toBe(1);
+    expect(columnRestCount(board, "done")).toBe(2);
+  });
+});
+
+describe("모르는 선행 티켓 원인", () => {
+  it("선행 티켓 목록이 비어도 읽지 못했다고 하지 않는다", () => {
+    const queued: QueuedRun = {
+      ...endedRunBase(),
+      state: "queued",
+      queuedReason: { kind: "blockers-stuck", cause: "unknown", blocker: null, blockers: [] },
+    };
+    expect(queuedLine(queued)).toBe("선행 티켓을 알 수 없는 이유로 기다려요");
+  });
+});
+
+function endedRunBase() {
+  const { id, ticketId, ticketKey, ticketTitle, trackerProject, workspace, runner, agent } =
+    endedRun("Q", "succeeded");
+  return {
+    id,
+    ticketId,
+    ticketKey,
+    ticketTitle,
+    trackerProject,
+    workspace,
+    runner,
+    agent,
+    waitMs: 0,
+    executionMs: null,
+    pullRequest: null,
+    cancelling: false,
+    control: null,
+    todoTag: null,
+  };
+}

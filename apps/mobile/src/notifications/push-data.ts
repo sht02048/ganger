@@ -1,5 +1,5 @@
 import { eventPushId, pushDataSchema } from "@ganger/api";
-import type { NotificationRecord, PushData, V1DeviceNotificationGroups } from "@ganger/api";
+import type { AppNotificationRecord, PushData, V1DeviceNotificationGroups } from "@ganger/api";
 
 import type { DashboardRun } from "../dashboard/model";
 import type { NotificationPreferences } from "../settings/settings-screen";
@@ -64,8 +64,13 @@ export type PushDestination =
   | { screen: "runners" }
   | { screen: "dashboard"; todoOnly: boolean; run: { id: string; action: boolean } | null };
 
-export function destinationOf(record: NotificationRecord | null, action: boolean): PushDestination {
-  if (record === null) return { screen: "dashboard", todoOnly: false, run: null };
+export function destinationOf(
+  record: AppNotificationRecord | null,
+  action: boolean,
+): PushDestination {
+  if (record === null || record.target.kind === "unknown") {
+    return { screen: "dashboard", todoOnly: false, run: null };
+  }
   if (record.target.kind === "runner") return { screen: "runners" };
   return {
     screen: "dashboard",

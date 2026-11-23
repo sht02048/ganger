@@ -141,6 +141,10 @@ describe("StatusPill", () => {
       expect(pillColorsOf(status).dot).toBe(colors.progress);
     }
     expect(pillColorsOf("succeeded").dot).toBe(colors.merged);
+    expect(pillColorsOf("unknown")).toEqual({
+      dot: colors.textDisabled,
+      surface: colors.bgControl,
+    });
     for (const status of ["queued", "paused", "canceled"] as const) {
       expect(pillColorsOf(status).dot).toBe(colors.idle);
     }

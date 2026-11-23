@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DashboardRun, EndedRun } from "./model";
-import { RunCard, SettledRow } from "./run-card";
+import { RunCard, SettledRow, prProblemTone } from "./run-card";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -209,5 +209,71 @@ describe("SettledRow", () => {
       pullRequest: { displayId: "PR-1", url: "https://example.com/pull/1", problems: [] },
     };
     expect(mount(<SettledRow run={run} />).textContent).toContain("PR 못 읽음");
+  });
+});
+
+describe("모르는 값", () => {
+  const unknownRun: DashboardRun = {
+    ...base,
+    state: "unknown",
+    todoTag: null,
+    pullRequest: null,
+    cancelling: false,
+    control: null,
+  };
+
+  it("모르는 상태의 런은 알 수 없는 상태로 보이고 런 상세만 열 수 있다", () => {
+    const host = mount(<RunCard run={unknownRun} onAction={() => undefined} />);
+    expect(host.textContent).toContain("알 수 없는 상태");
+    expect(host.querySelector('[aria-label="런 상세"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="재개하기"]')).toBeNull();
+  });
+
+  it.each([
+    ["모르는 제어 상태", { control: "resume", status: "unknown" }],
+    ["모르는 제어 종류", { control: "unknown", status: "pending" }],
+  ] as const)("%s의 멈춘 런에는 재개를 보이지 않는다", (_name, control) => {
+    const run: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+      todoTag: null,
+      control,
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.querySelector('[aria-label="재개하기"]')).toBeNull();
+  });
+
+  it("제어 실패로 멈춘 런은 다시 재개할 수 있다", () => {
+    const run: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+      todoTag: null,
+      control: { control: "resume", status: "failed" },
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.querySelector('[aria-label="재개하기"]')).not.toBeNull();
+  });
+
+  it("모르는 PR 문제는 문제 색을 쓰지 않는다", () => {
+    expect(prProblemTone({ kind: "unknown" })).toBe("neutral");
+    expect(prProblemTone({ kind: "ci-failed" })).toBe("problem");
+    expect(prProblemTone({ kind: "conflict" })).toBe("problem");
+  });
+
+  it("모르는 PR 문제가 여럿이어도 화면을 깨지 않는다", () => {
+    const run: DashboardRun = {
+      ...unknownRun,
+      pullRequest: {
+        displayId: "#7",
+        url: "https://example.com/pull/7",
+        problems: [{ kind: "unknown" }, { kind: "unknown" }],
+      },
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.textContent).toContain("알 수 없는 문제");
   });
 });

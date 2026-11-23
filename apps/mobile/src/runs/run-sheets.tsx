@@ -1,10 +1,11 @@
 import { V1_CONTINUE_MESSAGE_MAX_LENGTH, V1_TEXT_MAX_LENGTH } from "@ganger/api";
-import type { V1HumanCheckDecision, V1RunDetail, V1RunInput, V1RunRefusal } from "@ganger/api";
+import type { AppRunDetail, AppRunInput, AppRunRefusal, V1HumanCheckDecision } from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { Linking, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
 
 import type { DashboardRun } from "../dashboard/model";
+import { prProblemLabel, prProblemTone } from "../dashboard/run-card";
 import {
   Button,
   Card,
@@ -31,7 +32,7 @@ export type OpenRunSheet =
     }
   | { kind: "notice"; title: string; message: string };
 
-function refusalKey(action: RunWrite["action"], reason: V1RunRefusal): MessageKey {
+function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageKey {
   if (action === "answer" && (reason === "already-answered" || reason === "not-found")) {
     return `actions.refused.answer.${reason}`;
   }
@@ -51,6 +52,7 @@ function refusalKey(action: RunWrite["action"], reason: V1RunRefusal): MessageKe
     case "active-run":
     case "previous-agent":
     case "cannot-assign":
+    case "unknown":
       return `actions.refused.run.${reason}`;
     case "already-answered":
     case "already-denied":
@@ -71,6 +73,8 @@ export function outcomeMessage(
       return t("common.demoAction");
     case "refused":
       return t(refusalKey(action, outcome.reason));
+    case "unconfirmed":
+      return t("actions.unconfirmed");
     case "failed":
       return t(`actions.failed.${outcome.cause}`);
   }
@@ -85,33 +89,74 @@ function useCloseUnlessSending(onClose: () => void): () => void {
   };
 }
 
-function useRunWrite(port: RunPort, run: DashboardRun, onSent: () => void) {
-  const [sending, setSending] = useState(false);
+type WritePhase = "idle" | "sending" | "confirming";
+
+function busyLabelOf(phase: WritePhase): string | null {
+  switch (phase) {
+    case "idle":
+      return null;
+    case "sending":
+      return t("actions.sending");
+    case "confirming":
+      return t("actions.confirming");
+  }
+}
+
+interface UnconfirmedWrite {
+  value: boolean;
+  set: (value: boolean) => void;
+}
+
+function useRunWrite(
+  port: RunPort,
+  run: DashboardRun,
+  onSent: () => void,
+  disabled: boolean,
+  sharedUnconfirmed?: UnconfirmedWrite,
+) {
+  const [phase, setPhase] = useState<WritePhase>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [refused, setRefused] = useState(false);
+  const [ownUnconfirmed, setOwnUnconfirmed] = useState(false);
+  const unconfirmed = sharedUnconfirmed?.value ?? ownUnconfirmed;
+  const setUnconfirmed = sharedUnconfirmed?.set ?? setOwnUnconfirmed;
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
   const send = async (write: RunWrite) => {
     if (busy.current) return;
     busy.current = true;
-    setSending(true);
+    setPhase("sending");
     setMessage(null);
-    const outcome = await port.write(run, write);
+    const outcome = await port.write(run, write, () => {
+      setPhase("confirming");
+      AccessibilityInfo.announceForAccessibility(t("actions.confirming"));
+    });
     busy.current = false;
-    setSending(false);
+    setPhase("idle");
     if (outcome.kind === "sent") {
       onSent();
       return;
     }
     setRefused(outcome.kind === "refused");
+    if (outcome.kind === "unconfirmed") setUnconfirmed(true);
     setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
   };
-  return { sending, message, messageTone, refused, send };
+  return {
+    sending: phase !== "idle",
+    busyLabel: busyLabelOf(phase),
+    message: unconfirmed
+      ? t(disabled ? "actions.unconfirmed" : "actions.unconfirmedRead")
+      : message,
+    messageTone: unconfirmed ? "secondary" : messageTone,
+    locked: refused || unconfirmed,
+    unconfirmed,
+    send,
+  };
 }
 
-function useRunDetail(port: RunPort, run: DashboardRun): RunRead<V1RunDetail> | null {
-  const [read, setRead] = useState<RunRead<V1RunDetail> | null>(null);
+function useRunDetail(port: RunPort, run: DashboardRun): RunRead<AppRunDetail> | null {
+  const [read, setRead] = useState<RunRead<AppRunDetail> | null>(null);
   useEffect(() => {
     let live = true;
     void port.detail(run).then((next) => {
@@ -155,8 +200,8 @@ function DetailGate({
   read,
   children,
 }: {
-  read: RunRead<V1RunDetail> | null;
-  children: (detail: V1RunDetail) => ReactNode;
+  read: RunRead<AppRunDetail> | null;
+  children: (detail: AppRunDetail) => ReactNode;
 }) {
   if (read === null) {
     return (
@@ -184,7 +229,7 @@ function DetailGate({
   }
 }
 
-type QuestionInput = Extract<V1RunInput, { kind: "question" }>;
+type QuestionInput = Extract<AppRunInput, { kind: "question" }>;
 
 function AnswerForm({
   run,
@@ -203,7 +248,12 @@ function AnswerForm({
     input.choices.length === 0 ? "other" : null,
   );
   const [other, setOther] = useState("");
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+  );
   const answer =
     picked === "other"
       ? other.trim()
@@ -261,8 +311,8 @@ function AnswerForm({
         <Text variant="small">{t("actions.answer.irreversible")}</Text>
         <Button
           variant="primary"
-          label={sending ? t("actions.sending") : t("actions.answer.send")}
-          disabled={disabled || sending || refused || answer === ""}
+          label={busyLabel ?? t("actions.answer.send")}
+          disabled={disabled || sending || locked || answer === ""}
           onPress={() => void send({ action: "answer", questionId: input.questionId, answer })}
         />
       </SheetFooter>
@@ -284,7 +334,7 @@ function RequestBody({ body }: { body: string }) {
   );
 }
 
-type HumanCheckInput = Extract<V1RunInput, { kind: "human-check" }>;
+type HumanCheckInput = Extract<AppRunInput, { kind: "human-check" }>;
 
 function HumanCheckForm({
   run,
@@ -300,10 +350,20 @@ function HumanCheckForm({
   onClose: () => void;
 }) {
   const [note, setNote] = useState("");
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
-  const decide = (decision: V1HumanCheckDecision) =>
+  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+  );
+  const [pressed, setPressed] = useState<V1HumanCheckDecision | null>(null);
+  const decide = (decision: V1HumanCheckDecision) => {
+    setPressed(decision);
     void send({ action: "human-check", questionId: input.questionId, decision, note: note.trim() });
-  const off = disabled || sending || refused;
+  };
+  const labelOf = (decision: V1HumanCheckDecision, idle: string) =>
+    pressed === decision ? (busyLabel ?? idle) : idle;
+  const off = disabled || sending || locked;
   return (
     <>
       <SheetBody>
@@ -322,12 +382,12 @@ function HumanCheckForm({
         <Text variant="small">{t("actions.humanCheck.after")}</Text>
         <Button
           variant="primary"
-          label={t("actions.humanCheck.confirm")}
+          label={labelOf("confirmed", t("actions.humanCheck.confirm"))}
           disabled={off}
           onPress={() => decide("confirmed")}
         />
         <Button
-          label={t("actions.humanCheck.requestChanges")}
+          label={labelOf("changes-requested", t("actions.humanCheck.requestChanges"))}
           disabled={off}
           onPress={() => decide("changes-requested")}
         />
@@ -336,7 +396,7 @@ function HumanCheckForm({
   );
 }
 
-type PermissionInput = Extract<V1RunInput, { kind: "permission" }>;
+type PermissionInput = Extract<AppRunInput, { kind: "permission" }>;
 
 function DenyForm({
   run,
@@ -352,7 +412,12 @@ function DenyForm({
   onClose: () => void;
 }) {
   const [reason, setReason] = useState("");
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+  );
   return (
     <>
       <SheetBody>
@@ -373,8 +438,8 @@ function DenyForm({
         <SheetMessage message={message} tone={messageTone} />
         <Button
           variant="danger"
-          label={sending ? t("actions.sending") : t("actions.deny.send")}
-          disabled={disabled || sending || refused}
+          label={busyLabel ?? t("actions.deny.send")}
+          disabled={disabled || sending || locked}
           onPress={() =>
             void send({ action: "deny", promptId: input.promptId, reason: reason.trim() })
           }
@@ -469,7 +534,12 @@ function CancelConfirm({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+  );
   const closeSheet = useCloseUnlessSending(onClose);
   return (
     <>
@@ -478,8 +548,8 @@ function CancelConfirm({
       <SheetMessage message={message} tone={messageTone} />
       <Button
         variant="danger"
-        label={sending ? t("actions.sending") : t("actions.cancel.confirm")}
-        disabled={disabled || sending || refused}
+        label={busyLabel ?? t("actions.cancel.confirm")}
+        disabled={disabled || sending || locked}
         onPress={() => void send({ action: "cancel" })}
       />
       <Button label={t("common.close")} disabled={sending} onPress={closeSheet} />
@@ -585,19 +655,27 @@ function RetryForm({
   detail,
   port,
   disabled,
+  sharedUnconfirmed,
   onContinue,
   onClose,
 }: {
   run: DashboardRun;
-  detail: V1RunDetail;
+  detail: AppRunDetail;
   port: RunPort;
   disabled: boolean;
+  sharedUnconfirmed: UnconfirmedWrite;
   onContinue: () => void;
   onClose: () => void;
 }) {
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, busyLabel, message, messageTone, locked, unconfirmed, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+    sharedUnconfirmed,
+  );
   const { retry, continue: continueOffer } = detail.nextActions;
-  if (retry === "not-offered") {
+  if (retry === "not-offered" || retry === "unknown") {
     return (
       <SheetBody>
         <ContextLine run={run} />
@@ -632,14 +710,14 @@ function RetryForm({
         <SheetMessage message={message} tone={messageTone} />
         <Button
           variant="primary"
-          label={sending ? t("actions.sending") : t("actions.retry.confirm")}
-          disabled={disabled || sending || refused || retry !== "available"}
+          label={busyLabel ?? t("actions.retry.confirm")}
+          disabled={disabled || sending || locked || retry !== "available"}
           onPress={() => void send({ action: "retry" })}
         />
         {continueOffer === "available" ? (
           <Button
             label={t("actions.continue.open")}
-            disabled={disabled || sending}
+            disabled={disabled || sending || unconfirmed}
             onPress={onContinue}
           />
         ) : null}
@@ -652,17 +730,25 @@ function ContinueForm({
   run,
   port,
   disabled,
+  sharedUnconfirmed,
   onBack,
   onClose,
 }: {
   run: DashboardRun;
   port: RunPort;
   disabled: boolean;
+  sharedUnconfirmed: UnconfirmedWrite;
   onBack: () => void;
   onClose: () => void;
 }) {
   const [text, setText] = useState("");
-  const { sending, message, messageTone, refused, send } = useRunWrite(port, run, onClose);
+  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+    port,
+    run,
+    onClose,
+    disabled,
+    sharedUnconfirmed,
+  );
   const trimmed = text.trim();
   return (
     <>
@@ -684,8 +770,8 @@ function ContinueForm({
         <SheetMessage message={message} tone={messageTone} />
         <Button
           variant="primary"
-          label={sending ? t("actions.sending") : t("actions.continue.confirm")}
-          disabled={disabled || sending || refused || trimmed === ""}
+          label={busyLabel ?? t("actions.continue.confirm")}
+          disabled={disabled || sending || locked || trimmed === ""}
           onPress={() => void send({ action: "continue", message: trimmed })}
         />
         <Button label={t("actions.continue.back")} disabled={sending} onPress={onBack} />
@@ -707,6 +793,8 @@ function RetrySheet({
 }) {
   const read = useRunDetail(port, run);
   const [continuing, setContinuing] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const sharedUnconfirmed = { value: unconfirmed, set: setUnconfirmed };
   const closeSheet = useCloseUnlessSending(onClose);
   return (
     <Sheet
@@ -723,6 +811,7 @@ function RetrySheet({
               run={run}
               port={port}
               disabled={disabled}
+              sharedUnconfirmed={sharedUnconfirmed}
               onBack={() => setContinuing(false)}
               onClose={onClose}
             />
@@ -732,6 +821,7 @@ function RetrySheet({
               detail={detail}
               port={port}
               disabled={disabled}
+              sharedUnconfirmed={sharedUnconfirmed}
               onContinue={() => setContinuing(true)}
               onClose={onClose}
             />
@@ -742,7 +832,7 @@ function RetrySheet({
   );
 }
 
-function RunDetailBody({ detail }: { detail: V1RunDetail }) {
+function RunDetailBody({ detail }: { detail: AppRunDetail }) {
   const { summary, pullRequest } = detail;
   return (
     <>
@@ -785,17 +875,11 @@ function RunDetailBody({ detail }: { detail: V1RunDetail }) {
               {t("runDetail.ciLabel", { state: t(`runDetail.ci.${pullRequest.ci}`) })}
             </Text>
             <View style={styles.chips}>
-              {pullRequest.problems.map((problem) => (
+              {pullRequest.problems.map((problem, index) => (
                 <Chip
-                  key={problem.kind}
-                  tone={problem.kind === "behind" ? "neutral" : "problem"}
-                  label={
-                    problem.kind === "behind"
-                      ? t("card.prChip.behind", { count: problem.commits })
-                      : problem.kind === "conflict"
-                        ? t("card.prChip.conflict")
-                        : t("card.prChip.ciFailed")
-                  }
+                  key={`${problem.kind}:${index}`}
+                  tone={prProblemTone(problem)}
+                  label={prProblemLabel(problem)}
                 />
               ))}
             </View>

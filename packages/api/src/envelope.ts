@@ -1,10 +1,9 @@
 import { z } from "zod";
 
-export const CONTRACT_VERSION = 1;
-
 export const v1MetaSchema = z.object({
   serverVersion: z.string().min(1),
   contractVersion: z.number().int().positive(),
+  minClientContractVersion: z.number().int().positive().default(1),
 });
 export type V1Meta = z.infer<typeof v1MetaSchema>;
 
