@@ -25,8 +25,7 @@ export const cacheFiles: CacheFiles = {
     if (draft.exists) draft.delete();
     draft.create();
     await draft.write(text);
-    if (target.exists) target.delete();
-    await draft.move(target);
+    await draft.move(target, { overwrite: true });
   },
   remove: async (server) => {
     const target = await fileFor(server);
@@ -34,9 +33,8 @@ export const cacheFiles: CacheFiles = {
     if (draft.exists) draft.delete();
     if (target.exists) target.delete();
   },
-  removeAll: () => {
+  removeAll: async () => {
     const directory = cacheDirectory();
     if (directory.exists) directory.delete();
-    return Promise.resolve();
   },
 };

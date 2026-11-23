@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
 import { demoRunDetail } from "./run-port";
-import type { RunPort, RunRead, RunWrite, RunWriteOutcome } from "./run-port";
+import type { RunPort, RunWrite, RunWriteOutcome } from "./run-port";
 import { RunSheets } from "./run-sheets";
 import type { OpenRunSheet } from "./run-sheets";
 
@@ -156,95 +156,89 @@ async function type(label: string, value: string) {
 const isDisabled = (label: string) => byLabel(label)?.getAttribute("aria-disabled") === "true";
 
 describe("캐시한 런 상세(M56)", () => {
-  function cachedPort(reply: Promise<RunRead<AppRunDetail>>) {
-    const { port, write } = fakePort();
-    const cached = demoRunDetail(questionRun);
-    return {
-      port: {
-        ...port,
-        cachedDetail: () => ({ data: cached, fetchedAt: Date.now() - 5 * 60_000 }),
-        detail: () => reply,
-      },
-      write,
-    };
-  }
-
-  it("새 내용이 오기 전에는 캐시를 보이되 보내기를 끈다", async () => {
-    const { port } = cachedPort(new Promise(() => undefined));
-    await open({ kind: "answer", run: questionRun }, port);
-    expect(document.body.textContent).toContain("어느 쪽으로 할까요?");
-    await press("오른쪽");
-    expect(isDisabled("보내기")).toBe(true);
+  const cached: AppRunDetail = {
+    ...demoRunDetail(questionRun),
+    summary: { outcome: null, agentResult: null, report: "캐시한 보고", startError: null },
+  };
+  const cachedDetail = () => ({ data: cached, fetchedAt: Date.now() - 5 * 60_000 });
+  const cachedPort = (detail: RunPort["detail"]): RunPort => ({
+    ...fakePort().port,
+    cachedDetail,
+    detail,
   });
-
-  it("새 내용이 오면 보내기를 켠다", async () => {
-    const { port } = cachedPort(Promise.resolve({ kind: "ok", value: demoRunDetail(questionRun) }));
-    await open({ kind: "answer", run: questionRun }, port);
-    await act(async () => {
+  const settle = () =>
+    act(async () => {
       await Promise.resolve();
     });
-    await press("오른쪽");
-    expect(isDisabled("보내기")).toBe(false);
-  });
 
-  it("서버에 닿지 않으면 캐시를 둔 채 보내기를 끈다", async () => {
-    const { port } = cachedPort(Promise.resolve({ kind: "unavailable" }));
-    await open({ kind: "answer", run: questionRun }, port);
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(document.body.textContent).toContain("어느 쪽으로 할까요?");
-    await press("오른쪽");
-    expect(isDisabled("보내기")).toBe(true);
+  it("런 상세는 새 내용이 오기 전에 캐시를 띠 없이 보인다", async () => {
+    await open(
+      { kind: "detail", run: questionRun },
+      cachedPort(() => new Promise(() => undefined)),
+    );
+    expect(document.body.textContent).toContain("캐시한 보고");
+    expect(document.body.textContent).not.toContain("기준");
   });
 
   it("새로 읽지 못하면 캐시의 저장 시각을 띠로 보인다", async () => {
-    const { port } = cachedPort(Promise.resolve({ kind: "unavailable" }));
+    const port = cachedPort(() => Promise.resolve({ kind: "unavailable" }));
     await open({ kind: "detail", run: questionRun }, port);
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await settle();
+    expect(document.body.textContent).toContain("캐시한 보고");
     expect(document.body.textContent).toContain("런 내용을 새로 읽지 못했어요 · 5분 전 기준");
   });
 
-  it("연결이 돌아오면 다시 읽어 보내기를 켜고 띠를 지운다", async () => {
-    const { port } = fakePort();
-    const cached = demoRunDetail(questionRun);
+  it("연결이 돌아오면 다시 읽어 새 내용으로 바꾸고 띠를 지운다", async () => {
     const detail = vi
       .fn<RunPort["detail"]>()
       .mockResolvedValueOnce({ kind: "unavailable" })
-      .mockResolvedValue({ kind: "ok", value: cached });
+      .mockResolvedValue({ kind: "ok", value: demoRunDetail(questionRun) });
     const { setDisabled } = await open(
-      { kind: "answer", run: questionRun },
-      {
-        ...port,
-        detail,
-        cachedDetail: () => ({ data: cached, fetchedAt: Date.now() - 5 * 60_000 }),
-      },
+      { kind: "detail", run: questionRun },
+      cachedPort(detail),
       true,
     );
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await settle();
     expect(document.body.textContent).toContain("5분 전 기준");
     await setDisabled(false);
-    await act(async () => {
-      await Promise.resolve();
-    });
+    await settle();
     expect(detail).toHaveBeenCalledTimes(2);
     expect(document.body.textContent).not.toContain("5분 전 기준");
-    await press("오른쪽");
-    expect(isDisabled("보내기")).toBe(false);
+    expect(document.body.textContent).not.toContain("캐시한 보고");
   });
 
   it("서버가 런을 찾지 못하면 캐시 대신 그 사실을 보인다", async () => {
-    const { port } = cachedPort(Promise.resolve({ kind: "not-found" }));
-    await open({ kind: "answer", run: questionRun }, port);
-    await act(async () => {
-      await Promise.resolve();
-    });
+    const port = cachedPort(() => Promise.resolve({ kind: "not-found" }));
+    await open({ kind: "detail", run: questionRun }, port);
+    await settle();
     expect(document.body.textContent).toContain("런을 찾지 못했어요");
-    expect(document.body.textContent).not.toContain("어느 쪽으로 할까요?");
+    expect(document.body.textContent).not.toContain("캐시한 보고");
+  });
+
+  it("답하기 시트는 오래된 캐시로 이미 답했다고 말하지 않는다", async () => {
+    const answered = demoRunDetail(questionRun);
+    const port: RunPort = {
+      ...fakePort().port,
+      cachedDetail: () => ({
+        data: {
+          ...answered,
+          input: {
+            kind: "question",
+            questionId: "q-old",
+            lead: [],
+            choices: [],
+            after: [],
+            answered: true,
+          },
+        },
+        fetchedAt: Date.now(),
+      }),
+      detail: () => Promise.resolve({ kind: "unavailable" }),
+    };
+    await open({ kind: "answer", run: questionRun }, port);
+    await settle();
+    expect(document.body.textContent).not.toContain("이미 답한 질문이에요");
+    expect(document.body.textContent).toContain("내용을 불러오지 못했어요");
   });
 });
 

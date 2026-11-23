@@ -16,6 +16,14 @@ type Route =
   | { kind: "demo" }
   | { kind: "live"; connection: { server: string; token: string } };
 
+async function removeAllCache(files: CacheFiles): Promise<void> {
+  try {
+    await files.removeAll();
+  } catch {
+    return;
+  }
+}
+
 export function AppRoot({
   store,
   fetcher,
@@ -46,7 +54,7 @@ export function AppRoot({
     store.load().then(
       (stored) => {
         if (cancelled) return;
-        if (stored === null) void cacheFiles.removeAll().catch(() => undefined);
+        if (stored === null) void removeAllCache(cacheFiles);
         setRoute(
           stored === null
             ? { kind: "connect", notice: null }
@@ -86,7 +94,7 @@ export function AppRoot({
     try {
       await store.save(connection);
       await pushMemory.clear().catch(() => undefined);
-      await cacheFiles.removeAll().catch(() => undefined);
+      await removeAllCache(cacheFiles);
       setRoute({ kind: "live", connection });
     } catch {
       await createV1Client(fetcher, connection).disconnect();

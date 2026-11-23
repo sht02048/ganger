@@ -118,4 +118,47 @@ describe("알림의 답하기 버튼으로 Dashboard 열기(M22)", () => {
     });
     expect(document.body.textContent).toContain("보내면 되돌릴 수 없어요");
   });
+
+  it("서버에 닿지 않아 행동이 꺼져 있으면 캐시 상세를 그대로 둔다", async () => {
+    if (questionRun === undefined) throw new Error("데모에 Question 런이 없다");
+    const cachedDetail = demoRunDetail(questionRun);
+    const port: RunPort = {
+      ...demoRunPort,
+      cachedDetail: () => ({ data: cachedDetail, fetchedAt: NOW.getTime() }),
+      detail: () => Promise.resolve({ kind: "unavailable" }),
+    };
+    const host = document.createElement("div");
+    document.body.append(host);
+    const root = createRoot(host);
+    cleanups.push(() => {
+      act(() => root.unmount());
+      host.remove();
+    });
+    await act(async () => {
+      root.render(
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}
+        >
+          <DashboardScreen
+            snapshot={snapshot}
+            view={{ ...INITIAL_DASHBOARD_VIEW, column: "running" }}
+            onViewChange={() => undefined}
+            onOpenRunners={() => undefined}
+            onOpenSettings={() => undefined}
+            actionsDisabled
+            port={port}
+            openRun={{ id: questionRun.id, action: true }}
+            openRunSettled
+          />
+        </SafeAreaProvider>,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(document.body.textContent).toContain("런 상세");
+    expect(document.body.textContent).toContain("런 내용을 새로 읽지 못했어요");
+    expect(document.body.textContent).not.toContain("보내면 되돌릴 수 없어요");
+  });
 });

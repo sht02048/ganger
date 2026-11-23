@@ -249,36 +249,69 @@ describe("디스크 캐시(M56)", () => {
     expect(answer?.getAttribute("aria-disabled")).toBe("true");
   });
 
-  it("켤 때 캐시를 띠 없이 보이고 새 내용으로 바꿔 끼운다", async () => {
+  it("켤 때 캐시를 띠 없이 보이고 새 내용으로 바꾼 뒤, 닿지 않으면 띠를 보이고 버튼을 끈다", async () => {
     const cache = await seededCache();
     const server = fakeServer();
+    let holding = true;
     let answer: (response: Response) => void = () => undefined;
     const held: FetchLike = (url, init) =>
-      new URL(url).pathname === V1_PATHS.dashboard
+      holding && new URL(url).pathname === V1_PATHS.dashboard
         ? new Promise((resolve) => (answer = resolve))
         : server.fetcher(url, init);
     const host = await mount(memoryStore(STORED).store, held, null, cache.files);
     expect(host.textContent).toContain("ACME-138");
     expect(host.textContent).not.toContain("기준");
-    const empty = busySnapshot(NOW).dashboardFor("all");
+    const renamed = JSON.stringify(busySnapshot(NOW).dashboardFor("all")).replaceAll(
+      "ACME-138",
+      "ACME-999",
+    );
+    const fresh: unknown = JSON.parse(renamed);
     await act(async () => {
-      answer(
-        Response.json({
-          meta: META,
-          data: {
-            ...empty,
-            columns: {
-              queued: [],
-              running: { todo: [], rest: [] },
-              done: { todo: [], rest: [] },
-            },
-          },
-        }),
-      );
+      holding = false;
+      answer(Response.json({ meta: META, data: fresh }));
       await vi.advanceTimersByTimeAsync(0);
     });
+    expect(host.textContent).toContain("ACME-999");
     expect(host.textContent).not.toContain("ACME-138");
     expect(host.textContent).not.toContain("기준");
+    server.state.mode = "offline";
+    await advance(POLL_INTERVAL_MS);
+    expect(host.textContent).toContain("ACME-999");
+    expect(host.textContent).toContain("기준");
+    const action = document.body.querySelector('[aria-label^="답하기"]');
+    expect(action?.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("캐시 폴더를 지우지 못해도 연결 화면을 보인다", async () => {
+    const server = fakeServer();
+    const files: CacheFiles = {
+      ...memoryCacheFiles().files,
+      removeAll: () => {
+        throw new Error("delete failed");
+      },
+    };
+    const host = await mount(memoryStore(null).store, server.fetcher, null, files);
+    expect(host.textContent).toContain("서버에 연결해요");
+  });
+
+  it("캐시 폴더를 지우지 못해도 새 연결을 끊지 않는다", async () => {
+    const server = fakeServer();
+    const memory = memoryStore(null);
+    const files: CacheFiles = {
+      ...memoryCacheFiles().files,
+      removeAll: () => {
+        throw new Error("delete failed");
+      },
+    };
+    const host = await mount(memory.store, server.fetcher, null, files);
+    await paste(connectionQrText({ server: SERVER, code: "code-1" }));
+    await press("붙여 넣은 내용으로 연결");
+    expect(memory.current()?.token).toBe("new-token");
+    expect(server.state.requests).not.toContainEqual({
+      path: V1_PATHS.thisDevice,
+      method: "DELETE",
+    });
+    expect(host.textContent).toContain("Dashboard");
   });
 
   it("호환되지 않는 서버면 캐시와 업데이트 안내를 함께 보이고 행동 버튼을 끈다", async () => {

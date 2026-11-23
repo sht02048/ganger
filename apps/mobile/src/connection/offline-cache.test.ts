@@ -149,6 +149,21 @@ describe("버리는 캐시", () => {
   });
 });
 
+describe("파일을 읽지 못했을 때", () => {
+  it("저장으로 기존 파일을 덮어쓰지 않는다", async () => {
+    const memory = await savedFile();
+    const before = memory.saved.get(SERVER);
+    const files: CacheFiles = {
+      ...memory.files,
+      read: () => Promise.reject(new Error("protected data unavailable")),
+    };
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    cache.saveDashboard("ws-payments", dashboard, NOW, workspaces);
+    await cache.settled();
+    expect(memory.saved.get(SERVER)).toBe(before);
+  });
+});
+
 describe("메모리에 남은 런 상세", () => {
   it("앱이 7일 넘게 켜져 있으면 보이지 않는다", async () => {
     const { files } = await savedFile();

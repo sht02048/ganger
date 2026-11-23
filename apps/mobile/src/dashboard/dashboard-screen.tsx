@@ -253,15 +253,17 @@ export function DashboardScreen({
     const previewed = previewedRunId.current === openRun.id;
     previewedRunId.current = null;
     if (run !== undefined) {
-      const kind = sheetKindFor(run, openRun.action);
+      const hasCachedDetail = (port.cachedDetail?.(run) ?? null) !== null;
+      const kind =
+        actionsDisabled && hasCachedDetail ? "detail" : sheetKindFor(run, openRun.action);
       setSheet((current) => {
         if (!previewed) return { kind, run };
-        if (current === null || kind === "detail") return current;
-        return { kind, run };
+        if (kind === "detail" || current === null || current.kind === "notice") return current;
+        return current.run.id === run.id ? { kind, run } : current;
       });
     }
     onOpenRunHandled?.();
-  }, [openRun, openRunSettled, dashboard, onOpenRunHandled, port]);
+  }, [openRun, openRunSettled, dashboard, onOpenRunHandled, port, actionsDisabled]);
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");

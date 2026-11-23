@@ -163,8 +163,8 @@ interface RunDetailView {
   staleNotice: string | null;
 }
 
-function cachedView(port: RunPort, run: DashboardRun): RunDetailView {
-  const cached = port.cachedDetail?.(run) ?? null;
+function cachedView(port: RunPort, run: DashboardRun, useCache: boolean): RunDetailView {
+  const cached = useCache ? (port.cachedDetail?.(run) ?? null) : null;
   return {
     read: cached === null ? null : { kind: "ok", value: cached.data },
     fresh: false,
@@ -172,8 +172,13 @@ function cachedView(port: RunPort, run: DashboardRun): RunDetailView {
   };
 }
 
-function useRunDetail(port: RunPort, run: DashboardRun, disabled: boolean): RunDetailView {
-  const [view, setView] = useState<RunDetailView>(() => cachedView(port, run));
+function useRunDetail(
+  port: RunPort,
+  run: DashboardRun,
+  disabled: boolean,
+  useCache = false,
+): RunDetailView {
+  const [view, setView] = useState<RunDetailView>(() => cachedView(port, run, useCache));
   const [attempt, setAttempt] = useState(0);
   const wasDisabled = useRef(disabled);
   useEffect(() => {
@@ -183,7 +188,7 @@ function useRunDetail(port: RunPort, run: DashboardRun, disabled: boolean): RunD
   }, [disabled, view.fresh]);
   useEffect(() => {
     let live = true;
-    const cached = port.cachedDetail?.(run) ?? null;
+    const cached = useCache ? (port.cachedDetail?.(run) ?? null) : null;
     void port.detail(run).then((next) => {
       if (!live) return;
       setView(
@@ -199,7 +204,7 @@ function useRunDetail(port: RunPort, run: DashboardRun, disabled: boolean): RunD
     return () => {
       live = false;
     };
-  }, [port, run, attempt]);
+  }, [port, run, attempt, useCache]);
   return view;
 }
 
@@ -501,8 +506,7 @@ function InputSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { read, fresh, staleNotice } = useRunDetail(port, sheet.run, disabled);
-  const formDisabled = disabled || !fresh;
+  const { read, staleNotice } = useRunDetail(port, sheet.run, disabled);
   const closeSheet = useCloseUnlessSending(onClose);
   const { run, kind } = sheet;
   const title =
@@ -522,7 +526,7 @@ function InputSheet({
                 run={run}
                 input={input}
                 port={port}
-                disabled={formDisabled}
+                disabled={disabled}
                 onClose={onClose}
               />
             );
@@ -534,7 +538,7 @@ function InputSheet({
                 run={run}
                 input={input}
                 port={port}
-                disabled={formDisabled}
+                disabled={disabled}
                 onClose={onClose}
               />
             );
@@ -546,7 +550,7 @@ function InputSheet({
                 run={run}
                 input={input}
                 port={port}
-                disabled={formDisabled}
+                disabled={disabled}
                 onClose={onClose}
               />
             );
@@ -842,8 +846,7 @@ function RetrySheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { read, fresh, staleNotice } = useRunDetail(port, run, disabled);
-  const formDisabled = disabled || !fresh;
+  const { read, staleNotice } = useRunDetail(port, run, disabled);
   const [continuing, setContinuing] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const sharedUnconfirmed = { value: unconfirmed, set: setUnconfirmed };
@@ -862,7 +865,7 @@ function RetrySheet({
             <ContinueForm
               run={run}
               port={port}
-              disabled={formDisabled}
+              disabled={disabled}
               sharedUnconfirmed={sharedUnconfirmed}
               onBack={() => setContinuing(false)}
               onClose={onClose}
@@ -872,7 +875,7 @@ function RetrySheet({
               run={run}
               detail={detail}
               port={port}
-              disabled={formDisabled}
+              disabled={disabled}
               sharedUnconfirmed={sharedUnconfirmed}
               onContinue={() => setContinuing(true)}
               onClose={onClose}
@@ -959,7 +962,7 @@ function DetailSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { read, staleNotice } = useRunDetail(port, run, disabled);
+  const { read, staleNotice } = useRunDetail(port, run, disabled, true);
   return (
     <Sheet
       visible

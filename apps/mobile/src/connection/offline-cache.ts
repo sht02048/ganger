@@ -72,6 +72,7 @@ export class OfflineCache {
   #workspaceList: CachedEntry<V1Workspaces["workspaces"]> | null = null;
   #loading: Promise<CachedContent> | null = null;
   #closed = false;
+  #readFailed = false;
   #dirty = false;
   #flushing: Promise<void> | null = null;
 
@@ -156,7 +157,7 @@ export class OfflineCache {
     try {
       text = await this.#files.read(this.#server);
     } catch {
-      text = null;
+      this.#readFailed = true;
     }
     if (this.#closed) return { dashboards: new Map(), workspaces: [] };
     if (text === null) return this.#content();
@@ -205,7 +206,7 @@ export class OfflineCache {
   async #flush(): Promise<void> {
     try {
       await this.load();
-      while (this.#dirty && !this.#closed) {
+      while (this.#dirty && !this.#closed && !this.#readFailed) {
         this.#dirty = false;
         await this.#files.write(this.#server, this.#serialize()).catch(() => undefined);
       }
