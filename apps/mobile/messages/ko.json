@@ -165,6 +165,10 @@
     "usageUnavailable": "쓰지 않아요: {providers}",
     "usageListSeparator": ", "
   },
+  "notifications": {
+    "answerAction": "답하기",
+    "humanCheckAction": "확인하기"
+  },
   "settings": {
     "title": "설정",
     "server": "연결한 서버",
@@ -183,6 +187,16 @@
       "runnerIssue": "Runner Issue"
     },
     "pushNotice": "알림은 Expo Push를 거쳐 와요. 티켓 내용은 싣지 않아요.",
+    "pushAddressLost": "알림이 꺼졌어요. 다시 켜 주세요.",
+    "pushPermissionDenied": "알림 권한이 꺼져 있어요. iPhone 설정의 Ganger에서 켜 주세요.",
+    "pushAddressFailed": "이 기기의 알림 주소를 받지 못했어요. 다시 해 주세요.",
+    "pushSaveFailed": "알림 설정을 저장하지 못했어요. 다시 해 주세요.",
+    "pushLoadFailed": "알림 설정을 불러오지 못했어요.",
+    "pushUnsupported": "알림은 iPhone 앱에서 켤 수 있어요.",
+    "pushAskTitle": "알림을 받을까요?",
+    "pushAskBody": "에이전트가 묻거나 멈추면 알려 줄게요. 알림은 Expo Push를 거쳐 오고 티켓 내용은 싣지 않아요.",
+    "pushAskAccept": "알림 받기",
+    "pushAskDecline": "나중에",
     "demo": "데모",
     "emptyPreview": "빈 화면 미리 보기",
     "version": "앱 버전",

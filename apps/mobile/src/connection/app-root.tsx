@@ -6,6 +6,7 @@ import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
 import { ConnectScreen } from "./connect-screen";
 import { LiveScreens } from "./live-screens";
+import type { PushDevicePort, PushMemory } from "../notifications/push-port";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
 type Route =
@@ -19,12 +20,16 @@ export function AppRoot({
   fetcher,
   devConnection,
   deviceName,
+  pushDevice,
+  pushMemory,
   allowPaste = __DEV__,
 }: {
   store: ConnectionStore;
   fetcher: FetchLike;
   devConnection: { server: string; token: string } | null;
   deviceName: string;
+  pushDevice: PushDevicePort;
+  pushMemory: PushMemory;
   allowPaste?: boolean;
 }) {
   const [route, setRoute] = useState<Route>({ kind: "loading" });
@@ -56,9 +61,10 @@ export function AppRoot({
   const leave = useCallback(
     (notice: MessageKey) => {
       void store.clear().catch(() => undefined);
+      void pushMemory.clear().catch(() => undefined);
       setRoute({ kind: "connect", notice });
     },
-    [store],
+    [store, pushMemory],
   );
 
   const forgetLocal = useCallback(async () => {
@@ -67,13 +73,15 @@ export function AppRoot({
     } catch {
       return false;
     }
+    void pushMemory.clear().catch(() => undefined);
     setRoute({ kind: "connect", notice: "connection.disconnected" });
     return true;
-  }, [store]);
+  }, [store, pushMemory]);
 
   const connected = async (connection: StoredConnection) => {
     try {
       await store.save(connection);
+      await pushMemory.clear().catch(() => undefined);
       setRoute({ kind: "live", connection });
     } catch {
       await createV1Client(fetcher, connection).disconnect();
@@ -103,6 +111,8 @@ export function AppRoot({
           key={`${route.connection.server}:${route.connection.token}`}
           connection={route.connection}
           fetcher={fetcher}
+          pushDevice={pushDevice}
+          pushMemory={pushMemory}
           onRejected={() => leave("connection.revoked")}
           onDisconnected={() => leave("connection.disconnected")}
           onForgetLocal={forgetLocal}

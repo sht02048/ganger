@@ -60,3 +60,23 @@ export type NotificationFeed = z.infer<typeof notificationFeedSchema>;
 
 export const notificationFeedResponseSchema = v1ResponseSchema(notificationFeedSchema);
 export const notificationEventResponseSchema = v1ResponseSchema(notificationRecordSchema);
+
+export function eventPushId(eventId: number): string {
+  return `event-${eventId}`;
+}
+
+export function bundlePushId(firstEventId: number): string {
+  return `bundle-${firstEventId}`;
+}
+
+const pushIdSchema = z.string().regex(/^(?:event|bundle)-[1-9]\d*$/u);
+
+export const pushDataSchema = z.union([
+  z.strictObject({
+    eventId: z.number().int().positive(),
+    replaces: z.array(pushIdSchema).optional(),
+  }),
+  z.strictObject({ bundleId: pushIdSchema, replaces: z.array(pushIdSchema).optional() }),
+  z.strictObject({ clear: z.array(pushIdSchema).min(1) }),
+]);
+export type PushData = z.infer<typeof pushDataSchema>;

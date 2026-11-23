@@ -2,13 +2,16 @@ import {
   V1_PATHS,
   connectResponseSchema,
   dashboardResponseSchema,
+  deviceNotificationsResponseSchema,
   disconnectResponseSchema,
+  notificationEventResponseSchema,
   runActionResponseSchema,
   runDetailResponseSchema,
   runnersResponseSchema,
   thisDeviceResponseSchema,
   ticketLinkResponseSchema,
   v1ErrorSchema,
+  v1NotificationEventPath,
   v1MetaSchema,
   v1RunActionPath,
   v1RunPath,
@@ -19,12 +22,15 @@ import type {
   ConnectResult,
   V1AnswerBody,
   V1Dashboard,
+  NotificationRecord,
   V1DenyBody,
+  V1DeviceNotifications,
   V1HumanCheckBody,
   V1RunDetail,
   V1RunKeyBody,
   V1RunRefusal,
   V1Runner,
+  V1SaveDeviceNotifications,
   V1ThisDevice,
   V1Workspaces,
 } from "@ganger/api";
@@ -232,10 +238,18 @@ export interface V1RunsClient {
   runAction(runId: string, request: V1RunActionBody): Promise<V1RunResult<{ accepted: true }>>;
 }
 
+export interface V1PushClient {
+  deviceNotifications(): Promise<V1Result<V1DeviceNotifications>>;
+  saveDeviceNotifications(
+    request: V1SaveDeviceNotifications,
+  ): Promise<V1Result<V1DeviceNotifications>>;
+  notificationEvent(id: number): Promise<V1RunResult<NotificationRecord>>;
+}
+
 export function createV1Client(
   fetcher: FetchLike,
   { server, token }: { server: string; token: string },
-): V1Client & V1RunsClient {
+): V1Client & V1RunsClient & V1PushClient {
   const authorized = { authorization: `Bearer ${token}` };
   const read = async <Data>(
     path: string,
@@ -253,6 +267,28 @@ export function createV1Client(
       asV1Result(
         await send(fetcher, server, V1_PATHS.thisDevice, disconnectResponseSchema, {
           method: "DELETE",
+          headers: authorized,
+        }),
+      ),
+    deviceNotifications: () =>
+      read(V1_PATHS.thisDeviceNotifications, deviceNotificationsResponseSchema),
+    saveDeviceNotifications: async (request) =>
+      asV1Result(
+        await send(
+          fetcher,
+          server,
+          V1_PATHS.thisDeviceNotifications,
+          deviceNotificationsResponseSchema,
+          {
+            method: "PUT",
+            headers: { ...authorized, "content-type": "application/json" },
+            body: JSON.stringify(request),
+          },
+        ),
+      ),
+    notificationEvent: async (id) =>
+      asRunResult(
+        await send(fetcher, server, v1NotificationEventPath(id), notificationEventResponseSchema, {
           headers: authorized,
         }),
       ),

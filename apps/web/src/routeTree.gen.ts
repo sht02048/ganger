@@ -45,6 +45,7 @@ import { Route as ApiV1NotificationEventsStreamRouteImport } from './routes/api/
 import { Route as ApiWebhooksPingInstanceIdRouteImport } from './routes/api/webhooks/ping/$instanceId'
 import { Route as ApiWebhooksTrackerConnectionIdRouteImport } from './routes/api/webhooks/tracker/$connectionId'
 import { Route as AppSettingsProjectsConnectionIdProjectIdRouteImport } from './routes/_app/settings_.projects.$connectionId.$projectId'
+import { Route as ApiV1DevicesMeNotificationsRouteImport } from './routes/api/v1/devices/me_.notifications'
 import { Route as ApiV1RunsIdIndexRouteImport } from './routes/api/v1/runs/$id/index'
 import { Route as ApiV1RunsIdActionRouteImport } from './routes/api/v1/runs/$id/$action'
 import { Route as ApiV1RunsIdTicketLinkRouteImport } from './routes/api/v1/runs/$id/ticket-link'
@@ -241,6 +242,12 @@ const AppSettingsProjectsConnectionIdProjectIdRoute =
     path: '/settings/projects/$connectionId/$projectId',
     getParentRoute: () => AppRoute,
   } as any)
+const ApiV1DevicesMeNotificationsRoute =
+  ApiV1DevicesMeNotificationsRouteImport.update({
+    id: '/api/v1/devices/me_/notifications',
+    path: '/api/v1/devices/me/notifications',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiV1RunsIdIndexRoute = ApiV1RunsIdIndexRouteImport.update({
   id: '/api/v1/runs/$id/',
   path: '/api/v1/runs/$id/',
@@ -293,6 +300,7 @@ export interface FileRoutesByFullPath {
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events/': typeof ApiV1NotificationEventsIndexRoute
   '/settings/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
+  '/api/v1/devices/me/notifications': typeof ApiV1DevicesMeNotificationsRoute
   '/api/v1/runs/$id/$action': typeof ApiV1RunsIdActionRoute
   '/api/v1/runs/$id/ticket-link': typeof ApiV1RunsIdTicketLinkRoute
   '/api/v1/runs/$id/': typeof ApiV1RunsIdIndexRoute
@@ -333,6 +341,7 @@ export interface FileRoutesByTo {
   '/api/runner-enrollment/offer': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events': typeof ApiV1NotificationEventsIndexRoute
   '/settings/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
+  '/api/v1/devices/me/notifications': typeof ApiV1DevicesMeNotificationsRoute
   '/api/v1/runs/$id/$action': typeof ApiV1RunsIdActionRoute
   '/api/v1/runs/$id/ticket-link': typeof ApiV1RunsIdTicketLinkRoute
   '/api/v1/runs/$id': typeof ApiV1RunsIdIndexRoute
@@ -375,6 +384,7 @@ export interface FileRoutesById {
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events/': typeof ApiV1NotificationEventsIndexRoute
   '/_app/settings_/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
+  '/api/v1/devices/me_/notifications': typeof ApiV1DevicesMeNotificationsRoute
   '/api/v1/runs/$id/$action': typeof ApiV1RunsIdActionRoute
   '/api/v1/runs/$id/ticket-link': typeof ApiV1RunsIdTicketLinkRoute
   '/api/v1/runs/$id/': typeof ApiV1RunsIdIndexRoute
@@ -417,6 +427,7 @@ export interface FileRouteTypes {
     | '/api/runner-enrollment/offer/'
     | '/api/v1/notification-events/'
     | '/settings/projects/$connectionId/$projectId'
+    | '/api/v1/devices/me/notifications'
     | '/api/v1/runs/$id/$action'
     | '/api/v1/runs/$id/ticket-link'
     | '/api/v1/runs/$id/'
@@ -457,6 +468,7 @@ export interface FileRouteTypes {
     | '/api/runner-enrollment/offer'
     | '/api/v1/notification-events'
     | '/settings/projects/$connectionId/$projectId'
+    | '/api/v1/devices/me/notifications'
     | '/api/v1/runs/$id/$action'
     | '/api/v1/runs/$id/ticket-link'
     | '/api/v1/runs/$id'
@@ -498,6 +510,7 @@ export interface FileRouteTypes {
     | '/api/runner-enrollment/offer/'
     | '/api/v1/notification-events/'
     | '/_app/settings_/projects/$connectionId/$projectId'
+    | '/api/v1/devices/me_/notifications'
     | '/api/v1/runs/$id/$action'
     | '/api/v1/runs/$id/ticket-link'
     | '/api/v1/runs/$id/'
@@ -530,6 +543,7 @@ export interface RootRouteChildren {
   ApiWebhooksTrackerConnectionIdRoute: typeof ApiWebhooksTrackerConnectionIdRoute
   ApiRunnerEnrollmentOfferIndexRoute: typeof ApiRunnerEnrollmentOfferIndexRoute
   ApiV1NotificationEventsIndexRoute: typeof ApiV1NotificationEventsIndexRoute
+  ApiV1DevicesMeNotificationsRoute: typeof ApiV1DevicesMeNotificationsRoute
   ApiV1RunsIdActionRoute: typeof ApiV1RunsIdActionRoute
   ApiV1RunsIdTicketLinkRoute: typeof ApiV1RunsIdTicketLinkRoute
   ApiV1RunsIdIndexRoute: typeof ApiV1RunsIdIndexRoute
@@ -789,6 +803,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsProjectsConnectionIdProjectIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/api/v1/devices/me_/notifications': {
+      id: '/api/v1/devices/me_/notifications'
+      path: '/api/v1/devices/me/notifications'
+      fullPath: '/api/v1/devices/me/notifications'
+      preLoaderRoute: typeof ApiV1DevicesMeNotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/v1/runs/$id/': {
       id: '/api/v1/runs/$id/'
       path: '/api/v1/runs/$id'
@@ -870,6 +891,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWebhooksTrackerConnectionIdRoute: ApiWebhooksTrackerConnectionIdRoute,
   ApiRunnerEnrollmentOfferIndexRoute: ApiRunnerEnrollmentOfferIndexRoute,
   ApiV1NotificationEventsIndexRoute: ApiV1NotificationEventsIndexRoute,
+  ApiV1DevicesMeNotificationsRoute: ApiV1DevicesMeNotificationsRoute,
   ApiV1RunsIdActionRoute: ApiV1RunsIdActionRoute,
   ApiV1RunsIdTicketLinkRoute: ApiV1RunsIdTicketLinkRoute,
   ApiV1RunsIdIndexRoute: ApiV1RunsIdIndexRoute,

@@ -99,8 +99,68 @@ function ConnectionCard({ connection }: { connection: SettingsConnection }) {
   );
 }
 
+export interface SettingsNotifications {
+  preferences: NotificationPreferences | null;
+  disabled: boolean;
+  message: string | null;
+  hint?: string | null;
+  onChange: (next: NotificationPreferences) => void;
+}
+
+function NotificationSections({
+  preferences,
+  disabled,
+  message,
+  hint = null,
+  onChange,
+}: SettingsNotifications) {
+  return (
+    <>
+      <Text variant="meta" tone="secondary" heading>
+        {t("settings.notifications")}
+      </Text>
+      <Card>
+        {message === null ? null : (
+          <Text variant="meta" tone="problem" accessibilityRole="alert">
+            {message}
+          </Text>
+        )}
+        {preferences === null ? null : (
+          <SwitchRow
+            label={t("settings.notificationsOn")}
+            value={preferences.enabled}
+            disabled={disabled}
+            onChange={(enabled) => onChange({ ...preferences, enabled })}
+          />
+        )}
+        {hint === null ? null : <Text variant="meta">{hint}</Text>}
+        <Text variant="meta">{t("settings.pushNotice")}</Text>
+      </Card>
+      {preferences === null ? null : (
+        <>
+          <Text variant="meta" tone="secondary" heading>
+            {t("settings.notificationKinds")}
+          </Text>
+          <Card>
+            {NOTIFICATION_KINDS.map((kind) => (
+              <SwitchRow
+                key={kind}
+                label={t(`settings.kind.${kind}`)}
+                value={preferences.kinds[kind]}
+                disabled={disabled || !preferences.enabled}
+                onChange={(next) =>
+                  onChange({ ...preferences, kinds: { ...preferences.kinds, [kind]: next } })
+                }
+              />
+            ))}
+          </Card>
+        </>
+      )}
+    </>
+  );
+}
+
 function DemoSections({ demo }: { demo: SettingsDemo }) {
-  const { preferences, onPreferencesChange } = demo;
   return (
     <>
       <Card>
@@ -112,36 +172,12 @@ function DemoSections({ demo }: { demo: SettingsDemo }) {
           <Button label={t("settings.exitDemo")} onPress={demo.onExit} />
         )}
       </Card>
-      <Text variant="meta" tone="secondary" heading>
-        {t("settings.notifications")}
-      </Text>
-      <Card>
-        <SwitchRow
-          label={t("settings.notificationsOn")}
-          value={preferences.enabled}
-          onChange={(enabled) => onPreferencesChange({ ...preferences, enabled })}
-        />
-        <Text variant="meta">{t("settings.pushNotice")}</Text>
-      </Card>
-      <Text variant="meta" tone="secondary" heading>
-        {t("settings.notificationKinds")}
-      </Text>
-      <Card>
-        {NOTIFICATION_KINDS.map((kind) => (
-          <SwitchRow
-            key={kind}
-            label={t(`settings.kind.${kind}`)}
-            value={preferences.kinds[kind]}
-            disabled={!preferences.enabled}
-            onChange={(next) =>
-              onPreferencesChange({
-                ...preferences,
-                kinds: { ...preferences.kinds, [kind]: next },
-              })
-            }
-          />
-        ))}
-      </Card>
+      <NotificationSections
+        preferences={demo.preferences}
+        disabled={false}
+        message={null}
+        onChange={demo.onPreferencesChange}
+      />
       <Text variant="meta" tone="secondary" heading>
         {t("settings.demo")}
       </Text>
@@ -158,11 +194,13 @@ function DemoSections({ demo }: { demo: SettingsDemo }) {
 
 export function SettingsScreen({
   connection,
+  notifications,
   demo,
   band = null,
   onBack,
 }: {
   connection?: SettingsConnection;
+  notifications?: SettingsNotifications;
   demo?: SettingsDemo;
   band?: ReactNode;
   onBack: () => void;
@@ -173,6 +211,7 @@ export function SettingsScreen({
       <ScreenHeader title={t("settings.title")} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.content}>
         {connection === undefined ? null : <ConnectionCard connection={connection} />}
+        {notifications === undefined ? null : <NotificationSections {...notifications} />}
         {demo === undefined ? null : <DemoSections demo={demo} />}
         <InfoRow label={t("settings.version")} value={appConfig.expo.version} />
       </ScrollView>

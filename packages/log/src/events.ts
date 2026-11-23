@@ -25,6 +25,9 @@ export const LOG_EVENTS = {
   "worker.tick_failed": "tick failed",
   "worker.web_requests_failed": "could not process web requests",
   "notifications.sync_failed": "could not sync notification events",
+  "push.address_invalid": "expo reported a device push address as invalid",
+  "push.ticket_failed": "expo refused a push message",
+  "push.send_failed": "could not send push messages",
   "worker.log_tail_failed": "could not read a log tail",
 
   "run.assigned": "assigned a ticket to a run",

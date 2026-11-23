@@ -4,6 +4,7 @@ import { v1ResponseSchema } from "./envelope.js";
 export const V1_PATHS = {
   connect: "/api/v1/devices/connect",
   thisDevice: "/api/v1/devices/me",
+  thisDeviceNotifications: "/api/v1/devices/me/notifications",
   dashboard: "/api/v1/dashboard",
   runners: "/api/v1/runners",
   workspaces: "/api/v1/workspaces",
@@ -46,6 +47,33 @@ export const connectResponseSchema = v1ResponseSchema(connectResultSchema);
 export const disconnectResponseSchema = v1ResponseSchema(
   z.object({ disconnected: z.literal(true) }),
 );
+
+export const deviceNotificationGroupsSchema = z.object({
+  question: z.boolean(),
+  permission: z.boolean(),
+  humanCheckRequest: z.boolean(),
+  failedDisconnected: z.boolean(),
+  runnerIssue: z.boolean(),
+});
+export type V1DeviceNotificationGroups = z.infer<typeof deviceNotificationGroupsSchema>;
+
+export const deviceNotificationsSchema = z.object({
+  enabled: z.boolean(),
+  groups: deviceNotificationGroupsSchema,
+  hasPushAddress: z.boolean(),
+});
+export type V1DeviceNotifications = z.infer<typeof deviceNotificationsSchema>;
+export const deviceNotificationsResponseSchema = v1ResponseSchema(deviceNotificationsSchema);
+
+export const expoPushTokenSchema = z.string().regex(/^Expo(?:nent)?PushToken\[[^\]\s]{1,200}\]$/u);
+
+export const saveDeviceNotificationsRequestSchema = z.object({
+  requestId: z.string().min(16).max(64),
+  enabled: z.boolean(),
+  groups: deviceNotificationGroupsSchema,
+  expoPushToken: expoPushTokenSchema.optional(),
+});
+export type V1SaveDeviceNotifications = z.infer<typeof saveDeviceNotificationsRequestSchema>;
 
 const CONNECTION_QR_PREFIX = "ganger://connect";
 
