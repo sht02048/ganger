@@ -165,14 +165,22 @@ interface Child {
   kill(signal: NodeJS.Signals): void;
 }
 
-const workerWakeSchema = z.object({ type: z.literal("wake") });
+const workerMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("wake") }),
+  z.object({
+    type: z.literal("device-activity"),
+    deviceId: z.string().min(1),
+    lastUsedAt: z.number().int().nonnegative(),
+  }),
+]);
 
 const ignoreSendFailure = (): void => undefined;
 
 function relayWorkerWake(web: ChildProcess, worker: ChildProcess): void {
   web.on("message", (message) => {
-    if (!workerWakeSchema.safeParse(message).success || !worker.connected) return;
-    worker.send(WORKER_WAKE_MESSAGE, ignoreSendFailure);
+    const parsed = workerMessageSchema.safeParse(message);
+    if (!parsed.success || !worker.connected) return;
+    worker.send(parsed.data.type === "wake" ? WORKER_WAKE_MESSAGE : parsed.data, ignoreSendFailure);
   });
 }
 

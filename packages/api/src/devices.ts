@@ -75,6 +75,14 @@ export const saveDeviceNotificationsRequestSchema = z.object({
 });
 export type V1SaveDeviceNotifications = z.infer<typeof saveDeviceNotificationsRequestSchema>;
 
+export const V1_DEVICE_ACTIVITY_PATH = "/api/v1/devices/me/activity";
+export const DESKTOP_ACTIVITY_REPORT_INTERVAL_MS = 60_000;
+
+export const deviceActivityRequestSchema = z.object({
+  idleSeconds: z.number().int().min(0).max(31_536_000),
+});
+export type V1DeviceActivityRequest = z.infer<typeof deviceActivityRequestSchema>;
+
 const CONNECTION_QR_PREFIX = "ganger://connect";
 
 export interface ConnectionQr {

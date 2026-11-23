@@ -1,4 +1,4 @@
-import { CONTRACT_VERSION } from "@ganger/api";
+import { CONTRACT_VERSION, deviceActivityRequestSchema } from "@ganger/api";
 import type { V1ErrorReason, V1Meta } from "@ganger/api";
 import { authenticateDevice, connectDevice, registerDesktop } from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
@@ -35,6 +35,7 @@ import { getDeviceConnectionCodes } from "./device-connection-codes";
 import { removeDeviceAndCloseStreams } from "./device-removal";
 import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
+import { sendDeviceActivity } from "./worker-wake";
 
 const RUN_ACTION_BODY_LIMIT_BYTES = 64 * 1024;
 const NO_STORE = { "cache-control": "no-store" };
@@ -155,6 +156,19 @@ export async function serveV1SaveDeviceNotifications(request: Request): Promise<
   if (deviceId === null) return v1Error(401, "invalid-token");
   const reply = saveV1DeviceNotifications(getDatabase(), deviceId, await readJson(request));
   return reply.status === 200 ? v1Data(reply.settings) : v1Error(reply.status, reply.reason);
+}
+
+export async function serveV1DeviceActivity(
+  request: Request,
+  report: typeof sendDeviceActivity = sendDeviceActivity,
+  now: () => number = Date.now,
+): Promise<Response> {
+  const deviceId = requestDevice(request);
+  if (deviceId === null) return v1Error(401, "invalid-token");
+  const activity = deviceActivityRequestSchema.safeParse(await readJson(request));
+  if (!activity.success) return v1Error(400, "invalid-request");
+  report({ deviceId, lastUsedAt: now() - activity.data.idleSeconds * 1000 });
+  return v1Data({ recorded: true });
 }
 
 export function serveV1RunDetail(request: Request, runId: string): Response {

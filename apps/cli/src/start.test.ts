@@ -364,7 +364,14 @@ describe("start의 잠자기 방지", () => {
 
 const MESSAGE_SENDING_WEB = `
 import { createServer } from "node:http";
-const sent = [{ error: "no-entry" }, { type: "sleep" }, "wake", { type: "wake" }];
+const sent = [
+  { error: "no-entry" },
+  { type: "sleep" },
+  "wake",
+  { type: "device-activity", deviceId: "", lastUsedAt: 1 },
+  { type: "wake" },
+  { type: "device-activity", deviceId: "mac", lastUsedAt: 1000, extra: "dropped" },
+];
 const server = createServer((req, res) => {
   if (req.url === "/send") for (const message of sent) process.send(message);
   res.end("ok");
@@ -416,10 +423,17 @@ describe("start 의 worker 깨우기 중계", () => {
     });
 
     await fetch(`${started.url}/send`);
-    await vi.waitFor(() => expect(readLines(out)).toHaveLength(2));
-    await fetch(`${started.url}/send`);
     await vi.waitFor(() => expect(readLines(out)).toHaveLength(3));
-    expect(readLines(out)).toEqual([{ env: "ipc" }, { type: "wake" }, { type: "wake" }]);
+    await fetch(`${started.url}/send`);
+    await vi.waitFor(() => expect(readLines(out)).toHaveLength(5));
+    const activity = { type: "device-activity", deviceId: "mac", lastUsedAt: 1000 };
+    expect(readLines(out)).toEqual([
+      { env: "ipc" },
+      { type: "wake" },
+      activity,
+      { type: "wake" },
+      activity,
+    ]);
   });
 
   it("worker 가 끝난 뒤 web 이 보낸 신호는 멈춘 이유를 바꾸지 않는다", async () => {

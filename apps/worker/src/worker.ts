@@ -70,6 +70,7 @@ import { assignAutomatically, createAutoAssignState } from "./auto-assign.js";
 import { blockersClearToStart, createBlockerRefreshState, refreshBlockers } from "./blockers.js";
 import { processAgentMessages } from "./agent-messages.js";
 import { processRunControlRequests } from "./control.js";
+import { PUSH_FIRST_REPORT_WAIT_MS } from "./push-deferral.js";
 import { createPushDelivery } from "./push.js";
 import type { PushTransport } from "./push.js";
 import { processWebRequests } from "./requests.js";
@@ -86,10 +87,12 @@ export interface WorkerOptions {
   now?: () => Date;
   logger?: WorkerLogger;
   push?: Partial<PushTransport>;
+  receivesDeviceReports?: boolean;
 }
 
 export interface Worker {
   tick(): Promise<void>;
+  recordDeviceUse(deviceId: string, lastUsedAt: number): void;
   health(): WorkerHealth;
   close(): Promise<void>;
 }
@@ -105,6 +108,7 @@ const WATCHED_RUN_STATES = [...ACTIVE_RUN_STATES].filter((state) => state !== "q
 
 export interface RunningWorker {
   wake(): void;
+  recordDeviceUse(deviceId: string, lastUsedAt: number): void;
   stop(): Promise<void>;
 }
 
@@ -129,6 +133,7 @@ export function startWorker(
 
   return {
     wake: () => loop.wake(),
+    recordDeviceUse: (deviceId, lastUsedAt) => worker.recordDeviceUse(deviceId, lastUsedAt),
     stop: async () => {
       clearInterval(alive);
       loop.stop();
@@ -165,7 +170,15 @@ export function createWorker(options: WorkerOptions): Worker {
     autoAssign: createAutoAssignState(),
     blockerRefresh: createBlockerRefreshState(),
   };
-  const pushes = createPushDelivery({ db, now, logger, transport: options.push ?? {} });
+  const pushes = createPushDelivery({
+    db,
+    now,
+    logger,
+    transport: options.push ?? {},
+    ...(options.receivesDeviceReports === true
+      ? { waitForReportUntil: now().getTime() + PUSH_FIRST_REPORT_WAIT_MS }
+      : {}),
+  });
   let running: Promise<void> | null = null;
   let closed = false;
   let lastTickMs: number | null = null;
@@ -193,6 +206,7 @@ export function createWorker(options: WorkerOptions): Worker {
   };
 
   return {
+    recordDeviceUse: (deviceId, lastUsedAt) => pushes.recordDeviceUse(deviceId, lastUsedAt),
     tick: () => {
       if (closed) return Promise.reject(new Error("worker is closed"));
       running ??= timedTick().finally(() => {

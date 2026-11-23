@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import {
   CONTRACT_VERSION,
   V1_DESKTOP_REGISTER_PATH,
+  V1_DEVICE_ACTIVITY_PATH,
   V1_NOTIFICATION_PATHS,
   V1_PATHS,
   connectResponseSchema,
@@ -566,6 +567,38 @@ describe("v1 알림 사건", () => {
 
     expect(await endOf(stream)).toBe(true);
     expect(await refusalOf(await dashboard(token))).toEqual(refused(401, "invalid-token"));
+  });
+});
+
+describe("v1 이 기기의 마지막 사용 보고", () => {
+  const report = (token: string | undefined, body: unknown) =>
+    fetch(new URL(V1_DEVICE_ACTIVITY_PATH, baseUrl), {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...(token === undefined ? {} : authorized(token)),
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("토큰이 없거나 틀리면 거절한다", async () => {
+    expect(await refusalOf(await report(undefined, { idleSeconds: 1 }))).toEqual(
+      refused(401, "invalid-token"),
+    );
+    expect(await refusalOf(await report("wrong-token", { idleSeconds: 1 }))).toEqual(
+      refused(401, "invalid-token"),
+    );
+  });
+
+  it("유휴 초가 잘못되면 거절하고 맞으면 받는다", async () => {
+    const { token } = await connectedDevice();
+    for (const idleSeconds of [-1, 1.5, "1", null]) {
+      expect(await refusalOf(await report(token, { idleSeconds }))).toEqual(
+        refused(400, "invalid-request"),
+      );
+    }
+    const accepted = await report(token, { idleSeconds: 3 });
+    expect(accepted.status).toBe(200);
   });
 });
 
