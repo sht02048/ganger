@@ -1,6 +1,15 @@
+import { execFileSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { DEFAULT_ORCA_PATH } from "./config.js";
 import { parseProviderUsage } from "./provider-usage.js";
+import {
+  LOAD_SECTION_MARK,
+  parseRunnerLoad,
+  READ_USAGE_AND_LOAD_SCRIPT,
+  splitUsageAndLoad,
+  USAGE_SECTION_MARK,
+} from "./runner-load.js";
+import { toRemoteCommand } from "./shell.js";
 import { ScriptedExec, own, runnerWith, stdout } from "./test-support.js";
 
 function accountList(rateLimits: unknown): string {
@@ -110,5 +119,60 @@ describe("OrcaRunner.readProviderUsage", () => {
       timedOut: true,
     });
     expect(await runnerWith(timedOut).readProviderUsage()).toEqual({ kind: "unreadable" });
+  });
+});
+
+describe("OrcaRunner.readUsageAndLoad", () => {
+  const loadOutput = `\n${LOAD_SECTION_MARK}os\nLinux\n${LOAD_SECTION_MARK}loadavg\n4.00 1 1 1/1 1\n${LOAD_SECTION_MARK}cores\n8\n`;
+
+  test("reads usage and load over one ssh command", async () => {
+    const exec = new ScriptedExec().on(
+      "sh -c",
+      stdout(`${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}`),
+    );
+    const { usage, load } = await runnerWith(exec).readUsageAndLoad();
+    expect(exec.commands()).toHaveLength(1);
+    expect(exec.commands()[0]?.endsWith(` sh ${DEFAULT_ORCA_PATH}`)).toBe(true);
+    expect(usage.kind).toBe("read");
+    expect(load).toMatchObject({ kind: "read", cpu: { percent: 50, cores: 8 } });
+  });
+
+  test("keeps the usage when a load command hangs until the timeout", async () => {
+    const exec = new ScriptedExec().on("sh -c", {
+      exitCode: null,
+      stdout: `${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}`,
+      stderr: "",
+      timedOut: true,
+    });
+    const { usage, load } = await runnerWith(exec).readUsageAndLoad();
+    expect(usage.kind).toBe("read");
+    expect(load).toEqual({ kind: "unreadable" });
+  });
+
+  test("a usage command cut off by the timeout is unreadable", async () => {
+    const exec = new ScriptedExec().on("sh -c", {
+      exitCode: null,
+      stdout: '{"ok":',
+      stderr: "",
+      timedOut: true,
+    });
+    expect(await runnerWith(exec).readUsageAndLoad()).toEqual({
+      usage: { kind: "unreadable" },
+      load: { kind: "unreadable" },
+    });
+  });
+
+  test("an unreachable runner reads as unreadable for both", async () => {
+    expect(await runnerWith(new ScriptedExec()).readUsageAndLoad()).toEqual({
+      usage: { kind: "unreadable" },
+      load: { kind: "unreadable" },
+    });
+  });
+
+  test("the quoted script runs in a real shell and reaches the orca command", () => {
+    const command = toRemoteCommand(["sh", "-c", READ_USAGE_AND_LOAD_SCRIPT, "sh", "/bin/echo"]);
+    const output = execFileSync("sh", ["-c", command], { encoding: "utf8" });
+    expect(splitUsageAndLoad(output).usage.trim()).toBe("account list --json");
+    expect(parseRunnerLoad(splitUsageAndLoad(output).load).kind).toBe("read");
   });
 });

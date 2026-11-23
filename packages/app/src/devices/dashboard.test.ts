@@ -144,6 +144,7 @@ describe("v1 Dashboard 계약", () => {
       capacity: 1,
       usage: null,
       limits: [limit],
+      loadHigh: null,
     };
     const offline = { ...runner, id: "o", cause: "offline" as const, limits: [] };
     const dashboard = toV1Dashboard(

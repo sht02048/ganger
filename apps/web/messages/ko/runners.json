@@ -2,14 +2,27 @@
   "documentTitle": "Runners · Ganger",
   "title": "Runners",
   "subtitle": "{issues, plural, =0 {러너 {total}대 모두 문제가 없어요.} other {{total}대 중 #대에 문제가 있어요.}} {available, plural, =0 {지금 새 런을 받을 수 있는 러너가 없어요.} other {#대가 지금 새 런을 받을 수 있어요.}}",
+  "subtitleLoadHigh": "부하가 높아요: {names}.",
   "add": "러너 추가",
   "listLabel": "러너 목록",
   "columns": {
     "runner": "러너",
     "capacity": "자리",
-    "usage": "사용량(가장 높은 값)"
+    "usage": "사용량(가장 높은 값)",
+    "load": "부하"
   },
   "capacityCellsLabel": "{total}자리 중 {used}자리 사용",
+  "load": {
+    "cpu": "CPU",
+    "memory": "메모리",
+    "gpu": "GPU",
+    "none": "없음",
+    "barLabel": "{runner} {name} 부하",
+    "offline": "Offline이라 읽지 못했어요",
+    "notRead": "아직 읽지 않았어요",
+    "unreadable": "부하를 읽지 못했어요",
+    "highName": "{name}({parts})"
+  },
   "usage": {
     "name": "{provider} {window}",
     "barLabel": "{runner} {provider} {window} 사용량",
@@ -84,6 +97,16 @@
     "worktree": {
       "keep-until-pr-settles": "PR이 병합되거나 닫힐 때까지 남겨요",
       "operator-decides": "사람이 지워야 해요"
+    },
+    "load": {
+      "title": "부하",
+      "readAgo": "{time} 읽음",
+      "notRead": "아직 부하를 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
+      "unreadable": "부하를 읽지 못했어요. 다음 점검 때 다시 읽어요.",
+      "cpuNote": "코어 {cores}개에 부하 {load}",
+      "cpuHighNote": "코어 {cores}개에 부하 {load} · 5분 넘게 높아요",
+      "memoryNote": "{used} / {total} GB",
+      "memoryPressureNote": "{used} / {total} GB · 메모리 압박 {pressure, select, high {높음} other {보통}}"
     },
     "usage": {
       "title": "사용량",

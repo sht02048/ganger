@@ -119,6 +119,8 @@ export const runners = sqliteTable(
     offlineSince: timeMs("offline_since"),
     providerUsage: text("provider_usage"),
     providerUsageReadAt: timeMs("provider_usage_read_at"),
+    load: text("load"),
+    loadReadAt: timeMs("load_read_at"),
     createdAt: timeMs("created_at").notNull(),
   },
   (t) => [

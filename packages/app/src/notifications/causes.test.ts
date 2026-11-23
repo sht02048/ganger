@@ -31,6 +31,7 @@ function runner(id: string, overrides: Partial<StoredRunner> = {}): StoredRunner
     checkError: null,
     offlineSince: null,
     providerUsage: null,
+    load: null,
     projects: [],
     ...overrides,
   };

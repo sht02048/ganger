@@ -13,6 +13,7 @@ import {
   ExpandableRow,
   focusStyles,
   InfoTip,
+  LoadMeters,
   MascotMessage,
   PageHeader,
   PanelList,
@@ -36,7 +37,7 @@ import {
   UsageBar,
   UsageMeter,
 } from "@ganger/ui";
-import type { CheckResultState } from "@ganger/ui";
+import type { CheckResultState, LoadMeterItem } from "@ganger/ui";
 import { USAGE_HIGH_PERCENT } from "@ganger/core";
 import type { PrerequisiteFailureKind } from "@ganger/core";
 import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
@@ -55,6 +56,7 @@ import { useStatusName } from "../status";
 import {
   failedChecksFirst,
   problemRunnersFirst,
+  runnerLoadHigh,
   runnerRowStatus,
   runnerRunsWorkspace,
 } from "@ganger/app/runners/model";
@@ -67,6 +69,7 @@ import {
 import type {
   ProviderUsageView,
   RunnerCheckItem,
+  RunnerLoadView,
   RunnerUsageView,
   RunnerView,
   RunnersPage,
@@ -120,6 +123,7 @@ export function RunnersScreen({
   const available = runners.filter(
     (r) => runnerRowStatus(r) === "online" && r.occupying.length < r.capacity,
   ).length;
+  const loadSentence = useLoadHighSentence(runners);
   const adding = selectedId === ADD_RUNNER_SELECTION && setup !== undefined;
   const { blocked, report: reportUnsaved, guard } = useUnsavedHold("[data-runner-editing]");
   const guardLinks = (event: MouseEvent<HTMLDivElement>) => {
@@ -154,7 +158,9 @@ export function RunnersScreen({
             subtitle={
               runners.length === 0
                 ? undefined
-                : t("subtitle", { total: runners.length, available, issues })
+                : [t("subtitle", { total: runners.length, available, issues }), loadSentence]
+                    .filter((sentence) => sentence !== null)
+                    .join(" ")
             }
             actions={
               <a
@@ -177,10 +183,12 @@ export function RunnersScreen({
               ) : (
                 <Table columns="minmax(0, 1fr)">
                   <ResponsiveColumnsHead
+                    fit="roomy"
                     lead={t("columns.runner")}
                     columns={[
                       { width: size.capacityCellsColumn, content: t("columns.capacity") },
                       { width: size.usageColumn, content: t("columns.usage") },
+                      { width: size.loadColumn, content: t("columns.load") },
                     ]}
                   />
                   <TableRows
@@ -250,10 +258,12 @@ function RunnerRow({ runner }: { runner: RunnerView }) {
     <TableRow value={runner.id} label={runner.name}>
       <TableCell>
         <ResponsiveColumns
+          fit="roomy"
           id={rowMarkerId(runner.id)}
           columns={[
             { width: size.capacityCellsColumn, content: <RunnerCapacity runner={runner} /> },
             { width: size.usageColumn, content: <HighestUsage runner={runner} /> },
+            { width: size.loadColumn, content: <RunnerLoadCell runner={runner} /> },
           ]}
           lead={
             <>
@@ -404,6 +414,7 @@ function RunnerPanel({
       {needsFix ? <FixCard runner={runner} target={target} recheck={recheck} /> : null}
       {needsFix ? <CheckList runner={runner} target={target} /> : null}
       <CapacityRuns runner={runner} ws={ws} />
+      <RunnerLoadSection runner={runner} />
       <ProviderUsage runner={runner} />
       {needsFix ? null : <CheckList runner={runner} target={target} />}
       <LeftWorktrees runner={runner} />
@@ -797,6 +808,138 @@ function HighestUsage({ runner }: { runner: RunnerView }) {
   );
 }
 
+const BYTES_PER_GB = 1024 ** 3;
+
+function gigabytes(bytes: number): number {
+  return Math.round(bytes / BYTES_PER_GB);
+}
+
+function useLoadHighSentence(runners: ReadonlyArray<RunnerView>): string | null {
+  const t = useTranslations("runners");
+  const list = new Intl.ListFormat(useLocale(), { type: "conjunction", style: "short" });
+  const names = runners.flatMap((runner) => {
+    const high = runnerLoadHigh(runner.load ?? null);
+    if (high === null) return [];
+    const parts = list.format([
+      ...(high.cpuPercent === null ? [] : [t("load.cpu")]),
+      ...(high.memoryPercent === null ? [] : [t("load.memory")]),
+    ]);
+    return [t("load.highName", { name: runner.name, parts })];
+  });
+  return names.length === 0 ? null : t("subtitleLoadHigh", { names: list.format(names) });
+}
+
+function useLoadItems(
+  runner: RunnerView,
+  load: Extract<RunnerLoadView, { kind: "read" }>,
+  withNotes: boolean,
+): LoadMeterItem[] {
+  const t = useTranslations("runners.load");
+  const tPanel = useTranslations("runners.panel.load");
+  const { cpu, memory, gpu } = load;
+  const barLabel = (name: string) => t("barLabel", { runner: runner.name, name });
+  const cpuNote =
+    cpu === null
+      ? undefined
+      : tPanel(cpu.high ? "cpuHighNote" : "cpuNote", {
+          cores: cpu.cores,
+          load: cpu.loadAverage.toFixed(1),
+        });
+  const memorySize =
+    memory === null
+      ? null
+      : { used: gigabytes(memory.usedBytes), total: gigabytes(memory.totalBytes) };
+  const memoryNote =
+    memory === null || memorySize === null
+      ? undefined
+      : memory.pressure === null
+        ? tPanel("memoryNote", memorySize)
+        : tPanel("memoryPressureNote", { ...memorySize, pressure: memory.pressure });
+  const note = (text: string | null | undefined) =>
+    withNotes && text !== undefined && text !== null ? { note: text } : {};
+  return [
+    {
+      id: "cpu",
+      name: t("cpu"),
+      percent: cpu?.percent ?? null,
+      label: barLabel(t("cpu")),
+      emptyText: t("none"),
+      tone: cpu?.high === true ? "problem" : "neutral",
+      ...note(cpuNote),
+    },
+    {
+      id: "memory",
+      name: t("memory"),
+      percent: memory?.percent ?? null,
+      label: barLabel(t("memory")),
+      emptyText: t("none"),
+      tone: memory?.high === true ? "problem" : "neutral",
+      ...note(memoryNote),
+    },
+    {
+      id: "gpu",
+      name: t("gpu"),
+      percent: gpu?.percent ?? null,
+      label: barLabel(t("gpu")),
+      emptyText: t("none"),
+      ...note(gpu?.name),
+    },
+  ];
+}
+
+function RunnerLoadCell({ runner }: { runner: RunnerView }) {
+  const t = useTranslations("runners.load");
+  const load = runner.load ?? null;
+  if (!runner.online) return <Text variant="meta">{t("offline")}</Text>;
+  if (load === null) return <Text variant="meta">{t("notRead")}</Text>;
+  if (load.kind === "unreadable") return <Text variant="meta">{t("unreadable")}</Text>;
+  return <RunnerLoadMeters runner={runner} load={load} />;
+}
+
+function RunnerLoadMeters({
+  runner,
+  load,
+}: {
+  runner: RunnerView;
+  load: Extract<RunnerLoadView, { kind: "read" }>;
+}) {
+  return <LoadMeters density="compact" items={useLoadItems(runner, load, false)} />;
+}
+
+function RunnerLoadDetail({
+  runner,
+  load,
+}: {
+  runner: RunnerView;
+  load: Extract<RunnerLoadView, { kind: "read" }>;
+}) {
+  return <LoadMeters items={useLoadItems(runner, load, true)} />;
+}
+
+function RunnerLoadSection({ runner }: { runner: RunnerView }) {
+  const t = useTranslations("runners.panel.load");
+  const tLoad = useTranslations("runners.load");
+  const { ago } = useTime();
+  const load = runner.load ?? null;
+  return (
+    <PanelSection
+      titleRole="subheading"
+      title={t("title")}
+      {...(load === null ? {} : { meta: t("readAgo", { time: ago(load.readAt, load.agoMs) }) })}
+    >
+      {!runner.online ? (
+        <Text variant="ui">{tLoad("offline")}</Text>
+      ) : load === null ? (
+        <Text variant="ui">{t("notRead")}</Text>
+      ) : load.kind === "unreadable" ? (
+        <Text variant="ui">{t("unreadable")}</Text>
+      ) : (
+        <RunnerLoadDetail runner={runner} load={load} />
+      )}
+    </PanelSection>
+  );
+}
+
 function ProviderUsage({ runner }: { runner: RunnerView }) {
   const t = useTranslations("runners.panel.usage");
   const { ago } = useTime();
@@ -955,7 +1098,7 @@ const styles = stylex.create({
     minWidth: 0,
   },
   highestQualifier: {
-    display: { default: "none", [breakpoints.responsiveColumnsStacked]: "block" },
+    display: { default: "none", [breakpoints.responsiveColumnsRoomyStacked]: "block" },
   },
   panelHead: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   statusLine: { display: "flex", flexWrap: "wrap", alignItems: "center", gap: space.s2 },

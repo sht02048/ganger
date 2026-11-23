@@ -53,7 +53,14 @@
     "fix": "Runners에서 고치기",
     "usage": "{provider} {window} {percent}%",
     "limit": "{provider} {window} 한도에 닿았어요: {name} · {duration} 뒤 한도가 풀리면 다시 런을 받아요",
-    "limitUnknown": "{provider} {window} 한도에 닿았어요: {name}"
+    "limitUnknown": "{provider} {window} 한도에 닿았어요: {name}",
+    "loadTitle": "러너 {count}대의 부하가 높아요",
+    "loadView": "Runners에서 보기",
+    "loadNote": "새 런은 그대로 받아요. 느려질 수 있어요.",
+    "loadCpu": "CPU 부하가 높아요: {name} · 5분 넘게 {percent}%",
+    "loadMemory": "메모리 부하가 높아요: {name} · {percent}%",
+    "rowLoadCpu": "CPU {percent}% · 5분 넘게 높아요",
+    "rowLoadMemory": "메모리 {percent}% · 부하가 높아요"
   },
   "card": {
     "cancelling": "취소 중",

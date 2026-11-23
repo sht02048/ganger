@@ -5,6 +5,7 @@ import type { Database, StoredProviderUsage, StoredRun } from "@ganger/db";
 import { z } from "zod";
 import { pendingInput } from "../home/load.js";
 import { prerequisiteHint, prerequisiteProject } from "../prerequisites.js";
+import { runnerLoadView } from "./load-view.js";
 import type {
   LeftWorktree,
   OccupyingRun,
@@ -21,7 +22,11 @@ const runnerConfigSchema = z.object({
   orcaPath: z.string().min(1).optional().catch(undefined),
 });
 
-export function loadRunnersPage(db: Database, now: Date): RunnersPage {
+export function loadRunnersPage(
+  db: Database,
+  now: Date,
+  { includeLoad = false }: { includeLoad?: boolean } = {},
+): RunnersPage {
   const workspaces = new Map(listWorkspaces(db).map((w) => [w.id, { id: w.id, name: w.name }]));
   const workspaceOf = (run: StoredRun): RunWorkspace =>
     workspaces.get(run.workspaceId) ?? { id: run.workspaceId, name: run.workspaceId };
@@ -109,6 +114,7 @@ export function loadRunnersPage(db: Database, now: Date): RunnersPage {
       sshTarget: config.sshTarget ?? null,
       orcaPath: config.orcaPath ?? null,
       usage: usageView(runner.providerUsage, now),
+      ...(includeLoad ? { load: runnerLoadView(runner.load, runner.online, now) } : {}),
     };
   });
   return { runners };

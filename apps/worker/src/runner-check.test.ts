@@ -36,6 +36,37 @@ describe("러너 점검의 공급자 사용량(0086)", () => {
     expect(storedRunner().providerUsage).toEqual({ readAt: h.now, reading: claudeAt(72) });
   });
 
+  it("부하를 사용량과 같은 주기에 읽고 CPU 가 5분 넘게 높은 시작 시각을 이어 간다", async () => {
+    const id = h.addRunner({ id: "runner-a", capacity: 1, projects: [projectA] });
+    const reading = {
+      kind: "read" as const,
+      cpu: { percent: 95, loadAverage: 9.5, cores: 10 },
+      memory: null,
+      gpu: null,
+    };
+    h.runner(id).load = reading;
+    const combined = vi.spyOn(h.runner(id), "readUsageAndLoad");
+    const worker = h.worker();
+    h.advance(RUNNER_CHECK_INTERVAL_MS);
+    await worker.tick();
+    const startedAt = h.now;
+    expect(storedRunner().load).toEqual({ readAt: h.now, cpuHighSince: h.now, reading });
+
+    h.advance(RUNNER_CHECK_INTERVAL_MS);
+    await worker.tick();
+    expect(combined).toHaveBeenCalledTimes(1);
+
+    h.advance(PROVIDER_USAGE_INTERVAL_MS);
+    await worker.tick();
+    expect(combined).toHaveBeenCalledTimes(2);
+    expect(storedRunner().load).toEqual({ readAt: h.now, cpuHighSince: startedAt, reading });
+
+    h.runner(id).load = { ...reading, cpu: { ...reading.cpu, percent: 40 } };
+    h.advance(PROVIDER_USAGE_INTERVAL_MS);
+    await worker.tick();
+    expect(storedRunner().load?.cpuHighSince).toBeNull();
+  });
+
   it("사용량은 몇 분에 한 번만 다시 읽는다", async () => {
     const id = h.addRunner({ id: "runner-a", capacity: 1, projects: [projectA] });
     const read = vi.spyOn(h.runner(id), "readProviderUsage");

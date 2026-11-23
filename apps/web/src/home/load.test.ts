@@ -21,6 +21,7 @@ import {
   resolvePermissionWaits,
   recordProviderUsage,
   recordRunnerCheck,
+  recordRunnerLoad,
   requestRunCancel,
   updateRunRecords,
 } from "@ganger/db";
@@ -38,6 +39,7 @@ import {
 } from "../testing/seed";
 import { loadShell } from "@ganger/app/shell/load";
 import { loadHomePage } from "@ganger/app/home/load";
+import { loadRunnersPage } from "@ganger/app/runners/load";
 import type { AttentionItem, HomeRun } from "@ganger/app/home/model";
 import { dashboardBoard, runnerIssues } from "@ganger/app/home/model";
 import { ticketId } from "@ganger/app/tickets/load";
@@ -637,5 +639,38 @@ describe("loadHomePage 공급자 사용량(0086)", () => {
     for (const runner of loadHomePage(db, "ws-commerce", now, "UTC").runners.list) {
       expect(runner).toMatchObject({ usage: null, limits: [] });
     }
+  });
+
+  it("부하는 웹 화면이 요청할 때만 담아 MCP 응답에 나가지 않는다(0191)", () => {
+    const { db } = seedDatabase();
+    const runnerId = toRunnerId("runner-a");
+    const reading = {
+      kind: "read" as const,
+      cpu: { percent: 95, loadAverage: 9.5, cores: 10 },
+      memory: null,
+      gpu: { percent: 12, name: "Apple GPU" },
+    };
+    recordRunnerCheck(db, {
+      runnerId,
+      online: true,
+      checkedAt: now,
+      error: null,
+      projects: null,
+      assignmentBlocked: false,
+    });
+    recordRunnerLoad(db, { runnerId, readAt: new Date(now.getTime() - 6 * 60_000), reading });
+    recordRunnerLoad(db, { runnerId, readAt: now, reading });
+
+    const home = (options?: { includeLoad: boolean }) =>
+      loadHomePage(db, "ws-commerce", now, "UTC", options).runners.list.find(
+        (runner) => runner.id === runnerId,
+      );
+    const runnersPage = (options?: { includeLoad: boolean }) =>
+      loadRunnersPage(db, now, options).runners.find((runner) => runner.id === runnerId);
+
+    expect(home()).not.toHaveProperty("loadHigh");
+    expect(runnersPage()).not.toHaveProperty("load");
+    expect(home({ includeLoad: true })?.loadHigh).toEqual({ cpuPercent: 95, memoryPercent: null });
+    expect(runnersPage({ includeLoad: true })?.load).toMatchObject({ kind: "read" });
   });
 });

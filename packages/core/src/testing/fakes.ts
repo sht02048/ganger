@@ -2,6 +2,7 @@ import { AdapterError } from "../adapters.js";
 import { NO_TICKET_RELATIONS } from "../blockers.js";
 import type { TicketRelations } from "../blockers.js";
 import type { ProviderUsageReading } from "../provider-usage.js";
+import type { RunnerLoadReading } from "../runner-load.js";
 import type {
   AgentSendResult,
   AgentActivity,
@@ -263,6 +264,7 @@ export class FakeRunner implements Runner {
   ];
   projects: RunnerProject[] = [];
   providerUsage: ProviderUsageReading = { kind: "read", providers: [] };
+  load: RunnerLoadReading = { kind: "unreadable" };
   failNextStart: RunnerErrorDetail | null = null;
   failNextControl: RunnerErrorDetail | null = null;
   nextSendStartsFollowUp: FollowUpRef | null = null;
@@ -386,6 +388,11 @@ export class FakeRunner implements Runner {
 
   readProviderUsage(): Promise<ProviderUsageReading> {
     return this.reach(() => this.providerUsage);
+  }
+
+  async readUsageAndLoad(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }> {
+    const usage = await this.readProviderUsage();
+    return { usage, load: this.load };
   }
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef> {
