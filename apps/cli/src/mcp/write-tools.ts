@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   AnswerRejectedError,
   DenyRejectedError,
@@ -19,7 +20,6 @@ import {
   cancelRunOnce,
   cancelRunRequest,
   continueRunOnce,
-  continueRunRequest,
   controlRunOnce,
   MCP_ANSWER_ACTION,
   onceForRun,
@@ -502,12 +502,16 @@ export function registerWriteTools(
     {
       title: "Answer a Human Check",
       description:
-        'Answers the Human Check a waiting run asked for, the same as "확인했어요" (confirmed) or "고쳐 주세요" (changes-requested) on the Dashboard or Run detail. This is a confirmation like approving a merge, so confirm with the operator first. The note is optional. Leave questionId out to answer the run\'s pending Human Check.',
+        'Answers the Human Check a waiting run asked for, the same as "확인했어요" (confirmed) or "고쳐 주세요" (changes-requested) on the Dashboard or Run detail. This is a confirmation like approving a merge, so confirm with the operator first. The note is optional.',
       annotations: WRITE,
     },
     {
       runId: runIdArg,
-      questionId: z.string().min(1).max(200).optional(),
+      questionId: z
+        .string()
+        .min(1)
+        .max(200)
+        .describe("The id of the Human Check the operator saw, as get_run gives it."),
       decision: z.enum(HUMAN_CHECK_DECISIONS),
       note: z.string().optional().describe("Optional words to add to the answer."),
       requestId: requestIdArg,
@@ -517,18 +521,16 @@ export function registerWriteTools(
       if (run === null) return noRun(runId);
       const base = { target: run.ticket.key, runId: run.id };
       const answerNow = (): Outcome => {
-        const pending = pendingInput(context.db, run.id);
-        const id = questionId ?? (pending?.kind === "human-check" ? pending.questionId : undefined);
-        if (id === undefined) {
+        if (findRun(run.id)?.state === "ended") {
           return rejected({
             ...base,
-            reason: "no-human-check",
-            error: "The run has no pending Human Check.",
+            reason: "already-ended",
+            error: "The run has ended, so the agent can no longer receive this answer.",
           });
         }
         const input = screenChecked(
           humanCheckAnswerInput,
-          { runId: run.id, questionId: id, decision, note: note ?? "" },
+          { runId: run.id, questionId, decision, note: note ?? "" },
           base,
         );
         if (!input.ok) return input.outcome;
@@ -536,6 +538,13 @@ export function registerWriteTools(
           submitHumanCheckAnswer(context.db, input.data, context.now());
         } catch (error) {
           if (!(error instanceof AnswerRejectedError)) throw error;
+          if (error.reason === "not-found") {
+            return rejected({
+              ...base,
+              reason: "no-human-check",
+              error: `The run has no Human Check with the id "${questionId}".`,
+            });
+          }
           return rejected({
             ...base,
             reason: error.reason,
@@ -550,7 +559,7 @@ export function registerWriteTools(
         context.db,
         { runId: run.id, requestId },
         MCP_HUMAN_CHECK_ACTION,
-        [questionId ?? "", decision, (note ?? "").trim()],
+        [questionId, decision, (note ?? "").trim()],
         context.now(),
         () => {
           outcome = answerNow();
@@ -635,22 +644,16 @@ export function registerWriteTools(
       let replayed = false;
       const failedRunBlock = () =>
         continueRunBlock(context.db, run.id) ?? mobileContinueBlock(context.db, run.id);
-      const blocked = requestId === undefined ? failedRunBlock() : null;
-      const result =
-        blocked !== null
-          ? { ok: false as const, reason: blocked }
-          : requestId === undefined
-            ? continueRunRequest(context.db, run.id, message, context.now())
-            : continueRunOnce(
-                context.db,
-                { runId: run.id, requestId },
-                message,
-                context.now(),
-                failedRunBlock,
-                () => {
-                  replayed = true;
-                },
-              );
+      const result = continueRunOnce(
+        context.db,
+        { runId: run.id, requestId: requestId ?? randomUUID() },
+        message,
+        context.now(),
+        failedRunBlock,
+        () => {
+          replayed = true;
+        },
+      );
       if (!result.ok) {
         return rejected({
           target: run.ticket.key,

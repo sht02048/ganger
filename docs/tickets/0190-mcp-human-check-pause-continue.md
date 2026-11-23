@@ -22,7 +22,7 @@ MCP 클라이언트가 머지 확인(Human Check)에 답하지 못하고, 화면
 ## 범위
 
 - 쓰기 도구 `answer_human_check`, `pause_run`, `resume_run`, `continue_run`을 더한다.
-- Human Check는 `onceForRun`과 화면의 핵심 함수 `submitHumanCheckAnswer`를 MCP 전용 action 이름으로 부른다. `questionId`를 생략할 수 있어 `answer_question`과 같은 방식이고, 다른 내용의 `requestId`를 `request-reused`로 거절한다.
+- Human Check는 `onceForRun`과 화면의 핵심 함수 `submitHumanCheckAnswer`를 MCP 전용 action 이름으로 부른다. 다른 내용의 `requestId`는 `request-reused`로 거절한다. `questionId`는 필수라 운영자가 본 Human Check에만 답이 들어간다. 끝난 런은 답이 에이전트에게 닿지 않아 거절한다.
 - `controlRunOnce`·`continueRunOnce`에 선택 인자 `onReplay`만 더해 재처리를 작업 기록에 다시 남기지 않는다.
 - 작업 기록의 도구 이름과 거절 이유 문구를 Run 상세와 Settings 메시지에 더한다.
 - ADR 0013 결과 절과 `docs/guide/mcp.md`를 맞춘다. ADR 0013의 결정은 바꾸지 않는다.

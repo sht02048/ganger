@@ -541,6 +541,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     expect(await toolNames()).not.toContain("answer_human_check");
     const off = await call("answer_human_check", {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "confirmed",
     });
     expect(off.isError).toBe(true);
@@ -560,6 +561,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     await connect("hermes");
     const answered = await call("answer_human_check", {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "confirmed",
     });
     expect(answered.isError).toBe(false);
@@ -579,6 +581,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     await connect();
     await call("answer_human_check", {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "changes-requested",
       note: "  문구를 고쳐 주세요  ",
     });
@@ -589,6 +592,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     await connect();
     const refused = await call("answer_human_check", {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "confirmed",
     });
     expect(refused.json["reason"]).toBe("no-human-check");
@@ -602,8 +606,52 @@ describe("MCP Human Check 답하기(0190)", () => {
       questionId: "q-1",
       decision: "confirmed",
     });
-    expect(refused.json["reason"]).toBe("not-found");
+    expect(refused.json["reason"]).toBe("no-human-check");
     expect(listRunQuestions(seeded.db, seeded.waiting)[0]?.answer).toBeNull();
+  });
+
+  it("어떤 Human Check 인지 밝히지 않으면 답하지 않는다", async () => {
+    const checkId = askHumanCheck();
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      decision: "confirmed",
+    });
+    expect(refused.isError).toBe(true);
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+  });
+
+  it("끝난 런의 Human Check 는 에이전트에게 닿지 않으므로 거절한다", async () => {
+    const checkId = askHumanCheck();
+    const ended = changeRunState(
+      seeded.db,
+      seeded.waiting,
+      { to: "ended", agentResult: "reported-success", prState: "none" },
+      at(30),
+    );
+    if (!ended.ok) throw new Error("end run");
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: checkId,
+      decision: "confirmed",
+    });
+    expect(refused.json["reason"]).toBe("already-ended");
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+    expect(mcpLog(seeded.waiting)).toEqual([["answer_human_check", "rejected", "already-ended"]]);
+  });
+
+  it("멈춘 런의 Human Check 에는 답할 수 있다", async () => {
+    const checkId = askHumanCheck();
+    moveWaitingRunTo("paused");
+    await connect();
+    const answered = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: checkId,
+      decision: "confirmed",
+    });
+    expect(answered.isError).toBe(false);
+    expect(humanCheckAnswer(checkId)).toBe("확인했어요");
   });
 
   it("화면 길이를 넘는 말은 거절한다", async () => {
@@ -611,6 +659,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     await connect();
     const refused = await call("answer_human_check", {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "confirmed",
       note: "가".repeat(10_001),
     });
@@ -623,6 +672,7 @@ describe("MCP Human Check 답하기(0190)", () => {
     await connect();
     const args = {
       runId: seeded.waiting,
+      questionId: "msg-check",
       decision: "confirmed",
       requestId: "mcp-human-check-0190",
     };
