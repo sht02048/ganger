@@ -147,6 +147,19 @@ describe("Run 상세의 돌아가기 (0181)", () => {
   );
 });
 
+describe("Run 상세의 티켓 링크 (0197)", () => {
+  it("머리에 런의 트래커 경로를 새 탭으로 여는 이름 있는 링크가 있다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    const html = render({ kind: "found", run: found(db, id) });
+    const anchor = html
+      .match(/<a [^>]*>/g)
+      ?.find((tag) => tag.includes(`href="/runs/${encodeURIComponent(id ?? "")}/ticket"`));
+    expect(anchor).toContain('target="_blank"');
+    expect(anchor).toContain(`aria-label="${runJson.openInTracker} (${runJson.newTab})"`);
+  });
+});
+
 describe("Run 상세의 먼저 끝나야 하는 티켓 (0160)", () => {
   const blocker = (key: string, stateName: string, stateCategory: string) => ({
     key,

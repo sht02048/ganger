@@ -228,6 +228,20 @@ afterEach(() => {
 
 const fill = (template: string) => template.replace("{key}", KEY);
 
+describe("Dashboard 패널의 티켓 링크(티켓 0197)", () => {
+  it("티켓 줄에 런의 트래커 경로를 새 탭으로 여는 이름 있는 링크가 있다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    draw(page);
+    const runId = targetRun(page).id;
+    await openSheet(runId);
+    const name = `${homeJson.sheet.openInTracker} (${homeJson.sheet.newTab})`;
+    const link = dialog()?.querySelector<HTMLAnchorElement>(`a[aria-label="${name}"]`);
+    expect(link?.getAttribute("href")).toBe(`/runs/${encodeURIComponent(runId)}/ticket`);
+    expect(link?.target).toBe("_blank");
+    expect(link?.rel).toContain("noreferrer");
+  });
+});
+
 describe("Dashboard 패널 보내기(티켓 0193)", () => {
   it("질문에 답하면 패널을 닫고 토스트를 띄우고 카드로 포커스를 돌린다", async () => {
     const page = withInput(loadSeededPage(), questionInput);

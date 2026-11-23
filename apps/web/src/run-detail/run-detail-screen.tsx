@@ -12,6 +12,7 @@ import {
   Dialog,
   DialogClose,
   Disclosure,
+  ExternalIconLink,
   Field,
   Input,
   MotionList,
@@ -38,6 +39,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
+import { runTicketHref } from "../run-ticket-href";
 import { RUN_ANSWER_HASH } from "../navigation/back-target";
 import type { BackOrigin } from "../navigation/back-target";
 import { isPlainLinkClick } from "../navigation/in-app-links";
@@ -199,6 +201,12 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
             ...(run.runner === null ? [] : [run.runner.name]),
             ...(run.branch === null ? [] : [run.branch]),
           ].join(t("metaSeparator"))}
+          actions={
+            <ExternalIconLink
+              href={runTicketHref(run.id)}
+              label={`${t("openInTracker")} (${t("newTab")})`}
+            />
+          }
         />
       }
     >

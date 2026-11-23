@@ -4,6 +4,7 @@ import {
   CodeBlock,
   DefinitionItem,
   DefinitionList,
+  ExternalIconLink,
   Field,
   Input,
   PanelSection,
@@ -26,6 +27,7 @@ import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControl } from "@ganger/core";
 import { HumanCheckAnswer } from "../question/human-check-answer";
 import { QuestionAnswer } from "../question/question-answer";
+import { runTicketHref } from "../run-ticket-href";
 import type { SheetMode } from "./run-card";
 import { RunKey, cardStatus, runHref, ticketHref, useRunText } from "./run-text";
 import type { AnswerInput, DenyInput, HumanCheckInput } from "./home-screen";
@@ -329,7 +331,17 @@ function RunFacts({ run, all }: { run: HomeRun; all: boolean }) {
   return (
     <DefinitionList>
       <DefinitionItem label={t("ticket")}>
-        {t("ticketValue", { key: run.ticketKey, project: run.trackerProject })}
+        <span {...stylex.props(styles.ticketLine)}>
+          <span {...stylex.props(styles.ticketText)}>
+            {t("ticketValue", { key: run.ticketKey, project: run.trackerProject })}
+          </span>
+          <span {...stylex.props(styles.ticketLinkSlot)}>
+            <ExternalIconLink
+              href={runTicketHref(run.id)}
+              label={`${t("openInTracker")} (${t("newTab")})`}
+            />
+          </span>
+        </span>
       </DefinitionItem>
       {all ? <DefinitionItem label={t("workspace")}>{run.workspace.name}</DefinitionItem> : null}
       <DefinitionItem label={t("runner")} empty={run.runner === null}>
@@ -517,4 +529,7 @@ const styles = stylex.create({
   controlBelowStatus: { paddingTop: space.s2 },
   foot: { display: "flex", justifyContent: "flex-end", gap: space.s3 },
   result: { outline: "none" },
+  ticketLine: { display: "flex", alignItems: "flex-start", gap: space.s2, minWidth: 0 },
+  ticketText: { minWidth: 0, overflowWrap: "anywhere" },
+  ticketLinkSlot: { display: "flex", alignItems: "center", flexShrink: 0, height: "1lh" },
 });

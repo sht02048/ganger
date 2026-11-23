@@ -120,6 +120,8 @@
     "retry": "Tickets에서 다시 맡기기",
     "ticket": "티켓",
     "ticketValue": "{key} · {project}",
+    "openInTracker": "트래커에서 열기",
+    "newTab": "새 탭에서 열려요",
     "workspace": "Workspace",
     "runner": "러너",
     "noRunner": "아직 없어요",
