@@ -149,6 +149,7 @@ function Demo({ children }: { children: ReactNode }) {
 export function ComponentSections() {
   const t = useTranslations("ds");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [sheetTab, setSheetTab] = useState<"run" | "pr">("pr");
   const [selected, setSelected] = useState<RunId>("r1051");
   const [workspace, setWorkspace] = useState("commerce");
   const [agent, setAgent] = useState<string | null>(null);
@@ -315,6 +316,18 @@ export function ComponentSections() {
             </Tab>
             <Tab value="queued" count={0}>
               {t("tabs.queued")}
+            </Tab>
+          </Tabs>
+          <Tabs<"run" | "pr">
+            value={sheetTab}
+            onValueChange={setSheetTab}
+            label={t("tabs.sheetLabel")}
+          >
+            <Tab value="run" note={t("tabs.sheetNone")}>
+              {t("tabs.sheetPr")}
+            </Tab>
+            <Tab value="pr" dot={{ tone: "problem", label: t("tabs.sheetDot") }}>
+              {t("tabs.sheetPrWithId")}
             </Tab>
           </Tabs>
         </Section>

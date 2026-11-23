@@ -308,7 +308,16 @@ export {
   type StepNavProps,
   type StepState,
 } from "./components/steps";
-export { Tab, TabPanel, Tabs, type TabProps, type TabsProps } from "./components/tabs";
+export {
+  Tab,
+  TabPanel,
+  Tabs,
+  type TabDot,
+  type TabPanelProps,
+  type TabProps,
+  type TabsProps,
+} from "./components/tabs";
+export { FactCell, FactCells, type FactCellProps } from "./components/fact-cells";
 export {
   TEXT_TONES,
   TEXT_VARIANTS,

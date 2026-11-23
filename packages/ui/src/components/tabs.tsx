@@ -2,7 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 import { Tabs as SdkTabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tabs";
 import { createContext, use, type ReactNode } from "react";
 import { cx } from "../cx";
-import { colors, fontSize, fontWeight, motion, radius, space } from "../tokens.stylex";
+import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
+import type { StatusTone } from "./status-pill";
 
 export type TabsVariant = "underline" | "chips";
 
@@ -45,14 +46,21 @@ export function Tabs<T extends string>({
   );
 }
 
+export interface TabDot {
+  tone: StatusTone;
+  label: string;
+}
+
 export interface TabProps {
   value: string;
   children: ReactNode;
   count?: number;
   attention?: boolean;
+  note?: string;
+  dot?: TabDot;
 }
 
-export function Tab({ value, children, count, attention }: TabProps) {
+export function Tab({ value, children, count, attention, note, dot }: TabProps) {
   const variant = use(VariantContext);
   return (
     <TabsTab
@@ -77,13 +85,30 @@ export function Tab({ value, children, count, attention }: TabProps) {
           {count}
         </span>
       )}
+      {note === undefined ? null : <span {...stylex.props(styles.note)}>{note}</span>}
+      {dot === undefined ? null : (
+        <span data-tab-dot={dot.tone} {...stylex.props(styles.dotFrame)}>
+          <span aria-hidden="true" {...stylex.props(styles.dot, dotTones[dot.tone])} />
+          <span {...stylex.props(styles.screenReaderOnly)}>{dot.label}</span>
+        </span>
+      )}
     </TabsTab>
   );
 }
 
-export function TabPanel({ value, children }: { value: string; children: ReactNode }) {
+export interface TabPanelProps {
+  value: string;
+  children: ReactNode;
+  keepMounted?: boolean;
+}
+
+export function TabPanel({ value, children, keepMounted }: TabPanelProps) {
   return (
-    <TabsPanel value={value} className={cx(styles.panel)}>
+    <TabsPanel
+      value={value}
+      className={cx(styles.panel)}
+      {...(keepMounted === undefined ? {} : { keepMounted })}
+    >
       {children}
     </TabsPanel>
   );
@@ -164,4 +189,27 @@ const styles = stylex.create({
     fontWeight: fontWeight.semibold,
   },
   panel: { outline: "none" },
+  note: { color: colors.textTertiary, fontSize: fontSize.ui },
+  dotFrame: { position: "relative", display: "inline-flex", alignSelf: "center" },
+  dot: { width: size.dot, height: size.dot, borderRadius: radius.full },
+  screenReaderOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    margin: -1,
+    padding: 0,
+    overflow: "hidden",
+    clipPath: "inset(50%)",
+    whiteSpace: "nowrap",
+    borderWidth: 0,
+  },
+});
+
+const dotTones = stylex.create({
+  answer: { backgroundColor: colors.answer },
+  check: { backgroundColor: colors.check },
+  problem: { backgroundColor: colors.problem },
+  progress: { backgroundColor: colors.progress },
+  merged: { backgroundColor: colors.merged },
+  idle: { backgroundColor: colors.idle },
 });

@@ -12,18 +12,20 @@ export function SignalList({ children }: { children: ReactNode }) {
 
 export interface SignalRowProps {
   label: ReactNode;
-  tone: SignalTone;
+  tone?: SignalTone;
   action?: ReactNode;
   children: ReactNode;
 }
 
 export function SignalRow({ label, tone, action, children }: SignalRowProps) {
   return (
-    <div data-signal-tone={tone} {...stylex.props(styles.row)}>
+    <div data-signal-tone={tone ?? "none"} {...stylex.props(styles.row)}>
       <dt {...stylex.props(styles.label)}>{label}</dt>
       <dd {...stylex.props(styles.content)}>
-        <span {...stylex.props(styles.icon, iconTones[tone])}>
-          <SignalIcon tone={tone} />
+        <span
+          {...stylex.props(styles.icon, tone === undefined ? styles.iconBlank : iconTones[tone])}
+        >
+          {tone === undefined ? null : <SignalIcon tone={tone} />}
         </span>
         <span {...stylex.props(styles.value, tone === "problem" && styles.valueProblem)}>
           {children}
@@ -94,6 +96,7 @@ const styles = stylex.create({
     margin: 0,
   },
   icon: { display: "inline-flex", flexShrink: 0 },
+  iconBlank: { width: size.icon },
   value: {
     flexGrow: 1,
     flexBasis: 0,

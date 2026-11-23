@@ -31,6 +31,8 @@ import {
   SegmentedTabs,
   SignalList,
   SignalRow,
+  FactCell,
+  FactCells,
   StatTile,
   StatusDot,
   StatusPill,
@@ -321,7 +323,17 @@ export function RoleSections() {
                   <SignalRow label={t("signals.unknown")} tone="neutral">
                     {t("signals.unknownValue")}
                   </SignalRow>
+                  <SignalRow label={t("signals.link")}>{t("signals.linkValue")}</SignalRow>
                 </SignalList>
+                <FactCells>
+                  <FactCell label={t("signals.factRunner")}>
+                    {t("signals.factRunnerValue")}
+                  </FactCell>
+                  <FactCell label={t("signals.factAgent")}>{t("signals.factAgentValue")}</FactCell>
+                  <FactCell label={t("signals.factWorked")} empty>
+                    {t("signals.factWorkedValue")}
+                  </FactCell>
+                </FactCells>
               </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>
