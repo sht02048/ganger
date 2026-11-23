@@ -58,11 +58,12 @@ function CommitLine({ commit, newTabLabel }: { commit: CommitHistoryItem; newTab
         {commit.headline}
       </span>
       <span {...stylex.props(styles.sha)}>{commit.sha}</span>
-      {commit.author === null ? null : (
-        <span title={commit.author} {...stylex.props(styles.meta, styles.author)}>
-          {commit.author}
-        </span>
-      )}
+      <span
+        {...(commit.author === null ? {} : { title: commit.author })}
+        {...stylex.props(styles.meta, styles.author)}
+      >
+        {commit.author}
+      </span>
       <span {...stylex.props(styles.meta, styles.time)}>{commit.time}</span>
     </>
   );
@@ -121,19 +122,23 @@ const styles = stylex.create({
   },
   chevronOpen: { transform: "rotate(90deg)" },
   list: {
-    display: "flex",
-    flexDirection: "column",
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto fit-content(30%) auto",
+    columnGap: space.s2,
     margin: 0,
     paddingBlock: space.s1,
     paddingInline: 0,
     listStyle: "none",
     minWidth: 0,
   },
-  item: { minWidth: 0 },
+  item: { display: "grid", gridColumn: "1 / -1", gridTemplateColumns: "subgrid", minWidth: 0 },
   line: {
-    display: "flex",
+    position: "relative",
+    display: "grid",
+    gridColumn: "1 / -1",
+    gridTemplateColumns: "subgrid",
     alignItems: "baseline",
-    gap: space.s2,
+    columnGap: space.s2,
     minWidth: 0,
     paddingBlock: space.px6,
     paddingInline: space.s1,
@@ -149,25 +154,21 @@ const styles = stylex.create({
     },
   },
   headline: {
-    flexGrow: 1,
-    flexShrink: 1,
     minWidth: 0,
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   sha: {
-    flexShrink: 0,
     color: colors.textTertiary,
     fontFamily: fonts.mono,
     fontSize: fontSize.small,
   },
   meta: {
-    flexShrink: 0,
     color: colors.textTertiary,
     fontSize: fontSize.small,
     whiteSpace: "nowrap",
   },
-  author: { flexShrink: 1, maxWidth: "30%", overflow: "hidden", textOverflow: "ellipsis" },
+  author: { minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" },
   time: { fontVariantNumeric: "tabular-nums" },
 });
