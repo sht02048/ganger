@@ -66,6 +66,49 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+describe("캐시 복원(M56)", () => {
+  const cachedAt = NOW.getTime() - 5 * 60_000;
+  const restored = {
+    dashboards: new Map([["all", { data: dashboard, fetchedAt: cachedAt }]]),
+    workspaces: [{ id: "ws-cached", name: "Cached" }],
+  };
+
+  it("복원해도 읽기 전에는 loading이라 띠가 없고 행동 버튼을 켜지 않는다", () => {
+    const w = world();
+    w.session.restore(restored);
+    const state = w.session.getState();
+    expect(state.phase).toBe("loading");
+    expect(state.actionsReady).toBe(false);
+    expect(state.dashboards.get("all")?.fetchedAt).toBe(cachedAt);
+    expect(state.workspaces).toEqual(restored.workspaces);
+  });
+
+  it("늦게 끝난 복원이 이미 읽은 새 내용을 덮지 않는다", async () => {
+    const w = world();
+    w.session.setForeground(true);
+    await settle();
+    w.session.restore(restored);
+    const state = w.session.getState();
+    expect(state.phase).toBe("live");
+    expect(state.actionsReady).toBe(true);
+    expect(state.dashboards.get("all")?.fetchedAt).toBe(NOW.getTime());
+    expect(state.fetchedAt).toBe(NOW.getTime());
+    expect(state.workspaces).toEqual([]);
+  });
+
+  it("복원 뒤 서버에 닿지 않으면 stale로 바뀌고 저장 시각을 유지한다", async () => {
+    const w = world();
+    w.session.restore(restored);
+    w.fail({ kind: "unreachable" });
+    w.session.setForeground(true);
+    await settle();
+    const state = w.session.getState();
+    expect(state.phase).toBe("stale");
+    expect(state.actionsReady).toBe(false);
+    expect(state.fetchedAt).toBe(cachedAt);
+  });
+});
+
 describe("행동 버튼을 켜는 때", () => {
   it("읽기가 성공해야 켜고, 뒤로 갔다 돌아오면 다시 읽을 때까지 끈다", async () => {
     const w = world();

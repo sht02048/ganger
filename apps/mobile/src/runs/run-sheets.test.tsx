@@ -155,6 +155,93 @@ async function type(label: string, value: string) {
 
 const isDisabled = (label: string) => byLabel(label)?.getAttribute("aria-disabled") === "true";
 
+describe("캐시한 런 상세(M56)", () => {
+  const cached: AppRunDetail = {
+    ...demoRunDetail(questionRun),
+    summary: { outcome: null, agentResult: null, report: "캐시한 보고", startError: null },
+  };
+  const cachedDetail = () => ({ data: cached, fetchedAt: Date.now() - 5 * 60_000 });
+  const cachedPort = (detail: RunPort["detail"]): RunPort => ({
+    ...fakePort().port,
+    cachedDetail,
+    detail,
+  });
+  const settle = () =>
+    act(async () => {
+      await Promise.resolve();
+    });
+
+  it("런 상세는 새 내용이 오기 전에 캐시를 띠 없이 보인다", async () => {
+    await open(
+      { kind: "detail", run: questionRun },
+      cachedPort(() => new Promise(() => undefined)),
+    );
+    expect(document.body.textContent).toContain("캐시한 보고");
+    expect(document.body.textContent).not.toContain("기준");
+  });
+
+  it("새로 읽지 못하면 캐시의 저장 시각을 띠로 보인다", async () => {
+    const port = cachedPort(() => Promise.resolve({ kind: "unavailable" }));
+    await open({ kind: "detail", run: questionRun }, port);
+    await settle();
+    expect(document.body.textContent).toContain("캐시한 보고");
+    expect(document.body.textContent).toContain("런 내용을 새로 읽지 못했어요 · 5분 전 기준");
+  });
+
+  it("연결이 돌아오면 다시 읽어 새 내용으로 바꾸고 띠를 지운다", async () => {
+    const detail = vi
+      .fn<RunPort["detail"]>()
+      .mockResolvedValueOnce({ kind: "unavailable" })
+      .mockResolvedValue({ kind: "ok", value: demoRunDetail(questionRun) });
+    const { setDisabled } = await open(
+      { kind: "detail", run: questionRun },
+      cachedPort(detail),
+      true,
+    );
+    await settle();
+    expect(document.body.textContent).toContain("5분 전 기준");
+    await setDisabled(false);
+    await settle();
+    expect(detail).toHaveBeenCalledTimes(2);
+    expect(document.body.textContent).not.toContain("5분 전 기준");
+    expect(document.body.textContent).not.toContain("캐시한 보고");
+  });
+
+  it("서버가 런을 찾지 못하면 캐시 대신 그 사실을 보인다", async () => {
+    const port = cachedPort(() => Promise.resolve({ kind: "not-found" }));
+    await open({ kind: "detail", run: questionRun }, port);
+    await settle();
+    expect(document.body.textContent).toContain("런을 찾지 못했어요");
+    expect(document.body.textContent).not.toContain("캐시한 보고");
+  });
+
+  it("답하기 시트는 오래된 캐시로 이미 답했다고 말하지 않는다", async () => {
+    const answered = demoRunDetail(questionRun);
+    const port: RunPort = {
+      ...fakePort().port,
+      cachedDetail: () => ({
+        data: {
+          ...answered,
+          input: {
+            kind: "question",
+            questionId: "q-old",
+            lead: [],
+            choices: [],
+            after: [],
+            answered: true,
+          },
+        },
+        fetchedAt: Date.now(),
+      }),
+      detail: () => Promise.resolve({ kind: "unavailable" }),
+    };
+    await open({ kind: "answer", run: questionRun }, port);
+    await settle();
+    expect(document.body.textContent).not.toContain("이미 답한 질문이에요");
+    expect(document.body.textContent).toContain("내용을 불러오지 못했어요");
+  });
+});
+
 describe("답하기 시트", () => {
   it("질문, 맥락, 선택지, 직접 쓰기, 고정된 안내와 보내기를 보인다", async () => {
     await open({ kind: "answer", run: questionRun }, fakePort().port);

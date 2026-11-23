@@ -4,12 +4,14 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
 
+import { staleBandText } from "../connection/stale-band";
 import type { DashboardRun } from "../dashboard/model";
 import { prProblemLabel, prProblemTone } from "../dashboard/run-card";
 import {
   Button,
   Card,
   Chip,
+  NoticeBand,
   RadioRow,
   Sheet,
   SheetBody,
@@ -155,18 +157,55 @@ function useRunWrite(
   };
 }
 
-function useRunDetail(port: RunPort, run: DashboardRun): RunRead<AppRunDetail> | null {
-  const [read, setRead] = useState<RunRead<AppRunDetail> | null>(null);
+interface RunDetailView {
+  read: RunRead<AppRunDetail> | null;
+  fresh: boolean;
+  staleNotice: string | null;
+}
+
+function cachedView(port: RunPort, run: DashboardRun, useCache: boolean): RunDetailView {
+  const cached = useCache ? (port.cachedDetail?.(run) ?? null) : null;
+  return {
+    read: cached === null ? null : { kind: "ok", value: cached.data },
+    fresh: false,
+    staleNotice: null,
+  };
+}
+
+function useRunDetail(
+  port: RunPort,
+  run: DashboardRun,
+  disabled: boolean,
+  useCache = false,
+): RunDetailView {
+  const [view, setView] = useState<RunDetailView>(() => cachedView(port, run, useCache));
+  const [attempt, setAttempt] = useState(0);
+  const wasDisabled = useRef(disabled);
+  useEffect(() => {
+    const reconnected = wasDisabled.current && !disabled;
+    wasDisabled.current = disabled;
+    if (reconnected && !view.fresh) setAttempt((current) => current + 1);
+  }, [disabled, view.fresh]);
   useEffect(() => {
     let live = true;
+    const cached = useCache ? (port.cachedDetail?.(run) ?? null) : null;
     void port.detail(run).then((next) => {
-      if (live) setRead(next);
+      if (!live) return;
+      setView(
+        next.kind === "unavailable" && cached !== null
+          ? {
+              read: { kind: "ok", value: cached.data },
+              fresh: false,
+              staleNotice: staleBandText(cached.fetchedAt, Date.now(), t("actions.cachedDetail")),
+            }
+          : { read: next, fresh: next.kind === "ok", staleNotice: null },
+      );
     });
     return () => {
       live = false;
     };
-  }, [port, run]);
-  return read;
+  }, [port, run, attempt, useCache]);
+  return view;
 }
 
 async function openWebLink(url: string): Promise<boolean> {
@@ -198,9 +237,11 @@ function SheetMessage({ message, tone = "problem" }: { message: string | null; t
 
 function DetailGate({
   read,
+  staleNotice,
   children,
 }: {
   read: RunRead<AppRunDetail> | null;
+  staleNotice: string | null;
   children: (detail: AppRunDetail) => ReactNode;
 }) {
   if (read === null) {
@@ -212,7 +253,12 @@ function DetailGate({
   }
   switch (read.kind) {
     case "ok":
-      return <>{children(read.value)}</>;
+      return (
+        <>
+          {staleNotice === null ? null : <NoticeBand message={staleNotice} />}
+          {children(read.value)}
+        </>
+      );
     case "not-found":
       return (
         <SheetBody>
@@ -460,7 +506,7 @@ function InputSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, sheet.run);
+  const { read, staleNotice } = useRunDetail(port, sheet.run, disabled);
   const closeSheet = useCloseUnlessSending(onClose);
   const { run, kind } = sheet;
   const title =
@@ -471,11 +517,12 @@ function InputSheet({
         : t("actions.deny.title");
   return (
     <Sheet visible composed title={title} closeLabel={t("common.close")} onClose={closeSheet}>
-      <DetailGate read={read}>
+      <DetailGate read={read} staleNotice={staleNotice}>
         {({ input }) => {
           if (kind === "answer" && input?.kind === "question" && !input.answered) {
             return (
               <AnswerForm
+                key={input.questionId}
                 run={run}
                 input={input}
                 port={port}
@@ -487,6 +534,7 @@ function InputSheet({
           if (kind === "human-check" && input?.kind === "human-check" && !input.answered) {
             return (
               <HumanCheckForm
+                key={input.questionId}
                 run={run}
                 input={input}
                 port={port}
@@ -497,7 +545,14 @@ function InputSheet({
           }
           if (kind === "deny" && input?.kind === "permission" && !input.denied) {
             return (
-              <DenyForm run={run} input={input} port={port} disabled={disabled} onClose={onClose} />
+              <DenyForm
+                key={input.promptId}
+                run={run}
+                input={input}
+                port={port}
+                disabled={disabled}
+                onClose={onClose}
+              />
             );
           }
           const sameRequest =
@@ -791,7 +846,7 @@ function RetrySheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, run);
+  const { read, staleNotice } = useRunDetail(port, run, disabled);
   const [continuing, setContinuing] = useState(false);
   const [unconfirmed, setUnconfirmed] = useState(false);
   const sharedUnconfirmed = { value: unconfirmed, set: setUnconfirmed };
@@ -804,7 +859,7 @@ function RetrySheet({
       closeLabel={t("common.close")}
       onClose={closeSheet}
     >
-      <DetailGate read={read}>
+      <DetailGate read={read} staleNotice={staleNotice}>
         {(detail) =>
           continuing && detail.nextActions.continue === "available" ? (
             <ContinueForm
@@ -899,13 +954,15 @@ function RunDetailBody({ detail }: { detail: AppRunDetail }) {
 function DetailSheet({
   run,
   port,
+  disabled,
   onClose,
 }: {
   run: DashboardRun;
   port: RunPort;
+  disabled: boolean;
   onClose: () => void;
 }) {
-  const read = useRunDetail(port, run);
+  const { read, staleNotice } = useRunDetail(port, run, disabled, true);
   return (
     <Sheet
       visible
@@ -914,7 +971,7 @@ function DetailSheet({
       closeLabel={t("common.close")}
       onClose={onClose}
     >
-      <DetailGate read={read}>
+      <DetailGate read={read} staleNotice={staleNotice}>
         {(detail) => (
           <SheetBody>
             <ContextLine run={run} />
@@ -988,7 +1045,15 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
         />
       );
     case "detail":
-      return <DetailSheet key={sheet.run.id} run={sheet.run} port={port} onClose={onClose} />;
+      return (
+        <DetailSheet
+          key={sheet.run.id}
+          run={sheet.run}
+          port={port}
+          disabled={disabled}
+          onClose={onClose}
+        />
+      );
     case "notice":
       return (
         <Sheet visible title={sheet.title} closeLabel={t("common.close")} onClose={onClose}>

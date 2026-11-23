@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { AppDashboard } from "@ganger/api";
 import { AccessibilityInfo, ScrollView, StyleSheet, View } from "react-native";
@@ -198,6 +198,7 @@ export function DashboardScreen({
 }) {
   const [picking, setPicking] = useState(false);
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
+  const previewedOpenRun = useRef<{ id: string; action: boolean } | null>(null);
   const [resumeNotice, setResumeNotice] = useState<OpenRunSheet | null>(null);
   const [resumingRunIds, setResumingRunIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmingRunIds, setConfirmingRunIds] = useState<ReadonlySet<string>>(new Set());
@@ -241,10 +242,27 @@ export function DashboardScreen({
   useEffect(() => {
     if (openRun === null || dashboard === null) return;
     const run = runsOf(dashboard).find((candidate) => candidate.id === openRun.id);
-    if (!openRunSettled && (run === undefined || openRun.action)) return;
-    if (run !== undefined) setSheet({ kind: sheetKindFor(run, openRun.action), run });
+    if (!openRunSettled && run === undefined) return;
+    const hasCachedDetail = run !== undefined && (port.cachedDetail?.(run) ?? null) !== null;
+    const waitingForActions = openRun.action && actionsDisabled && hasCachedDetail;
+    if ((!openRunSettled && openRun.action) || waitingForActions) {
+      if (run === undefined || !hasCachedDetail || previewedOpenRun.current === openRun) return;
+      previewedOpenRun.current = openRun;
+      setSheet({ kind: "detail", run });
+      return;
+    }
+    const previewed = previewedOpenRun.current === openRun;
+    previewedOpenRun.current = null;
+    if (run !== undefined) {
+      const kind = sheetKindFor(run, openRun.action);
+      setSheet((current) => {
+        if (!previewed) return { kind, run };
+        if (kind === "detail" || current === null || current.kind === "notice") return current;
+        return current.run.id === run.id ? { kind, run } : current;
+      });
+    }
     onOpenRunHandled?.();
-  }, [openRun, openRunSettled, dashboard, onOpenRunHandled]);
+  }, [openRun, openRunSettled, dashboard, onOpenRunHandled, port, actionsDisabled]);
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");

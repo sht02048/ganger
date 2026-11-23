@@ -17,11 +17,12 @@ import { SettingsScreen } from "../settings/settings-screen";
 import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
+import { OfflineCache } from "./offline-cache";
+import type { CacheFiles } from "./offline-cache";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
+import { staleBandText } from "./stale-band";
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
 const BAND_TICK_MS = 30_000;
 
 function staleReasonText(reason: SessionState["staleReason"]): string {
@@ -30,27 +31,13 @@ function staleReasonText(reason: SessionState["staleReason"]): string {
     : t("connection.band.reasonUnreachable");
 }
 
-export function staleBandText(
-  fetchedAt: number,
-  now: number,
-  staleReason: SessionState["staleReason"],
-): string {
-  const reason = staleReasonText(staleReason);
-  const ago = Math.max(0, now - fetchedAt);
-  if (ago < MINUTE_MS) return t("connection.band.staleJustNow", { reason });
-  if (ago < HOUR_MS) {
-    return t("connection.band.stale", { reason, minutes: Math.floor(ago / MINUTE_MS) });
-  }
-  return t("connection.band.staleHours", { reason, hours: Math.floor(ago / HOUR_MS) });
-}
-
 function bandText(state: SessionState, workspaceId: string, now: number): string | null {
   switch (state.phase) {
     case "stale": {
       const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
       return fetchedAt === undefined
         ? staleReasonText(state.staleReason)
-        : staleBandText(fetchedAt, now, state.staleReason);
+        : staleBandText(fetchedAt, now, staleReasonText(state.staleReason));
     }
     case "host-blocked":
       return t("connection.band.hostBlocked");
@@ -114,6 +101,7 @@ export function LiveScreens({
   fetcher,
   pushDevice,
   pushMemory,
+  cacheFiles,
   onRejected,
   onDisconnected,
   onForgetLocal,
@@ -122,6 +110,7 @@ export function LiveScreens({
   fetcher: FetchLike;
   pushDevice: PushDevicePort;
   pushMemory: PushMemory;
+  cacheFiles: CacheFiles;
   onRejected: () => void;
   onDisconnected: () => void;
   onForgetLocal: () => Promise<boolean>;
@@ -131,6 +120,8 @@ export function LiveScreens({
     () => createV1Client(fetcher, { server, token }),
     [fetcher, server, token],
   );
+  const [cache] = useState(() => new OfflineCache(cacheFiles, server, () => Date.now()));
+  const clearCache = useCallback(() => void cache.clear().catch(() => undefined), [cache]);
   const [session] = useState(
     () =>
       new LiveSession(
@@ -139,13 +130,21 @@ export function LiveScreens({
           openStream: (handlers) => openChangeStream(fetcher, { server, token }, handlers),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           now: () => Date.now(),
-          onRejected,
+          onRejected: () => {
+            clearCache();
+            onRejected();
+          },
+          onDashboardRead: (workspaceId, data, fetchedAt, workspaces) =>
+            cache.saveDashboard(workspaceId, data, fetchedAt, workspaces),
         },
         INITIAL_DASHBOARD_VIEW.workspaceId,
       ),
   );
   const state = useSyncExternalStore(session.subscribe, session.getState);
-  const port = useMemo(() => createLiveRunPort(client, session), [client, session]);
+  const port = useMemo(
+    () => createLiveRunPort(client, session, undefined, cache),
+    [client, session, cache],
+  );
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [view, setView] = useState(INITIAL_DASHBOARD_VIEW);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -200,6 +199,16 @@ export function LiveScreens({
   }, [client, pushDevice, session]);
 
   useEffect(() => {
+    let current = true;
+    void cache.load().then((content) => {
+      if (current) session.restore(content);
+    });
+    return () => {
+      current = false;
+    };
+  }, [cache, session]);
+
+  useEffect(() => {
     session.setForeground(AppState.currentState !== "background");
     const subscription = AppState.addEventListener("change", (next) => {
       session.setForeground(next === "active");
@@ -229,6 +238,7 @@ export function LiveScreens({
     setDisconnecting(false);
     if (reply.ok || reply.failure.kind === "token-rejected") {
       session.stop();
+      clearCache();
       onDisconnected();
       return;
     }
@@ -236,8 +246,10 @@ export function LiveScreens({
   };
   const forgetLocal = async () => {
     setForgetFailed(false);
-    if (await onForgetLocal()) session.stop();
-    else setForgetFailed(true);
+    if (await onForgetLocal()) {
+      session.stop();
+      clearCache();
+    } else setForgetFailed(true);
   };
 
   const message = bandText(state, view.workspaceId, now);
@@ -328,6 +340,7 @@ export function LiveScreens({
         <RunnersScreen
           band={band}
           loading={state.phase === "loading"}
+          unavailable={!state.runnersRead}
           runners={state.runners}
           onBack={() => setScreen("dashboard")}
         />

@@ -16,6 +16,8 @@ export interface PushBuildEnv {
 }
 
 export const NOTIFICATION_SERVICE_TARGET = "GangerNotificationService";
+export const DATA_PROTECTION_ENTITLEMENT = "com.apple.developer.default-data-protection";
+export const FIRST_UNLOCK_PROTECTION = "NSFileProtectionCompleteUntilFirstUserAuthentication";
 
 function filled(value: string | undefined): string | null {
   return value === undefined || value.trim() === "" ? null : value.trim();
@@ -57,7 +59,10 @@ export function withPush(
       ...config.ios,
       bundleIdentifier: bundleId,
       appleTeamId: teamId,
-      entitlements: { "keychain-access-groups": [keychainAccessGroup] },
+      entitlements: {
+        "keychain-access-groups": [keychainAccessGroup],
+        [DATA_PROTECTION_ENTITLEMENT]: FIRST_UNLOCK_PROTECTION,
+      },
     },
     plugins: [
       ...(config.plugins ?? []),

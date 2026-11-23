@@ -28,8 +28,14 @@ export type RunRead<Value> =
   | { kind: "not-found" }
   | { kind: "unavailable" };
 
+export interface CachedRunDetail {
+  data: AppRunDetail;
+  fetchedAt: number;
+}
+
 export interface RunPort {
   detail(run: DashboardRun): Promise<RunRead<AppRunDetail>>;
+  cachedDetail?(run: DashboardRun): CachedRunDetail | null;
   ticketLink(run: DashboardRun): Promise<RunRead<string>>;
   write(run: DashboardRun, write: RunWrite, onConfirming?: () => void): Promise<RunWriteOutcome>;
 }
@@ -109,10 +115,17 @@ function isDefiniteAnswer(failure: V1RunFailure): boolean {
   return failure.kind === "refused" || failure.kind === "invalid-request";
 }
 
+export interface RunDetailCache {
+  cachedRun(runId: string): CachedRunDetail | null;
+  saveRun(detail: AppRunDetail, fetchedAt: number): void;
+  forgetRun(runId: string): void;
+}
+
 export function createLiveRunPort(
   client: V1RunsClient,
   session: RunPortSession,
   wait: () => Promise<void> = waitBeforeResend,
+  cache: RunDetailCache | null = null,
 ): RunPort {
   const ids = new RunRequestIds();
   const note = (failure: V1RunFailure) => {
@@ -122,10 +135,16 @@ export function createLiveRunPort(
   return {
     detail: async (run) => {
       const reply = await client.runDetail(run.id);
-      if (reply.ok) return { kind: "ok", value: reply.data };
+      if (reply.ok) {
+        cache?.saveRun(reply.data, Date.now());
+        return { kind: "ok", value: reply.data };
+      }
       note(reply.failure);
-      return readFailure(reply.failure);
+      const read = readFailure<AppRunDetail>(reply.failure);
+      if (read.kind === "not-found") cache?.forgetRun(run.id);
+      return read;
     },
+    cachedDetail: (run) => cache?.cachedRun(run.id) ?? null,
     ticketLink: async (run) => {
       const reply = await client.ticketLink(run.id);
       if (reply.ok) return { kind: "ok", value: reply.data.url };
