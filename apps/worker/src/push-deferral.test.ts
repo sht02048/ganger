@@ -141,6 +141,45 @@ describe("Mac 앞이면 푸시 미루기(M15, M32, M51)", () => {
     expect(sent[0]?.data.bundleId).toBeDefined();
   });
 
+  it("미루다 해결된 사건이 다시 열리면 다시 열린 때부터 5분을 미룬다", async () => {
+    const pushes = delivery();
+    pushes.recordDeviceUse("mac", clock.getTime());
+    sync([cause(1)]);
+    await pushes.run();
+    advance(4 * 60_000);
+    sync([]);
+    await pushes.run();
+    advance(60_000 + 1_000);
+    pushes.recordDeviceUse("mac", clock.getTime());
+    sync([cause(1)]);
+    await pushes.run();
+    expect(sent).toHaveLength(0);
+    advance(PUSH_DEFER_MS - 1);
+    pushes.recordDeviceUse("mac", clock.getTime());
+    await pushes.run();
+    expect(sent).toHaveLength(0);
+    advance(1);
+    await pushes.run();
+    expect(sent).toHaveLength(1);
+  });
+
+  it("다시 열린 사건의 미루기가 같은 때 만든 다른 사건을 붙잡지 않는다", async () => {
+    const pushes = delivery();
+    pushes.recordDeviceUse("mac", clock.getTime());
+    sync([cause(1), cause(2)]);
+    await pushes.run();
+    advance(60_000);
+    sync([cause(2)]);
+    await pushes.run();
+    advance(60_000);
+    pushes.recordDeviceUse("mac", clock.getTime());
+    sync([cause(1), cause(2)]);
+    await pushes.run();
+    advance(3 * 60_000);
+    await pushes.run();
+    expect(sent).toHaveLength(1);
+  });
+
   it("재시작 직후에는 보고를 기다렸다가 보고가 없으면 보낸다", async () => {
     const pushes = delivery(clock.getTime() + PUSH_FIRST_REPORT_WAIT_MS);
     sync([cause(1)]);

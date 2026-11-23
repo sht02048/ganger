@@ -791,16 +791,19 @@ export class Controller {
       prefs: () => this.notificationPrefs(),
       lastSeen: this.options.settings.read().notificationsSeen?.[url] ?? null,
     });
+    const activity = new ActivityReporter({
+      origin: url,
+      connection: () => this.deviceLink.connection(url),
+      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    });
     const feed = new NotificationFeed({
       origin: url,
       onBatch: (batch) => this.receiveNotifications(url, batch),
       connection: () => this.deviceLink.connection(url),
       onRejected: () => this.onDeviceRejected(url),
-    });
-    const activity = new ActivityReporter({
-      origin: url,
-      connection: () => this.deviceLink.connection(url),
-      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+      onTransport: (transport) => {
+        if (transport !== "down") void activity.report();
+      },
     });
     this.feed = { url, feed, notifier, activity };
     this.setDeviceLinkState("connected");
