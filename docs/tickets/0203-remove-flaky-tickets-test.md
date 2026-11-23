@@ -14,7 +14,7 @@ blocked_by: []
 - PR #259(0200, Tickets를 건드리지 않음)의 CI run 45168074435 첫 시도(head `bb702450`), 잡 `browser (1)`에서 `expect.poll() function didn't resolve in time`으로 실패했다. 다시 돌린 두 번째 시도에서는 통과했다.
 - 실패 위치는 시험의 마지막 단언인 「할당 뒤 포커스가 '런 보기'로 간다」 poll(`expect.poll(focused).toBe(tickets.panel.openRun)`)이다. 그 앞의 「보내는 중」 버튼, Esc·취소 뒤 창이 남는 일, 알림, 창 닫힘 단언은 통과했다.
 - 같은 시험은 로컬에서 단독으로 3번 돌려 3번 통과했다.
-- 이 파일은 0110·0181 때도 흔들렸고, 0192에서 상위 이슈 한 번에 할당 시험 하나를 이미 지웠다.
+- 이 파일은 0110 때도 흔들렸고, 0192에서 상위 이슈 한 번에 할당 시험 하나를 이미 지웠다. 0181 때는 Tickets 목록을 쓰는 `e2e/src/navigation-back.test.ts`가 흔들렸다.
 
 ## 할 일
 
@@ -34,7 +34,7 @@ blocked_by: []
 
 ### 아무도 지키지 않는 부분
 
-- 단일 할당 대화상자가 보내는 동안 Esc나 「취소」(`DialogClose`)로 닫히지 않는 일(`AssignDialog`의 `onOpenChange`에서 `pending`이면 닫지 않음). `AssignDialog`에는 단위·컴포넌트 시험이 없다.
+- 단일 할당 대화상자가 보내는 동안 Esc나 「취소」(`DialogClose`)로 닫히지 않는 일(`AssignDialog`의 `onOpenChange`에서 `pending`이면 닫지 않음). `AssignDialog` 컴포넌트(보내는 중 처리)에는 단위·컴포넌트 시험이 없다. 같은 파일의 `AssignForm`과 `runnerOptionsFor`만 `apps/web/src/tickets/tickets-screen.test.tsx`가 본다.
 - 보내는 동안 주 버튼이 「보내는 중」 문구로 바뀌고 막히는 일(`disabled={pending}`).
 - 보내는 동안 Esc를 누른 뒤에도 요청이 끝나면 알림과 함께 닫히고 포커스가 「런 보기」로 가는 일. 요청이 늦게 끝나는 경우의 포커스 이동은 브라우저로 보지 않는다.
 - 어느 화면에서든 Esc로 막힌 창이 닫히지 않는지 보는 시험. 일괄 할당 단위 시험도 「닫기」 버튼만 누른다.
