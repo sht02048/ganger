@@ -17,7 +17,7 @@ import type {
 } from "@ganger/core";
 import { z } from "zod";
 import { readCiState } from "./ci.js";
-import type { CredentialSource, GitHubAuth, GitHubCredential, RepoParts } from "./auth.js";
+import type { GitHubAuth, GitHubCredential, RepoParts } from "./auth.js";
 import { GitHubError, GitHubHttp } from "./http.js";
 import type { GraphqlError } from "./http.js";
 import {
@@ -110,11 +110,6 @@ export class GitHubCodeHost implements CodeHost {
       if (error instanceof GitHubError) return { ok: false, error: error.detail };
       throw error;
     }
-  }
-
-  async credentialSource(repo: RepoRef | null): Promise<CredentialSource | null> {
-    const credential = await this.credential(repo === null ? null : this.split(repo));
-    return credential?.source ?? null;
   }
 
   repoOf(project: RunnerProjectId): RepoRef | null {

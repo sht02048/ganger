@@ -208,9 +208,6 @@ importers:
       '@ganger/app':
         specifier: workspace:*
         version: link:../../packages/app
-      '@ganger/codehost-github':
-        specifier: workspace:*
-        version: link:../../packages/codehost-github
       '@ganger/core':
         specifier: workspace:*
         version: link:../../packages/core

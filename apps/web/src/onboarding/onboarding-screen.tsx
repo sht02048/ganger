@@ -1261,7 +1261,6 @@ const styles = stylex.create({
     gap: space.s2,
   },
   para: { margin: 0 },
-  guide: { display: "flex", flexDirection: "column", gap: space.s4 },
   cardHeader: {
     display: "flex",
     flexWrap: "wrap",

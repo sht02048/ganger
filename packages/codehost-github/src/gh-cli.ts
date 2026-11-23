@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { delimiter, join } from "node:path";
+import { delimiter, isAbsolute, join } from "node:path";
 import { z } from "zod";
 
 export const GH_CLI_ENV = "GANGER_GH_CLI";
@@ -178,9 +178,22 @@ export function findGhCli(deps: LocalGhDeps): string | null {
   }
   const fromPath = (deps.env["PATH"] ?? "")
     .split(delimiter)
-    .filter((dir) => dir.length > 0)
+    .filter((dir) => isAbsolute(dir))
     .map((dir) => join(dir, "gh"));
   return [...fromPath, ...GH_CLI_CANDIDATES].find((path) => deps.exists(path)) ?? null;
+}
+
+const SERVER_SECRETS = new Set(["ENCRYPTION_KEY", "DATABASE_PATH"]);
+
+export function ghEnv(
+  env: Readonly<Record<string, string | undefined>>,
+): Record<string, string | undefined> {
+  return {
+    ...Object.fromEntries(Object.entries(env).filter(([name]) => !SERVER_SECRETS.has(name))),
+    GH_PROMPT_DISABLED: "1",
+    GH_NO_UPDATE_NOTIFIER: "1",
+    NO_COLOR: "1",
+  };
 }
 
 export function localGhRunner(
@@ -198,12 +211,7 @@ export function localGhRunner(
             timeout: GH_TIMEOUT_MS,
             maxBuffer: 1024 * 1024,
             encoding: "utf8",
-            env: {
-              ...deps.env,
-              GH_PROMPT_DISABLED: "1",
-              GH_NO_UPDATE_NOTIFIER: "1",
-              NO_COLOR: "1",
-            },
+            env: ghEnv(deps.env),
           },
           (error, stdout, stderr) => {
             if (error === null) {

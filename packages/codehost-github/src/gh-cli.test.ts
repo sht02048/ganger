@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   findGhCli,
+  ghEnv,
   parseGhVersion,
   parseStatusJson,
   parseStatusText,
@@ -178,6 +179,24 @@ describe("gh auth token (0204)", () => {
   });
 });
 
+describe("gh 실행 환경 (0204)", () => {
+  it("서버의 암호화 키와 DB 경로는 gh 에 넘기지 않고 대화형 질문을 끈다", () => {
+    const env = ghEnv({
+      HOME: "/home/acme",
+      ENCRYPTION_KEY: "k",
+      DATABASE_PATH: "/d",
+      PATH: "/bin",
+    });
+    expect(env).toEqual({
+      HOME: "/home/acme",
+      PATH: "/bin",
+      GH_PROMPT_DISABLED: "1",
+      GH_NO_UPDATE_NOTIFIER: "1",
+      NO_COLOR: "1",
+    });
+  });
+});
+
 describe("gh 찾기 (0204)", () => {
   it("GANGER_GH_CLI 가 있으면 그것만, 없으면 PATH 와 알려진 자리에서 찾는다", () => {
     const has = (paths: string[]) => (path: string) => paths.includes(path);
@@ -191,6 +210,7 @@ describe("gh 찾기 (0204)", () => {
       "/opt/gh",
     );
     expect(findGhCli({ env: { PATH: "/a:/b" }, exists: has(["/b/gh"]) })).toBe("/b/gh");
+    expect(findGhCli({ env: { PATH: "bin:/b" }, exists: has(["bin/gh"]) })).toBeNull();
     expect(findGhCli({ env: {}, exists: has(["/opt/homebrew/bin/gh"]) })).toBe(
       "/opt/homebrew/bin/gh",
     );

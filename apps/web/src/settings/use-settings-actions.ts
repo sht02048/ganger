@@ -171,7 +171,13 @@ export function useSettingsActions(afterChange: AfterChange): ProjectDetailActio
     SETTINGS,
     afterGitHubChange,
   );
-  const checkGitHub = useSaveMutation(() => checkGitHubNow(), SETTINGS, afterGitHubChange);
+  const checkGitHub = useCallback(async (): Promise<ActionResult> => {
+    try {
+      return await checkGitHubNow();
+    } finally {
+      await afterGitHubChange(SETTINGS);
+    }
+  }, [afterGitHubChange]);
   const saveRunner = useSaveMutation(
     (data: Parameters<SettingsActions["saveRunner"]>[0]) => saveRunnerSettings({ data }),
     RUNNER,
@@ -226,7 +232,7 @@ export function useSettingsActions(afterChange: AfterChange): ProjectDetailActio
       saveConnection,
       checkConnection: (data) => checkTrackerConnectionNow({ data }),
       saveGitHubToken,
-      checkGitHub: () => checkGitHub(undefined),
+      checkGitHub,
       saveRunner,
       recheckRunner,
       saveAddresses,

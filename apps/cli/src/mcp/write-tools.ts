@@ -201,7 +201,6 @@ export function registerWriteTools(
     secretBox: context.secretBox,
     registry: context.registry,
     power: powerSettingsStore(context.home),
-    ...(context.githubAuth === undefined ? {} : { githubAuth: context.githubAuth }),
   });
 
   const writesAllowed = (): boolean =>
