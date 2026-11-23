@@ -238,9 +238,11 @@ function useCardParts(
           : { time: t("pausedFor", { elapsed: elapsed(run.pausedMs) }) }),
         ...(available === "resume"
           ? {
+              actionFullWidth: true,
               action: (
                 <Button
                   variant="secondary"
+                  block
                   aria-describedby={titleId}
                   aria-disabled={sending}
                   aria-busy={sending}
@@ -261,12 +263,13 @@ function useCardParts(
           return input.answered
             ? { detail: questionSummary(input.body, input.choices), meta: t("answered"), ...time }
             : {
-                detail: questionSummary(input.body, input.choices),
                 meta: runner,
                 ...time,
+                actionFullWidth: true,
                 action: (
                   <Button
-                    variant="secondary"
+                    variant="answer"
+                    block
                     aria-describedby={titleId}
                     onClick={() => onOpen("answer")}
                   >

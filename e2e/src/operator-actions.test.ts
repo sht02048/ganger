@@ -134,9 +134,9 @@ describe("운영자 핵심 동작(브라우저)", () => {
       .getByRole("region", { name: home.column.running })
       .getByRole("listitem")
       .filter({ has: page.getByText("ACME-1", { exact: true }) });
-    await row.getByText(questionBody).waitFor();
     await row.getByRole("button", { name: home.card.answer }).click();
     const layer = page.getByRole("dialog");
+    await layer.getByText(questionBody).waitFor();
     await layer.getByLabel(question.answerLabel).fill(answerText);
     await layer.getByRole("button", { name: question.send }).click();
     await layer.waitFor({ state: "hidden" });

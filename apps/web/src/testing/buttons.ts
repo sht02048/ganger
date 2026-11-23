@@ -11,6 +11,7 @@ function toVariant(value: string | undefined): ButtonVariant | "other" {
     case "secondary":
     case "danger":
     case "ghost":
+    case "answer":
       return value;
     case undefined:
     default:

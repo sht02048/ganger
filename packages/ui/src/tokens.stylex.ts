@@ -47,6 +47,7 @@ export const colors = stylex.defineVars({
 
   answer: "oklch(0.76 0.13 300)",
   answerSoft: "oklch(0.3 0.07 300)",
+  answerSoftHover: "oklch(0.35 0.08 300)",
   check: "oklch(0.82 0.11 195)",
   checkSoft: "oklch(0.3 0.05 195)",
   checkSoftHover: "oklch(0.35 0.06 195)",

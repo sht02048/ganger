@@ -580,10 +580,14 @@ export function BlockSections() {
                   <KanbanCard
                     tag={<StatusPill status="question">{t("kanban.tag")}</StatusPill>}
                     title={t("kanban.title")}
-                    detail={t("kanban.detail")}
                     meta={t("kanban.meta")}
                     time={t("kanban.time")}
-                    action={<Button>{t("kanban.action")}</Button>}
+                    actionFullWidth
+                    action={
+                      <Button variant="answer" block>
+                        {t("kanban.action")}
+                      </Button>
+                    }
                     onOpen={() => setSheetOpen(true)}
                   />
                 </li>

@@ -45,6 +45,7 @@ const colorGroups = [
     keys: [
       "answer",
       "answerSoft",
+      "answerSoftHover",
       "check",
       "checkSoft",
       "checkSoftHover",
