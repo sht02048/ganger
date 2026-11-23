@@ -8,8 +8,12 @@ import { loadSettingsPage } from "@ganger/app/settings/load";
 import {
   SecretBox,
   answerRunQuestion,
+  changeRunState,
+  completeRunControlRequest,
   getMapping,
   getRunCancelRequest,
+  getRunControlRequest,
+  recordAgentCheck,
   markRunRelationsUnread,
   latestChangeSeq,
   listChangesAfter,
@@ -25,7 +29,15 @@ import {
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
-import { toQuestionId, toRunId, toTrackerConnectionId, toTrackerProjectId } from "@ganger/core";
+import {
+  toAgentRef,
+  toQuestionId,
+  toRunId,
+  toTrackerConnectionId,
+  toTrackerProjectId,
+  toWorktreeRef,
+} from "@ganger/core";
+import type { RunId } from "@ganger/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createMcpServer } from "./server.js";
@@ -472,5 +484,430 @@ describe("MCP 쓰기 도구", () => {
     expect(JSON.parse(readFileSync(powerSettingsPath(home), "utf8"))).toEqual({
       preventSleep: false,
     });
+  });
+});
+
+function askHumanCheck(): ReturnType<typeof toQuestionId> {
+  const runId = seeded.waiting;
+  const first = toQuestionId("q-1");
+  answerRunQuestion(seeded.db, { runId, questionId: first, answer: "yes" }, at(20));
+  markAnswerSent(seeded.db, { runId, questionId: first }, at(21));
+  const checkId = toQuestionId("msg-check");
+  recordRunQuestions(seeded.db, runId, [
+    { id: checkId, kind: "human-check", body: "EXTERNAL-check", options: [], askedAt: at(22) },
+  ]);
+  return checkId;
+}
+
+function humanCheckAnswer(checkId: ReturnType<typeof toQuestionId>) {
+  return listRunQuestions(seeded.db, seeded.waiting).find((q) => q.id === checkId)?.answer?.text;
+}
+
+function moveWaitingRunTo(state: "running" | "paused"): void {
+  if (!changeRunState(seeded.db, seeded.waiting, { to: "running" }, at(30)).ok) {
+    throw new Error("move to running");
+  }
+  if (state === "running") return;
+  const paused = changeRunState(
+    seeded.db,
+    seeded.waiting,
+    { to: "paused", source: "operator" },
+    at(31),
+  );
+  if (!paused.ok) throw new Error("move to paused");
+}
+
+function failPendingControl(): void {
+  const request = getRunControlRequest(seeded.db, seeded.waiting);
+  if (request === null) throw new Error("no control request");
+  completeRunControlRequest(seeded.db, {
+    runId: seeded.waiting,
+    requestedAt: request.requestedAt,
+    completedAt: at(60),
+    error: "runner-error",
+  });
+}
+
+const mcpLog = (runId: Parameters<typeof listRunMcpActions>[1]) =>
+  listRunMcpActions(seeded.db, runId).map((a) => [a.tool, a.outcome, a.reason]);
+
+describe("MCP Human Check 답하기(0190)", () => {
+  beforeEach(() => allowWrites());
+
+  it("허용이 꺼져 있으면 보이지 않고 답하지 않는다", async () => {
+    allowWrites(false);
+    const checkId = askHumanCheck();
+    await connect();
+    expect(await toolNames()).not.toContain("answer_human_check");
+    const off = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "confirmed",
+    });
+    expect(off.isError).toBe(true);
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+  });
+
+  it("도구 설명이 운영자에게 먼저 확인받으라고 알린다", async () => {
+    await connect();
+    const { tools } = await client.listTools();
+    const description = tools.find((t) => t.name === "answer_human_check")?.description;
+    expect(description).toContain("approving a merge");
+    expect(description).toContain("confirm with the operator first");
+  });
+
+  it("확인했어요로 답하면 화면과 같은 답을 저장하고 Run 상세에 MCP로 남긴다", async () => {
+    const checkId = askHumanCheck();
+    await connect("hermes");
+    const answered = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "confirmed",
+    });
+    expect(answered.isError).toBe(false);
+    expect(humanCheckAnswer(checkId)).toBe("확인했어요");
+
+    const detail = loadRunDetail(seeded.db, seeded.waiting, at(61));
+    if (detail.kind !== "found") throw new Error("run not found");
+    expect(detail.run.timeline.find((e) => e.kind === "mcp")).toMatchObject({
+      client: "hermes",
+      tool: "answer_human_check",
+      outcome: "done",
+    });
+  });
+
+  it("고쳐 주세요에 덧붙일 말을 함께 저장한다", async () => {
+    const checkId = askHumanCheck();
+    await connect();
+    await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "changes-requested",
+      note: "  문구를 고쳐 주세요  ",
+    });
+    expect(humanCheckAnswer(checkId)).toBe("고쳐 주세요\n\n문구를 고쳐 주세요");
+  });
+
+  it("답할 Human Check 가 없으면 이유와 함께 거절하고 기록한다", async () => {
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "confirmed",
+    });
+    expect(refused.json["reason"]).toBe("no-human-check");
+    expect(mcpLog(seeded.waiting)).toEqual([["answer_human_check", "rejected", "no-human-check"]]);
+  });
+
+  it("Question 의 id 로는 Human Check 답을 저장하지 않는다", async () => {
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "q-1",
+      decision: "confirmed",
+    });
+    expect(refused.json["reason"]).toBe("no-human-check");
+    expect(listRunQuestions(seeded.db, seeded.waiting)[0]?.answer).toBeNull();
+  });
+
+  it("어떤 Human Check 인지 밝히지 않으면 답하지 않는다", async () => {
+    const checkId = askHumanCheck();
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      decision: "confirmed",
+    });
+    expect(refused.isError).toBe(true);
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+  });
+
+  it("끝난 런의 Human Check 는 에이전트에게 닿지 않으므로 거절한다", async () => {
+    const checkId = askHumanCheck();
+    const ended = changeRunState(
+      seeded.db,
+      seeded.waiting,
+      { to: "ended", agentResult: "reported-success", prState: "none" },
+      at(30),
+    );
+    if (!ended.ok) throw new Error("end run");
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: checkId,
+      decision: "confirmed",
+    });
+    expect(refused.json["reason"]).toBe("already-ended");
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+    expect(mcpLog(seeded.waiting)).toEqual([["answer_human_check", "rejected", "already-ended"]]);
+  });
+
+  it("멈춘 런의 Human Check 에는 답할 수 있다", async () => {
+    const checkId = askHumanCheck();
+    moveWaitingRunTo("paused");
+    await connect();
+    const answered = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: checkId,
+      decision: "confirmed",
+    });
+    expect(answered.isError).toBe(false);
+    expect(humanCheckAnswer(checkId)).toBe("확인했어요");
+  });
+
+  it("화면 길이를 넘는 말은 거절한다", async () => {
+    const checkId = askHumanCheck();
+    await connect();
+    const refused = await call("answer_human_check", {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "confirmed",
+      note: "가".repeat(10_001),
+    });
+    expect(refused.json["reason"]).toBe("invalid");
+    expect(humanCheckAnswer(checkId)).toBeUndefined();
+  });
+
+  it("같은 requestId 는 한 번만 처리하고, 다른 내용이면 request-reused 로 거절한다", async () => {
+    const checkId = askHumanCheck();
+    await connect();
+    const args = {
+      runId: seeded.waiting,
+      questionId: "msg-check",
+      decision: "confirmed",
+      requestId: "mcp-human-check-0190",
+    };
+    const first = await call("answer_human_check", args);
+    const second = await call("answer_human_check", args);
+    const changed = await call("answer_human_check", { ...args, decision: "changes-requested" });
+
+    expect(second.json).toEqual(first.json);
+    expect(changed.json["reason"]).toBe("request-reused");
+    expect(humanCheckAnswer(checkId)).toBe("확인했어요");
+    expect(mcpLog(seeded.waiting)).toEqual([
+      ["answer_human_check", "done", null],
+      ["answer_human_check", "rejected", "request-reused"],
+    ]);
+  });
+});
+
+describe("MCP 멈추기·재개(0190)", () => {
+  beforeEach(() => allowWrites());
+
+  it("허용이 꺼져 있으면 보이지 않고 요청하지 않는다", async () => {
+    allowWrites(false);
+    moveWaitingRunTo("running");
+    await connect();
+    const names = await toolNames();
+    expect(names).not.toContain("pause_run");
+    expect(names).not.toContain("resume_run");
+    expect((await call("pause_run", { runId: seeded.waiting })).isError).toBe(true);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toBeNull();
+  });
+
+  it("Running 런을 멈추도록 요청한다", async () => {
+    moveWaitingRunTo("running");
+    await connect();
+    expect((await call("pause_run", { runId: seeded.waiting })).isError).toBe(false);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toMatchObject({
+      control: "pause",
+      status: "pending",
+    });
+    expect(mcpLog(seeded.waiting)).toEqual([["pause_run", "done", null]]);
+  });
+
+  it("Paused 런을 재개하도록 요청한다", async () => {
+    moveWaitingRunTo("paused");
+    await connect();
+    expect((await call("resume_run", { runId: seeded.waiting })).isError).toBe(false);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toMatchObject({
+      control: "resume",
+      status: "pending",
+    });
+    expect(mcpLog(seeded.waiting)).toEqual([["resume_run", "done", null]]);
+  });
+
+  it("상태가 맞지 않으면 이유와 함께 거절한다", async () => {
+    await connect();
+    const pause = await call("pause_run", { runId: seeded.waiting });
+    const resume = await call("resume_run", { runId: seeded.waiting });
+    const ended = await call("pause_run", { runId: seeded.ended });
+    expect(pause.json["reason"]).toBe("not-running");
+    expect(resume.json["reason"]).toBe("not-paused");
+    expect(ended.json["reason"]).toBe("already-ended");
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toBeNull();
+  });
+
+  it("같은 requestId 는 한 번만 처리하고, 다른 동작이면 거절한다", async () => {
+    moveWaitingRunTo("running");
+    await connect();
+    const args = { runId: seeded.waiting, requestId: "mcp-control-0190-a" };
+    const first = await call("pause_run", args);
+    const second = await call("pause_run", args);
+    const other = await call("resume_run", args);
+
+    expect(second.json).toEqual(first.json);
+    expect(other.json["reason"]).toBe("request-reused");
+    expect(mcpLog(seeded.waiting)).toEqual([
+      ["pause_run", "done", null],
+      ["resume_run", "rejected", "request-reused"],
+    ]);
+  });
+
+  it("멈추기를 처리하는 중이면 재개를 저장한 척하지 않고 거절한다", async () => {
+    moveWaitingRunTo("running");
+    await connect();
+    await call("pause_run", { runId: seeded.waiting });
+    const paused = changeRunState(
+      seeded.db,
+      seeded.waiting,
+      { to: "paused", source: "operator" },
+      at(32),
+    );
+    if (!paused.ok) throw new Error("move to paused");
+
+    const args = { runId: seeded.waiting, requestId: "mcp-control-0190-c" };
+    const resumed = await call("resume_run", args);
+
+    expect(resumed.json["reason"]).toBe("control-pending");
+    expect(getRunControlRequest(seeded.db, seeded.waiting)?.control).toBe("pause");
+    expect(mcpLog(seeded.waiting)).toEqual([
+      ["pause_run", "done", null],
+      ["resume_run", "rejected", "control-pending"],
+    ]);
+
+    failPendingControl();
+    expect((await call("resume_run", args)).isError).toBe(false);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toMatchObject({
+      control: "resume",
+      status: "pending",
+    });
+  });
+
+  it("러너에서 실패한 재개는 같은 requestId 로 다시 요청한다", async () => {
+    moveWaitingRunTo("paused");
+    await connect();
+    const args = { runId: seeded.waiting, requestId: "mcp-control-0190-b" };
+    expect((await call("resume_run", args)).isError).toBe(false);
+    failPendingControl();
+    expect(getRunControlRequest(seeded.db, seeded.waiting)?.status).toBe("failed");
+
+    expect((await call("resume_run", args)).isError).toBe(false);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toMatchObject({
+      control: "resume",
+      status: "pending",
+    });
+    expect(mcpLog(seeded.waiting)).toHaveLength(2);
+  });
+});
+
+describe("MCP 이어서 맡기기(0190)", () => {
+  beforeEach(() => allowWrites());
+
+  let failed: RunId;
+
+  beforeEach(() => {
+    failed = queueRun(seeded.db, "ACME-7", 40);
+    const started = changeRunState(
+      seeded.db,
+      failed,
+      {
+        to: "running",
+        started: {
+          worktree: toWorktreeRef("wt-ACME-7"),
+          branch: "acme/ACME-7",
+          agentRef: toAgentRef("agent-ACME-7"),
+        },
+      },
+      at(41),
+    );
+    const ended = changeRunState(
+      seeded.db,
+      failed,
+      { to: "ended", agentResult: "reported-failure", prState: "none" },
+      at(42),
+    );
+    if (!started.ok || !ended.ok) throw new Error("fail ACME-7");
+  });
+
+  const agentGone = (runId: RunId = failed) =>
+    recordAgentCheck(seeded.db, runId, "gone", { stopHandled: true });
+
+  it("허용이 꺼져 있으면 보이지 않고 새 런을 만들지 않는다", async () => {
+    allowWrites(false);
+    agentGone();
+    await connect();
+    expect(await toolNames()).not.toContain("continue_run");
+    const off = await call("continue_run", { runId: failed, message: "이어서 해 주세요" });
+    expect(off.isError).toBe(true);
+    expect(mcpLog(failed)).toEqual([]);
+  });
+
+  it("성공한 런은 requestId 가 있든 없든 이어서 맡기지 않는다", async () => {
+    agentGone(seeded.ended);
+    await connect();
+    const plain = await call("continue_run", { runId: seeded.ended, message: "이어서" });
+    const keyed = await call("continue_run", {
+      runId: seeded.ended,
+      message: "이어서",
+      requestId: "mcp-continue-succeeded",
+    });
+    expect(plain.json["reason"]).toBe("worktree-settled");
+    expect(keyed.json["reason"]).toBe("worktree-settled");
+  });
+
+  it("Failed 런을 이어서 새 런을 만들고 새 런 기록에 MCP 출처를 남긴다", async () => {
+    agentGone();
+    await connect("hermes");
+    const continued = await call("continue_run", {
+      runId: failed,
+      message: "테스트를 고쳐 주세요",
+    });
+    expect(continued.isError).toBe(false);
+    expect(continued.json["continuedFrom"]).toBe(failed);
+    const next = toRunId(z.string().parse(continued.json["runId"]));
+    expect(getRun(seeded.db, next)).toMatchObject({ state: "queued" });
+
+    const detail = loadRunDetail(seeded.db, next, at(61));
+    if (detail.kind !== "found") throw new Error("run not found");
+    expect(detail.run.timeline.find((e) => e.kind === "mcp")).toMatchObject({
+      client: "hermes",
+      tool: "continue_run",
+      outcome: "done",
+    });
+  });
+
+  it("말이 없거나 공백이면 런을 만들지 않는다", async () => {
+    agentGone();
+    await connect();
+    expect((await call("continue_run", { runId: failed })).isError).toBe(true);
+    expect((await call("continue_run", { runId: failed, message: "  " })).isError).toBe(true);
+    expect(listRunMcpActions(seeded.db, failed)).toEqual([]);
+  });
+
+  it("서버가 막으면 이유와 함께 거절하고 원래 런에 기록한다", async () => {
+    await connect();
+    const running = await call("continue_run", { runId: seeded.waiting, message: "이어서" });
+    const agentAlive = await call("continue_run", { runId: failed, message: "이어서" });
+    expect(running.json["reason"]).toBe("not-ended");
+    expect(agentAlive.json["reason"]).toBe("previous-agent");
+    expect(mcpLog(failed)).toEqual([["continue_run", "rejected", "previous-agent"]]);
+  });
+
+  it("같은 requestId 는 같은 새 런을 돌려주고, 다른 말이면 거절한다", async () => {
+    agentGone();
+    await connect();
+    const args = {
+      runId: failed,
+      message: "이어서 해 주세요",
+      requestId: "mcp-continue-0190",
+    };
+    const first = await call("continue_run", args);
+    const second = await call("continue_run", args);
+    const changed = await call("continue_run", { ...args, message: "다른 말" });
+
+    expect(second.json).toEqual(first.json);
+    expect(changed.json["reason"]).toBe("request-reused");
+    const next = toRunId(z.string().parse(first.json["runId"]));
+    expect(mcpLog(next)).toEqual([["continue_run", "done", null]]);
   });
 });
