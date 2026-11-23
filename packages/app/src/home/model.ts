@@ -10,6 +10,7 @@ import type {
 } from "@ganger/core";
 import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
+import type { CiView } from "../run-detail/model.js";
 import type { RunnerLoadHigh } from "../runners/model.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { RunnerIssueCause, WorkspaceChoice, WorkspaceSummary } from "../shell/model.js";
@@ -35,6 +36,19 @@ export type InputWait =
       answered: boolean;
     };
 
+export type HomePrState = "open" | "merged" | "closed";
+
+export interface HomePullRequest {
+  displayId: string;
+  url: string;
+  signals: PrSignalsView | null;
+  ci: CiView;
+  state: HomePrState;
+  settledAt: string | null;
+  settledAgoMs: number | null;
+  branch: string | null;
+}
+
 interface HomeRunBase {
   id: RunId;
   ticketId: string;
@@ -46,7 +60,7 @@ interface HomeRunBase {
   agent: string;
   waitMs: number;
   executionMs: number | null;
-  pullRequest: { displayId: string; url: string; signals: PrSignalsView | null } | null;
+  pullRequest: HomePullRequest | null;
   cancelling: boolean;
   control: RunControlView | null;
 }

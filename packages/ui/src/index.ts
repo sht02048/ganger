@@ -246,7 +246,12 @@ export {
   type IssueRowSurface,
   type IssueStateKind,
 } from "./components/issue-list";
-export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
+export {
+  StatusDot,
+  statusDotStyles,
+  toneDotStyles,
+  type StatusDotProps,
+} from "./components/status-dot";
 export {
   PILL_STATUSES,
   StatusPill,
@@ -308,7 +313,18 @@ export {
   type StepNavProps,
   type StepState,
 } from "./components/steps";
-export { Tab, TabPanel, Tabs, type TabProps, type TabsProps } from "./components/tabs";
+export {
+  Tab,
+  TabPanel,
+  Tabs,
+  prDotTone,
+  type PrDotState,
+  type TabDot,
+  type TabPanelProps,
+  type TabProps,
+  type TabsProps,
+} from "./components/tabs";
+export { FactCell, FactCells, type FactCellProps } from "./components/fact-cells";
 export {
   TEXT_TONES,
   TEXT_VARIANTS,

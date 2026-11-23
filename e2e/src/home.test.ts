@@ -450,12 +450,15 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(await focusedSoon(cardButton(page, "ACME-5"))).toBe(true);
   });
 
-  it("Failed 카드의 패널은 두 축의 이유와 Tickets 에서 다시 맡기기 링크를 보인다", async () => {
+  it("Failed 카드의 패널은 「런」 탭에 에이전트 결과와 Tickets 에서 다시 맡기기 링크를, 「PR」 탭에 PR 결과를 보인다(0199)", async () => {
     await openHome(page);
     await cardButton(page, "ACME-34").click();
     const panel = page.getByRole("dialog");
     await panel.getByText(home.sheet.agentResult).waitFor();
-    await panel.getByText(home.sheet.prState).waitFor();
+    await panel.getByRole("tab", { name: home.sheet.tabs.run, selected: true }).waitFor();
+    await panel.getByRole("tab", { name: new RegExp(`^${home.sheet.tabs.pr}`) }).click();
+    await panel.getByText(home.sheet.pr.noneEnded).waitFor();
+    await panel.getByRole("tab", { name: home.sheet.tabs.run }).click();
     const retry = await panel.getByRole("link", { name: home.sheet.retry }).getAttribute("href");
     const url = new URL(retry ?? "", baseUrl);
     expect(url.pathname).toBe("/tickets");

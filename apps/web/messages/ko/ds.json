@@ -178,7 +178,13 @@
     "panelAll": "모든 런을 최근 순서로 보여 줘요.",
     "panelTodo": "Failed만 보여 줘요.",
     "panelRunning": "지금 러너에서 도는 런이에요.",
-    "panelQueued": "capacity를 기다리는 런이 없어요."
+    "panelQueued": "capacity를 기다리는 런이 없어요.",
+    "sheetLabel": "런 패널 보기",
+    "sheetPr": "PR",
+    "sheetNone": "없음",
+    "sheetPrWithId": "PR #571",
+    "sheetDot": "CI 실패나 충돌이 있어요",
+    "sheetRun": "런"
   },
   "table": {
     "note": "행을 누르거나 위아래 화살표로 고르면 오른쪽 패널이 바뀌어요. 표가 좁아지면 에이전트, 러너 순으로 열을 접어 제목 아래 줄로 옮겨요.",
@@ -390,7 +396,15 @@
     "base": "base",
     "baseValue": "3커밋 뒤",
     "unknown": "상태",
-    "unknownValue": "모름"
+    "unknownValue": "모름",
+    "link": "PR",
+    "linkValue": "#12",
+    "factRunner": "러너",
+    "factRunnerValue": "runner-1",
+    "factAgent": "에이전트",
+    "factAgentValue": "Claude Code",
+    "factWorked": "일한 시간",
+    "factWorkedValue": "시작 전"
   },
   "usage": {
     "note": "공급자 사용량 창의 쓴 비율이에요. 90% 이상이면 빨간 막대예요.",

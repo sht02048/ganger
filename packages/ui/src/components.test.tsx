@@ -72,6 +72,10 @@ import {
   StatusDot,
   StatusPill,
   Tab,
+  TabPanel,
+  prDotTone,
+  FactCell,
+  FactCells,
   Table,
   TableCell,
   TableHead,
@@ -376,6 +380,76 @@ describe("서버 렌더", () => {
     const chips = listClass(html);
     const under = listClass(underline);
     expect(chips?.[1] ?? chips?.[2]).not.toBe(under?.[1] ?? under?.[2]);
+  });
+
+  it("Tab 은 흐린 덧말과 화면 읽기 이름이 있는 상태 점을 달 수 있다(티켓 0199)", () => {
+    const html = renderToString(
+      <Tabs value="run" onValueChange={noop} label="런 패널 보기">
+        <Tab value="run" note="없음">
+          PR
+        </Tab>
+        <Tab value="pr" dot={{ state: "problem", label: "CI 실패나 충돌이 있어요" }}>
+          PR #571
+        </Tab>
+      </Tabs>,
+    );
+    expect(html).toMatch(/role="tab"[^>]*>PR<span[^>]*> 없음<\/span>/);
+    expect(html).toContain('data-tab-dot="problem"');
+    expect(html).toMatch(
+      /<span aria-hidden="true"[^>]*><\/span><span[^>]*> CI 실패나 충돌이 있어요<\/span>/,
+    );
+    const plain = renderToString(
+      <Tabs value="run" onValueChange={noop} label="런 패널 보기">
+        <Tab value="run">런</Tab>
+      </Tabs>,
+    );
+    expect(plain).not.toContain("data-tab-dot");
+    expect(
+      (["problem", "clear", "waiting", "merged", "closed"] as const).map((state) =>
+        prDotTone(state),
+      ),
+    ).toEqual(["problem", "progress", "idle", "merged", "idle"]);
+  });
+
+  it("TabPanel keepMounted 는 고르지 않은 패널도 그려 둔다(티켓 0199)", () => {
+    const html = (keepMounted: boolean) =>
+      renderToString(
+        <Tabs
+          value="pr"
+          onValueChange={noop}
+          label="런 패널 보기"
+          panels={
+            <>
+              <TabPanel value="run" keepMounted={keepMounted}>
+                런 내용
+              </TabPanel>
+              <TabPanel value="pr">PR 내용</TabPanel>
+            </>
+          }
+        >
+          <Tab value="run">런</Tab>
+          <Tab value="pr">PR</Tab>
+        </Tabs>,
+      );
+    expect(html(true)).toContain("런 내용");
+    expect(html(false)).not.toContain("런 내용");
+  });
+
+  it("FactCells 는 이름·값 칸을 dt·dd 로 나란히 두고 빈 값은 흐리게 한다(티켓 0199)", () => {
+    const html = renderToString(
+      <FactCells>
+        <FactCell label="러너">runner-1</FactCell>
+        <FactCell label="일한 시간" empty>
+          시작 전
+        </FactCell>
+      </FactCells>,
+    );
+    expect(html).toMatch(/^<dl /);
+    expect(html.match(/<dt[^>]*>/g)).toHaveLength(2);
+    expect(html).toMatch(/<dt[^>]*>러너<\/dt><dd[^>]*>runner-1<\/dd>/);
+    const classOf = (value: string) =>
+      new RegExp(`<dd class="([^"]+)"[^>]*>${value}`).exec(html)?.[1];
+    expect(classOf("시작 전")).not.toBe(classOf("runner-1"));
   });
 
   it("Tabs 는 값이 null 이면 아무 탭도 고르지 않는다(티켓 0091)", () => {
@@ -1281,6 +1355,29 @@ describe("새 컴포넌트(티켓 0073)", () => {
       return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
     });
     expect(new Set(paths).size).toBe(tones.length);
+  });
+
+  it("SignalRow 는 tone 이 없으면 아이콘 없이 같은 자리에 값을 둔다(티켓 0199)", () => {
+    const html = renderToString(
+      <SignalList>
+        <SignalRow label="PR">#571</SignalRow>
+      </SignalList>,
+    );
+    expect(html).toContain('data-signal-tone="none"');
+    expect(html).not.toContain("<svg");
+    expect(html).toContain("#571");
+  });
+
+  it("SignalRow detail 은 값 아래 줄에 흐린 글로 둔다(티켓 0199)", () => {
+    const html = renderToString(
+      <SignalList>
+        <SignalRow label="CI" tone="problem" detail="lint, e2e">
+          4개 중 2개 실패
+        </SignalRow>
+      </SignalList>,
+    );
+    expect(html.indexOf("4개 중 2개 실패")).toBeLessThan(html.indexOf("lint, e2e"));
+    expect(html).toMatch(/<dd[^>]*>.*lint, e2e.*<\/dd>/);
   });
 
   it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {

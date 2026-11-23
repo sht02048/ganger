@@ -1,10 +1,14 @@
 import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
 import { colors, radius, size } from "../tokens.stylex";
-import { statusTone, type PillStatus } from "./status-pill";
+import { statusTone, type PillStatus, type StatusTone } from "./status-pill";
 
 export function statusDotStyles(status: PillStatus) {
-  return [styles.dot, dotTone[statusTone(status)]] as const;
+  return toneDotStyles(statusTone(status));
+}
+
+export function toneDotStyles(tone: StatusTone) {
+  return [styles.dot, dotTone[tone]] as const;
 }
 
 export interface StatusDotProps {

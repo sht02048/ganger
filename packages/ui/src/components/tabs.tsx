@@ -3,6 +3,9 @@ import { Tabs as SdkTabs, TabsList, TabsPanel, TabsTab } from "@ui-sdk/react/tab
 import { createContext, use, type ReactNode } from "react";
 import { cx } from "../cx";
 import { colors, fontSize, fontWeight, motion, radius, space } from "../tokens.stylex";
+import { toneDotStyles } from "./status-dot";
+import type { StatusTone } from "./status-pill";
+import { visuallyHiddenStyles } from "./visually-hidden";
 
 export type TabsVariant = "underline" | "chips";
 
@@ -45,14 +48,37 @@ export function Tabs<T extends string>({
   );
 }
 
+export type PrDotState = "problem" | "clear" | "waiting" | "merged" | "closed";
+
+export interface TabDot {
+  state: PrDotState;
+  label: string;
+}
+
+export function prDotTone(state: PrDotState): StatusTone {
+  switch (state) {
+    case "problem":
+      return "problem";
+    case "clear":
+      return "progress";
+    case "merged":
+      return "merged";
+    case "waiting":
+    case "closed":
+      return "idle";
+  }
+}
+
 export interface TabProps {
   value: string;
   children: ReactNode;
   count?: number;
   attention?: boolean;
+  note?: string;
+  dot?: TabDot;
 }
 
-export function Tab({ value, children, count, attention }: TabProps) {
+export function Tab({ value, children, count, attention, note, dot }: TabProps) {
   const variant = use(VariantContext);
   return (
     <TabsTab
@@ -77,13 +103,30 @@ export function Tab({ value, children, count, attention }: TabProps) {
           {count}
         </span>
       )}
+      {note === undefined ? null : <span {...stylex.props(styles.note)}>{` ${note}`}</span>}
+      {dot === undefined ? null : (
+        <span data-tab-dot={dot.state} {...stylex.props(styles.dotFrame)}>
+          <span aria-hidden="true" {...stylex.props(...toneDotStyles(prDotTone(dot.state)))} />
+          <span {...stylex.props(visuallyHiddenStyles.hidden)}>{` ${dot.label}`}</span>
+        </span>
+      )}
     </TabsTab>
   );
 }
 
-export function TabPanel({ value, children }: { value: string; children: ReactNode }) {
+export interface TabPanelProps {
+  value: string;
+  children: ReactNode;
+  keepMounted?: boolean;
+}
+
+export function TabPanel({ value, children, keepMounted }: TabPanelProps) {
   return (
-    <TabsPanel value={value} className={cx(styles.panel)}>
+    <TabsPanel
+      value={value}
+      className={cx(styles.panel)}
+      {...(keepMounted === undefined ? {} : { keepMounted })}
+    >
       {children}
     </TabsPanel>
   );
@@ -164,4 +207,6 @@ const styles = stylex.create({
     fontWeight: fontWeight.semibold,
   },
   panel: { outline: "none" },
+  note: { color: colors.textTertiary, fontSize: fontSize.ui },
+  dotFrame: { position: "relative", display: "inline-flex", alignSelf: "center" },
 });
