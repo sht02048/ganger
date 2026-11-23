@@ -75,7 +75,7 @@ describe("알림의 답하기 버튼으로 Dashboard 열기(M22)", () => {
     const cachedDetail = demoRunDetail(questionRun);
     const port: RunPort = {
       ...demoRunPort,
-      cachedDetail: () => cachedDetail,
+      cachedDetail: () => ({ data: cachedDetail, fetchedAt: NOW.getTime() }),
       detail: () => Promise.resolve({ kind: "ok", value: cachedDetail }),
     };
     const openRun = { id: questionRun.id, action: true };

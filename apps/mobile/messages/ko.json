@@ -150,6 +150,7 @@
     "problems": "문제",
     "list": "러너",
     "empty": "아직 러너가 없어요.",
+    "unavailable": "러너 정보를 불러오지 못했어요.",
     "offlineFor": "{duration} 닿지 않아요",
     "offline": "오케스트레이터가 이 러너에 닿지 않아요",
     "auth": "GitHub 인증을 다시 해야 해요",
@@ -272,6 +273,7 @@
       "staleJustNow": "{reason} · 방금 전 기준",
       "stale": "{reason} · {minutes}분 전 기준",
       "staleHours": "{reason} · {hours}시간 전 기준",
+      "staleDays": "{reason} · {days}일 전 기준",
       "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소를 고쳐 주세요. 연결은 그대로 뒀어요.",
       "reasonUnreachable": "서버에 닿지 않아요",
       "reasonServerError": "서버가 요청을 처리하지 못했어요"
@@ -282,6 +284,7 @@
   "actions": {
     "loading": "내용을 불러오는 중이에요",
     "loadFailed": "내용을 불러오지 못했어요. 잠시 뒤 다시 열어 주세요.",
+    "cachedDetail": "런 내용을 새로 읽지 못했어요",
     "notFound": "런을 찾지 못했어요. Dashboard를 다시 확인해 주세요.",
     "sending": "보내는 중…",
     "confirming": "보냈는지 확인 중이에요",

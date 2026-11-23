@@ -111,10 +111,11 @@ export class OfflineCache {
     if (this.#dropRun(runId)) this.#schedule();
   }
 
-  cachedRun(runId: string): AppRunDetail | null {
+  cachedRun(runId: string): CachedEntry<AppRunDetail> | null {
+    const now = this.#now();
     for (const board of this.#boards.values()) {
       const found = board.runs.find((entry) => entry.data.id === runId);
-      if (found !== undefined) return found.data;
+      if (found !== undefined) return now - found.fetchedAt > CACHE_MAX_AGE_MS ? null : found;
     }
     return null;
   }

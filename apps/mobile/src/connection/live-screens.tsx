@@ -21,9 +21,8 @@ import { OfflineCache } from "./offline-cache";
 import type { CacheFiles } from "./offline-cache";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
+import { staleBandText } from "./stale-band";
 
-const MINUTE_MS = 60_000;
-const HOUR_MS = 60 * MINUTE_MS;
 const BAND_TICK_MS = 30_000;
 
 function staleReasonText(reason: SessionState["staleReason"]): string {
@@ -32,27 +31,13 @@ function staleReasonText(reason: SessionState["staleReason"]): string {
     : t("connection.band.reasonUnreachable");
 }
 
-export function staleBandText(
-  fetchedAt: number,
-  now: number,
-  staleReason: SessionState["staleReason"],
-): string {
-  const reason = staleReasonText(staleReason);
-  const ago = Math.max(0, now - fetchedAt);
-  if (ago < MINUTE_MS) return t("connection.band.staleJustNow", { reason });
-  if (ago < HOUR_MS) {
-    return t("connection.band.stale", { reason, minutes: Math.floor(ago / MINUTE_MS) });
-  }
-  return t("connection.band.staleHours", { reason, hours: Math.floor(ago / HOUR_MS) });
-}
-
 function bandText(state: SessionState, workspaceId: string, now: number): string | null {
   switch (state.phase) {
     case "stale": {
       const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
       return fetchedAt === undefined
         ? staleReasonText(state.staleReason)
-        : staleBandText(fetchedAt, now, state.staleReason);
+        : staleBandText(fetchedAt, now, staleReasonText(state.staleReason));
     }
     case "host-blocked":
       return t("connection.band.hostBlocked");
@@ -355,6 +340,7 @@ export function LiveScreens({
         <RunnersScreen
           band={band}
           loading={state.phase === "loading"}
+          unavailable={!state.runnersRead}
           runners={state.runners}
           onBack={() => setScreen("dashboard")}
         />

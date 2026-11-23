@@ -30,6 +30,7 @@ export interface SessionState {
   neededUpdate: NeededUpdate;
   workspaces: V1Workspaces["workspaces"];
   runners: AppRunner[];
+  runnersRead: boolean;
   device: V1ThisDevice | null;
   serverVersion: string | null;
   fetchedAt: number | null;
@@ -99,6 +100,7 @@ export class LiveSession {
     neededUpdate: "server",
     workspaces: [],
     runners: [],
+    runnersRead: false,
     device: null,
     serverVersion: null,
     fetchedAt: null,
@@ -225,6 +227,7 @@ export class LiveSession {
       dashboards,
       workspaces: workspaces.data.workspaces,
       runners: runners.data.runners,
+      runnersRead: true,
       device: device.data,
       serverVersion: dashboard.serverVersion,
       fetchedAt,

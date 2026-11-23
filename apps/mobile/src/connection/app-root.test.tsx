@@ -313,6 +313,22 @@ describe("디스크 캐시(M56)", () => {
     expect(cache.saved.has(SERVER)).toBe(false);
   });
 
+  it("캐시로 켠 뒤 러너를 읽지 못했으면 러너가 없다고 말하지 않는다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    server.state.mode = "offline";
+    const host = await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await advance(0);
+    const runners = document.body.querySelector('[aria-label^="Runners"]');
+    if (runners === null) throw new Error("no Runners button");
+    await act(async () => {
+      runners.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(host.textContent).toContain("러너 정보를 불러오지 못했어요.");
+    expect(host.textContent).not.toContain("아직 러너가 없어요.");
+  });
+
   it("캐시 파일에 기기 토큰을 넣지 않는다", async () => {
     const cache = await seededCache();
     expect(cache.saved.get(SERVER)).not.toContain(STORED.token);

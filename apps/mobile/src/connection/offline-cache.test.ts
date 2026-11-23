@@ -61,7 +61,7 @@ describe("저장과 읽기", () => {
     const content = await cache.load();
     expect(content.dashboards.get("all")?.fetchedAt).toBe(NOW);
     expect(content.workspaces).toEqual(workspaces);
-    expect(cache.cachedRun(detail.id)?.id).toBe(detail.id);
+    expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
   });
 
   it("다른 서버의 캐시를 읽지 않는다", async () => {
@@ -99,7 +99,7 @@ describe("저장과 읽기", () => {
     await writer.settled();
     const reader = new OfflineCache(memory.files, SERVER, () => NOW);
     await reader.load();
-    expect(reader.cachedRun(detail.id)?.state).toBe("unknown");
+    expect(reader.cachedRun(detail.id)?.data.state).toBe("unknown");
   });
 });
 
@@ -145,7 +145,18 @@ describe("버리는 캐시", () => {
     const cache = new OfflineCache(files, SERVER, () => NOW);
     const content = await cache.load();
     expect(content.dashboards.size).toBe(0);
-    expect(cache.cachedRun(detail.id)?.id).toBe(detail.id);
+    expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
+  });
+});
+
+describe("메모리에 남은 런 상세", () => {
+  it("앱이 7일 넘게 켜져 있으면 보이지 않는다", async () => {
+    const { files } = await savedFile();
+    let now = NOW;
+    const cache = new OfflineCache(files, SERVER, () => now);
+    await cache.load();
+    now = NOW + CACHE_MAX_AGE_MS + 1;
+    expect(cache.cachedRun(detail.id)).toBeNull();
   });
 });
 

@@ -86,7 +86,7 @@ export function AppRoot({
     try {
       await store.save(connection);
       await pushMemory.clear().catch(() => undefined);
-      await cacheFiles.remove(connection.server).catch(() => undefined);
+      await cacheFiles.removeAll().catch(() => undefined);
       setRoute({ kind: "live", connection });
     } catch {
       await createV1Client(fetcher, connection).disconnect();

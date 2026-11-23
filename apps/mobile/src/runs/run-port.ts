@@ -28,9 +28,14 @@ export type RunRead<Value> =
   | { kind: "not-found" }
   | { kind: "unavailable" };
 
+export interface CachedRunDetail {
+  data: AppRunDetail;
+  fetchedAt: number;
+}
+
 export interface RunPort {
   detail(run: DashboardRun): Promise<RunRead<AppRunDetail>>;
-  cachedDetail?(run: DashboardRun): AppRunDetail | null;
+  cachedDetail?(run: DashboardRun): CachedRunDetail | null;
   ticketLink(run: DashboardRun): Promise<RunRead<string>>;
   write(run: DashboardRun, write: RunWrite, onConfirming?: () => void): Promise<RunWriteOutcome>;
 }
@@ -111,7 +116,7 @@ function isDefiniteAnswer(failure: V1RunFailure): boolean {
 }
 
 export interface RunDetailCache {
-  cachedRun(runId: string): AppRunDetail | null;
+  cachedRun(runId: string): CachedRunDetail | null;
   saveRun(detail: AppRunDetail, fetchedAt: number): void;
   forgetRun(runId: string): void;
 }

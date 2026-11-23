@@ -147,21 +147,26 @@ export function RunnersScreen({
   onBack,
   band = null,
   loading = false,
+  unavailable = false,
 }: {
   runners: ReadonlyArray<AppRunner>;
   onBack: () => void;
   band?: ReactNode;
   loading?: boolean;
+  unavailable?: boolean;
 }) {
+  const emptyMessage = loading
+    ? t("common.loading")
+    : unavailable
+      ? t("runners.unavailable")
+      : t("runners.empty");
   const problems = runners.filter((runner) => runner.cause !== null || runner.limits.length > 0);
   return (
     <View style={styles.root}>
       {band}
       <ScreenHeader title={t("runners.title")} onBack={onBack} />
       <ScrollView contentContainerStyle={styles.content}>
-        {runners.length === 0 ? (
-          <Text variant="meta">{loading ? t("common.loading") : t("runners.empty")}</Text>
-        ) : null}
+        {runners.length === 0 ? <Text variant="meta">{emptyMessage}</Text> : null}
         {problems.length === 0 ? null : (
           <Text variant="meta" tone="secondary" heading>
             {t("runners.problems")}
