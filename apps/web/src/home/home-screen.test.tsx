@@ -1,5 +1,6 @@
 import { toRunId, toTicketKey } from "@ganger/core";
-import { Text } from "@ganger/ui";
+import { Button, KanbanCard, Text } from "@ganger/ui";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import homeJson from "../../messages/ko/home.json" with { type: "json" };
@@ -75,6 +76,14 @@ function balanced(html: string, start: number, tag: string): string {
 function section(html: string, name: string): string {
   const start = html.indexOf(`<section aria-label="${name}"`);
   return start < 0 ? "" : balanced(html, start, "section");
+}
+
+function checkActionClasses(html: string): { slot: string; button: string } {
+  const match = /<span class="([^"]*)"><button\b([^>]*data-variant="check"[^>]*)>/.exec(html);
+  return {
+    slot: match?.[1] ?? "",
+    button: /class="([^"]*)"/.exec(match?.[2] ?? "")?.[1] ?? "",
+  };
 }
 
 function actionsOf(html: string) {
@@ -429,6 +438,22 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       const button = /<button[^>]*data-variant="check"[^>]*>/.exec(card)?.[0] ?? "";
       expect(button).toContain("aria-describedby=");
       expect(text(card)).toContain(homeJson.card.check);
+      const fullWidthCard = renderToString(
+        <KanbanCard
+          ticketKey="ACME-11"
+          title="제목"
+          actionFullWidth
+          action={
+            <Button variant="check" block>
+              {homeJson.card.check}
+            </Button>
+          }
+          onOpen={() => undefined}
+        />,
+      );
+      expect(checkActionClasses(card)).toEqual(checkActionClasses(fullWidthCard));
+      expect(checkActionClasses(card).slot).not.toBe("");
+      expect(checkActionClasses(card).button).not.toBe("");
     });
 
     it("답한 카드는 문구와 답했어요를 그대로 보이고 버튼이 없다", () => {
