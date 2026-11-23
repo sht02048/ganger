@@ -252,6 +252,24 @@ describe("Mac 앞이면 푸시 미루기(M15, M32, M51)", () => {
       expect(reminders()).toHaveLength(1);
     });
 
+    it("다시 알릴 때가 되기 전에 해결됐다 그 뒤 다시 열려도 Mac 앞이면 5분을 미룬다", async () => {
+      const pushes = await sentFirst();
+      advance(8 * 60_000);
+      sync([]);
+      await pushes.run();
+      advance(8 * 60_000);
+      pushes.recordDeviceUse("mac", clock.getTime());
+      sync([cause(1)]);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+      advance(PUSH_DEFER_MS - 1);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+      advance(1);
+      await pushes.run();
+      expect(reminders()).toHaveLength(1);
+    });
+
     it("재시작 직후에는 보고를 기다렸다가 보고가 없으면 다시 알린다", async () => {
       await sentFirst();
       advance(PUSH_REMIND_AFTER_MS);
@@ -262,6 +280,22 @@ describe("Mac 앞이면 푸시 미루기(M15, M32, M51)", () => {
       await restarted.run();
       expect(reminders()).toHaveLength(1);
     });
+  });
+
+  it("재시작 대기가 끝난 뒤 다시 열린 미발송 사건도 Mac 앞이면 5분을 미룬다", async () => {
+    sync([cause(1)]);
+    advance(4 * 60_000);
+    sync([]);
+    const restarted = delivery(clock.getTime() + PUSH_FIRST_REPORT_WAIT_MS);
+    advance(PUSH_FIRST_REPORT_WAIT_MS);
+    await restarted.run();
+    restarted.recordDeviceUse("mac", clock.getTime());
+    sync([cause(1)]);
+    await restarted.run();
+    expect(sent).toHaveLength(0);
+    advance(PUSH_DEFER_MS);
+    await restarted.run();
+    expect(sent).toHaveLength(1);
   });
 
   it("재시작 직후에는 보고를 기다렸다가 보고가 없으면 보낸다", async () => {

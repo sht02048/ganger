@@ -1,5 +1,5 @@
 import { DESKTOP_ACTIVITY_REPORT_INTERVAL_MS } from "@ganger/api";
-import { NOTIFICATION_REOPEN_WINDOW_MS, PUSH_REMIND_AFTER_MS } from "@ganger/db";
+import { PUSH_REMIND_AFTER_MS } from "@ganger/db";
 import type { PushDelivery, StoredNotificationEvent } from "@ganger/db";
 import { isTodo, todoWindows } from "./push-windows.js";
 
@@ -22,17 +22,11 @@ interface Pending<Key> {
 
 function createHoldBook<Key>() {
   const sendAt = new Map<Key, number>();
-  const closedAt = new Map<Key, number>();
 
-  const forgetClosed = (pending: ReadonlyArray<Pending<Key>>, at: number): void => {
+  const forgetClosed = (pending: ReadonlyArray<Pending<Key>>): void => {
     const present = new Set(pending.map((item) => item.key));
     for (const key of sendAt.keys()) {
-      if (present.has(key)) continue;
-      sendAt.delete(key);
-      closedAt.set(key, at);
-    }
-    for (const [key, closed] of closedAt) {
-      if (at - closed > NOTIFICATION_REOPEN_WINDOW_MS) closedAt.delete(key);
+      if (!present.has(key)) sendAt.delete(key);
     }
   };
 
@@ -44,15 +38,13 @@ function createHoldBook<Key>() {
       usedRecently: boolean,
       waitingForReport: boolean,
     ): void => {
-      forgetClosed(pending, at);
+      forgetClosed(pending);
       for (const { key, dueAt } of pending) {
         if (sendAt.has(key)) continue;
         if (usedRecently) {
-          sendAt.set(key, (closedAt.has(key) ? at : dueAt) + PUSH_DEFER_MS);
-          closedAt.delete(key);
+          sendAt.set(key, (waitingForReport ? dueAt : at) + PUSH_DEFER_MS);
         } else if (!waitingForReport) {
           sendAt.set(key, SEND_NOW);
-          closedAt.delete(key);
         }
       }
     },
