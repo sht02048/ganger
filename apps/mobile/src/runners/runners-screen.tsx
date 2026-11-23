@@ -37,13 +37,16 @@ function problemLines(runner: AppRunner): string[] {
   return [...cause, ...runner.limits.map(limitText)];
 }
 
+function problemStatus(runner: AppRunner): "offline" | "runner-issue" | "unknown" {
+  if (runner.cause === "offline") return "offline";
+  return runner.cause === "unknown" && runner.limits.length === 0 ? "unknown" : "runner-issue";
+}
+
 function ProblemCard({ runner }: { runner: AppRunner }) {
+  const status = problemStatus(runner);
   return (
-    <Card emphasis="problem">
-      <StatusPill
-        status={runner.cause === "offline" ? "offline" : "runner-issue"}
-        label={t(runner.cause === "offline" ? "status.offline" : "status.runner-issue")}
-      />
+    <Card emphasis={status === "unknown" ? "none" : "problem"}>
+      <StatusPill status={status} label={t(`status.${status}`)} />
       <Text variant="title">{runner.name}</Text>
       {problemLines(runner).map((line) => (
         <Text key={line} variant="meta" tone="secondary">

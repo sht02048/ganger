@@ -23,6 +23,10 @@ export function prProblemLabel(problem: PrProblem): string {
   }
 }
 
+export function prProblemTone({ kind }: PrProblem): "problem" | "neutral" {
+  return kind === "ci-failed" || kind === "conflict" ? "problem" : "neutral";
+}
+
 function PrChips({ run }: { run: DashboardRun }) {
   const problems = run.pullRequest?.problems ?? [];
   if (problems.length === 0) return null;
@@ -33,7 +37,7 @@ function PrChips({ run }: { run: DashboardRun }) {
         <Chip
           key={`${problem.kind}:${index}`}
           label={prProblemLabel(problem)}
-          tone={problem.kind === "behind" ? "neutral" : "problem"}
+          tone={prProblemTone(problem)}
         />
       ))}
       {hidden > 0 ? <Chip label={t("card.prChip.more", { count: hidden })} /> : null}

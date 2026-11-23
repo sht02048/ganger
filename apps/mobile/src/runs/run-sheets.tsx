@@ -5,7 +5,7 @@ import type { ReactNode, RefObject } from "react";
 import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
 
 import type { DashboardRun } from "../dashboard/model";
-import { prProblemLabel } from "../dashboard/run-card";
+import { prProblemLabel, prProblemTone } from "../dashboard/run-card";
 import {
   Button,
   Card,
@@ -878,7 +878,7 @@ function RunDetailBody({ detail }: { detail: AppRunDetail }) {
               {pullRequest.problems.map((problem, index) => (
                 <Chip
                   key={`${problem.kind}:${index}`}
-                  tone={problem.kind === "behind" ? "neutral" : "problem"}
+                  tone={prProblemTone(problem)}
                   label={prProblemLabel(problem)}
                 />
               ))}

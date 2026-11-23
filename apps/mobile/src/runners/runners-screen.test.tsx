@@ -41,6 +41,7 @@ describe("Runners의 모르는 값", () => {
   it("원인을 모르는 러너에 Online을 보이지 않는다", () => {
     const host = mount([{ ...runner, cause: "unknown" }]);
     expect(host.querySelector('[data-testid="pill-online"]')).toBeNull();
+    expect(host.querySelector('[data-testid="pill-runner-issue"]')).toBeNull();
     expect(host.querySelector('[data-testid="pill-unknown"]')).not.toBeNull();
   });
 

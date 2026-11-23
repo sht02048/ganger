@@ -5,7 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { DashboardRun, EndedRun } from "./model";
-import { RunCard, SettledRow } from "./run-card";
+import { RunCard, SettledRow, prProblemTone } from "./run-card";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -256,6 +256,12 @@ describe("모르는 값", () => {
     };
     const host = mount(<RunCard run={run} onAction={() => undefined} />);
     expect(host.querySelector('[aria-label="재개하기"]')).not.toBeNull();
+  });
+
+  it("모르는 PR 문제는 문제 색을 쓰지 않는다", () => {
+    expect(prProblemTone({ kind: "unknown" })).toBe("neutral");
+    expect(prProblemTone({ kind: "ci-failed" })).toBe("problem");
+    expect(prProblemTone({ kind: "conflict" })).toBe("problem");
   });
 
   it("모르는 PR 문제가 여럿이어도 화면을 깨지 않는다", () => {
