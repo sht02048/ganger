@@ -1,5 +1,5 @@
 import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
-import type { StatusTone } from "@ganger/ui";
+import type { PrDotState } from "@ganger/ui";
 import type { SheetMode } from "./run-card";
 
 export type SheetTab = "run" | "pr";
@@ -7,7 +7,7 @@ export type SheetTab = "run" | "pr";
 export type PrDotReason = "problem" | "ok" | "pending" | "behind" | "merged" | "closed";
 
 export interface PrTabDot {
-  tone: StatusTone;
+  state: PrDotState;
   reason: PrDotReason;
 }
 
@@ -37,18 +37,18 @@ export function initialSheetTab(run: HomeRun, mode: SheetMode): SheetTab {
 export function prTabDot(pr: HomePullRequest): PrTabDot | null {
   switch (pr.state) {
     case "merged":
-      return { tone: "merged", reason: "merged" };
+      return { state: "merged", reason: "merged" };
     case "closed":
-      return { tone: "idle", reason: "closed" };
+      return { state: "closed", reason: "closed" };
     case "open":
       break;
   }
-  if (prHasProblem(pr)) return { tone: "problem", reason: "problem" };
-  if (pr.ci === "pending") return { tone: "idle", reason: "pending" };
+  if (prHasProblem(pr)) return { state: "problem", reason: "problem" };
+  if (pr.ci === "pending") return { state: "waiting", reason: "pending" };
   const behindBy = pr.signals?.behindBy ?? null;
-  if (behindBy !== null && behindBy > 0) return { tone: "idle", reason: "behind" };
+  if (behindBy !== null && behindBy > 0) return { state: "waiting", reason: "behind" };
   const ciClear = pr.ci === "success" || pr.ci === "none";
   if (ciClear && pr.signals?.conflict === false && behindBy === 0)
-    return { tone: "progress", reason: "ok" };
+    return { state: "clear", reason: "ok" };
   return null;
 }

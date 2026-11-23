@@ -48,9 +48,25 @@ export function Tabs<T extends string>({
   );
 }
 
+export type PrDotState = "problem" | "clear" | "waiting" | "merged" | "closed";
+
 export interface TabDot {
-  tone: StatusTone;
+  state: PrDotState;
   label: string;
+}
+
+export function prDotTone(state: PrDotState): StatusTone {
+  switch (state) {
+    case "problem":
+      return "problem";
+    case "clear":
+      return "progress";
+    case "merged":
+      return "merged";
+    case "waiting":
+    case "closed":
+      return "idle";
+  }
 }
 
 export interface TabProps {
@@ -89,8 +105,8 @@ export function Tab({ value, children, count, attention, note, dot }: TabProps) 
       )}
       {note === undefined ? null : <span {...stylex.props(styles.note)}>{` ${note}`}</span>}
       {dot === undefined ? null : (
-        <span data-tab-dot={dot.tone} {...stylex.props(styles.dotFrame)}>
-          <span aria-hidden="true" {...stylex.props(...toneDotStyles(dot.tone))} />
+        <span data-tab-dot={dot.state} {...stylex.props(styles.dotFrame)}>
+          <span aria-hidden="true" {...stylex.props(...toneDotStyles(prDotTone(dot.state)))} />
           <span {...stylex.props(visuallyHiddenStyles.hidden)}>{` ${dot.label}`}</span>
         </span>
       )}

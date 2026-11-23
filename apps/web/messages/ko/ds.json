@@ -183,7 +183,8 @@
     "sheetPr": "PR",
     "sheetNone": "없음",
     "sheetPrWithId": "PR #571",
-    "sheetDot": "CI 실패나 충돌이 있어요"
+    "sheetDot": "CI 실패나 충돌이 있어요",
+    "sheetRun": "런"
   },
   "table": {
     "note": "행을 누르거나 위아래 화살표로 고르면 오른쪽 패널이 바뀌어요. 표가 좁아지면 에이전트, 러너 순으로 열을 접어 제목 아래 줄로 옮겨요.",

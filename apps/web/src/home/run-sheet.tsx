@@ -157,7 +157,7 @@ function PrTab({ run }: { run: HomeRun }) {
   return (
     <Tab
       value="pr"
-      {...(dot === null ? {} : { dot: { tone: dot.tone, label: t(`prDot.${dot.reason}`) } })}
+      {...(dot === null ? {} : { dot: { state: dot.state, label: t(`prDot.${dot.reason}`) } })}
     >
       {t("tabs.prWithId", { pr: pr.displayId })}
     </Tab>

@@ -317,6 +317,8 @@ export {
   Tab,
   TabPanel,
   Tabs,
+  prDotTone,
+  type PrDotState,
   type TabDot,
   type TabPanelProps,
   type TabProps,

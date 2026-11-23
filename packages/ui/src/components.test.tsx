@@ -73,6 +73,7 @@ import {
   StatusPill,
   Tab,
   TabPanel,
+  prDotTone,
   FactCell,
   FactCells,
   Table,
@@ -387,7 +388,7 @@ describe("서버 렌더", () => {
         <Tab value="run" note="없음">
           PR
         </Tab>
-        <Tab value="pr" dot={{ tone: "problem", label: "CI 실패나 충돌이 있어요" }}>
+        <Tab value="pr" dot={{ state: "problem", label: "CI 실패나 충돌이 있어요" }}>
           PR #571
         </Tab>
       </Tabs>,
@@ -403,6 +404,11 @@ describe("서버 렌더", () => {
       </Tabs>,
     );
     expect(plain).not.toContain("data-tab-dot");
+    expect(
+      (["problem", "clear", "waiting", "merged", "closed"] as const).map((state) =>
+        prDotTone(state),
+      ),
+    ).toEqual(["problem", "progress", "idle", "merged", "idle"]);
   });
 
   it("TabPanel keepMounted 는 고르지 않은 패널도 그려 둔다(티켓 0199)", () => {

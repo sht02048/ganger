@@ -117,24 +117,24 @@ describe("「PR」 탭 보이기와 점(티켓 0199)", () => {
     expect(showsPrTab(ended(null))).toBe(true);
   });
 
-  it("CI 실패·충돌은 빨강, 문제 없으면 초록, 도는 중·뒤처짐은 회색, 머지는 파랑, 닫힘은 회색이다", () => {
-    expect(prTabDot(failing)).toEqual({ tone: "problem", reason: "problem" });
+  it("CI 실패·충돌은 problem, 문제 없으면 clear, 도는 중·뒤처짐은 waiting, 머지는 merged, 닫힘은 closed 점이다", () => {
+    expect(prTabDot(failing)).toEqual({ state: "problem", reason: "problem" });
     expect(prTabDot(pr({ signals: { ...clean, conflict: true, behindBy: 2 } }))).toEqual({
-      tone: "problem",
+      state: "problem",
       reason: "problem",
     });
-    expect(prTabDot(pr())).toEqual({ tone: "progress", reason: "ok" });
-    expect(prTabDot(pr({ ci: "pending" }))).toEqual({ tone: "idle", reason: "pending" });
+    expect(prTabDot(pr())).toEqual({ state: "clear", reason: "ok" });
+    expect(prTabDot(pr({ ci: "pending" }))).toEqual({ state: "waiting", reason: "pending" });
     expect(prTabDot(pr({ signals: { ...clean, behindBy: 3 } }))).toEqual({
-      tone: "idle",
+      state: "waiting",
       reason: "behind",
     });
     expect(prTabDot(pr({ state: "merged", signals: null }))).toEqual({
-      tone: "merged",
+      state: "merged",
       reason: "merged",
     });
     expect(prTabDot(pr({ state: "closed", signals: null }))).toEqual({
-      tone: "idle",
+      state: "closed",
       reason: "closed",
     });
   });

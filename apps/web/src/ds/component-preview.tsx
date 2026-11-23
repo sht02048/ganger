@@ -323,10 +323,8 @@ export function ComponentSections() {
             onValueChange={setSheetTab}
             label={t("tabs.sheetLabel")}
           >
-            <Tab value="run" note={t("tabs.sheetNone")}>
-              {t("tabs.sheetPr")}
-            </Tab>
-            <Tab value="pr" dot={{ tone: "problem", label: t("tabs.sheetDot") }}>
+            <Tab value="run">{t("tabs.sheetRun")}</Tab>
+            <Tab value="pr" dot={{ state: "problem", label: t("tabs.sheetDot") }}>
               {t("tabs.sheetPrWithId")}
             </Tab>
           </Tabs>
