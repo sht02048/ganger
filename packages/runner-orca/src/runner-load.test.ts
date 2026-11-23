@@ -157,6 +157,12 @@ describe("READ_USAGE_AND_LOAD_SCRIPT", () => {
     expect(READ_USAGE_AND_LOAD_SCRIPT).toContain('"$1" account list --json');
   });
 
+  it("fixes the locale for load commands only, so decimals keep a dot", () => {
+    const locale = READ_USAGE_AND_LOAD_SCRIPT.indexOf("export LC_ALL=C");
+    expect(locale).toBeGreaterThan(READ_USAGE_AND_LOAD_SCRIPT.indexOf("account list"));
+    expect(locale).toBeLessThan(READ_USAGE_AND_LOAD_SCRIPT.indexOf("vm.loadavg"));
+  });
+
   it("reads usage before any load command can hang", () => {
     expect(READ_USAGE_AND_LOAD_SCRIPT.indexOf("account list")).toBeLessThan(
       READ_USAGE_AND_LOAD_SCRIPT.indexOf("uname"),

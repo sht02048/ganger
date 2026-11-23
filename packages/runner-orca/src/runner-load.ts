@@ -7,6 +7,7 @@ export const USAGE_SECTION_MARK = "@@ganger-usage";
 export const READ_USAGE_AND_LOAD_SCRIPT = [
   '"$1" account list --json',
   `printf '\\n${USAGE_SECTION_MARK}\\n'`,
+  "export LC_ALL=C",
   `section() { printf '\\n${LOAD_SECTION_MARK}%s\\n' "$1"; }`,
   "section os; uname -s 2>/dev/null",
   'if [ "$(uname -s 2>/dev/null)" = Darwin ]; then',

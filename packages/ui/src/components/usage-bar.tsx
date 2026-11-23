@@ -9,14 +9,16 @@ export interface UsageBarProps {
   percent: number;
   label: string;
   tone?: UsageTone;
+  density?: "regular" | "compact";
 }
 
 export function usageText(percent: number): string {
   return `${Math.round(percent)}%`;
 }
 
-export function UsageBar({ percent, label, tone = "neutral" }: UsageBarProps) {
+export function UsageBar({ percent, label, tone = "neutral", density = "regular" }: UsageBarProps) {
   const text = usageText(percent);
+  const compact = density === "compact";
   return (
     <Meter
       value={Math.min(Math.max(percent, 0), 100)}
@@ -27,10 +29,13 @@ export function UsageBar({ percent, label, tone = "neutral" }: UsageBarProps) {
       data-tone={tone}
       className={cx(styles.root)}
     >
-      <MeterTrack className={cx(styles.track)}>
+      <MeterTrack className={compact ? cx(styles.track, compactStyles.track) : cx(styles.track)}>
         <MeterIndicator className={cx(styles.indicator, indicatorTone[tone])} />
       </MeterTrack>
-      <span aria-hidden="true" {...stylex.props(styles.text, textTone[tone])}>
+      <span
+        aria-hidden="true"
+        {...stylex.props(styles.text, compact && compactStyles.text, textTone[tone])}
+      >
         {text}
       </span>
     </Meter>
@@ -64,6 +69,11 @@ const styles = stylex.create({
     fontSize: fontSize.ui,
     fontVariantNumeric: "tabular-nums",
   },
+});
+
+const compactStyles = stylex.create({
+  track: { minWidth: 0, height: 4 },
+  text: { fontSize: fontSize.small },
 });
 
 const indicatorTone = stylex.create({

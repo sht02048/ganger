@@ -816,16 +816,17 @@ function gigabytes(bytes: number): number {
 
 function useLoadHighSentence(runners: ReadonlyArray<RunnerView>): string | null {
   const t = useTranslations("runners");
+  const list = new Intl.ListFormat(useLocale(), { type: "conjunction", style: "short" });
   const names = runners.flatMap((runner) => {
     const high = runnerLoadHigh(runner.load);
     if (high === null) return [];
-    const parts = [
+    const parts = list.format([
       ...(high.cpuPercent === null ? [] : [t("load.cpu")]),
       ...(high.memoryPercent === null ? [] : [t("load.memory")]),
-    ].join("·");
+    ]);
     return [t("load.highName", { name: runner.name, parts })];
   });
-  return names.length === 0 ? null : t("subtitleLoadHigh", { names: names.join(", ") });
+  return names.length === 0 ? null : t("subtitleLoadHigh", { names: list.format(names) });
 }
 
 function useLoadItems(

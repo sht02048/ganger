@@ -146,7 +146,7 @@ describe("OrcaRunner.readUsageAndLoad", () => {
     });
     const { usage, load } = await runnerWith(exec).readUsageAndLoad();
     expect(usage.kind).toBe("read");
-    expect(load.kind).toBe("read");
+    expect(load).toEqual({ kind: "unreadable" });
   });
 
   test("a usage command cut off by the timeout is unreadable", async () => {

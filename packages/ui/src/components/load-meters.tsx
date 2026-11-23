@@ -1,9 +1,7 @@
 import * as stylex from "@stylexjs/stylex";
-import { Meter, MeterIndicator, MeterTrack } from "@ui-sdk/react/meter";
 import type { ReactNode } from "react";
-import { cx } from "../cx";
-import { colors, fontSize, radius, size, space } from "../tokens.stylex";
-import { usageText, type UsageTone } from "./usage-bar";
+import { colors, fontSize, size, space } from "../tokens.stylex";
+import { UsageBar, type UsageTone } from "./usage-bar";
 
 export interface LoadMeterItem {
   id: string;
@@ -39,21 +37,7 @@ export function LoadMeters({ items, density = "regular" }: LoadMetersProps) {
             {item.percent === null ? (
               <span {...stylex.props(styles.empty)}>{item.emptyText}</span>
             ) : (
-              <Meter
-                value={Math.min(Math.max(item.percent, 0), 100)}
-                min={0}
-                max={100}
-                aria-label={item.label}
-                getValueLabel={() => usageText(item.percent ?? 0)}
-                className={cx(styles.meter)}
-              >
-                <MeterTrack className={cx(styles.track)}>
-                  <MeterIndicator className={cx(styles.indicator, indicatorTone[tone])} />
-                </MeterTrack>
-                <span aria-hidden="true" {...stylex.props(styles.value, valueTone[tone])}>
-                  {usageText(item.percent)}
-                </span>
-              </Meter>
+              <UsageBar percent={item.percent} label={item.label} tone={tone} density={density} />
             )}
             {item.note === undefined ? null : (
               <span {...stylex.props(styles.note, tone === "problem" && styles.noteProblem)}>
@@ -97,28 +81,6 @@ const styles = stylex.create({
   },
   name: { minWidth: 0, whiteSpace: "nowrap" },
   empty: { textAlign: "end", color: colors.textSecondary },
-  meter: {
-    display: "flex",
-    alignItems: "center",
-    gap: space.s2,
-    minWidth: 0,
-  },
-  track: {
-    position: "relative",
-    flexGrow: 1,
-    minWidth: 0,
-    height: 4,
-    overflow: "hidden",
-    borderRadius: radius.full,
-    backgroundColor: colors.meterTrack,
-  },
-  indicator: { height: "100%", borderRadius: radius.full },
-  value: {
-    flexShrink: 0,
-    minWidth: 36,
-    textAlign: "end",
-    fontVariantNumeric: "tabular-nums",
-  },
   note: {
     gridColumn: "2 / -1",
     minWidth: 0,
@@ -126,14 +88,4 @@ const styles = stylex.create({
     overflowWrap: "anywhere",
   },
   noteProblem: { color: colors.problem },
-});
-
-const indicatorTone = stylex.create({
-  neutral: { backgroundColor: colors.meterFill },
-  problem: { backgroundColor: colors.problem },
-});
-
-const valueTone = stylex.create({
-  neutral: { color: colors.textSecondary },
-  problem: { color: colors.problem },
 });
