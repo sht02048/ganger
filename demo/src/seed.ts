@@ -18,6 +18,7 @@ import type {
   AgentId,
   AgentResult,
   PrState,
+  PullRequestSignals,
   RunId,
   RunnerId,
   TicketKey,
@@ -375,15 +376,50 @@ function end(
             id: toPullRequestId(`pr-${input.prNumber}`),
             displayId: `#${input.prNumber}`,
             url: `https://code.example.com/${input.repo}/pull/${input.prNumber}`,
-            ...demoChecks(ending.prState, input.prNumber),
+            ...demoChecks(ending.prState, input.prNumber, {
+              title: `Demo change for PR ${input.prNumber}`,
+              baseBranch: "main",
+              commits: demoCommits(input),
+            }),
             checkedAt: at,
           },
         }),
   });
 }
 
-function demoChecks(prState: Ending["prState"], prNumber: number) {
+const DEMO_COMMIT_HEADLINES = [
+  "Add retry around the payment request",
+  "Cover the retry with tests",
+  "Rename the client option to keep it consistent with the rest of the checkout module and the settings screen",
+  "Fix lint",
+  "Handle the timeout from the payment provider",
+  "Address review comments",
+  "Log the retry count",
+];
+
+const MANY_COMMITS_PR = 902;
+
+function demoCommits(input: { at: Date; prNumber: number; repo: string }) {
+  const count = input.prNumber === MANY_COMMITS_PR ? 28 : 2 + (input.prNumber % 4);
+  return Array.from({ length: count }, (_, i) => {
+    const oid = `${input.prNumber.toString(16)}${(count - i).toString(16).padStart(3, "0")}c0ffee5eed`;
+    return {
+      oid,
+      url: `https://code.example.com/${input.repo}/commit/${oid}`,
+      headline: DEMO_COMMIT_HEADLINES[i % DEMO_COMMIT_HEADLINES.length] ?? "Update",
+      author: i % 3 === 2 ? "kim" : "ganger-agent",
+      committedAt: new Date(input.at.getTime() - (i * 7 + 3) * 60_000).toISOString(),
+    };
+  });
+}
+
+function demoChecks(
+  prState: Ending["prState"],
+  prNumber: number,
+  details: Pick<PullRequestSignals, "title" | "baseBranch" | "commits">,
+) {
   const base = {
+    ...details,
     headCommit: `demo-${prNumber}`,
     ciFailed: false,
     checkTotal: 6,

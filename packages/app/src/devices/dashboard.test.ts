@@ -103,6 +103,9 @@ describe("v1 Dashboard 계약", () => {
         settledAt: null,
         settledAgoMs: null,
         branch: "acme-12",
+        title: null,
+        baseBranch: null,
+        commits: [],
       },
     };
     const dashboard = toV1Dashboard(

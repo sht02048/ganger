@@ -45,6 +45,9 @@ function pr(over: Partial<HomePullRequest> = {}): HomePullRequest {
     settledAt: null,
     settledAgoMs: null,
     branch: "acme-1-retry",
+    title: null,
+    baseBranch: null,
+    commits: [],
     ...over,
   };
 }

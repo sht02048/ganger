@@ -1,5 +1,5 @@
 import * as stylex from "@stylexjs/stylex";
-import { ExternalIconLink, SignalList, SignalRow, Text } from "@ganger/ui";
+import { CommitHistory, ExternalIconLink, SignalList, SignalRow, Text } from "@ganger/ui";
 import type { SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
 import { useLocale, useTranslations } from "use-intl";
@@ -33,10 +33,37 @@ function NoPullRequest({ run }: { run: HomeRun }) {
 
 function PrStatusRows({ pr }: { pr: HomePullRequest }) {
   return (
-    <SignalList>
-      {pr.state === "open" ? <OpenPrRows pr={pr} /> : <SettledPrRow pr={pr} />}
-      <PrLinkRow pr={pr} />
-    </SignalList>
+    <>
+      <SignalList>
+        {pr.state === "open" ? <OpenPrRows pr={pr} /> : <SettledPrRow pr={pr} />}
+        <PrLinkRow pr={pr} />
+      </SignalList>
+      {pr.commits.length === 0 ? null : <PrCommits commits={pr.commits} />}
+    </>
+  );
+}
+
+function PrCommits({ commits }: { commits: HomePullRequest["commits"] }) {
+  const t = useTranslations("home.sheet");
+  const { ago } = useTime();
+  const latest = commits[0];
+  if (latest === undefined) return null;
+  return (
+    <CommitHistory
+      summary={t("pr.commits", {
+        count: commits.length,
+        ago: ago(latest.committedAt, latest.agoMs),
+      })}
+      newTabLabel={t("newTab")}
+      commits={commits.map((commit) => ({
+        id: commit.oid,
+        headline: commit.headline,
+        sha: commit.shortSha,
+        author: commit.author,
+        time: ago(commit.committedAt, commit.agoMs),
+        href: commit.url,
+      }))}
+    />
   );
 }
 
@@ -118,10 +145,15 @@ function SettledPrRow({ pr }: { pr: HomePullRequest }) {
 
 function PrLinkRow({ pr }: { pr: HomePullRequest }) {
   const t = useTranslations("home.sheet");
+  const branches = branchesText(pr, (head, base) => t("pr.branches", { head, base }));
   return (
-    <SignalRow label={t("pr.link")} {...(pr.branch === null ? {} : { detail: pr.branch })}>
+    <SignalRow label={t("pr.link")} {...(branches === null ? {} : { detail: branches })}>
       <span {...stylex.props(styles.linkLine)}>
-        <span>{pr.displayId}</span>
+        <span {...stylex.props(styles.prName)}>
+          {pr.title === null
+            ? pr.displayId
+            : t("pr.linkValue", { pr: pr.displayId, title: pr.title })}
+        </span>
         <ExternalIconLink
           href={pr.url}
           label={`${t("openPr", { pr: pr.displayId })} (${t("newTab")})`}
@@ -129,6 +161,14 @@ function PrLinkRow({ pr }: { pr: HomePullRequest }) {
       </span>
     </SignalRow>
   );
+}
+
+function branchesText(
+  pr: HomePullRequest,
+  format: (head: string, base: string) => string,
+): string | null {
+  if (pr.branch === null) return null;
+  return pr.baseBranch === null ? pr.branch : format(pr.branch, pr.baseBranch);
 }
 
 function ciPassed(pr: HomePullRequest, failed: boolean): boolean {
@@ -155,4 +195,5 @@ const styles = stylex.create({
   column: { display: "flex", flexDirection: "column", gap: space.s4, minWidth: 0 },
   empty: { display: "flex", flexDirection: "column", gap: space.s1 },
   linkLine: { display: "flex", alignItems: "center", gap: space.s2, minWidth: 0 },
+  prName: { minWidth: 0, overflowWrap: "anywhere" },
 });

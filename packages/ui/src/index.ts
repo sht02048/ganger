@@ -51,6 +51,11 @@ export { Checkbox, type CheckboxProps } from "./components/checkbox";
 export { CheckboxDisclosure, type CheckboxDisclosureProps } from "./components/checkbox-disclosure";
 export { Chip, RemovableChip, type ChipProps, type RemovableChipProps } from "./components/chip";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
+export {
+  CommitHistory,
+  type CommitHistoryItem,
+  type CommitHistoryProps,
+} from "./components/commit-history";
 export { QrCode, type QrCodeProps } from "./components/qr-code";
 export { ScrollRegion, type ScrollRegionProps } from "./components/scroll-region";
 export { Spinner } from "./components/spinner";

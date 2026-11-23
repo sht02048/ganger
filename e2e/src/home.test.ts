@@ -10,6 +10,7 @@ import {
   toCodeHostKind,
   toLabelId,
   toPermissionRequestId,
+  toPullRequestId,
   toQuestionId,
   toRunnerId,
   toRunnerKind,
@@ -37,6 +38,7 @@ import {
   saveWorkspace,
   saveWorkspaceTrackerProject,
   toCodeHostConnectionId,
+  updateRunRecords,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
@@ -450,6 +452,52 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     expect(await focusedSoon(cardButton(page, "ACME-5"))).toBe(true);
   });
 
+  it("「PR」 탭의 커밋 줄은 접혀 있다가 펼치면 최근 커밋부터 보이고, 긴 메시지는 줄임표로 자르며 새 탭 링크다(0200)", async () => {
+    await openHome(page);
+    await page
+      .getByRole("region", { name: home.column.running })
+      .getByRole("button", { name: /개 더 보기$/ })
+      .click();
+    await cardButton(page, "ACME-40").click();
+    const panel = page.getByRole("dialog");
+    await panel.getByRole("tab", { name: new RegExp(`^${home.sheet.tabs.pr}`) }).click();
+    await panel.getByText("#40 Retry failed payments").waitFor();
+    await panel.getByText("acme/wt-ACME-40 → develop").waitFor();
+    const toggle = panel.getByRole("button", { name: /^커밋 3개 · 마지막 / });
+    expect(await toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(await panel.locator("a[data-commit]").count()).toBe(0);
+
+    await toggle.click();
+    expect(await toggle.getAttribute("aria-expanded")).toBe("true");
+    const links = panel.locator("a[data-commit]");
+    expect(
+      await links.evaluateAll((els) => els.map((el) => el.getAttribute("data-commit"))),
+    ).toEqual(["c3c3c3c", "c2c2c2c", "c1c1c1c"]);
+    const long = links.nth(1);
+    expect(await long.getAttribute("target")).toBe("_blank");
+    expect(await long.getAttribute("href")).toBe(
+      "https://code.example.com/acme/web/commit/c2c2c2c2c2",
+    );
+    const headline = long.locator(`[title="${longCommitHeadline}"]`);
+    expect(
+      await headline.evaluate((el) => ({
+        clipped: el.scrollWidth > el.clientWidth,
+        ellipsis: getComputedStyle(el).textOverflow,
+        wrap: getComputedStyle(el).whiteSpace,
+      })),
+    ).toEqual({ clipped: true, ellipsis: "ellipsis", wrap: "nowrap" });
+    const scroll = await panel.evaluate((el) => {
+      const lists = [...el.querySelectorAll("ol")].filter((list) =>
+        list.querySelector("a[data-commit]"),
+      );
+      return lists.map((list) => getComputedStyle(list).overflowY);
+    });
+    expect(scroll).toEqual(["visible"]);
+
+    await toggle.click();
+    expect(await links.count()).toBe(0);
+  });
+
   it("Failed 카드의 패널은 「런」 탭에 에이전트 결과와 Tickets 에서 다시 맡기기 링크를, 「PR」 탭에 PR 결과를 보인다(0199)", async () => {
     await openHome(page);
     await cardButton(page, "ACME-34").click();
@@ -808,13 +856,54 @@ function seed(db: Database): void {
     );
   }
 
-  startRun(toTicketKey("ACME-40"));
+  const withCommits = startRun(toTicketKey("ACME-40"));
+  updateRunRecords(db, withCommits, {
+    pullRequest: {
+      id: toPullRequestId("PR_40"),
+      displayId: "#40",
+      url: "https://code.example.com/acme/web/pull/40",
+      ci: "success",
+      checkedAt: new Date(),
+      headCommit: "c3",
+      signals: {
+        open: true,
+        headCommit: "c3",
+        ciFailed: false,
+        checkTotal: 2,
+        failedCount: 0,
+        failedChecks: [],
+        checksTruncated: false,
+        conflict: false,
+        behindBy: 0,
+        title: "Retry failed payments",
+        baseBranch: "develop",
+        commits: [
+          prCommit("c3c3c3c3c3", "Fix lint", 5),
+          prCommit("c2c2c2c2c2", longCommitHeadline, 30),
+          prCommit("c1c1c1c1c1", "Add retry", 90),
+        ],
+      },
+    },
+  });
 
   const permissionRun = startRun(toTicketKey("ACME-2"));
   ok(changeRunState(db, permissionRun, { to: "waiting-for-input" }));
   recordPermissionWaits(db, permissionRun, [
     { id: toPermissionRequestId("p-1"), detail: "git push --force", requestedAt: new Date() },
   ]);
+}
+
+const longCommitHeadline =
+  "Rename the client option to keep it consistent with the rest of the checkout module, the settings screen and the mobile app";
+
+function prCommit(oid: string, headline: string, minutesAgo: number) {
+  return {
+    oid,
+    url: `https://code.example.com/acme/web/commit/${oid}`,
+    headline,
+    author: "kim",
+    committedAt: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
+  };
 }
 
 function startRun(key: TicketKey): RunId {

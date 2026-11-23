@@ -21,9 +21,15 @@ function ageQueuedReason(reason: QueuedReason, by: number): QueuedReason {
 function ageRun(run: HomeRun, by: number): HomeRun {
   const aged = ageRunState(run, by);
   const pr = aged.pullRequest;
-  return pr === null || pr.settledAgoMs === null
-    ? aged
-    : { ...aged, pullRequest: { ...pr, settledAgoMs: pr.settledAgoMs + by } };
+  if (pr === null) return aged;
+  return {
+    ...aged,
+    pullRequest: {
+      ...pr,
+      settledAgoMs: later(pr.settledAgoMs, by),
+      commits: pr.commits.map((commit) => ({ ...commit, agoMs: commit.agoMs + by })),
+    },
+  };
 }
 
 function ageRunState(run: HomeRun, by: number): HomeRun {
