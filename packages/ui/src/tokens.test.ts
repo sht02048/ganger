@@ -118,6 +118,15 @@ describe("색 토큰", () => {
     expect(parts(value("checkSoft")).h).toBe(check.h);
   });
 
+  it("answer 버튼의 바탕과 hover 는 answer 와 같은 색상이고 hover 가 더 밝다(티켓 0198)", () => {
+    const answer = parts(value("answer"));
+    const soft = parts(value("answerSoft"));
+    const hover = parts(value("answerSoftHover"));
+    expect(soft.h).toBe(answer.h);
+    expect(hover.h).toBe(answer.h);
+    expect(hover.l).toBeGreaterThan(soft.l);
+  });
+
   it("브랜드 세 색이 축이다: 강조색은 Ganger Yellow, 캔버스는 Ink, 글자는 Paper", () => {
     expect(value("accent")).toBe(GANGER_YELLOW);
     expect(value("bgCanvas")).toBe(INK);

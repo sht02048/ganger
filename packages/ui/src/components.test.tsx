@@ -788,6 +788,16 @@ describe("서버 렌더", () => {
     expect(classOf(block)).not.toBe(classOf(plain));
   });
 
+  it("Button answer 는 고른 버튼에만 보라 모양을 더한다(티켓 0198)", () => {
+    const classOf = (html: string) => /class="([^"]*)"/.exec(html)?.[1];
+    const plain = renderToString(<Button>답하기</Button>);
+    const check = renderToString(<Button variant="check">답하기</Button>);
+    const answer = renderToString(<Button variant="answer">답하기</Button>);
+    expect(answer).toContain('data-variant="answer"');
+    expect(classOf(answer)).not.toBe(classOf(plain));
+    expect(classOf(answer)).not.toBe(classOf(check));
+  });
+
   it("KanbanCard prChips 는 선행 칩 뒤, 바닥 줄 위에 두고 설명에 들어간다(티켓 0167)", () => {
     const html = renderToString(
       <KanbanCard

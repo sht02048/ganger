@@ -627,7 +627,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
     }
   });
 
-  it("카드 버튼은 보이는 높이 32px 그대로, 터치에서만 누르는 영역을 44×44px 로 넓힌다", async () => {
+  it("폭 전체 카드 버튼은 보이는 높이 36px 이고, 터치에서만 누르는 영역을 44px 높이로 넓힌다(0198)", async () => {
     const hitArea = async (target: Page) => {
       await openHome(target);
       const button = card(target, "ACME-3").getByRole("button", { name: home.card.answer });
@@ -641,7 +641,7 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
       });
     };
     const mouse = await hitArea(page);
-    expect(mouse.height).toBe(32);
+    expect(mouse.height).toBe(36);
     expect(mouse.content).toBe("none");
 
     const touch = await browser.newContext({ baseURL: baseUrl, locale: "ko-KR", hasTouch: true });
@@ -666,7 +666,9 @@ describe("Dashboard 칸반 배치(브라우저, 0100)", () => {
     recordRunQuestions(db, run, [
       { id: toQuestionId("q-9"), body: "Ship it?", options: [], askedAt: new Date() },
     ]);
-    await card(page, "ACME-9").getByText("Ship it?").waitFor({ timeout: 25_000 });
+    await card(page, "ACME-9")
+      .getByRole("button", { name: home.card.answer })
+      .waitFor({ timeout: 25_000 });
   });
 
   it("다시 읽기가 실패해도 열린 패널과 쓰던 답을 그대로 둔다", async () => {

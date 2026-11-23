@@ -176,6 +176,7 @@ export function ComponentSections() {
               <Button variant="danger">{t("buttons.danger")}</Button>
               <Button variant="ghost">{t("buttons.ghost")}</Button>
               <Button variant="check">{t("buttons.check")}</Button>
+              <Button variant="answer">{t("buttons.answer")}</Button>
               <Button compact outlined>
                 {t("buttons.outlined")}
               </Button>
