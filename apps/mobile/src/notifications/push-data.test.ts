@@ -1,4 +1,4 @@
-import type { NotificationRecord } from "@ganger/api";
+import type { AppNotificationRecord } from "@ganger/api";
 import { describe, expect, it } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
@@ -13,7 +13,7 @@ import {
   toPreferences,
 } from "./push-data";
 
-const record = (target: NotificationRecord["target"]): NotificationRecord => ({
+const record = (target: AppNotificationRecord["target"]): AppNotificationRecord => ({
   id: 7,
   seq: 7,
   kind: "question",

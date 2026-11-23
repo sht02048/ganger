@@ -1,12 +1,11 @@
-import { CONTRACT_VERSION, V1_PATHS } from "@ganger/api";
+import { APP_CONTRACT_VERSION, CONTRACT_VERSION, V1_PATHS } from "@ganger/api";
 import { describe, expect, it, vi } from "vitest";
 
 import { IDENTITY_PATH, REQUEST_TIMEOUT_MS, connectToServer, createV1Client } from "./client";
 import type { FetchLike } from "./client";
-import { MINIMUM_SERVER_VERSION, isServerVersionSupported } from "./version";
 
 const SERVER = "https://ganger.example.com";
-const META = { serverVersion: MINIMUM_SERVER_VERSION, contractVersion: CONTRACT_VERSION };
+const META = { serverVersion: "0.4.0", contractVersion: CONTRACT_VERSION };
 const json = (body: unknown, status = 200) => Response.json(body, { status });
 
 function routes(table: Record<string, () => Response>): FetchLike {
@@ -95,41 +94,84 @@ describe("v1 응답 가르기", () => {
     }
   });
 
-  it("최소 버전보다 낮은 서버를 맞지 않는 서버로 읽는다", async () => {
-    const old = routes({
+  it("더하기만 한 새 서버의 모르는 필드는 버리고 그대로 읽는다", async () => {
+    const newer = routes({
       [V1_PATHS.runners]: () =>
-        json({ meta: { ...META, serverVersion: "0.3.9" }, data: { runners: [] } }),
+        json({
+          meta: { ...META, contractVersion: APP_CONTRACT_VERSION + 1, futureMeta: true },
+          data: { runners: [], futureField: 1 },
+        }),
     });
-    expect(await client(old).runners()).toEqual({
+    expect(await client(newer).runners()).toMatchObject({ ok: true, data: { runners: [] } });
+  });
+
+  it("서버가 받아 주는 최소 앱 계약보다 낮으면 앱 업데이트로 읽는다", async () => {
+    const newer = routes({
+      [V1_PATHS.runners]: () =>
+        json({
+          meta: { ...META, minClientContractVersion: APP_CONTRACT_VERSION + 1 },
+          data: { runners: [] },
+        }),
+    });
+    expect(await client(newer).runners()).toEqual({
       ok: false,
-      failure: { kind: "incompatible", serverVersion: "0.3.9" },
+      failure: { kind: "incompatible", update: "app", serverVersion: "0.4.0" },
     });
   });
 
-  it("계약 버전이 다른 서버와 v1 경로가 없는 서버를 맞지 않는 서버로 읽는다", async () => {
-    const future = routes({
-      [V1_PATHS.runners]: () =>
-        json({ meta: { ...META, contractVersion: CONTRACT_VERSION + 1 }, data: { runners: [] } }),
-    });
-    expect(await client(future).runners()).toMatchObject({
-      ok: false,
-      failure: { kind: "incompatible" },
-    });
+  it("v1 경로가 없는 서버는 서버 업데이트로 읽는다", async () => {
     const missing = routes({ [V1_PATHS.runners]: () => new Response("", { status: 404 }) });
     expect(await client(missing).runners()).toEqual({
       ok: false,
-      failure: { kind: "incompatible", serverVersion: null },
+      failure: { kind: "incompatible", update: "server", serverVersion: null },
     });
   });
 
-  it.each([
-    ["0.4.0", true],
-    ["0.4.1-rc.1", true],
-    ["1.0.0", true],
-    ["0.3.99", false],
-    ["unknown", false],
-  ])("서버 버전 %s의 지원 여부는 %s다", (version, supported) => {
-    expect(isServerVersionSupported(version, "0.4.0")).toBe(supported);
+  it("거절 응답도 앱이 오래됐으면 이유 대신 앱 업데이트로 읽는다", async () => {
+    const newer = routes({
+      [V1_PATHS.runners]: () =>
+        json(
+          {
+            meta: { ...META, minClientContractVersion: APP_CONTRACT_VERSION + 1 },
+            error: { reason: "invalid-request" },
+          },
+          400,
+        ),
+    });
+    expect(await client(newer).runners()).toMatchObject({
+      ok: false,
+      failure: { kind: "incompatible", update: "app" },
+    });
+  });
+
+  it("앱이 오래됐어도 토큰 거절은 토큰 거절로 읽는다", async () => {
+    const revoked = routes({
+      [V1_PATHS.runners]: () =>
+        json(
+          {
+            meta: { ...META, minClientContractVersion: APP_CONTRACT_VERSION + 1 },
+            error: { reason: "invalid-token" },
+          },
+          401,
+        ),
+    });
+    expect(await client(revoked).runners()).toEqual({
+      ok: false,
+      failure: { kind: "token-rejected" },
+    });
+  });
+
+  it("모르는 거절 이유는 분명한 거절로 읽는다", async () => {
+    const fetcher = routes({
+      "/api/v1/runs/run-1/cancel": () =>
+        json({ meta: META, error: { reason: "future-reason" } }, 409),
+    });
+    expect(
+      await client(fetcher).runAction("run-1", {
+        action: "cancel",
+        body: { requestId: "0123456789abcdef" },
+      }),
+    ).toEqual({ ok: false, failure: { kind: "refused", reason: "unknown" } });
   });
 });
 

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import type { V1RunDetail } from "@ganger/api";
+import type { AppRunDetail } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -82,7 +82,7 @@ const failedRun: DashboardRun = {
   },
 };
 
-function fakePort(outcome: RunWriteOutcome = { kind: "sent" }, detail?: V1RunDetail) {
+function fakePort(outcome: RunWriteOutcome = { kind: "sent" }, detail?: AppRunDetail) {
   const write = vi.fn<(run: DashboardRun, next: RunWrite) => Promise<RunWriteOutcome>>(() =>
     Promise.resolve(outcome),
   );
@@ -101,7 +101,7 @@ async function open(sheet: OpenRunSheet, port: RunPort, disabled = false) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  await act(async () => {
+  const render = (actionsDisabled: boolean) =>
     root.render(
       <SafeAreaProvider
         initialMetrics={{
@@ -109,16 +109,23 @@ async function open(sheet: OpenRunSheet, port: RunPort, disabled = false) {
           insets: { top: 0, left: 0, right: 0, bottom: 0 },
         }}
       >
-        <RunSheets sheet={sheet} port={port} disabled={disabled} onClose={onClose} />
+        <RunSheets sheet={sheet} port={port} disabled={actionsDisabled} onClose={onClose} />
       </SafeAreaProvider>,
     );
+  await act(async () => {
+    render(disabled);
     await Promise.resolve();
   });
   mounted.push(() => {
     act(() => root.unmount());
     host.remove();
   });
-  return { onClose };
+  const setDisabled = (next: boolean) =>
+    act(async () => {
+      render(next);
+      await Promise.resolve();
+    });
+  return { onClose, setDisabled };
 }
 
 afterEach(() => {
@@ -174,11 +181,11 @@ describe("답하기 시트", () => {
     expect(write).not.toHaveBeenCalled();
     expect(byLabel("오른쪽")?.getAttribute("aria-checked")).toBe("true");
     await press("보내기");
-    expect(write).toHaveBeenCalledExactlyOnceWith(questionRun, {
-      action: "answer",
-      questionId: "q-1",
-      answer: "오른쪽",
-    });
+    expect(write).toHaveBeenCalledExactlyOnceWith(
+      questionRun,
+      { action: "answer", questionId: "q-1", answer: "오른쪽" },
+      expect.any(Function),
+    );
     expect(onClose).toHaveBeenCalledOnce();
   });
 
@@ -272,7 +279,7 @@ describe("Human Check 시트", () => {
 
   it("이미 답한 요청이면 폼 대신 안내를 보인다", async () => {
     const detail = demoRunDetail(checkRun);
-    const answered: V1RunDetail = {
+    const answered: AppRunDetail = {
       ...detail,
       input: { kind: "human-check", questionId: "q-2", body: "확인", answered: true },
     };
@@ -284,7 +291,7 @@ describe("Human Check 시트", () => {
 
 describe("늦게 연 시트", () => {
   it("런이 Waiting for Input이 아니면 이미 답했다고 하지 않고 상태가 바뀌었다고 말한다", async () => {
-    const moved: V1RunDetail = { ...demoRunDetail(questionRun), state: "running", input: null };
+    const moved: AppRunDetail = { ...demoRunDetail(questionRun), state: "running", input: null };
     await open({ kind: "answer", run: questionRun }, fakePort({ kind: "sent" }, moved).port);
     expect(document.body.textContent).toContain("런의 상태가 그사이 바뀌었어요");
     expect(document.body.textContent).not.toContain("이미 답한");
@@ -337,7 +344,7 @@ describe("취소 확인 시트", () => {
 
 describe("런 상세", () => {
   it("처리할 일 띠, 요약, PR 구역을 보이고 타임라인과 터미널은 싣지 않는다", async () => {
-    const detail: V1RunDetail = {
+    const detail: AppRunDetail = {
       ...demoRunDetail(failedRun),
       summary: {
         outcome: "failed",
@@ -368,7 +375,7 @@ describe("런 상세", () => {
 });
 
 describe("다시 맡기기 시트", () => {
-  const withNextActions = (nextActions: V1RunDetail["nextActions"]): V1RunDetail => ({
+  const withNextActions = (nextActions: AppRunDetail["nextActions"]): AppRunDetail => ({
     ...demoRunDetail(failedRun),
     nextActions,
   });
@@ -458,5 +465,75 @@ describe("카드 메뉴", () => {
     await open({ kind: "menu", run: { ...questionRun, cancelling: true } }, fakePort().port);
     expect(byLabel("Linear에서 열기")).not.toBeNull();
     expect(byLabel("런 취소")).toBeNull();
+  });
+});
+
+describe("응답을 잃은 쓰기", () => {
+  function confirmingPort() {
+    let finish: (outcome: RunWriteOutcome) => void = () => undefined;
+    let confirm: () => void = () => undefined;
+    const write = vi.fn<RunPort["write"]>((_run, _write, onConfirming) => {
+      confirm = onConfirming ?? confirm;
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    });
+    const port: RunPort = {
+      detail: (run) => Promise.resolve({ kind: "ok", value: demoRunDetail(run) }),
+      ticketLink: () => Promise.resolve({ kind: "demo" }),
+      write,
+    };
+    return {
+      port,
+      write,
+      confirm: () => act(async () => confirm()),
+      finish: (outcome: RunWriteOutcome) => act(async () => finish(outcome)),
+    };
+  }
+
+  it("버튼 자리에 확인 중을 보이고 끝나면 시트를 닫는다", async () => {
+    const world = confirmingPort();
+    const { onClose } = await open({ kind: "cancel", run: questionRun }, world.port);
+    await press("런 취소하기");
+    await world.confirm();
+    expect(isDisabled("보냈는지 확인 중이에요")).toBe(true);
+    await world.finish({ kind: "sent" });
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("Human Check는 누른 버튼 자리에만 확인 중을 보인다", async () => {
+    const world = confirmingPort();
+    await open({ kind: "human-check", run: checkRun }, world.port);
+    await press("고쳐 주세요");
+    await world.confirm();
+    expect(byLabel("보냈는지 확인 중이에요")).not.toBeNull();
+    expect(byLabel("확인했어요")).not.toBeNull();
+    expect(byLabel("고쳐 주세요")).toBeNull();
+  });
+
+  it("확인하지 못하면 다시 보내지 못하게 하고, 다시 읽으면 결과를 확인하라고 안내한다", async () => {
+    const world = confirmingPort();
+    const { onClose, setDisabled } = await open({ kind: "cancel", run: questionRun }, world.port);
+    await press("런 취소하기");
+    await world.confirm();
+    await setDisabled(true);
+    await world.finish({ kind: "unconfirmed" });
+    expect(document.body.textContent).toContain("보냈는지 확인하지 못했어요");
+    expect(isDisabled("런 취소하기")).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+    await setDisabled(false);
+    expect(document.body.textContent).toContain("Dashboard를 다시 읽었으니 닫고 결과를");
+    expect(isDisabled("런 취소하기")).toBe(true);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("서버가 분명히 거절하면 이유를 보이고 시트를 닫지 않는다", async () => {
+    const world = confirmingPort();
+    const { onClose } = await open({ kind: "cancel", run: questionRun }, world.port);
+    await press("런 취소하기");
+    await world.finish({ kind: "refused", reason: "already-ended" });
+    expect(document.body.textContent).toContain("이미 끝난 런이에요");
+    expect(world.write).toHaveBeenCalledOnce();
+    expect(onClose).not.toHaveBeenCalled();
   });
 });

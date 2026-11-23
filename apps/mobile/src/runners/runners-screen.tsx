@@ -1,4 +1,4 @@
-import type { V1ProviderUsage, V1Runner, V1UsageLimit, V1UsageWindow } from "@ganger/api";
+import type { AppProviderUsage, AppRunner, AppUsageLimit, AppUsageWindow } from "@ganger/api";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -9,7 +9,7 @@ import { formatDuration, providerName } from "../format";
 import { t } from "../i18n";
 import { ScreenHeader } from "../screen-header";
 
-function limitText(limit: V1UsageLimit): string {
+function limitText(limit: AppUsageLimit): string {
   const window = t(`runners.window.${limit.window}`);
   const provider = providerName(limit.provider);
   return limit.resetsInMs === null
@@ -21,7 +21,7 @@ function limitText(limit: V1UsageLimit): string {
       });
 }
 
-function problemLines(runner: V1Runner): string[] {
+function problemLines(runner: AppRunner): string[] {
   const cause =
     runner.cause === "offline"
       ? [
@@ -31,11 +31,13 @@ function problemLines(runner: V1Runner): string[] {
         ]
       : runner.cause === "auth"
         ? [t("runners.auth")]
-        : [];
+        : runner.cause === "unknown"
+          ? [t("runners.unknownCause")]
+          : [];
   return [...cause, ...runner.limits.map(limitText)];
 }
 
-function ProblemCard({ runner }: { runner: V1Runner }) {
+function ProblemCard({ runner }: { runner: AppRunner }) {
   return (
     <Card emphasis="problem">
       <StatusPill
@@ -53,7 +55,7 @@ function ProblemCard({ runner }: { runner: V1Runner }) {
   );
 }
 
-function UsageMeter({ provider, window }: { provider: string; window: V1UsageWindow }) {
+function UsageMeter({ provider, window }: { provider: string; window: AppUsageWindow }) {
   const label = t("runners.usage", {
     provider,
     window: t(`runners.window.${window.kind}`),
@@ -69,15 +71,15 @@ function UsageMeter({ provider, window }: { provider: string; window: V1UsageWin
   );
 }
 
-function RunnerUsage({ usage }: { usage: V1Runner["usage"] }) {
+function RunnerUsage({ usage }: { usage: AppRunner["usage"] }) {
   if (usage === null) return <Text variant="small">{t("runners.usageNotRead")}</Text>;
-  if (usage.kind === "unreadable") {
+  if (usage.kind !== "read") {
     return <Text variant="small">{t("runners.usageUnreadable")}</Text>;
   }
   const using = usage.providers.filter(
     (provider) => provider.status === "ok" || provider.status === "error",
   );
-  const namesWith = (status: V1ProviderUsage["status"]) =>
+  const namesWith = (status: AppProviderUsage["status"]) =>
     usage.providers
       .filter((provider) => provider.status === status)
       .map((provider) => providerName(provider.provider))
@@ -99,7 +101,7 @@ function RunnerUsage({ usage }: { usage: V1Runner["usage"] }) {
   );
 }
 
-function ProviderWindows({ usage }: { usage: V1ProviderUsage }) {
+function ProviderWindows({ usage }: { usage: AppProviderUsage }) {
   const name = providerName(usage.provider);
   if (usage.status === "error") {
     return <Text variant="small">{t("runners.usageError", { provider: name })}</Text>;
@@ -109,14 +111,14 @@ function ProviderWindows({ usage }: { usage: V1ProviderUsage }) {
   }
   return (
     <>
-      {usage.windows.map((window) => (
-        <UsageMeter key={window.kind} provider={name} window={window} />
+      {usage.windows.map((window, index) => (
+        <UsageMeter key={`${window.kind}:${index}`} provider={name} window={window} />
       ))}
     </>
   );
 }
 
-function RunnerCard({ runner }: { runner: V1Runner }) {
+function RunnerCard({ runner }: { runner: AppRunner }) {
   const offline = runner.cause === "offline";
   return (
     <Card>
@@ -141,7 +143,7 @@ export function RunnersScreen({
   band = null,
   loading = false,
 }: {
-  runners: ReadonlyArray<V1Runner>;
+  runners: ReadonlyArray<AppRunner>;
   onBack: () => void;
   band?: ReactNode;
   loading?: boolean;

@@ -1,5 +1,5 @@
 import { dashboardSchema } from "@ganger/api";
-import type { V1Dashboard } from "@ganger/api";
+import type { AppDashboard } from "@ganger/api";
 import { describe, expect, it } from "vitest";
 
 import { busySnapshot, emptySnapshot } from "../demo/data";
@@ -51,7 +51,7 @@ function endedRun(key: string, summary: EndedRun["summary"]): EndedRun {
   };
 }
 
-function dashboardWith(columns: Partial<V1Dashboard["columns"]>): V1Dashboard {
+function dashboardWith(columns: Partial<AppDashboard["columns"]>): AppDashboard {
   const empty = emptySnapshot().dashboardFor(ALL_WORKSPACES);
   return { ...empty, columns: { ...empty.columns, ...columns } };
 }
@@ -215,7 +215,7 @@ describe("Queued 이유", () => {
 });
 
 describe("머리 요약", () => {
-  const summaryOf = (summary: Partial<V1Dashboard["summary"]>) => ({
+  const summaryOf = (summary: Partial<AppDashboard["summary"]>) => ({
     ...emptySnapshot().dashboardFor(ALL_WORKSPACES),
     summary: { ...emptySnapshot().dashboardFor(ALL_WORKSPACES).summary, ...summary },
   });

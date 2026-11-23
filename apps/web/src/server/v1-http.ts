@@ -1,4 +1,8 @@
-import { CONTRACT_VERSION, deviceActivityRequestSchema } from "@ganger/api";
+import {
+  CONTRACT_VERSION,
+  MIN_CLIENT_CONTRACT_VERSION,
+  deviceActivityRequestSchema,
+} from "@ganger/api";
 import type { V1ErrorReason, V1Meta } from "@ganger/api";
 import { authenticateDevice, connectDevice, registerDesktop } from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
@@ -39,7 +43,11 @@ import { sendDeviceActivity } from "./worker-wake";
 
 const RUN_ACTION_BODY_LIMIT_BYTES = 64 * 1024;
 const NO_STORE = { "cache-control": "no-store" };
-const META: V1Meta = { serverVersion: PRODUCT_VERSION, contractVersion: CONTRACT_VERSION };
+const META: V1Meta = {
+  serverVersion: PRODUCT_VERSION,
+  contractVersion: CONTRACT_VERSION,
+  minClientContractVersion: MIN_CLIENT_CONTRACT_VERSION,
+};
 
 function v1Data(data: unknown): Response {
   return Response.json({ meta: META, data }, { headers: NO_STORE });

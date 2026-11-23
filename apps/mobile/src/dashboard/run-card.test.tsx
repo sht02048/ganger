@@ -211,3 +211,34 @@ describe("SettledRow", () => {
     expect(mount(<SettledRow run={run} />).textContent).toContain("PR 못 읽음");
   });
 });
+
+describe("모르는 값", () => {
+  const unknownRun: DashboardRun = {
+    ...base,
+    state: "unknown",
+    todoTag: null,
+    pullRequest: null,
+    cancelling: false,
+    control: null,
+  };
+
+  it("모르는 상태의 런은 알 수 없는 상태로 보이고 런 상세만 열 수 있다", () => {
+    const host = mount(<RunCard run={unknownRun} onAction={() => undefined} />);
+    expect(host.textContent).toContain("알 수 없는 상태");
+    expect(host.querySelector('[aria-label="런 상세"]')).not.toBeNull();
+    expect(host.querySelector('[aria-label="재개하기"]')).toBeNull();
+  });
+
+  it("모르는 PR 문제가 여럿이어도 화면을 깨지 않는다", () => {
+    const run: DashboardRun = {
+      ...unknownRun,
+      pullRequest: {
+        displayId: "#7",
+        url: "https://example.com/pull/7",
+        problems: [{ kind: "unknown" }, { kind: "unknown" }],
+      },
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.textContent).toContain("알 수 없는 문제");
+  });
+});

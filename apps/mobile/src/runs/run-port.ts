@@ -1,4 +1,4 @@
-import type { V1HumanCheckDecision, V1RunDetail, V1RunRefusal } from "@ganger/api";
+import type { AppRunDetail, AppRunRefusal, V1HumanCheckDecision } from "@ganger/api";
 
 import type { V1Failure, V1RunActionBody, V1RunFailure, V1RunsClient } from "../connection/client";
 import type { DashboardRun } from "../dashboard/model";
@@ -16,8 +16,11 @@ export type RunWrite =
 export type RunWriteOutcome =
   | { kind: "sent" }
   | { kind: "demo" }
-  | { kind: "refused"; reason: V1RunRefusal }
+  | { kind: "refused"; reason: AppRunRefusal }
+  | { kind: "unconfirmed" }
   | { kind: "failed"; cause: "unreachable" | "invalid-request" | "other" };
+
+export const LOST_WRITE_RETRY_MS = 3_000;
 
 export type RunRead<Value> =
   | { kind: "ok"; value: Value }
@@ -26,9 +29,9 @@ export type RunRead<Value> =
   | { kind: "unavailable" };
 
 export interface RunPort {
-  detail(run: DashboardRun): Promise<RunRead<V1RunDetail>>;
+  detail(run: DashboardRun): Promise<RunRead<AppRunDetail>>;
   ticketLink(run: DashboardRun): Promise<RunRead<string>>;
-  write(run: DashboardRun, write: RunWrite): Promise<RunWriteOutcome>;
+  write(run: DashboardRun, write: RunWrite, onConfirming?: () => void): Promise<RunWriteOutcome>;
 }
 
 function slotOf(runId: string, write: RunWrite): string {
@@ -98,7 +101,19 @@ export interface RunPortSession {
   noteFailure(failure: V1Failure): void;
 }
 
-export function createLiveRunPort(client: V1RunsClient, session: RunPortSession): RunPort {
+function waitBeforeResend(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, LOST_WRITE_RETRY_MS));
+}
+
+function isDefiniteAnswer(failure: V1RunFailure): boolean {
+  return failure.kind === "refused" || failure.kind === "invalid-request";
+}
+
+export function createLiveRunPort(
+  client: V1RunsClient,
+  session: RunPortSession,
+  wait: () => Promise<void> = waitBeforeResend,
+): RunPort {
   const ids = new RunRequestIds();
   const note = (failure: V1RunFailure) => {
     const relevant = sessionFailure(failure);
@@ -117,7 +132,7 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
       if (reply.failure.kind === "token-rejected") session.noteFailure(reply.failure);
       return readFailure(reply.failure);
     },
-    write: async (run, write) => {
+    write: async (run, write, onConfirming) => {
       const slot = slotOf(run.id, write);
       let content = JSON.stringify(write);
       if (write.action === "resume") {
@@ -129,7 +144,14 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
         content = JSON.stringify([write, current.data.pausedSince]);
       }
       const requestId = ids.idFor(slot, content);
-      const reply = await client.runAction(run.id, requestOf(write, requestId));
+      const request = requestOf(write, requestId);
+      let reply = await client.runAction(run.id, request);
+      const lostFirstReply = !reply.ok && reply.failure.kind === "unreachable";
+      if (lostFirstReply) {
+        onConfirming?.();
+        await wait();
+        reply = await client.runAction(run.id, request);
+      }
       if (reply.ok) {
         ids.forget(slot);
         void session.refresh();
@@ -137,14 +159,15 @@ export function createLiveRunPort(client: V1RunsClient, session: RunPortSession)
       }
       const { failure } = reply;
       note(failure);
-      if (failure.kind === "refused" || failure.kind === "invalid-request") ids.forget(slot);
+      if (isDefiniteAnswer(failure)) ids.forget(slot);
       if (failure.kind === "refused") void session.refresh();
+      if (lostFirstReply && !isDefiniteAnswer(failure)) return { kind: "unconfirmed" };
       return writeFailure(failure);
     },
   };
 }
 
-function demoInput(run: DashboardRun): V1RunDetail["input"] {
+function demoInput(run: DashboardRun): AppRunDetail["input"] {
   if (run.state !== "waiting-for-input" || run.input === null) return null;
   const { input } = run;
   switch (input.kind) {
@@ -160,16 +183,19 @@ function demoInput(run: DashboardRun): V1RunDetail["input"] {
     case "human-check":
     case "permission":
       return input;
+    case "unknown":
+      return { kind: "unknown" };
   }
 }
 
-function demoNextStep(run: DashboardRun): V1RunDetail["nextStep"] {
+function demoNextStep(run: DashboardRun): AppRunDetail["nextStep"] {
   switch (run.todoTag) {
     case "question":
     case "permission":
     case "human-check":
     case "disconnected":
     case "failed":
+    case "unknown":
       return run.todoTag;
     case "waiting-for-input":
       return "waiting-input";
@@ -178,7 +204,7 @@ function demoNextStep(run: DashboardRun): V1RunDetail["nextStep"] {
   }
 }
 
-export function demoRunDetail(run: DashboardRun): V1RunDetail {
+export function demoRunDetail(run: DashboardRun): AppRunDetail {
   const ended = run.state === "ended" ? run : null;
   return {
     id: run.id,

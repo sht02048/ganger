@@ -10,7 +10,7 @@ import type { MessageKey } from "../i18n";
 import { PR_CHIPS_VISIBLE } from "./model";
 import type { DashboardRun, EndedRun, PrProblem } from "./model";
 
-function prProblemLabel(problem: PrProblem): string {
+export function prProblemLabel(problem: PrProblem): string {
   switch (problem.kind) {
     case "ci-failed":
       return t("card.prChip.ciFailed");
@@ -18,6 +18,8 @@ function prProblemLabel(problem: PrProblem): string {
       return t("card.prChip.conflict");
     case "behind":
       return t("card.prChip.behind", { count: problem.commits });
+    case "unknown":
+      return t("card.prChip.unknown");
   }
 }
 
@@ -27,9 +29,9 @@ function PrChips({ run }: { run: DashboardRun }) {
   const hidden = problems.length - PR_CHIPS_VISIBLE;
   return (
     <View style={styles.chips}>
-      {problems.slice(0, PR_CHIPS_VISIBLE).map((problem) => (
+      {problems.slice(0, PR_CHIPS_VISIBLE).map((problem, index) => (
         <Chip
-          key={problem.kind}
+          key={`${problem.kind}:${index}`}
           label={prProblemLabel(problem)}
           tone={problem.kind === "behind" ? "neutral" : "problem"}
         />
@@ -57,6 +59,7 @@ function BlockerChips({ run }: { run: DashboardRun }) {
 
 function pillOf(run: DashboardRun): PillStatus | null {
   if (run.todoTag !== null) return run.todoTag;
+  if (run.state === "unknown") return "unknown";
   return run.state === "paused" ? "paused" : null;
 }
 
@@ -66,6 +69,7 @@ function firstLineOf(body: string): string {
 
 function inputHandled(run: DashboardRun): boolean {
   if (run.state !== "waiting-for-input" || run.input === null) return false;
+  if (run.input.kind === "unknown") return false;
   return run.input.kind === "permission" ? run.input.denied : run.input.answered;
 }
 
@@ -73,6 +77,7 @@ function detailOf(run: DashboardRun): string | null {
   switch (run.state) {
     case "waiting-for-input":
       if (run.input === null) return t("card.inputUnknown");
+      if (run.input.kind === "unknown") return t("card.inputUnknown");
       if (inputHandled(run)) {
         return run.input.kind === "permission" ? t("card.denied") : t("card.answered");
       }
@@ -98,6 +103,7 @@ function detailOf(run: DashboardRun): string | null {
     case "ended":
       return run.summary === "failed" ? t(`card.agentResult.${run.agentResult}`) : null;
     case "running":
+    case "unknown":
       return null;
   }
 }
@@ -125,9 +131,11 @@ function actionOf(
       return { action: "deny", key: "card.deny", danger: true };
     case "failed":
     case "disconnected":
+    case "unknown":
       return { action: "detail", key: "card.detail", danger: false };
     case "waiting-for-input":
     case null:
+      if (run.state === "unknown") return { action: "detail", key: "card.detail", danger: false };
       return run.state === "paused" && !run.cancelling && run.control?.status !== "pending"
         ? { action: "resume", key: "card.resume", danger: false }
         : null;
@@ -145,6 +153,7 @@ function timeOf(run: DashboardRun): string | null {
     case "waiting-for-input":
       return run.waitingMs === null ? null : formatDuration(run.waitingMs);
     case "disconnected":
+    case "unknown":
       return null;
     case "ended":
       return formatAgo(run.endedAt, run.endedAgoMs);
@@ -159,12 +168,14 @@ export function RunCard({
   run,
   showWorkspace = false,
   actionsDisabled = false,
+  confirming = false,
   onAction,
   onMenu,
 }: {
   run: DashboardRun;
   showWorkspace?: boolean;
   actionsDisabled?: boolean;
+  confirming?: boolean;
   onAction: (action: RunCardAction) => void;
   onMenu?: () => void;
 }) {
@@ -214,7 +225,7 @@ export function RunCard({
       </View>
       {action === null ? null : (
         <Button
-          label={t(action.key)}
+          label={confirming && action.action === "resume" ? t("actions.confirming") : t(action.key)}
           variant={action.danger ? "danger" : "secondary"}
           disabled={action.action !== "detail" && actionsDisabled}
           onPress={() => onAction(action.action)}

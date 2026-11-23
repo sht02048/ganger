@@ -1,16 +1,16 @@
 import {
   V1_PATHS,
+  appDashboardResponseSchema,
+  appErrorSchema,
+  appNotificationEventResponseSchema,
+  appRunDetailResponseSchema,
+  appRunnersResponseSchema,
   connectResponseSchema,
-  dashboardResponseSchema,
   deviceNotificationsResponseSchema,
   disconnectResponseSchema,
-  notificationEventResponseSchema,
   runActionResponseSchema,
-  runDetailResponseSchema,
-  runnersResponseSchema,
   thisDeviceResponseSchema,
   ticketLinkResponseSchema,
-  v1ErrorSchema,
   v1NotificationEventPath,
   v1MetaSchema,
   v1RunActionPath,
@@ -19,25 +19,27 @@ import {
   workspacesResponseSchema,
 } from "@ganger/api";
 import type {
+  AppDashboard,
+  AppNotificationRecord,
+  AppRunDetail,
+  AppRunRefusal,
+  AppRunner,
   ConnectResult,
   V1AnswerBody,
   V1ContinueBody,
-  V1Dashboard,
-  NotificationRecord,
   V1DenyBody,
   V1DeviceNotifications,
   V1HumanCheckBody,
-  V1RunDetail,
+  V1Meta,
   V1RunKeyBody,
-  V1RunRefusal,
-  V1Runner,
   V1SaveDeviceNotifications,
   V1ThisDevice,
   V1Workspaces,
 } from "@ganger/api";
 import { z } from "zod";
 
-import { isCompatibleServer } from "./version";
+import { neededUpdate, updateForUnreadableReply } from "./version";
+import type { NeededUpdate } from "./version";
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
@@ -46,7 +48,7 @@ export type V1Failure =
   | { kind: "host-blocked" }
   | { kind: "unreachable" }
   | { kind: "server-error" }
-  | { kind: "incompatible"; serverVersion: string | null };
+  | { kind: "incompatible"; update: NeededUpdate; serverVersion: string | null };
 
 export type ConnectFailure =
   | Exclude<V1Failure, { kind: "token-rejected" }>
@@ -59,14 +61,14 @@ export type V1Result<Data> =
 
 export type V1RunFailure =
   | V1Failure
-  | { kind: "refused"; reason: V1RunRefusal }
+  | { kind: "refused"; reason: AppRunRefusal }
   | { kind: "invalid-request" };
 
 export type V1RunResult<Data> =
   | { ok: true; data: Data; serverVersion: string }
   | { ok: false; failure: V1RunFailure };
 
-type SendFailure = V1Failure | ConnectFailure | { kind: "refused"; reason: V1RunRefusal };
+type SendFailure = V1Failure | ConnectFailure | { kind: "refused"; reason: AppRunRefusal };
 
 type SendResult<Data> =
   | { ok: true; data: Data; serverVersion: string }
@@ -125,7 +127,7 @@ async function send<Data>(
   fetcher: FetchLike,
   server: string,
   path: string,
-  schema: z.ZodType<{ meta: { serverVersion: string }; data: Data }>,
+  schema: z.ZodType<{ meta: V1Meta; data: Data }>,
   init: RequestInit,
 ): Promise<SendResult<Data>> {
   let response: Response;
@@ -141,25 +143,47 @@ async function send<Data>(
   if (response.status === 403) {
     return { ok: false, failure: await classifyForbidden(fetcher, server) };
   }
-  if (response.status === 404 && !v1ErrorSchema.safeParse(body).success) {
-    return { ok: false, failure: { kind: "incompatible", serverVersion: null } };
+  if (response.status === 404 && !appErrorSchema.safeParse(body).success) {
+    return {
+      ok: false,
+      failure: { kind: "incompatible", update: "server", serverVersion: null },
+    };
   }
-  if (!response.ok) return { ok: false, failure: refusalOf(body) };
+  if (!response.ok) return { ok: false, failure: failureOfRefusal(body) };
   const envelope = metaEnvelopeSchema.safeParse(body);
   if (!envelope.success) return { ok: false, failure: { kind: "server-error" } };
   const { meta } = envelope.data;
-  if (!isCompatibleServer(meta)) {
-    return { ok: false, failure: { kind: "incompatible", serverVersion: meta.serverVersion } };
-  }
+  const update = neededUpdate(meta);
+  if (update !== null) return { ok: false, failure: incompatibleWith(meta, update) };
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return { ok: false, failure: { kind: "incompatible", serverVersion: null } };
+    return {
+      ok: false,
+      failure: {
+        kind: "incompatible",
+        update: updateForUnreadableReply(meta),
+        serverVersion: null,
+      },
+    };
   }
   return { ok: true, data: parsed.data.data, serverVersion: meta.serverVersion };
 }
 
+function incompatibleWith(meta: V1Meta, update: NeededUpdate): V1Failure {
+  return { kind: "incompatible", update, serverVersion: meta.serverVersion };
+}
+
+function failureOfRefusal(body: unknown): SendFailure {
+  const failure = refusalOf(body);
+  if (failure.kind === "token-rejected") return failure;
+  const envelope = metaEnvelopeSchema.safeParse(body);
+  if (!envelope.success) return failure;
+  const update = neededUpdate(envelope.data.meta);
+  return update === null ? failure : incompatibleWith(envelope.data.meta, update);
+}
+
 function refusalOf(body: unknown): SendFailure {
-  const refusal = v1ErrorSchema.safeParse(body);
+  const refusal = appErrorSchema.safeParse(body);
   if (!refusal.success) return { kind: "server-error" };
   const { reason } = refusal.data.error;
   switch (reason) {
@@ -185,6 +209,7 @@ function refusalOf(body: unknown): SendFailure {
     case "active-run":
     case "previous-agent":
     case "cannot-assign":
+    case "unknown":
       return { kind: "refused", reason };
   }
 }
@@ -223,8 +248,8 @@ export async function connectToServer(
 }
 
 export interface V1Client {
-  dashboard(workspaceId: string, timeZone: string): Promise<V1Result<V1Dashboard>>;
-  runners(): Promise<V1Result<{ runners: V1Runner[] }>>;
+  dashboard(workspaceId: string, timeZone: string): Promise<V1Result<AppDashboard>>;
+  runners(): Promise<V1Result<{ runners: AppRunner[] }>>;
   workspaces(): Promise<V1Result<V1Workspaces>>;
   thisDevice(): Promise<V1Result<V1ThisDevice>>;
   disconnect(): Promise<V1Result<{ disconnected: true }>>;
@@ -238,7 +263,7 @@ export type V1RunActionBody =
   | { action: "continue"; body: V1ContinueBody };
 
 export interface V1RunsClient {
-  runDetail(runId: string): Promise<V1RunResult<V1RunDetail>>;
+  runDetail(runId: string): Promise<V1RunResult<AppRunDetail>>;
   ticketLink(runId: string): Promise<V1RunResult<{ url: string }>>;
   runAction(runId: string, request: V1RunActionBody): Promise<V1RunResult<{ accepted: true }>>;
 }
@@ -248,7 +273,7 @@ export interface V1PushClient {
   saveDeviceNotifications(
     request: V1SaveDeviceNotifications,
   ): Promise<V1Result<V1DeviceNotifications>>;
-  notificationEvent(id: number): Promise<V1RunResult<NotificationRecord>>;
+  notificationEvent(id: number): Promise<V1RunResult<AppNotificationRecord>>;
 }
 
 export function createV1Client(
@@ -256,16 +281,14 @@ export function createV1Client(
   { server, token }: { server: string; token: string },
 ): V1Client & V1RunsClient & V1PushClient {
   const authorized = { authorization: `Bearer ${token}` };
-  const read = async <Data>(
-    path: string,
-    schema: z.ZodType<{ meta: { serverVersion: string }; data: Data }>,
-  ) => asV1Result(await send(fetcher, server, path, schema, { headers: authorized }));
+  const read = async <Data>(path: string, schema: z.ZodType<{ meta: V1Meta; data: Data }>) =>
+    asV1Result(await send(fetcher, server, path, schema, { headers: authorized }));
   return {
     dashboard: (workspaceId, timeZone) => {
       const query = new URLSearchParams({ ws: workspaceId, timeZone });
-      return read(`${V1_PATHS.dashboard}?${query.toString()}`, dashboardResponseSchema);
+      return read(`${V1_PATHS.dashboard}?${query.toString()}`, appDashboardResponseSchema);
     },
-    runners: () => read(V1_PATHS.runners, runnersResponseSchema),
+    runners: () => read(V1_PATHS.runners, appRunnersResponseSchema),
     workspaces: () => read(V1_PATHS.workspaces, workspacesResponseSchema),
     thisDevice: () => read(V1_PATHS.thisDevice, thisDeviceResponseSchema),
     disconnect: async () =>
@@ -293,13 +316,17 @@ export function createV1Client(
       ),
     notificationEvent: async (id) =>
       asRunResult(
-        await send(fetcher, server, v1NotificationEventPath(id), notificationEventResponseSchema, {
-          headers: authorized,
-        }),
+        await send(
+          fetcher,
+          server,
+          v1NotificationEventPath(id),
+          appNotificationEventResponseSchema,
+          { headers: authorized },
+        ),
       ),
     runDetail: async (runId) =>
       asRunResult(
-        await send(fetcher, server, v1RunPath(runId), runDetailResponseSchema, {
+        await send(fetcher, server, v1RunPath(runId), appRunDetailResponseSchema, {
           headers: authorized,
         }),
       ),

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import type { V1Dashboard } from "@ganger/api";
-import { ScrollView, StyleSheet, View } from "react-native";
+import type { AppDashboard } from "@ganger/api";
+import { AccessibilityInfo, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
 import { Text } from "../design/text";
@@ -56,6 +56,7 @@ function RunList({
   showWorkspace,
   actionsDisabled,
   resumingRunIds,
+  confirmingRunIds,
   onAction,
   onMenu,
 }: {
@@ -63,6 +64,7 @@ function RunList({
   showWorkspace: boolean;
   actionsDisabled: boolean;
   resumingRunIds: ReadonlySet<string>;
+  confirmingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
   onMenu: (run: DashboardRun) => void;
 }) {
@@ -74,6 +76,7 @@ function RunList({
           run={run}
           showWorkspace={showWorkspace}
           actionsDisabled={actionsDisabled || resumingRunIds.has(run.id)}
+          confirming={confirmingRunIds.has(run.id)}
           onAction={(action) => onAction(run, action)}
           onMenu={() => onMenu(run)}
         />
@@ -89,6 +92,7 @@ function ColumnBody({
   showWorkspace,
   actionsDisabled,
   resumingRunIds,
+  confirmingRunIds,
   onAction,
   onMenu,
 }: {
@@ -98,6 +102,7 @@ function ColumnBody({
   showWorkspace: boolean;
   actionsDisabled: boolean;
   resumingRunIds: ReadonlySet<string>;
+  confirmingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
   onMenu: (run: DashboardRun) => void;
 }) {
@@ -118,6 +123,7 @@ function ColumnBody({
       showWorkspace={showWorkspace}
       actionsDisabled={actionsDisabled}
       resumingRunIds={resumingRunIds}
+      confirmingRunIds={confirmingRunIds}
       onAction={onAction}
       onMenu={onMenu}
     />
@@ -157,7 +163,7 @@ function ColumnBody({
   }
 }
 
-function runsOf({ columns }: V1Dashboard): DashboardRun[] {
+function runsOf({ columns }: AppDashboard): DashboardRun[] {
   const { queued, running, done } = columns;
   return [...queued, ...running.todo, ...running.rest, ...done.todo, ...done.rest];
 }
@@ -193,14 +199,25 @@ export function DashboardScreen({
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
   const [resumeNotice, setResumeNotice] = useState<OpenRunSheet | null>(null);
   const [resumingRunIds, setResumingRunIds] = useState<ReadonlySet<string>>(new Set());
+  const [confirmingRunIds, setConfirmingRunIds] = useState<ReadonlySet<string>>(new Set());
   const resume = async (run: DashboardRun) => {
     setResumingRunIds((current) => new Set(current).add(run.id));
-    const outcome = await port.write(run, { action: "resume" });
-    setResumingRunIds((current) => new Set([...current].filter((id) => id !== run.id)));
+    const outcome = await port.write(run, { action: "resume" }, () => {
+      setConfirmingRunIds((current) => new Set(current).add(run.id));
+      AccessibilityInfo.announceForAccessibility(t("actions.confirming"));
+    });
+    const without = (current: ReadonlySet<string>) =>
+      new Set([...current].filter((id) => id !== run.id));
+    setResumingRunIds(without);
+    setConfirmingRunIds(without);
     const message = outcomeMessage("resume", outcome);
     if (message !== null) {
       const title =
-        outcome.kind === "demo" ? t("settings.serverDemo") : t("actions.resumeFailedTitle");
+        outcome.kind === "demo"
+          ? t("settings.serverDemo")
+          : outcome.kind === "unconfirmed"
+            ? t("actions.unconfirmedTitle")
+            : t("actions.resumeFailedTitle");
       setResumeNotice({ kind: "notice", title, message });
     }
   };
@@ -314,6 +331,7 @@ export function DashboardScreen({
               showWorkspace={workspaceId === ALL_WORKSPACES}
               actionsDisabled={actionsDisabled}
               resumingRunIds={resumingRunIds}
+              confirmingRunIds={confirmingRunIds}
               onAction={runAction}
               onMenu={(run) => setSheet({ kind: "menu", run })}
             />

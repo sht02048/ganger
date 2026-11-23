@@ -1,10 +1,10 @@
-import type { V1Dashboard, V1DashboardRun } from "@ganger/api";
+import type { AppDashboard, AppDashboardRun } from "@ganger/api";
 
 export const ALL_WORKSPACES = "all";
 export const PR_CHIPS_VISIBLE = 2;
 export const SETTLED_VISIBLE = 5;
 
-export type DashboardRun = V1DashboardRun;
+export type DashboardRun = AppDashboardRun;
 export type EndedRun = Extract<DashboardRun, { state: "ended" }>;
 export type QueuedRun = Extract<DashboardRun, { state: "queued" }>;
 export type PrProblem = NonNullable<DashboardRun["pullRequest"]>["problems"][number];
@@ -16,7 +16,7 @@ export interface Board {
   done: { todo: DashboardRun[]; settled: EndedRun[]; settledTotal: number };
 }
 
-export function buildBoard({ columns }: V1Dashboard): Board {
+export function buildBoard({ columns }: AppDashboard): Board {
   const settled = columns.done.rest.filter((run): run is EndedRun => run.state === "ended");
   return {
     queued: columns.queued,
@@ -33,7 +33,7 @@ export function buildBoard({ columns }: V1Dashboard): Board {
   };
 }
 
-export function hasNoRuns({ columns }: V1Dashboard): boolean {
+export function hasNoRuns({ columns }: AppDashboard): boolean {
   return [
     columns.queued,
     columns.running.todo,

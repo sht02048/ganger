@@ -18,7 +18,7 @@ const providerUsageSchema = z.object({
 });
 export type V1ProviderUsage = z.infer<typeof providerUsageSchema>;
 
-const usageTimeFields = {
+export const usageTimeFields = {
   readAt: z.iso.datetime(),
   agoMs: z.number(),
   now: z.iso.datetime(),

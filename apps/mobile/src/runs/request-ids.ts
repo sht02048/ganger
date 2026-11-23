@@ -1,12 +1,6 @@
+import { randomUUID } from "expo-crypto";
+
 export const REQUEST_ID_RETRY_WINDOW_MS = 60_000;
-
-const REQUEST_ID_LENGTH = 32;
-
-function newRequestId(): string {
-  let id = "";
-  while (id.length < REQUEST_ID_LENGTH) id += Math.random().toString(16).slice(2);
-  return id.slice(0, REQUEST_ID_LENGTH);
-}
 
 interface KeptRequestId {
   requestId: string;
@@ -29,7 +23,7 @@ export class RunRequestIds {
       kept.keptAt = now;
       return kept.requestId;
     }
-    const requestId = newRequestId();
+    const requestId = randomUUID();
     this.#kept.set(slot, { requestId, content, keptAt: now });
     return requestId;
   }

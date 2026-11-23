@@ -296,10 +296,15 @@ describe("연결 상태", () => {
 
   it("맞지 않는 서버의 버전을 남긴다", async () => {
     const w = world();
-    w.fail({ kind: "incompatible", serverVersion: "0.3.0" });
+    w.fail({ kind: "incompatible", update: "app", serverVersion: "0.3.0" });
     w.session.setForeground(true);
     await settle();
-    expect(w.session.getState()).toMatchObject({ phase: "incompatible", serverVersion: "0.3.0" });
+    expect(w.session.getState()).toMatchObject({
+      phase: "incompatible",
+      serverVersion: "0.3.0",
+      neededUpdate: "app",
+      actionsReady: false,
+    });
   });
 
   it("읽는 동안 다시 읽기를 요청해도 겹치지 않고 끝난 뒤 한 번 더 읽는다", async () => {

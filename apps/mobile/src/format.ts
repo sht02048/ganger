@@ -1,4 +1,4 @@
-import type { V1Dashboard } from "@ganger/api";
+import type { AppDashboard } from "@ganger/api";
 
 import { endsWithFinalConsonant } from "./dashboard/model";
 import type { QueuedRun } from "./dashboard/model";
@@ -80,12 +80,14 @@ export function queuedLine(run: QueuedRun): string {
       return reason.blocker === null && reason.blockers.length === 0
         ? t("card.blockerLine.unreadable")
         : t(`card.blockerLine.${reason.cause}`);
+    case "unknown":
+      return t("card.queued.unknown");
   }
 }
 
 const SUMMARY_ORDER = ["check", "answer", "stopped"] as const;
 
-export function dashboardSummary({ summary }: V1Dashboard): string {
+export function dashboardSummary({ summary }: AppDashboard): string {
   const groups = SUMMARY_ORDER.flatMap((kind) => {
     const count = summary.todo[kind];
     return count === 0 ? [] : [t(`dashboard.summary.${kind}`, { count })];

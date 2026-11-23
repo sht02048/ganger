@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { CONTRACT_VERSION, V1_PATHS, connectionQrText } from "@ganger/api";
+import { APP_CONTRACT_VERSION, CONTRACT_VERSION, V1_PATHS, connectionQrText } from "@ganger/api";
 import type { V1Dashboard } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -23,7 +23,7 @@ const SERVER = "https://ganger.example.com";
 const META = { serverVersion: "0.4.0", contractVersion: CONTRACT_VERSION };
 const STORED: StoredConnection = { server: SERVER, token: "stored-token", deviceId: "d" };
 
-type Mode = "ok" | "offline" | "revoked" | "host-blocked" | "old-server";
+type Mode = "ok" | "offline" | "revoked" | "host-blocked" | "old-server" | "old-app";
 
 function fakeServer() {
   const state: {
@@ -54,8 +54,14 @@ function fakeServer() {
       );
     }
     if (state.mode === "old-server") {
+      return Promise.resolve(new Response("", { status: 404 }));
+    }
+    if (state.mode === "old-app") {
       return Promise.resolve(
-        Response.json({ meta: { ...META, serverVersion: "0.3.0" }, data: {} }),
+        Response.json({
+          meta: { ...META, minClientContractVersion: APP_CONTRACT_VERSION + 1 },
+          data: {},
+        }),
       );
     }
     switch (path) {
@@ -309,9 +315,14 @@ describe("연결 끊기와 거절", () => {
     const server = fakeServer();
     server.state.mode = "old-server";
     const host = await mount(memoryStore(STORED).store, server.fetcher);
-    expect(host.textContent).toContain(
-      "서버 0.3.0은 이 앱과 맞지 않아요. 0.4.0 이상으로 올려 주세요.",
-    );
+    expect(host.textContent).toContain("서버 맥의 Ganger를 업데이트해 주세요.");
+  });
+
+  it("서버가 이 앱을 더 받지 않으면 앱 업데이트를 안내한다", async () => {
+    const server = fakeServer();
+    server.state.mode = "old-app";
+    const host = await mount(memoryStore(STORED).store, server.fetcher);
+    expect(host.textContent).toContain("앱을 업데이트해 주세요.");
   });
 });
 

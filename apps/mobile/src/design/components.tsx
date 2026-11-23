@@ -289,7 +289,8 @@ export type PillStatus =
   | "succeeded"
   | "queued"
   | "paused"
-  | "canceled";
+  | "canceled"
+  | "unknown";
 
 const pillColors: Record<PillStatus, { dot: string; surface: string }> = {
   question: { dot: colors.answer, surface: colors.answerSoft },
@@ -306,6 +307,7 @@ const pillColors: Record<PillStatus, { dot: string; surface: string }> = {
   queued: { dot: colors.idle, surface: colors.idleSoft },
   paused: { dot: colors.idle, surface: colors.idleSoft },
   canceled: { dot: colors.idle, surface: colors.idleSoft },
+  unknown: { dot: colors.idle, surface: colors.idleSoft },
 };
 
 export function pillColorsOf(status: PillStatus): { dot: string; surface: string } {

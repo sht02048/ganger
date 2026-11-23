@@ -1,4 +1,4 @@
-import type { V1Dashboard, V1Runner } from "@ganger/api";
+import type { AppDashboard, AppRunner } from "@ganger/api";
 
 export interface WorkspaceOption {
   id: string;
@@ -7,6 +7,6 @@ export interface WorkspaceOption {
 
 export interface MobileSnapshot {
   workspaces: ReadonlyArray<WorkspaceOption>;
-  dashboardFor: (workspaceId: string) => V1Dashboard | null;
-  runners: ReadonlyArray<V1Runner>;
+  dashboardFor: (workspaceId: string) => AppDashboard | null;
+  runners: ReadonlyArray<AppRunner>;
 }
