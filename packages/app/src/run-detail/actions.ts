@@ -210,6 +210,7 @@ export function controlRunOnce(
   key: RunActionKey,
   control: RunControl,
   now: Date,
+  onReplay?: () => void,
 ): RunActionResult {
   const controlFailed = (): boolean => {
     const request = getRunControlRequest(db, toRunId(key.runId));
@@ -222,7 +223,7 @@ export function controlRunOnce(
     [control],
     now,
     () => requestControl(db, key.runId, control, now),
-    { replayIsStale: controlFailed },
+    { replayIsStale: controlFailed, ...(onReplay === undefined ? {} : { onReplay }) },
   );
 }
 
@@ -232,6 +233,7 @@ export function continueRunOnce(
   message: string,
   now: Date,
   extraBlock: () => ContinueRunBlock | null = () => null,
+  onReplay?: () => void,
 ): ContinueRunActionResult {
   const from = toRunId(key.runId);
   return handleRunActionOnce<ContinueRunActionResult>(
@@ -248,10 +250,11 @@ export function continueRunOnce(
         const reason = extraBlock();
         return reason === null ? continueRunRequest(db, from, message, now) : { ok: false, reason };
       },
-      replay: (resultRunId) =>
-        resultRunId === null
-          ? { ok: false, reason: REQUEST_REUSED }
-          : { ok: true, runId: resultRunId },
+      replay: (resultRunId) => {
+        if (resultRunId === null) return { ok: false, reason: REQUEST_REUSED };
+        onReplay?.();
+        return { ok: true, runId: resultRunId };
+      },
       reused: () => ({ ok: false, reason: REQUEST_REUSED }),
       resultRunId: (result) => (result.ok ? result.runId : null),
       replayIsStale: (resultRunId) => {
