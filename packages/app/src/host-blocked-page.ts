@@ -20,8 +20,19 @@ export function wantsHostBlockedPage(request: Request): boolean {
 }
 
 export function hostBlockedResponse(request: Request, copy: HostBlockedCopy): Response {
-  const title = escapeHtml(copy.title(hostnameOfHostHeader(request.headers.get("host"))));
-  const body = escapeHtml(copy.body);
+  return noticePageResponse(request, {
+    title: copy.title(hostnameOfHostHeader(request.headers.get("host"))),
+    body: copy.body,
+    status: 403,
+  });
+}
+
+export function noticePageResponse(
+  request: Request,
+  notice: { title: string; body: string; status: number },
+): Response {
+  const title = escapeHtml(notice.title);
+  const body = escapeHtml(notice.body);
   const html = `<!doctype html>
 <html lang="ko">
 <head>
@@ -40,7 +51,7 @@ p { margin: 0; line-height: 1.6; }
 </html>
 `;
   return new Response(request.method === "HEAD" ? null : html, {
-    status: 403,
+    status: notice.status,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "cache-control": "no-store",

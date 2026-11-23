@@ -2,6 +2,8 @@
   "documentTitle": "{ticket} 런 · Ganger",
   "documentTitleNotFound": "런 · Ganger",
   "metaSeparator": " · ",
+  "openInTracker": "트래커에서 열기",
+  "newTab": "새 탭에서 열려요",
   "backTo": {
     "dashboard": "Dashboard로 돌아가기",
     "tickets": "Tickets로 돌아가기",
