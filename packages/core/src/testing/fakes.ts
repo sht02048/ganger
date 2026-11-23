@@ -13,6 +13,8 @@ import type {
   CompletionReport,
   ConnectionCheck,
   ContinuationPlace,
+  MergeOutcome,
+  MergePullRequestInput,
   Page,
   Paged,
   PermissionWait,
@@ -742,6 +744,8 @@ export class FakeCodeHost implements CodeHost {
   readonly kind: CodeHostKind;
   connection: ConnectionCheck<CodeHostErrorDetail> = { ok: true };
   rateLimitValue: { limit: number; remaining: number; resetAt: Date } | null = null;
+  mergeOutcome: MergeOutcome = { ok: true };
+  readonly merges: Array<{ repo: RepoRef; id: PullRequestId } & MergePullRequestInput> = [];
   private readonly prs = new Map<RepoRef, PullRequestSnapshot[]>();
   private readonly projectPrefix: string;
 
@@ -789,6 +793,22 @@ export class FakeCodeHost implements CodeHost {
 
   getPullRequest(repo: RepoRef, id: PullRequestId): Promise<PullRequestSnapshot | null> {
     return Promise.resolve(this.list(repo).find((pr) => pr.id === id) ?? null);
+  }
+
+  mergePullRequest(
+    repo: RepoRef,
+    id: PullRequestId,
+    input: MergePullRequestInput,
+  ): Promise<MergeOutcome> {
+    this.merges.push({ repo, id, ...input });
+    const outcome = this.mergeOutcome;
+    if (outcome.ok) {
+      const pr = this.list(repo).find((p) => p.id === id);
+      if (pr !== undefined) {
+        this.putPullRequest(repo, { ...pr, state: "merged", mergedAt: new Date(), signals: null });
+      }
+    }
+    return Promise.resolve(outcome);
   }
 
   rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date } | null> {

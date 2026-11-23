@@ -20,6 +20,7 @@ import type { MockInstance } from "vitest";
 import {
   PR_READ_RETRY_FIRST_MS,
   PR_READ_RETRY_MAX_MS,
+  isNewMerge,
   prReadErrorOf,
   prReadRetryDelayMs,
   pullRequestRecord,
@@ -395,5 +396,40 @@ describe("PR 기록 만들기 (0150)", () => {
   it("PR 정보를 못 읽은 열린 PR 은 값을 지어내지 않는다", () => {
     const record = pullRequestRecord({ ...snapshot, state: "open" }, new Date(1));
     expect(record.signals).toBeNull();
+  });
+});
+
+describe("운영자가 Ganger 에서 머지한 PR (0201)", () => {
+  const merged = {
+    id: toPullRequestId("7"),
+    displayId: "#7",
+    url: "https://code.example.com/acme/web/pull/7",
+    title: "ACME-7",
+    body: "",
+    state: "merged",
+    createdAt: new Date(0),
+    mergedAt: new Date(1_000),
+    headBranch: "feat/acme-7",
+    sourceRepo: null,
+    headCommit: "abc",
+    baseBranch: "main",
+    ci: "success",
+    signals: null,
+  };
+
+  it("머지된 PR 기록에 머지 시각과 상태를 남긴다", () => {
+    expect(pullRequestRecord(merged, new Date(2_000)).signals?.settled).toEqual({
+      state: "merged",
+      at: new Date(1_000).toISOString(),
+    });
+  });
+
+  it("서버가 머지하고 이미 머지됨으로 적어 둔 PR 도 새 머지로 알아본다", () => {
+    const byServer = pullRequestRecord(merged, new Date(2_000), {
+      operatorMergedAt: new Date(2_000).toISOString(),
+    });
+    const byWorker = pullRequestRecord(merged, new Date(2_000));
+    expect(isNewMerge(byServer, merged)).toBe(true);
+    expect(isNewMerge(byWorker, merged)).toBe(false);
   });
 });

@@ -1,4 +1,11 @@
-import type { CiState, PullRequestCommit, PullRequestSignals } from "@ganger/core";
+import type {
+  CiState,
+  MergeBlock,
+  MergeMethod,
+  PullRequestCommit,
+  PullRequestMergeInfo,
+  PullRequestSignals,
+} from "@ganger/core";
 import { z } from "zod";
 import type { GitHubHttp } from "./http.js";
 import { PULL_REQUEST_COMMITS_PAGE, PULL_REQUEST_SIGNALS } from "./queries.js";
@@ -48,9 +55,16 @@ export const pullRequestCommitsPageResponse = z.object({
 
 export const pullRequestSignalsResponse = z.object({
   repository: z.object({
+    mergeCommitAllowed: z.boolean().optional(),
+    squashMergeAllowed: z.boolean().optional(),
+    rebaseMergeAllowed: z.boolean().optional(),
+    viewerDefaultMergeMethod: z.string().optional(),
+    viewerPermission: z.string().nullish(),
     pullRequest: z.object({
       state: z.string(),
       mergeable: z.string(),
+      mergeStateStatus: z.string().optional(),
+      isDraft: z.boolean().optional(),
       title: z.string(),
       baseRefName: z.string(),
       history: commitHistory,
@@ -165,8 +179,61 @@ export function toSignalsRead(
       title: pr.title,
       baseBranch: pr.baseRefName,
       ...(laterPages === null ? {} : { commits: newestFirst([pr.history, ...laterPages]) }),
+      ...mergeInfoOf(data.repository),
     },
   };
+}
+
+const MERGE_METHOD_NAMES: Record<string, MergeMethod> = {
+  SQUASH: "squash",
+  MERGE: "merge",
+  REBASE: "rebase",
+};
+
+const WRITE_PERMISSIONS = new Set(["ADMIN", "MAINTAIN", "WRITE"]);
+const READ_PERMISSIONS = new Set(["READ", "TRIAGE"]);
+
+function mergeInfoOf(
+  repo: SignalsResponse["repository"],
+): { merge: PullRequestMergeInfo } | Record<string, never> {
+  if (
+    repo.squashMergeAllowed === undefined ||
+    repo.mergeCommitAllowed === undefined ||
+    repo.rebaseMergeAllowed === undefined
+  ) {
+    return {};
+  }
+  const methods: MergeMethod[] = [
+    ...(repo.squashMergeAllowed ? (["squash"] as const) : []),
+    ...(repo.mergeCommitAllowed ? (["merge"] as const) : []),
+    ...(repo.rebaseMergeAllowed ? (["rebase"] as const) : []),
+  ];
+  const named = MERGE_METHOD_NAMES[repo.viewerDefaultMergeMethod ?? ""];
+  const defaultMethod =
+    named !== undefined && methods.includes(named) ? named : (methods[0] ?? null);
+  return {
+    merge: {
+      methods,
+      defaultMethod,
+      blocked: mergeBlockOf(repo.pullRequest),
+      canWrite: canWriteOf(repo.viewerPermission ?? null),
+    },
+  };
+}
+
+function mergeBlockOf(pr: SignalsResponse["repository"]["pullRequest"]): MergeBlock | null {
+  if (pr.state !== "OPEN") return null;
+  if (pr.mergeable === "CONFLICTING" || pr.mergeStateStatus === "DIRTY") return "conflict";
+  if (pr.isDraft === true || pr.mergeStateStatus === "DRAFT") return "draft";
+  if (pr.mergeStateStatus === "BEHIND") return "behind";
+  if (pr.mergeStateStatus === "BLOCKED") return "rules";
+  return null;
+}
+
+function canWriteOf(permission: string | null): boolean | null {
+  if (permission === null) return null;
+  if (WRITE_PERMISSIONS.has(permission)) return true;
+  return READ_PERMISSIONS.has(permission) ? false : null;
 }
 
 function newestFirst(pages: ReadonlyArray<CommitHistory>): PullRequestCommit[] {

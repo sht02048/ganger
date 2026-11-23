@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AdapterError, decidePrState } from "@ganger/core";
+export { pullRequestRecord } from "@ganger/core";
 import type {
   AgentResult,
   CommentId,
@@ -7,7 +8,6 @@ import type {
   MailboxRef,
   PermissionRequestId,
   PrReadError,
-  PullRequestSignals,
   PullRequestSnapshot,
   PrStateDecision,
   QuestionId,
@@ -163,32 +163,6 @@ export async function decideRunPrState(
   return { prState: "none", pr: null };
 }
 
-export function pullRequestRecord(pr: PullRequestSnapshot, checkedAt: Date) {
-  const { id, displayId, url, ci, signals, headCommit } = pr;
-  const read = signals ?? (isSettledPr(pr) ? settledSignals(pr) : null);
-  return { id, displayId, url, ci, checkedAt, headCommit, signals: read };
-}
-
-function isSettledPr(pr: PullRequestSnapshot): boolean {
-  return pr.state === "merged" || pr.state === "closed";
-}
-
-function settledSignals(pr: PullRequestSnapshot): PullRequestSignals {
-  return {
-    open: false,
-    headCommit: pr.headCommit,
-    ciFailed: false,
-    checkTotal: null,
-    failedCount: 0,
-    failedChecks: [],
-    checksTruncated: false,
-    conflict: null,
-    behindBy: null,
-    title: pr.title,
-    baseBranch: pr.baseBranch,
-  };
-}
-
 export type PrRead =
   | { kind: "read"; decision: PrStateDecision }
   | { kind: "failed"; error: PrReadError };
@@ -199,6 +173,7 @@ export function isNewMerge(
 ): boolean {
   if (pr?.state !== "merged") return false;
   if (stored?.id !== pr.id || stored.signals?.open !== false) return true;
+  if (stored.signals.operatorMergedAt !== undefined) return true;
   return pr.mergedAt !== null && pr.mergedAt.getTime() > stored.checkedAt.getTime();
 }
 

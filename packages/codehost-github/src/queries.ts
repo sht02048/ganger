@@ -70,9 +70,16 @@ const COMMIT_HISTORY_PAGE = `
 
 export const PULL_REQUEST_SIGNALS = `query PullRequestSignals($owner: String!, $repo: String!, $number: Int!, $head: String!) {
   repository(owner: $owner, name: $repo) {
+    mergeCommitAllowed
+    squashMergeAllowed
+    rebaseMergeAllowed
+    viewerDefaultMergeMethod
+    viewerPermission
     pullRequest(number: $number) {
       state
       mergeable
+      mergeStateStatus
+      isDraft
       title
       baseRefName
       history: commits(first: 100) {${COMMIT_HISTORY_PAGE}}

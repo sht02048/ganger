@@ -5,6 +5,9 @@ import type {
   CodeHostErrorDetail,
   CodeHostKind,
   ConnectionCheck,
+  MergeOutcome,
+  MergePullRequestInput,
+  MergeRejection,
   PullRequestId,
   PullRequestSignals,
   PullRequestSnapshot,
@@ -152,6 +155,28 @@ export class GitHubCodeHost implements CodeHost {
     return snapshot ?? null;
   }
 
+  async mergePullRequest(
+    repo: RepoRef,
+    id: PullRequestId,
+    input: MergePullRequestInput,
+  ): Promise<MergeOutcome> {
+    const { owner, name } = this.split(repo);
+    if (!/^[1-9][0-9]*$/.test(id)) return { ok: false, reason: "not-found", message: null };
+    const res = await this.http.put(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pulls/${id}/merge`,
+      {
+        ...(input.method === null ? {} : { merge_method: input.method }),
+        ...(input.expectedHead === null ? {} : { sha: input.expectedHead }),
+      },
+    );
+    if (res.status === 200) return { ok: true };
+    if (this.http.isRateLimitedResponse(res) || res.status === 401) throw this.http.httpError(res);
+    const message = messageOf(res.body);
+    const reason = mergeRejectionOf(res.status, message);
+    if (reason === null) throw this.http.httpError(res);
+    return { ok: false, reason, message };
+  }
+
   async rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date }> {
     const { data } = await this.http.graphql(RATE_LIMIT_ONLY, {}, rateLimitOnly);
     return data.rateLimit;
@@ -236,6 +261,32 @@ export function searchQuery(
   const since = new Date(seconds).toISOString().replace(".000Z", "Z");
   const key = ticketKey.replaceAll('"', "");
   return `repo:${owner}/${name} is:pr "${key}" in:title,body created:>=${since}`;
+}
+
+const restMessage = z.object({ message: z.string() });
+
+function messageOf(body: unknown): string | null {
+  const parsed = restMessage.safeParse(body);
+  return parsed.success ? parsed.data.message : null;
+}
+
+function mergeRejectionOf(status: number, message: string | null): MergeRejection | null {
+  switch (status) {
+    case 403:
+      return "no-write-access";
+    case 404:
+      return "not-found";
+    case 405:
+      return message !== null && /not allowed on this repository/i.test(message)
+        ? "method-not-allowed"
+        : "blocked";
+    case 409:
+      return "head-changed";
+    case 422:
+      return "blocked";
+    default:
+      return null;
+  }
 }
 
 function repositoryMissing(errors: ReadonlyArray<GraphqlError>): GitHubError {
