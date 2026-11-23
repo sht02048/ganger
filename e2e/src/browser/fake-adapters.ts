@@ -41,3 +41,5 @@ export function getGangerSsh(): GangerSsh | null {
 export function getRunnerEnrollments(): RunnerEnrollments {
   return fakeEnrollmentWorld().enrollments;
 }
+
+export { getGitHubAuth } from "./fake-gh.js";

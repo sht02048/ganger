@@ -50,7 +50,7 @@ const noopActions: SettingsActions = {
   saveConnection: () => Promise.resolve({ ok: true }),
   checkConnection: () => Promise.resolve({ ok: true }),
   saveGitHubToken: () => Promise.resolve({ ok: true }),
-  checkGitHubToken: () => Promise.resolve({ ok: true }),
+  checkGitHub: () => Promise.resolve({ ok: true }),
   saveRunner: () => Promise.resolve({ ok: true }),
   recheckRunner: () => Promise.resolve({ ok: true }),
   saveAddresses: () => Promise.resolve({ ok: true }),
@@ -528,6 +528,7 @@ describe("Settings 연결 줄의 webhook 상태(0130)", () => {
       ...base,
       install: {
         ...base.install,
+        githubConnected: true,
         githubToken: true,
         runners: [
           {

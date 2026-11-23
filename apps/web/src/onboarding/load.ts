@@ -20,7 +20,13 @@ import { z } from "zod";
 import { idSchema, nameSchema } from "@ganger/app/settings/actions";
 import { loadSettingsPage, loadTrackerProjectChoices } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
-import type { ConnectionProjects, SaveResult, SettingsPage } from "@ganger/app/settings/model";
+import { loadGitHubAuthView } from "@ganger/app/settings/github-auth";
+import type {
+  ConnectionProjects,
+  GitHubAuthView,
+  SaveResult,
+  SettingsPage,
+} from "@ganger/app/settings/model";
 import { ONBOARDING_STEPS, isSetupComplete, resolveStep } from "./model";
 import type { SetupCounts } from "./model";
 
@@ -30,7 +36,7 @@ export function loadSetupCounts(db: Database, secretBox: SecretBox): SetupCounts
   );
   return {
     trackerConnections: listTrackerConnections(db, secretBox).length,
-    githubTokens: listCodeHostConnections(db, secretBox).length,
+    githubConnections: listCodeHostConnections(db, secretBox).length,
     runners: listRunners(db).length,
     workspaces: listWorkspaces(db).length,
     mappings: mapped.length,
@@ -50,17 +56,27 @@ export async function loadOnboardingPage(
   context: SettingsContext,
   step: number | undefined,
   now: Date,
-): Promise<{ page: SettingsPage; trackerProjects: ConnectionProjects[] }> {
+): Promise<OnboardingPage> {
   const page = await loadSettingsPage(context, undefined, now);
-  if (page.workspace !== null) return { page, trackerProjects: page.workspace.trackerProjects };
-  const onWorkspaceStep = ONBOARDING_STEPS[resolveStep(page, step)] === "workspace";
+  const shown = ONBOARDING_STEPS[resolveStep(page, step)];
+  const github = shown === "github" ? await loadGitHubAuthView(context) : null;
+  if (page.workspace !== null) {
+    return { page, trackerProjects: page.workspace.trackerProjects, github };
+  }
   return {
     page,
     trackerProjects:
-      onWorkspaceStep && page.install.connections.length > 0
+      shown === "workspace" && page.install.connections.length > 0
         ? await loadTrackerProjectChoices(context, null)
         : [],
+    github,
   };
+}
+
+export interface OnboardingPage {
+  page: SettingsPage;
+  trackerProjects: ConnectionProjects[];
+  github: GitHubAuthView | null;
 }
 
 export const firstWorkspaceInput = z.object({

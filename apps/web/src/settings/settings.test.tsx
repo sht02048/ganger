@@ -64,7 +64,7 @@ import {
 import { hasPendingRunnerChecks, loadSettingsPage } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
 import { settingsMessages } from "./messages";
-import type { SettingsPage } from "@ganger/app/settings/model";
+import type { GitHubAuthView, SettingsPage } from "@ganger/app/settings/model";
 import { jsonConfig } from "@ganger/app/settings/mcp-launch";
 import { McpScreen } from "./mcp-screen";
 import { BriefPreview } from "./workspace-brief";
@@ -173,7 +173,7 @@ const noopActions: ProjectDetailActions = {
   saveConnection: () => Promise.resolve({ ok: true }),
   checkConnection: () => Promise.resolve({ ok: true }),
   saveGitHubToken: () => Promise.resolve({ ok: true }),
-  checkGitHubToken: () => Promise.resolve({ ok: true }),
+  checkGitHub: () => Promise.resolve({ ok: true }),
   saveRunner: () => Promise.resolve({ ok: true }),
   recheckRunner: () => Promise.resolve({ ok: true }),
   saveAddresses: () => Promise.resolve({ ok: true }),
@@ -186,11 +186,18 @@ const noopActions: ProjectDetailActions = {
   turnOffWebhook: () => Promise.resolve({ ok: true }),
 };
 
-function render(page: SettingsPage, runnerIssues = 0): string {
+const TOKEN_ONLY_VIEW: GitHubAuthView = {
+  cli: { kind: "missing" },
+  tokenSaved: true,
+  source: "token",
+};
+
+function render(page: SettingsPage, runnerIssues = 0, github?: GitHubAuthView): string {
   return renderWithMessages(
     <SettingsScreen
       page={page}
       runnerIssues={runnerIssues}
+      {...(github === undefined ? {} : { github })}
       workspaceView={page.workspace === null ? "all" : "one"}
       ws={page.workspace?.general.id}
       actions={noopActions}
@@ -535,14 +542,50 @@ describe("Settings 저장하고 다시 열기", () => {
     ]);
   });
 
-  it("GitHub 토큰이 없으면 연결 구역에 문제로 보이고 넣기 버튼을 둔다", async () => {
+  it("GitHub 연결이 없으면 연결 구역에 문제로 보이고 gh 로그인이나 토큰을 안내하며 보기 버튼을 둔다 (0204)", async () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, commerce, now);
-    const connections = sectionOf(render(page), "connections");
-    expect(textOf(connections)).toContain("아직 없어요. PR 상태를 읽으려면 넣어 주세요");
-    expect(connections).toMatch(/<button[^>]*>넣기<\/button>/);
+    const none: GitHubAuthView = {
+      cli: { kind: "logged-out", multiAccount: true },
+      tokenSaved: false,
+      source: "none",
+    };
+    const connections = sectionOf(render(page, 0, none), "connections");
+    expect(textOf(connections)).toContain(
+      "연결하지 않았어요. 이 서버 기계에서 gh auth login 을 하거나 토큰을 붙여 넣어 주세요",
+    );
+    expect(connections).toMatch(/<button[^>]*aria-label="GitHub 보기"[^>]*>보기<\/button>/);
     expect(sectionProblems(page, 0).has("connections")).toBe(true);
     expect(connections).not.toContain('type="password"');
+    expect(textOf(sectionOf(render(page), "connections"))).toContain("gh 로그인을 확인하는 중…");
+  });
+
+  it("GitHub 줄은 지금 쓰는 출처를 보인다: gh 계정, 붙여 넣은 토큰 (0204)", async () => {
+    const f = fixture();
+    await saveGitHubToken(f.context, { token: "github_pat_example" }, now);
+    const page = await loadSettingsPage(f.context, commerce, now);
+    expect(page.install.githubToken).toBe(true);
+    const gh = (count: number): GitHubAuthView => ({
+      cli: {
+        kind: "logged-in",
+        multiAccount: true,
+        accounts: [
+          { login: "acme-bot", active: true, owners: ["acme"] },
+          ...(count > 1 ? [{ login: "jane-doe", active: false, owners: ["jane-labs"] }] : []),
+        ],
+      },
+      tokenSaved: true,
+      source: "gh",
+    });
+    expect(textOf(sectionOf(render(page, 0, gh(1)), "connections"))).toContain(
+      "gh로 연결했어요 · acme-bot",
+    );
+    expect(textOf(sectionOf(render(page, 0, gh(2)), "connections"))).toContain(
+      "gh로 연결했어요 · acme-bot 외 1개 계정",
+    );
+    expect(textOf(sectionOf(render(page, 0, TOKEN_ONLY_VIEW), "connections"))).toContain(
+      "붙여 넣은 토큰으로 연결했어요",
+    );
   });
 
   it("Mapping 에서 권한을 미리 허용하라고 안내하고 러너는 고르지 않는다", async () => {
@@ -1293,7 +1336,9 @@ describe("Settings 화면", () => {
     };
 
     const clean = await loadSettingsPage(f.context, commerce, now);
-    expect(textOf(sectionOf(render(clean), "connections"))).toContain("넣어 뒀어요");
+    expect(textOf(sectionOf(render(clean, 0, TOKEN_ONLY_VIEW), "connections"))).toContain(
+      "붙여 넣은 토큰으로 연결했어요",
+    );
     expect([...sectionProblems(clean, 0)]).toEqual([]);
 
     endUnread(ids[0] ?? "", "other");
@@ -1306,11 +1351,11 @@ describe("Settings 화면", () => {
 
     endUnread(ids[1] ?? "", "no-access");
     const noAccess = await loadSettingsPage(f.context, commerce, now);
-    const html = render(noAccess);
+    const html = render(noAccess, 0, TOKEN_ONLY_VIEW);
     expect(textOf(sectionOf(html, "connections"))).toContain(
-      "런 1개의 PR 정보를 읽지 못했어요. 토큰이 그 저장소를 볼 수 없어요",
+      "런 1개의 PR 정보를 읽지 못했어요. gh 계정이나 토큰이 그 저장소를 볼 수 없어요",
     );
-    expect(textOf(sectionOf(html, "connections"))).not.toContain("넣어 뒀어요");
+    expect(textOf(sectionOf(html, "connections"))).not.toContain("붙여 넣은 토큰으로 연결했어요");
     const nav = /<nav aria-label="Settings 목차"[^>]*>.*?<\/nav>/s.exec(html)?.[0] ?? "";
     expect(nav.match(/확인할 것이 있어요/g)).toHaveLength(1);
   });

@@ -48,10 +48,12 @@ import {
   withCurrent,
 } from "../settings/settings-screen";
 import type { ActionResult, SettingsActions } from "../settings/settings-screen";
-import { ExternalLink, GitHubTokenForm, TrackerKeyForm } from "../settings/credential-forms";
+import { ExternalLink, TrackerKeyForm } from "../settings/credential-forms";
+import { GitHubAuthPanel } from "../settings/github-auth";
 import type {
   BoundProject,
   ConnectionProjects,
+  GitHubAuthView,
   PrerequisiteView,
   RunnerSettingsView,
   SettingsPage,
@@ -105,6 +107,7 @@ export interface OnboardingScreenProps {
   actions: OnboardingActions;
   direct: DirectEntry;
   settingsBack?: ReactNode;
+  github?: GitHubAuthView | null;
 }
 
 export function OnboardingScreen({
@@ -116,6 +119,7 @@ export function OnboardingScreen({
   actions,
   direct,
   settingsBack,
+  github = null,
 }: OnboardingScreenProps) {
   const t = useTranslations("onboarding");
   const step: OnboardingStep = ONBOARDING_STEPS[index] ?? "tracker";
@@ -165,6 +169,7 @@ export function OnboardingScreen({
               actions={actions}
               workerSilent={workerSilent}
               direct={direct}
+              github={github}
             />
           </div>
           <div {...stylex.props(styles.footer)}>
@@ -314,6 +319,7 @@ function StepBody({
   actions,
   workerSilent,
   direct,
+  github,
 }: {
   step: OnboardingStep;
   page: SettingsPage;
@@ -321,12 +327,19 @@ function StepBody({
   actions: OnboardingActions;
   workerSilent: boolean;
   direct: DirectEntry;
+  github: GitHubAuthView | null;
 }) {
   switch (step) {
     case "tracker":
       return <TrackerStep connections={page.install.connections} actions={actions} />;
     case "github":
-      return <GitHubStep saved={page.install.githubToken} actions={actions} />;
+      return (
+        <GitHubStep
+          connected={page.install.githubConnected}
+          github={github ?? undefined}
+          actions={actions}
+        />
+      );
     case "runner":
       return (
         <RunnerStep
@@ -456,35 +469,25 @@ function WebhookExplainer() {
   );
 }
 
-function GitHubStep({ saved, actions }: { saved: boolean; actions: SettingsActions }) {
-  const t = useTranslations("onboarding.github");
-  const edit = useEditToggle();
-  const added = useFocusWhenAdded(saved ? 1 : 0);
-  if (!saved) {
-    return (
-      <>
-        <GitHubGuide />
-        <Card>
-          <GitHubTokenForm actions={actions} primary />
-        </Card>
-      </>
-    );
-  }
+function GitHubStep({
+  connected,
+  github,
+  actions,
+}: {
+  connected: boolean;
+  github: GitHubAuthView | undefined;
+  actions: SettingsActions;
+}) {
   return (
-    <>
-      <Card>
-        <SummaryRow
-          title={<FocusTarget ref={added}>{t("saved")}</FocusTarget>}
-          meta={t("savedMeta")}
-        >
-          <ToggleButton edit={edit} label={t("change")} />
-        </SummaryRow>
-        {edit.editing ? (
-          <GitHubTokenForm actions={actions} primary={false} onDone={edit.done} />
-        ) : null}
-      </Card>
-      {edit.editing ? <GitHubGuide /> : null}
-    </>
+    <Card>
+      <GitHubAuthPanel
+        view={github}
+        connected={connected}
+        actions={actions}
+        connectFirst
+        tokenGuide={<GitHubGuide />}
+      />
+    </Card>
   );
 }
 
@@ -511,18 +514,26 @@ function GitHubGuide() {
         </Text>
         <Text variant="meta">{t("permissionActionsNote")}</Text>
       </span>
+      <span {...stylex.props(styles.permission)}>
+        <Chip>{t("optional")}</Chip>
+        <Text variant="ui" tone="strong">
+          {t("permissionContents")}
+        </Text>
+        <Text variant="meta">{t("permissionMergeNote")}</Text>
+      </span>
     </div>,
     t("guideStepPaste"),
   ];
   return (
-    <section aria-labelledby={titleId} {...stylex.props(surfaceStyles("card"), styles.guide)}>
+    <section
+      aria-labelledby={titleId}
+      {...stylex.props(surfaceStyles("inset"), textStyles("ui"), styles.insetStack)}
+    >
       <div {...stylex.props(styles.cardHeader)}>
-        <Text variant="panel" as="h2" id={titleId}>
+        <Text variant="title" as="h2" id={titleId}>
           {t("guideTitle")}
         </Text>
-        <ExternalLink href={GITHUB_TOKEN_URL} button>
-          {t("guideLink")}
-        </ExternalLink>
+        <ExternalLink href={GITHUB_TOKEN_URL}>{t("guideLink")}</ExternalLink>
       </div>
       <NumberedList items={steps} />
     </section>

@@ -11,11 +11,14 @@ import { describe, expect, it } from "vitest";
 import { summarizeRuns } from "./ci.js";
 import { GitHubCodeHost, searchQuery } from "./github.js";
 import { GitHubError } from "./http.js";
+import { GitHubAuth } from "./auth.js";
+import type { GhRunner } from "./gh-cli.js";
 import { createGitHubCodeHostFactory } from "./index.js";
 import { fakeFetch, fixture, researchFixture, route } from "./test-support.js";
 import type { Recorded, SentRequest } from "./test-support.js";
 
 const repo = toRepoRef("acme/app");
+const NO_GH: GhRunner = { run: () => Promise.resolve(null) };
 const NOW = new Date("2026-11-17T16:00:00Z");
 
 function host(handler: (req: SentRequest) => Recorded | Error) {
@@ -535,7 +538,9 @@ describe("저장소와 factory", () => {
 
   it("레지스트리에 github 종류로 등록하고 저장한 토큰으로 만든다", async () => {
     const { fetch, sent } = fakeFetch(route({ graphql: fixture("by-branch-none") }));
-    const registry = new AdapterRegistry().registerCodeHost(createGitHubCodeHostFactory({ fetch }));
+    const registry = new AdapterRegistry().registerCodeHost(
+      createGitHubCodeHostFactory({ fetch, auth: new GitHubAuth({ gh: NO_GH, fetch }) }),
+    );
 
     const codeHost = registry.createCodeHost(toCodeHostKind("github"), {
       config: {},
@@ -547,10 +552,12 @@ describe("저장소와 factory", () => {
     expect(sent[0]?.headers["authorization"]).toBe("bearer stored-token");
   });
 
-  it("토큰이 없는 설정은 거부한다", () => {
-    expect(() => createGitHubCodeHostFactory().create({ config: {}, secrets: {} })).toThrow(
+  it("토큰만 쓰는 확인에서 토큰이 없으면 거부하고, 토큰 없는 저장 연결은 gh 로그인으로 만든다 (0204)", () => {
+    const factory = createGitHubCodeHostFactory({ auth: new GitHubAuth({ gh: NO_GH }) });
+    expect(() => factory.create({ config: { credentials: "token" }, secrets: {} })).toThrow(
       /token/,
     );
+    expect(factory.create({ config: {}, secrets: {} }).kind).toBe("github");
   });
 });
 

@@ -22,6 +22,11 @@ const ACTIONS: ReadonlyArray<{ path: string; label: string; help: string }> = [
     help: "runner-b 의 GitHub 인증을 바꿔요. Runners 화면과 할당 가능 여부가 따라 바뀌어요.",
   },
   {
+    path: "gh",
+    label: "서버 기계의 gh 상태 바꾸기",
+    help: "가짜 gh 를 연결됨 → 로그인 안 됨 → 없음 차례로 바꿔요. Settings·온보딩의 GitHub 구역에서 다시 확인하면 보여요.",
+  },
+  {
     path: "remote-login",
     label: "이 맥의 원격 로그인 켜기·끄기",
     help: '가짜 "이 맥"의 원격 로그인을 바꿔요. 러너 단계의 "이 맥을 러너로"가 기다리다 다음 단계로 가요.',

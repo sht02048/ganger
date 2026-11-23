@@ -27,6 +27,7 @@ import { useTranslations } from "use-intl";
 import { MAX_RUN_MINUTES } from "@ganger/app/settings/model";
 import type {
   AddressesView,
+  GitHubAuthView,
   BoundProject,
   ConnectionProjects,
   PowerView,
@@ -38,13 +39,7 @@ import type {
 import { useTime } from "../format/time";
 import { useAgentName } from "../labels";
 import { GITHUB_TOKEN_URL, LINEAR_API_KEY_URL } from "../onboarding/model";
-import {
-  useCredentialReason,
-  CredentialFormFrame,
-  ExternalLink,
-  GitHubTokenForm,
-  TrackerKeyForm,
-} from "./credential-forms";
+import { CredentialFormFrame, ExternalLink, TrackerKeyForm } from "./credential-forms";
 import {
   AutoSaveStatusText,
   EditorProvider,
@@ -63,6 +58,7 @@ import {
 } from "./settings-screen";
 import type { UnsavedGuard } from "./navigation-guard";
 import { UpdatesRows } from "./updates-panel";
+import { GitHubAuthPanel, useGitHubSourceDetail } from "./github-auth";
 import { WorkspaceBriefRow } from "./workspace-brief";
 
 export const SETTINGS_SECTIONS = [
@@ -165,6 +161,7 @@ export interface SettingsScreenProps {
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
   devices?: ReactNode;
   logs?: ReactNode;
+  github?: GitHubAuthView;
 }
 
 export function SettingsScreen({
@@ -178,6 +175,7 @@ export function SettingsScreen({
   renderGuard,
   devices,
   logs,
+  github,
 }: SettingsScreenProps) {
   const t = useTranslations("settings");
   const workspace = page.workspace;
@@ -220,6 +218,7 @@ export function SettingsScreen({
             runnerIssues={runnerIssues}
             actions={actions}
             renderLink={renderLink}
+            github={github}
           />
           <SettingsSection id="server" title={t("sections.server")}>
             <SettingsGroup>
@@ -269,7 +268,7 @@ export function sectionProblems(
   if (
     install.connections.length === 0 ||
     install.connections.some((connection) => connection.webhook.kind === "rejected") ||
-    !install.githubToken ||
+    !install.githubConnected ||
     unreadPrRuns(install) > 0 ||
     install.runners.length === 0 ||
     runnerIssues > 0
@@ -807,11 +806,13 @@ function ConnectionsSection({
   runnerIssues,
   actions,
   renderLink,
+  github,
 }: {
   page: SettingsPage;
   runnerIssues: number;
   actions: SettingsActions;
   renderLink: RenderSettingsLink;
+  github: GitHubAuthView | undefined;
 }) {
   const t = useTranslations("settings");
   const add = useInlineEdit("connection-add");
@@ -869,7 +870,8 @@ function ConnectionsSection({
           />
         ) : null}
         <GitHubRow
-          saved={page.install.githubToken}
+          connected={page.install.githubConnected}
+          view={github}
           unread={page.install.unreadPrRuns}
           actions={actions}
         />
@@ -951,11 +953,13 @@ export function useConnectionWebhookDetail(connection: TrackerConnectionView, no
 }
 
 function GitHubRow({
-  saved,
+  connected,
+  view,
   unread,
   actions,
 }: {
-  saved: boolean;
+  connected: boolean;
+  view: GitHubAuthView | undefined;
   unread: SettingsPage["install"]["unreadPrRuns"];
   actions: SettingsActions;
 }) {
@@ -966,56 +970,35 @@ function GitHubRow({
       : unread.other > 0
         ? t("github.unreadOther", { count: unread.other })
         : null;
+  const source = useGitHubSourceDetail(view);
   const edit = useInlineEdit("github");
   const labelId = useId();
-  const describeGitHub = useCredentialReason("github");
-  const check = useSubmit();
+  const sourceMissing = view !== undefined && view.source === "none";
   return (
     <SettingsRow
       label={t("github.label")}
       labelId={labelId}
-      detail={saved ? (unreadDetail ?? t("github.set")) : t("github.unset")}
-      detailTone={saved && unreadDetail === null ? "default" : "problem"}
+      detail={unreadDetail ?? source}
+      detailTone={unreadDetail !== null || !connected || sourceMissing ? "problem" : "default"}
       control={
         edit.open ? undefined : (
-          <ChangeButton
-            edit={edit}
-            label={t("github.label")}
-            action={saved ? t("change") : t("github.enter")}
-          />
+          <ChangeButton edit={edit} label={t("github.label")} action={t("github.open")} />
         )
-      }
-      message={
-        edit.open ? undefined : <SubmitError state={check.state} describe={describeGitHub} />
       }
       expanded={
         edit.open ? (
-          <FocusFirst>
-            <GitHubTokenForm
+          <FocusFirst onEscape={edit.close}>
+            <GitHubAuthPanel
+              view={view}
+              connected={connected}
               actions={actions}
-              hints="info"
-              primary
               onClose={edit.close}
-              onDone={edit.close}
-              footer={
-                <>
+              tokenGuide={
+                <span>
                   <ExternalLink href={GITHUB_TOKEN_URL}>{t("github.guideLink")}</ExternalLink>
-                  <InfoTip label={t("github.permissionsLabel")} content={t("github.permissions")} />
-                  {saved ? (
-                    <Button
-                      variant="ghost"
-                      disabled={check.sending}
-                      onClick={() =>
-                        check.run(() => actions.checkGitHubToken(), t("github.checkOk"))
-                      }
-                    >
-                      {check.sending ? t("github.checking") : t("github.check")}
-                    </Button>
-                  ) : null}
-                </>
+                </span>
               }
             />
-            <SubmitError state={check.state} describe={describeGitHub} />
           </FocusFirst>
         ) : null
       }

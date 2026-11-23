@@ -7,6 +7,8 @@ import { localGangerSsh } from "@ganger/app/runner-setup/ganger-ssh";
 import type { GangerSsh } from "@ganger/app/runner-setup/ganger-ssh";
 import type { ThisMac } from "@ganger/app/runner-setup/model";
 import { localThisMac } from "@ganger/app/runner-setup/this-mac";
+import { defaultGitHubAuth } from "@ganger/codehost-github";
+import type { GitHubAuth } from "@ganger/codehost-github";
 import type { AdapterRegistry } from "@ganger/core";
 import { SecretBox, parseBootConfig } from "@ganger/db";
 import { z } from "zod";
@@ -19,6 +21,10 @@ let enrollments: RunnerEnrollments | undefined;
 export function getAdapterRegistry(): AdapterRegistry {
   registry ??= createAdapterRegistry();
   return registry;
+}
+
+export function getGitHubAuth(): GitHubAuth {
+  return defaultGitHubAuth();
 }
 
 export function getSecretBox(): SecretBox {

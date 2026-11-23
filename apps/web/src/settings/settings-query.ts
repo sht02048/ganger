@@ -21,6 +21,7 @@ import { invalidatedKeysOf } from "../change-events/invalidation";
 import { DB_STALE_TIME_MS } from "../query/query-client";
 import {
   getBoundProjectReads,
+  getGitHubAuthView,
   getSettings,
   getTrackerProjects,
   getWebhookSetup,
@@ -77,6 +78,13 @@ function sharedLabelsQuery(read: BoundProjectReads) {
     queryFn: skipToken,
   });
 }
+
+export const GITHUB_AUTH_KEY = ["github-auth"] as const;
+
+export const githubAuthQuery = queryOptions({
+  queryKey: GITHUB_AUTH_KEY,
+  queryFn: () => getGitHubAuthView(),
+});
 
 export const webhookSetupQuery = queryOptions({
   queryKey: ["webhook-setup"],

@@ -6,7 +6,7 @@ import { MutationRejectedError } from "../query/mutation-error";
 import { rereadTrackers } from "../server/functions";
 import {
   addWorkspaceTrackerProject,
-  checkGitHubTokenNow,
+  checkGitHubNow,
   checkWebhookAddressNow,
   checkTrackerConnectionNow,
   createWorkspaceAutoAssignLabel,
@@ -27,7 +27,7 @@ import {
   saveWorkspaceMergedState,
   turnOffTrackerWebhook,
 } from "../server/settings-functions";
-import { invalidateChanged, queryNotificationsDelivered } from "./settings-query";
+import { GITHUB_AUTH_KEY, invalidateChanged, queryNotificationsDelivered } from "./settings-query";
 import type { ActionResult, ProjectDetailActions, SettingsActions } from "./settings-screen";
 
 export type AfterSave = () => Promise<unknown>;
@@ -158,11 +158,20 @@ export function useSettingsActions(afterChange: AfterChange): ProjectDetailActio
     SETTINGS_AND_TRACKER,
     afterChange,
   );
+  const queryClient = useQueryClient();
+  const afterGitHubChange = useCallback<AfterChange>(
+    async (kinds) => {
+      await queryClient.invalidateQueries({ queryKey: GITHUB_AUTH_KEY });
+      await afterChange(kinds);
+    },
+    [queryClient, afterChange],
+  );
   const saveGitHubToken = useSaveMutation(
     (data: Parameters<SettingsActions["saveGitHubToken"]>[0]) => saveGitHubTokenSetting({ data }),
     SETTINGS,
-    afterChange,
+    afterGitHubChange,
   );
+  const checkGitHub = useSaveMutation(() => checkGitHubNow(), SETTINGS, afterGitHubChange);
   const saveRunner = useSaveMutation(
     (data: Parameters<SettingsActions["saveRunner"]>[0]) => saveRunnerSettings({ data }),
     RUNNER,
@@ -217,7 +226,7 @@ export function useSettingsActions(afterChange: AfterChange): ProjectDetailActio
       saveConnection,
       checkConnection: (data) => checkTrackerConnectionNow({ data }),
       saveGitHubToken,
-      checkGitHubToken: () => checkGitHubTokenNow(),
+      checkGitHub: () => checkGitHub(undefined),
       saveRunner,
       recheckRunner,
       saveAddresses,
@@ -244,6 +253,7 @@ export function useSettingsActions(afterChange: AfterChange): ProjectDetailActio
       createLabel,
       saveConnection,
       saveGitHubToken,
+      checkGitHub,
       saveRunner,
       recheckRunner,
       saveAddresses,

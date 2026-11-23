@@ -2,6 +2,7 @@ import { todoGroups } from "@ganger/app/home/model";
 import { loadHomePage } from "@ganger/app/home/load";
 import { powerSettingsStore } from "@ganger/app/power-settings";
 import { loadRunDetail } from "@ganger/app/run-detail/load";
+import type { GitHubAuth } from "@ganger/codehost-github";
 import type { LogTailView } from "@ganger/app/run-detail/model";
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import { loadRunsPage } from "@ganger/app/runs/load";
@@ -59,6 +60,7 @@ export interface McpContext {
   db: Database;
   secretBox: SecretBox;
   registry: AdapterRegistry;
+  githubAuth?: GitHubAuth;
   home: string;
   mcpLaunch: McpLaunch;
   version: string;

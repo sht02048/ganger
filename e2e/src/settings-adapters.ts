@@ -56,3 +56,5 @@ export function getSecretBox(): SecretBox {
 }
 
 export { getThisMac } from "./browser/fake-adapters.js";
+
+export { getGitHubAuth } from "./browser/fake-gh.js";
