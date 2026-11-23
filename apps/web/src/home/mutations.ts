@@ -11,10 +11,11 @@ import {
   answerQuestion,
   controlRun,
   denyPermission,
+  getRunPrCommits,
   mergePullRequest,
 } from "../server/functions";
 import type { AnswerInput, ControlInput, DenyInput, HumanCheckInput } from "./home-screen";
-import type { MergeHandler } from "./sheet-pr-tab";
+import type { CommitsLoader, MergeHandler } from "./sheet-pr-tab";
 
 async function invalidateRunWrite(queryClient: QueryClient, runId: RunId): Promise<void> {
   await Promise.all(
@@ -28,6 +29,7 @@ export interface DashboardActions {
   onDeny: (input: DenyInput) => Promise<void>;
   onControl: (input: ControlInput) => Promise<RunControlOutcome>;
   onMerge: MergeHandler;
+  onLoadCommits: CommitsLoader;
 }
 
 export function useDashboardActions(): DashboardActions {
@@ -105,5 +107,6 @@ export function useDashboardActions(): DashboardActions {
     },
     onControl: (input) => control.mutateAsync(input),
     onMerge: (runId, method, expectedHead) => merge.mutateAsync({ runId, method, expectedHead }),
+    onLoadCommits: (runId) => getRunPrCommits({ data: { runId } }),
   };
 }

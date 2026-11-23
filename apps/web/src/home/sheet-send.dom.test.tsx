@@ -162,6 +162,7 @@ function draw(page: HomePage, actions: Partial<HomeScreenProps> = {}) {
           onDeny={resolved}
           onControl={() => Promise.resolve("requested")}
           onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
+          onLoadCommits={() => Promise.resolve([])}
           {...actions}
         />
       </IntlProvider>,
@@ -535,7 +536,7 @@ const failingPr: HomeRun["pullRequest"] = {
   branch: "acme-30",
   title: null,
   baseBranch: null,
-  commits: [],
+  commitSummary: null,
   merge: null,
 };
 

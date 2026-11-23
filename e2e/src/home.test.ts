@@ -470,6 +470,7 @@ describe("Dashboard 상세 패널(브라우저, 0100)", () => {
     await toggle.click();
     expect(await toggle.getAttribute("aria-expanded")).toBe("true");
     const links = panel.locator("a[data-commit]");
+    await links.first().waitFor();
     expect(
       await links.evaluateAll((els) => els.map((el) => el.getAttribute("data-commit"))),
     ).toEqual(["c3c3c3c", "c2c2c2c", "c1c1c1c"]);

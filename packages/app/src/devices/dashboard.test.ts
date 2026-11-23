@@ -105,7 +105,7 @@ describe("v1 Dashboard 계약", () => {
         branch: "acme-12",
         title: null,
         baseBranch: null,
-        commits: [],
+        commitSummary: null,
         merge: null,
       },
     };

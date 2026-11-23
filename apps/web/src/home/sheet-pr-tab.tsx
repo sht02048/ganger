@@ -9,13 +9,13 @@ import {
   TextLink,
   showToast,
 } from "@ganger/ui";
-import type { SignalTone } from "@ganger/ui";
+import type { CommitHistoryLoad, SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useLocale, useTranslations } from "use-intl";
 import type { MergePrResult } from "@ganger/app/home/merge-pr";
-import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
-import type { MergeView } from "@ganger/app/pr-signals-view";
+import type { HomeCommitSummary, HomePullRequest, HomeRun } from "@ganger/app/home/model";
+import type { MergeView, PrCommitView } from "@ganger/app/pr-signals-view";
 import type { MergeMethod, RunId } from "@ganger/core";
 import { useTime } from "../format/time";
 import { prCiFailed } from "./sheet-tabs";
@@ -28,7 +28,17 @@ export type MergeHandler = (
   expectedHead: string,
 ) => Promise<MergePrResult>;
 
-export function PrTabContent({ run, onMerge }: { run: HomeRun; onMerge: MergeHandler }) {
+export type CommitsLoader = (runId: RunId) => Promise<PrCommitView[] | null>;
+
+export function PrTabContent({
+  run,
+  onMerge,
+  onLoadCommits,
+}: {
+  run: HomeRun;
+  onMerge: MergeHandler;
+  onLoadCommits: CommitsLoader;
+}) {
   const pr = run.pullRequest;
   const columnRef = useRef<HTMLDivElement>(null);
   return (
@@ -42,7 +52,11 @@ export function PrTabContent({ run, onMerge }: { run: HomeRun; onMerge: MergeHan
           onMerged={() => columnRef.current?.focus()}
         />
       ) : null}
-      {pr === null ? <NoPullRequest run={run} /> : <PrStatusRows pr={pr} />}
+      {pr === null ? (
+        <NoPullRequest run={run} />
+      ) : (
+        <PrStatusRows runId={run.id} pr={pr} onLoadCommits={onLoadCommits} />
+      )}
     </div>
   );
 }
@@ -123,36 +137,133 @@ function NoPullRequest({ run }: { run: HomeRun }) {
   );
 }
 
-function PrStatusRows({ pr }: { pr: HomePullRequest }) {
+function PrStatusRows({
+  runId,
+  pr,
+  onLoadCommits,
+}: {
+  runId: RunId;
+  pr: HomePullRequest;
+  onLoadCommits: CommitsLoader;
+}) {
   return (
     <>
       <SignalList>
         {pr.state === "open" ? <OpenPrRows pr={pr} /> : <SettledPrRow pr={pr} />}
         <PrLinkRow pr={pr} />
       </SignalList>
-      {pr.commits.length === 0 ? null : <PrCommits commits={pr.commits} />}
+      {pr.commitSummary === null ? null : (
+        <PrCommits runId={runId} summary={pr.commitSummary} onLoadCommits={onLoadCommits} />
+      )}
     </>
   );
 }
 
-function PrCommits({ commits }: { commits: HomePullRequest["commits"] }) {
+interface LoadedCommits {
+  summaryKey: string;
+  commits: PrCommitView[];
+}
+
+function summaryKeyOf(summary: HomeCommitSummary): string {
+  return `${summary.count}:${summary.latestAt}`;
+}
+
+function agoAsOfSummary(summary: HomeCommitSummary, committedAt: string): number {
+  const now = Date.parse(summary.latestAt) + summary.latestAgoMs;
+  return Math.max(0, now - Date.parse(committedAt));
+}
+
+function useRunCommits(
+  runId: RunId,
+  summaryKey: string,
+  onLoadCommits: CommitsLoader,
+): {
+  loaded: LoadedCommits | null;
+  failed: boolean;
+  setExpanded: (expanded: boolean) => void;
+  retry: () => void;
+} {
+  const [expanded, setExpanded] = useState(false);
+  const [requestedKey, setRequestedKey] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState<LoadedCommits | null>(null);
+  const [failedKey, setFailedKey] = useState<string | null>(null);
+  const latestRequest = useRef(0);
+  const request = (key: string) => {
+    const id = latestRequest.current + 1;
+    latestRequest.current = id;
+    setRequestedKey(key);
+    setFailedKey(null);
+    onLoadCommits(runId).then(
+      (commits) => {
+        if (latestRequest.current !== id) return;
+        if (commits === null) setFailedKey(key);
+        else setLoaded({ summaryKey: key, commits });
+      },
+      () => {
+        if (latestRequest.current === id) setFailedKey(key);
+      },
+    );
+  };
+  const wanted = expanded && requestedKey !== summaryKey;
+  useEffect(() => {
+    if (wanted) request(summaryKey);
+  });
+  useEffect(
+    () => () => {
+      latestRequest.current += 1;
+    },
+    [],
+  );
+  return {
+    loaded,
+    failed: failedKey !== null && loaded === null,
+    setExpanded,
+    retry: () => request(summaryKey),
+  };
+}
+
+function PrCommits({
+  runId,
+  summary,
+  onLoadCommits,
+}: {
+  runId: RunId;
+  summary: HomeCommitSummary;
+  onLoadCommits: CommitsLoader;
+}) {
   const t = useTranslations("home.sheet");
   const { ago } = useTime();
-  const latest = commits[0];
-  if (latest === undefined) return null;
+  const { loaded, failed, setExpanded, retry } = useRunCommits(
+    runId,
+    summaryKeyOf(summary),
+    onLoadCommits,
+  );
+  const load: CommitHistoryLoad | null =
+    loaded !== null
+      ? null
+      : failed
+        ? {
+            kind: "failed",
+            message: t("pr.commitsFailed"),
+            retryLabel: t("pr.commitsRetry"),
+            onRetry: retry,
+          }
+        : { kind: "loading", label: t("pr.commitsLoading") };
   return (
     <CommitHistory
       summary={t("pr.commits", {
-        count: commits.length,
-        ago: ago(latest.committedAt, latest.agoMs),
+        count: summary.count,
+        ago: ago(summary.latestAt, summary.latestAgoMs),
       })}
       newTabLabel={t("newTab")}
-      commits={commits.map((commit) => ({
+      load={load}
+      onExpandedChange={setExpanded}
+      commits={(loaded?.commits ?? []).map((commit) => ({
         id: commit.oid,
         headline: commit.headline,
         sha: commit.shortSha,
         author: commit.author,
-        time: ago(commit.committedAt, commit.agoMs),
+        time: ago(commit.committedAt, agoAsOfSummary(summary, commit.committedAt)),
         href: commit.url,
       }))}
     />

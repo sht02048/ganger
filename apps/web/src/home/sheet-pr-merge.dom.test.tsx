@@ -66,7 +66,7 @@ function pr(merge: MergeView | null, over: Partial<HomePullRequest> = {}): HomeP
     branch: "acme-1-login",
     title: "Add login",
     baseBranch: "develop",
-    commits: [],
+    commitSummary: null,
     merge,
     ...over,
   };
@@ -121,10 +121,14 @@ async function render(pullRequest: HomePullRequest, onMerge: MergeHandler = unus
         messages={{ ...appMessages, ...homeMessages }}
         timeZone={DEFAULT_TIME_ZONE}
       >
-        <PrTabContent run={run(pullRequest)} onMerge={onMerge} />
+        <PrTabContent run={run(pullRequest)} onMerge={onMerge} onLoadCommits={unusedCommits} />
       </IntlProvider>,
     ),
   );
+}
+
+function unusedCommits(): Promise<never> {
+  return Promise.reject(new Error("unused"));
 }
 
 function unusedMerge(): Promise<MergePrResult> {

@@ -193,6 +193,9 @@
       "linkValue": "{pr} {title}",
       "branches": "{head} → {base}",
       "commits": "커밋 {count}개 · 마지막 {ago}",
+      "commitsLoading": "커밋을 불러오고 있어요",
+      "commitsFailed": "커밋을 불러오지 못했어요",
+      "commitsRetry": "다시 시도",
       "rules": "규칙",
       "rulesValue": {
         "blocked": "보호 규칙이 머지를 막고 있어요",

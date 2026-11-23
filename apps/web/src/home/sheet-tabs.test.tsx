@@ -49,7 +49,7 @@ function pr(over: Partial<HomePullRequest> = {}): HomePullRequest {
     branch: "acme-1-retry",
     title: null,
     baseBranch: null,
-    commits: [],
+    commitSummary: null,
     merge: null,
     ...over,
   };
@@ -159,7 +159,10 @@ describe("「PR」 탭 보이기와 점(티켓 0199)", () => {
 });
 
 function prTab(run: HomeRun): string {
-  return renderWithMessages(<PrTabContent run={run} onMerge={unusedMerge} />, homeMessages);
+  return renderWithMessages(
+    <PrTabContent run={run} onMerge={unusedMerge} onLoadCommits={unusedMerge} />,
+    homeMessages,
+  );
 }
 
 const p = homeJson.sheet.pr;

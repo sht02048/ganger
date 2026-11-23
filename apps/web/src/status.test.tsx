@@ -108,6 +108,7 @@ describe("화면의 상태 알약", () => {
             onDeny={() => Promise.resolve()}
             onControl={() => Promise.resolve("requested" as const)}
             onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
+            onLoadCommits={() => Promise.resolve([])}
           />,
           homeMessages,
         ),

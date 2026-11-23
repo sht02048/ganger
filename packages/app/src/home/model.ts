@@ -38,6 +38,18 @@ export type InputWait =
 
 export type HomePrState = "open" | "merged" | "closed";
 
+export interface HomeCommitSummary {
+  count: number;
+  latestAt: string;
+  latestAgoMs: number;
+}
+
+export function commitSummaryOf(commits: ReadonlyArray<PrCommitView>): HomeCommitSummary | null {
+  const latest = commits[0];
+  if (latest === undefined) return null;
+  return { count: commits.length, latestAt: latest.committedAt, latestAgoMs: latest.agoMs };
+}
+
 export interface HomePullRequest {
   displayId: string;
   url: string;
@@ -49,7 +61,7 @@ export interface HomePullRequest {
   branch: string | null;
   title: string | null;
   baseBranch: string | null;
-  commits: ReadonlyArray<PrCommitView>;
+  commitSummary: HomeCommitSummary | null;
   merge: MergeView | null;
 }
 

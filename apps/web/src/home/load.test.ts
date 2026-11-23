@@ -38,7 +38,7 @@ import {
   seedDatabase,
 } from "../testing/seed";
 import { loadShell } from "@ganger/app/shell/load";
-import { loadHomePage } from "@ganger/app/home/load";
+import { loadHomePage, loadRunPrCommits } from "@ganger/app/home/load";
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import type { AttentionItem, HomeRun } from "@ganger/app/home/model";
 import { dashboardBoard, runnerIssues } from "@ganger/app/home/model";
@@ -607,7 +607,7 @@ describe("loadHomePage PR 신호(0167)", () => {
     expect(endedView(db, "ACME-43").pullRequest?.state).toBe("closed");
   });
 
-  it("「PR」 탭에 쓸 PR 제목·base·커밋을 담고, 머지된 뒤에도 커밋을 남긴다(티켓 0200)", () => {
+  it("「PR」 탭에 쓸 PR 제목·base 와 커밋 수·마지막 커밋 시각만 담고, 커밋 목록은 런 하나로 따로 읽는다(티켓 0200, 0206)", () => {
     const { db } = seedDatabase();
     const id = addEndedRun(db, {
       key: "ACME-46",
@@ -620,8 +620,9 @@ describe("loadHomePage PR 신호(0167)", () => {
     expect(endedView(db, "ACME-46").pullRequest).toMatchObject({
       title: null,
       baseBranch: null,
-      commits: [],
+      commitSummary: null,
     });
+    expect(loadRunPrCommits(db, id, now)).toEqual([]);
 
     const commit = {
       oid: "0123456789abcdef",
@@ -654,8 +655,20 @@ describe("loadHomePage PR 신호(0167)", () => {
       },
     });
     const view = endedView(db, "ACME-46").pullRequest;
-    expect(view).toMatchObject({ title: "Retry failed payments", baseBranch: "develop" });
-    expect(view?.commits).toEqual([
+    expect(view).toMatchObject({
+      title: "Retry failed payments",
+      baseBranch: "develop",
+      commitSummary: {
+        count: 2,
+        latestAt: commit.committedAt,
+        latestAgoMs: now.getTime() - minutes(90).getTime(),
+      },
+    });
+    expect(view).not.toHaveProperty("commits");
+    expect(JSON.stringify(loadHomePage(db, "ws-commerce", now, "UTC"))).not.toContain(
+      commit.headline,
+    );
+    expect(loadRunPrCommits(db, id, now)).toEqual([
       {
         oid: "0123456789abcdef",
         shortSha: "0123456",
@@ -669,7 +682,20 @@ describe("loadHomePage PR 신호(0167)", () => {
     ]);
 
     updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
-    expect(endedView(db, "ACME-46").pullRequest?.commits).toHaveLength(2);
+    expect(endedView(db, "ACME-46").pullRequest?.commitSummary?.count).toBe(2);
+    expect(loadRunPrCommits(db, id, now)).toHaveLength(2);
+  });
+
+  it("PR 이 없거나 없는 런의 커밋 목록은 null 이다(티켓 0206)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-47",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    expect(loadRunPrCommits(db, id, now)).toBeNull();
+    expect(loadRunPrCommits(db, "run-missing", now)).toBeNull();
   });
 
   it("더 읽지 않는 PR 의 저장된 CI 는 알 수 없음으로 내린다(티켓 0199)", () => {

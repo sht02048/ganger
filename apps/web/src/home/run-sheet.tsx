@@ -38,7 +38,7 @@ import { RunKey, cardStatus, runHref, ticketHref, useRunText } from "./run-text"
 import type { AnswerInput, DenyInput, HumanCheckInput } from "./home-screen";
 import { answerRejection, denyRejection } from "./rejection";
 import { PrTabContent } from "./sheet-pr-tab";
-import type { MergeHandler } from "./sheet-pr-tab";
+import type { CommitsLoader, MergeHandler } from "./sheet-pr-tab";
 import { prTabDot, showsPrTab } from "./sheet-tabs";
 import type { SheetTab } from "./sheet-tabs";
 import type { AnswerRejectReason, DenyRejectReason } from "./rejection";
@@ -71,6 +71,7 @@ export function RunSheet({
   onSent,
   onControl,
   onMerge,
+  onLoadCommits,
 }: {
   target: SheetTarget | null;
   open: boolean;
@@ -85,6 +86,7 @@ export function RunSheet({
   onSent: SheetSentHandler;
   onControl: SheetControl;
   onMerge: MergeHandler;
+  onLoadCommits: CommitsLoader;
 }) {
   const t = useTranslations("home.sheet");
   if (target === null) return null;
@@ -133,7 +135,7 @@ export function RunSheet({
               </TabPanel>
               {showsPr ? (
                 <TabPanel value="pr">
-                  <PrTabContent run={run} onMerge={onMerge} />
+                  <PrTabContent run={run} onMerge={onMerge} onLoadCommits={onLoadCommits} />
                 </TabPanel>
               ) : null}
             </>

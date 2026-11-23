@@ -27,7 +27,10 @@ function ageRun(run: HomeRun, by: number): HomeRun {
     pullRequest: {
       ...pr,
       settledAgoMs: later(pr.settledAgoMs, by),
-      commits: pr.commits.map((commit) => ({ ...commit, agoMs: commit.agoMs + by })),
+      commitSummary:
+        pr.commitSummary === null
+          ? null
+          : { ...pr.commitSummary, latestAgoMs: pr.commitSummary.latestAgoMs + by },
     },
   };
 }
