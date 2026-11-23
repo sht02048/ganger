@@ -39,6 +39,7 @@ export const Route = createFileRoute("/_app/settings")({
       loadRouteQuery(load, logSettingsQuery),
       loadRouteQuery(load, devicesQuery),
       loadCachedRouteQuery(load, trackerProjectsQuery),
+      loadCachedRouteQuery(load, githubAuthQuery),
       loadCachedRouteQuery(load, boundProjectReadsQuery(load.context.queryClient, load.deps.ws)),
     ]);
   },
