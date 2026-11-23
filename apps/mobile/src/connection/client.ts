@@ -18,6 +18,7 @@ import {
 import type {
   ConnectResult,
   V1AnswerBody,
+  V1ContinueBody,
   V1Dashboard,
   V1DenyBody,
   V1HumanCheckBody,
@@ -175,6 +176,9 @@ function refusalOf(body: unknown): SendFailure {
     case "not-paused":
     case "cancelling":
     case "state-changed":
+    case "active-run":
+    case "previous-agent":
+    case "cannot-assign":
       return { kind: "refused", reason };
   }
 }
@@ -224,7 +228,8 @@ export type V1RunActionBody =
   | { action: "answer"; body: V1AnswerBody }
   | { action: "human-check"; body: V1HumanCheckBody }
   | { action: "deny"; body: V1DenyBody }
-  | { action: "resume" | "cancel"; body: V1RunKeyBody };
+  | { action: "resume" | "cancel" | "retry"; body: V1RunKeyBody }
+  | { action: "continue"; body: V1ContinueBody };
 
 export interface V1RunsClient {
   runDetail(runId: string): Promise<V1RunResult<V1RunDetail>>;

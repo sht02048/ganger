@@ -176,6 +176,25 @@ describe("SettledRow", () => {
     expect(host.querySelector('[data-testid="chip-problem"]')?.textContent).toBe("CI 실패");
   });
 
+  it("Failed 꼬리표 카드에만 다시 맡기기를 두고, 누르면 그 동작을 알린다", () => {
+    const actions: string[] = [];
+    const failed: EndedRun = {
+      ...settled,
+      todoTag: "failed",
+      summary: "failed",
+      agentResult: "reported-failure",
+    };
+    const host = mount(<RunCard run={failed} onAction={(action) => actions.push(action)} />);
+    const retry = host.querySelector('[aria-label="다시 맡기기"]');
+    expect(retry).not.toBeNull();
+    act(() => {
+      retry?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(actions).toEqual(["retry"]);
+    const plain = mount(<RunCard run={settled} onAction={() => undefined} />);
+    expect(plain.querySelector('[aria-label="다시 맡기기"]')).toBeNull();
+  });
+
   it("다시 맡겨 꼬리표가 없는 Failed 런은 Failed로 보인다", () => {
     const run: EndedRun = { ...settled, summary: "failed", agentResult: "reported-failure" };
     const host = mount(<SettledRow run={run} />);

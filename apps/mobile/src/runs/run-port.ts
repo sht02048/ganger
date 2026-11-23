@@ -9,7 +9,9 @@ export type RunWrite =
   | { action: "human-check"; questionId: string; decision: V1HumanCheckDecision; note: string }
   | { action: "deny"; promptId: string; reason: string }
   | { action: "resume" }
-  | { action: "cancel" };
+  | { action: "cancel" }
+  | { action: "retry" }
+  | { action: "continue"; message: string };
 
 export type RunWriteOutcome =
   | { kind: "sent" }
@@ -38,6 +40,8 @@ function slotOf(runId: string, write: RunWrite): string {
       return `${runId}:deny:${write.promptId}`;
     case "resume":
     case "cancel":
+    case "retry":
+    case "continue":
       return `${runId}:${write.action}`;
   }
 }
@@ -66,7 +70,10 @@ function requestOf(write: RunWrite, requestId: string): V1RunActionBody {
       };
     case "resume":
     case "cancel":
+    case "retry":
       return { action: write.action, body: { requestId } };
+    case "continue":
+      return { action: "continue", body: { requestId, message: write.message } };
   }
 }
 
@@ -202,6 +209,10 @@ export function demoRunDetail(run: DashboardRun): V1RunDetail {
             problems: run.pullRequest.problems,
           },
     input: demoInput(run),
+    nextActions:
+      run.todoTag === "failed"
+        ? { retry: "available", continue: "available" }
+        : { retry: "not-offered", continue: "not-offered" },
   };
 }
 

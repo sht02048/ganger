@@ -18,6 +18,9 @@ export const V1_RUN_REFUSALS = [
   "not-paused",
   "cancelling",
   "state-changed",
+  "active-run",
+  "previous-agent",
+  "cannot-assign",
 ] as const;
 export type V1RunRefusal = (typeof V1_RUN_REFUSALS)[number];
 
