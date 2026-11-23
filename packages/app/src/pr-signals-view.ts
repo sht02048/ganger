@@ -94,6 +94,7 @@ export interface MergeView {
   defaultMethod: MergeMethod;
   blocked: MergeBlock | null;
   noPermission: boolean;
+  headCommit: string;
 }
 
 export function mergeViewOf(run: StoredRun, records: RunRecords): MergeView | null {
@@ -108,6 +109,7 @@ export function mergeViewOf(run: StoredRun, records: RunRecords): MergeView | nu
     defaultMethod: merge.defaultMethod,
     blocked: merge.blocked,
     noPermission: merge.canWrite === false || signals.mergeDeniedAt !== undefined,
+    headCommit: signals.headCommit,
   };
 }
 

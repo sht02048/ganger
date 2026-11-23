@@ -5,7 +5,6 @@ import type { Root } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toRunId, toTicketKey } from "@ganger/core";
-import type { MergeMethod } from "@ganger/core";
 import type { MergePrResult } from "@ganger/app/home/merge-pr";
 import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
 import type { MergeView, PrSignalsView } from "@ganger/app/pr-signals-view";
@@ -52,6 +51,7 @@ const ready: MergeView = {
   defaultMethod: "merge",
   blocked: null,
   noPermission: false,
+  headCommit: "head-sha",
 };
 
 function pr(merge: MergeView | null, over: Partial<HomePullRequest> = {}): HomePullRequest {
@@ -183,9 +183,7 @@ describe("「PR」 탭 머지 버튼 (0201)", () => {
   });
 
   it("방식 메뉴는 레포가 허용한 방식만 보이고, 고르면 버튼 글과 머지 방식이 바뀐다", async () => {
-    const onMerge = vi.fn<MergeHandler>((_runId, method: MergeMethod) =>
-      Promise.resolve({ ok: true, method, replayed: false }),
-    );
+    const onMerge = vi.fn<MergeHandler>(() => Promise.resolve({ ok: true, replayed: false }));
     await render(pr({ ...ready, methods: ["squash", "merge"] }), onMerge);
     const items = await openMethods();
     expect(items.map((item) => item.textContent)).toEqual([m.option.squash, m.option.merge]);
@@ -193,7 +191,7 @@ describe("「PR」 탭 머지 버튼 (0201)", () => {
     await settle(() => items[0]?.click());
     expect(shownLabel(mergeButton())).toBe(m.button.squash);
     await settle(() => mergeButton().click());
-    expect(onMerge).toHaveBeenCalledWith("run-1", "squash");
+    expect(onMerge).toHaveBeenCalledWith("run-1", "squash", "head-sha");
   });
 
   it("허용 방식이 하나면 메뉴 없이 버튼만 둔다", async () => {
@@ -203,12 +201,10 @@ describe("「PR」 탭 머지 버튼 (0201)", () => {
   });
 
   it("누르면 확인 없이 바로 머지하고 성공을 토스트로 알린다", async () => {
-    const onMerge = vi.fn<MergeHandler>(() =>
-      Promise.resolve({ ok: true, method: "merge", replayed: false }),
-    );
+    const onMerge = vi.fn<MergeHandler>(() => Promise.resolve({ ok: true, replayed: false }));
     await render(pr(ready), onMerge);
     await settle(() => mergeButton().click());
-    expect(onMerge).toHaveBeenCalledWith("run-1", "merge");
+    expect(onMerge).toHaveBeenCalledWith("run-1", "merge", "head-sha");
     expect(toast).toHaveBeenCalledWith(m.done);
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
@@ -236,7 +232,7 @@ describe("「PR」 탭 머지 버튼 (0201)", () => {
     expect(mergeButton().getAttribute("aria-busy")).toBe("true");
     await settle(() => mergeButton().click());
     expect(onMerge).toHaveBeenCalledTimes(1);
-    await settle(() => finish({ ok: true, method: "merge", replayed: false }));
+    await settle(() => finish({ ok: true, replayed: false }));
     expect(mergeButton().getAttribute("aria-busy")).toBe("false");
   });
 

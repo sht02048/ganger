@@ -161,9 +161,7 @@ function draw(page: HomePage, actions: Partial<HomeScreenProps> = {}) {
           onHumanCheck={resolved}
           onDeny={resolved}
           onControl={() => Promise.resolve("requested")}
-          onMerge={() =>
-            Promise.resolve({ ok: true as const, method: "squash" as const, replayed: false })
-          }
+          onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
           {...actions}
         />
       </IntlProvider>,

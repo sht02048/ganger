@@ -180,6 +180,7 @@ const MERGE_ERRORS: Record<MergePrRejection, string> = {
   unauthorized: "GitHub refused the token. The operator can enter a new one in Ganger Settings.",
   "rate-limited": "GitHub is rate limiting requests. Try again later.",
   network: "Ganger could not reach GitHub.",
+  superseded: "A later run took over this run's worktree. Merge from the later run.",
   "request-reused": REUSED_ERROR,
 };
 
@@ -619,7 +620,12 @@ export function registerWriteTools(
       const base = { target: run.ticket.key, runId: run.id };
       const result = await mergeRunPullRequest(
         { db: context.db, secretBox: context.secretBox, registry: context.registry },
-        { runId: run.id, method: method ?? null, requestId: requestId ?? randomUUID() },
+        {
+          runId: run.id,
+          method: method ?? null,
+          expectedHead: null,
+          requestId: requestId ?? randomUUID(),
+        },
         () => context.now(),
       );
       if (!result.ok) {
@@ -634,7 +640,7 @@ export function registerWriteTools(
         ...base,
         serverHandles: false,
         replayed: result.replayed,
-        result: { merged: true, method: result.method },
+        result: { merged: true },
       });
     },
   );

@@ -16,9 +16,11 @@ import {
   SecretBox,
   changeRunState,
   clearMergeDenials,
+  continueRun,
   getRunWithRecords,
   listRunQuestions,
   listRuns,
+  recordAgentCheck,
   recordRunQuestions,
   saveCodeHostConnection,
   toCodeHostConnectionId,
@@ -114,7 +116,13 @@ function seedMergeWorld(options: { humanCheck?: boolean } = {}): World {
     merge: (input) =>
       mergeRunPullRequest(
         { db, secretBox: box, registry },
-        { runId: run.id, method: null, requestId: "request-0000000001", ...input },
+        {
+          runId: run.id,
+          method: null,
+          expectedHead: null,
+          requestId: "request-0000000001",
+          ...input,
+        },
         () => now,
       ),
   };
@@ -133,7 +141,7 @@ describe("런 패널에서 PR 머지하기 (0201)", () => {
     "고른 방식 %s 과 본 head 로 코드 호스트 머지를 부른다",
     async (method) => {
       const world = seedMergeWorld();
-      expect(await world.merge({ method })).toEqual({ ok: true, method, replayed: false });
+      expect(await world.merge({ method })).toEqual({ ok: true, replayed: false });
       expect(world.codeHost.merges).toEqual([
         { repo: REPO, id: PR_ID, method, expectedHead: HEAD },
       ]);
@@ -142,12 +150,38 @@ describe("런 패널에서 PR 머지하기 (0201)", () => {
 
   it("방식을 고르지 않으면 레포 기본 방식으로 머지한다", async () => {
     const world = seedMergeWorld();
-    expect(await world.merge({ method: null })).toEqual({
-      ok: true,
-      method: "squash",
-      replayed: false,
-    });
+    expect(await world.merge({ method: null })).toEqual({ ok: true, replayed: false });
     expect(world.codeHost.merges[0]?.method).toBe("squash");
+  });
+
+  it("방식을 빼고 다시 보내도 처음과 같은 결과를 준다", async () => {
+    const world = seedMergeWorld();
+    const first = await world.merge({ method: null });
+    const again = await world.merge({ method: null });
+    expect(again).toEqual({ ...first, replayed: true });
+    expect(world.codeHost.merges).toHaveLength(1);
+  });
+
+  it("화면이 본 head 커밋을 보내면 저장된 head 대신 그 커밋으로 머지한다", async () => {
+    const world = seedMergeWorld();
+    await world.merge({ expectedHead: "seen-head" });
+    expect(world.codeHost.merges[0]?.expectedHead).toBe("seen-head");
+  });
+
+  it("다른 런이 워크트리를 이어받은 런으로는 머지하지 않는다", async () => {
+    const world = seedMergeWorld();
+    const ended = changeRunState(
+      world.db,
+      world.runId,
+      { to: "ended", agentResult: "reported-failure", prState: "open" },
+      minutes(115),
+    );
+    if (!ended.ok) throw new Error("end failed");
+    recordAgentCheck(world.db, world.runId, "gone", { stopHandled: true });
+    const continued = continueRun(world.db, { from: world.runId, message: "더 해 주세요", now });
+    if (!continued.ok) throw new Error(`continue failed: ${continued.reason}`);
+    expect(await world.merge({})).toMatchObject({ ok: false, reason: "superseded" });
+    expect(world.codeHost.merges).toEqual([]);
   });
 
   it("레포가 허용하지 않은 방식은 코드 호스트를 부르지 않고 거절한다", async () => {
@@ -195,9 +229,9 @@ describe("런 패널에서 PR 머지하기 (0201)", () => {
     ]);
     const third = await world.merge({ method: "squash" });
     expect([first, second, third]).toEqual([
-      { ok: true, method: "squash", replayed: false },
-      { ok: true, method: "squash", replayed: false },
-      { ok: true, method: "squash", replayed: true },
+      { ok: true, replayed: false },
+      { ok: true, replayed: false },
+      { ok: true, replayed: true },
     ]);
     expect(world.codeHost.merges).toHaveLength(1);
   });
@@ -217,7 +251,7 @@ describe("런 패널에서 PR 머지하기 (0201)", () => {
     world.codeHost.mergeOutcome = { ok: false, reason: "blocked", message: null };
     await world.merge({});
     world.codeHost.mergeOutcome = { ok: true };
-    expect(await world.merge({})).toEqual({ ok: true, method: "squash", replayed: false });
+    expect(await world.merge({})).toEqual({ ok: true, replayed: false });
     expect(world.codeHost.merges).toHaveLength(2);
   });
 

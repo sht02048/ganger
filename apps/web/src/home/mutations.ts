@@ -83,9 +83,13 @@ export function useDashboardActions(): DashboardActions {
     onSuccess: (_outcome, input) => afterWrite(toRunId(input.runId)),
   });
   const merge = useMutation({
-    mutationFn: (input: { runId: string; method: MergeMethod }) =>
-      withRunActionRequestId(queryClient, input.runId, "merge-pr", input.method, (requestId) =>
-        mergePullRequest({ data: { ...input, requestId } }),
+    mutationFn: (input: { runId: RunId; method: MergeMethod; expectedHead: string }) =>
+      withRunActionRequestId(
+        queryClient,
+        input.runId,
+        "merge-pr",
+        `${input.method}:${input.expectedHead}`,
+        (requestId) => mergePullRequest({ data: { ...input, requestId } }),
       ),
     onSettled: (_result, _error, input) => afterWrite(toRunId(input.runId)),
   });
@@ -100,6 +104,6 @@ export function useDashboardActions(): DashboardActions {
       await deny.mutateAsync(input);
     },
     onControl: (input) => control.mutateAsync(input),
-    onMerge: (runId, method) => merge.mutateAsync({ runId, method }),
+    onMerge: (runId, method, expectedHead) => merge.mutateAsync({ runId, method, expectedHead }),
   };
 }

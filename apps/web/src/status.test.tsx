@@ -107,9 +107,7 @@ describe("화면의 상태 알약", () => {
             onHumanCheck={() => Promise.resolve()}
             onDeny={() => Promise.resolve()}
             onControl={() => Promise.resolve("requested" as const)}
-            onMerge={() =>
-              Promise.resolve({ ok: true as const, method: "squash" as const, replayed: false })
-            }
+            onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
           />,
           homeMessages,
         ),

@@ -16,13 +16,17 @@ import { useLocale, useTranslations } from "use-intl";
 import type { MergePrResult } from "@ganger/app/home/merge-pr";
 import type { HomePullRequest, HomeRun } from "@ganger/app/home/model";
 import type { MergeView } from "@ganger/app/pr-signals-view";
-import type { MergeMethod } from "@ganger/core";
+import type { MergeMethod, RunId } from "@ganger/core";
 import { useTime } from "../format/time";
 import { prCiFailed } from "./sheet-tabs";
 
 const GITHUB_TOKEN_SETTINGS_HREF = "/settings#connections";
 
-export type MergeHandler = (runId: string, method: MergeMethod) => Promise<MergePrResult>;
+export type MergeHandler = (
+  runId: RunId,
+  method: MergeMethod,
+  expectedHead: string,
+) => Promise<MergePrResult>;
 
 export function PrTabContent({ run, onMerge }: { run: HomeRun; onMerge: MergeHandler }) {
   const pr = run.pullRequest;
@@ -49,7 +53,7 @@ function MergeControl({
   onMerge,
   onMerged,
 }: {
-  runId: string;
+  runId: RunId;
   merge: MergeView;
   onMerge: MergeHandler;
   onMerged: () => void;
@@ -63,7 +67,7 @@ function MergeControl({
   const send = async () => {
     setSending(true);
     try {
-      const result = await onMerge(runId, method);
+      const result = await onMerge(runId, method, merge.headCommit);
       showToast(result.ok ? t("done") : describeFailure(result));
       if (result.ok) onMerged();
     } catch {
@@ -294,7 +298,6 @@ const styles = stylex.create({
     flexDirection: "column",
     gap: space.s4,
     minWidth: 0,
-    outline: "none",
   },
   merge: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: space.s2 },
   empty: { display: "flex", flexDirection: "column", gap: space.s1 },

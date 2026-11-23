@@ -227,7 +227,8 @@
           "unauthorized": "GitHub 토큰이 맞지 않아요. Settings에서 새로 넣어 주세요",
           "rate-limited": "GitHub 요청이 많아 잠시 막혔어요. 조금 뒤에 다시 해 주세요",
           "network": "GitHub에 연결하지 못했어요. 다시 해 주세요",
-          "request-reused": "같은 요청을 다른 방식으로 보냈어요. 다시 눌러 주세요"
+          "request-reused": "같은 요청을 다른 방식으로 보냈어요. 다시 눌러 주세요",
+          "superseded": "이 런의 워크트리를 다른 런이 이어받았어요. 새 런에서 머지해 주세요"
         }
       }
     }

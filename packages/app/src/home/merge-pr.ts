@@ -9,7 +9,6 @@ import {
 import type {
   AdapterRegistry,
   CodeHost,
-  MergeMethod,
   PullRequestId,
   PullRequestSnapshot,
   RepoRef,
@@ -24,6 +23,7 @@ import {
   recordRunActionRequest,
   runActionRequestStatus,
   updateRunRecords,
+  worktreeTakenOverBy,
 } from "@ganger/db";
 import type { Database, RunActionRequest, RunRecords, SecretBox } from "@ganger/db";
 import { z } from "zod";
@@ -40,18 +40,20 @@ export const MERGE_PR_REJECTIONS = [
   "unauthorized",
   "rate-limited",
   "network",
+  "superseded",
   "request-reused",
 ] as const;
 
 export type MergePrRejection = (typeof MERGE_PR_REJECTIONS)[number];
 
 export type MergePrResult =
-  | { ok: true; method: MergeMethod | null; replayed: boolean }
+  | { ok: true; replayed: boolean }
   | { ok: false; reason: MergePrRejection; message: string | null };
 
 export const mergePrInput = z.object({
   runId: z.string().min(1).max(200),
   method: z.enum(MERGE_METHODS).nullable(),
+  expectedHead: z.string().min(1).max(200).nullable(),
   requestId: z.string().min(16).max(64),
 });
 
@@ -99,7 +101,8 @@ async function mergeOnce(
   };
   const status = runActionRequestStatus(db, request);
   if (status === "reused") return rejected("request-reused");
-  if (status === "handled") return { ok: true, method: input.method, replayed: true };
+  if (status === "handled") return { ok: true, replayed: true };
+  if (worktreeTakenOverBy(db, runId) !== null) return rejected("superseded");
 
   const pr = found.records.pullRequest;
   if (pr === null) return rejected("no-pull-request");
@@ -117,7 +120,7 @@ async function mergeOnce(
   try {
     outcome = await host.codeHost.mergePullRequest(host.repo, pr.id, {
       method,
-      expectedHead: signals?.headCommit ?? null,
+      expectedHead: input.expectedHead ?? signals?.headCommit ?? null,
     });
   } catch (error) {
     return rejected(remoteFailureOf(error));
@@ -125,13 +128,13 @@ async function mergeOnce(
   const at = now();
   if (!outcome.ok) {
     if (outcome.reason === "no-write-access") recordMergeDenied(db, runId, at);
-    await rereadPullRequest(context, host, runId, pr.id, at, null);
+    await rereadPullRequest(context, host, runId, pr.id, at, null).catch(() => undefined);
     return rejected(outcome.reason, outcome.message);
   }
   recordRunActionRequest(db, request, at);
-  await rereadPullRequest(context, host, runId, pr.id, at, pr);
   answerWaitingHumanCheck(db, runId, at);
-  return { ok: true, method, replayed: false };
+  await rereadPullRequest(context, host, runId, pr.id, at, pr).catch(() => undefined);
+  return { ok: true, replayed: false };
 }
 
 interface FoundCodeHost {

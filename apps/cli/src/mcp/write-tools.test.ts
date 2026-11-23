@@ -772,7 +772,7 @@ describe("MCP PR 머지(0201)", () => {
     await connect("hermes", true, registry);
     const merged = await call("merge_pr", { runId: seeded.waiting });
     expect(merged.isError).toBe(false);
-    expect(merged.json).toMatchObject({ outcome: "done", merged: true, method: "squash" });
+    expect(merged.json).toMatchObject({ outcome: "done", merged: true });
     expect(merged.json).not.toHaveProperty("pending");
     expect(codeHost.merges).toEqual([
       { repo: MERGE_REPO, id: MERGE_PR, method: "squash", expectedHead: "head-sha" },
