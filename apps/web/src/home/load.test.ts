@@ -5,6 +5,7 @@ import {
   toPullRequestId,
   toQuestionId,
   toRunnerId,
+  toRunId,
   toRunnerProjectId,
   toTicketKey,
   toTrackerProjectId,
@@ -695,7 +696,7 @@ describe("loadHomePage PR 신호(0167)", () => {
       prState: "open",
     });
     expect(loadRunPrCommits(db, id, now)).toBeNull();
-    expect(loadRunPrCommits(db, "run-missing", now)).toBeNull();
+    expect(loadRunPrCommits(db, toRunId("run-missing"), now)).toBeNull();
   });
 
   it("더 읽지 않는 PR 의 저장된 CI 는 알 수 없음으로 내린다(티켓 0199)", () => {

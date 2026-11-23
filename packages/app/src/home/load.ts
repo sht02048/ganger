@@ -86,10 +86,10 @@ function prSummaryOf(
   return { title, baseBranch, commitSummary: commitSummaryOf(commits) };
 }
 
-export const runPrCommitsInput = z.object({ runId: z.string().min(1).max(200) });
+export const runPrCommitsInput = z.object({ runId: z.string().min(1).max(200).transform(toRunId) });
 
-export function loadRunPrCommits(db: Database, runId: string, now: Date): PrCommitView[] | null {
-  const found = getRunWithRecords(db, toRunId(runId));
+export function loadRunPrCommits(db: Database, runId: RunId, now: Date): PrCommitView[] | null {
+  const found = getRunWithRecords(db, runId);
   if (found === null || found.records.pullRequest === null) return null;
   return prDetailsOf(found.records, now).commits;
 }

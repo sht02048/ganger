@@ -207,7 +207,7 @@ function useRunCommits(
   const wanted = expanded && requestedKey !== summaryKey;
   useEffect(() => {
     if (wanted) request(summaryKey);
-  });
+  }, [wanted, summaryKey]);
   useEffect(
     () => () => {
       latestRequest.current += 1;
