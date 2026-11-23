@@ -74,6 +74,7 @@ export interface KanbanCardProps {
   metaTone?: "problem";
   time?: ReactNode;
   action?: ReactNode;
+  actionFullWidth?: boolean;
   menu?: ReactNode;
   onOpen: () => void;
   openRef?: Ref<HTMLButtonElement>;
@@ -94,6 +95,7 @@ export function KanbanCard({
   metaTone,
   time,
   action,
+  actionFullWidth = false,
   menu,
   onOpen,
   openRef,
@@ -109,6 +111,8 @@ export function KanbanCard({
   const hasFoot = meta !== undefined || time !== undefined || action !== undefined;
   const hasChips = blockers !== undefined || prChips !== undefined;
   const keyed = ticketKey !== undefined;
+  const cornerAction = action !== undefined && !actionFullWidth;
+  const fullWidthAction = action !== undefined && actionFullWidth;
   const described = [
     tag === undefined ? null : tagId,
     detail === undefined ? null : detailId,
@@ -130,7 +134,8 @@ export function KanbanCard({
           focusStyles.ring,
           styles.openRadius,
           keyed && styles.openKeyed,
-          action !== undefined && styles.openWithAction,
+          cornerAction && styles.openWithAction,
+          fullWidthAction && styles.openWithFullWidthAction,
           selected && styles.selected,
           stuck && (selected ? styles.stuckSelected : styles.stuck),
         )}
@@ -204,7 +209,7 @@ export function KanbanCard({
               {...stylex.props(
                 styles.foot,
                 keyed && styles.footKeyed,
-                action !== undefined && styles.footWithAction,
+                cornerAction && styles.footWithAction,
               )}
             >
               <span
@@ -224,7 +229,11 @@ export function KanbanCard({
           ) : null}
         </span>
       </button>
-      {action === undefined ? null : <span {...stylex.props(styles.action)}>{action}</span>}
+      {action === undefined ? null : (
+        <span {...stylex.props(styles.action, fullWidthAction && styles.actionFullWidth)}>
+          {action}
+        </span>
+      )}
       {menu === undefined ? null : <span {...stylex.props(styles.menu)}>{menu}</span>}
     </div>
   );
@@ -328,7 +337,7 @@ const styles = stylex.create({
     gridTemplateColumns: "minmax(0, 1fr) auto",
     alignItems: "center",
     columnGap: space.s2,
-    rowGap: space.px2,
+    rowGap: space.px6,
     minWidth: 0,
   },
   keyLine: {
@@ -362,6 +371,9 @@ const styles = stylex.create({
       default: space.s3,
       [breakpoints.kanbanCardActionBelow]: `calc(${space.s3} + ${size.control} + ${space.s2})`,
     },
+  },
+  openWithFullWidthAction: {
+    paddingBottom: `calc(${space.s3} + ${size.controlLarge} + ${space.s2})`,
   },
   besideMenu: { paddingInlineEnd: `calc(${size.control} - ${space.s2})` },
   selected: { boxShadow: `inset 0 0 0 1px ${colors.borderSelected}` },
@@ -416,4 +428,5 @@ const styles = stylex.create({
     display: "flex",
     justifyContent: "flex-end",
   },
+  actionFullWidth: { insetInlineStart: space.s3 },
 });
