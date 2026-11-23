@@ -108,12 +108,20 @@ describe("앱의 알림 설정(M11, M40, 결정 1)", () => {
   });
 
   it("나중에를 고르면 다시 묻지 않는다", async () => {
-    const view = setup({});
+    const view = setup({ permission: "undetermined" });
     await mount(view.Probe);
     await press(() => view.current.state?.decline());
     expect(view.current.state?.asking).toBe(false);
     expect(view.stored().asked).toBe(true);
     expect(view.saves).toEqual([]);
+  });
+
+  it("이미 권한이 있는 폰에서 나중에를 고르면 주소만 넘겨받아 옛 기기 행의 푸시를 멈춘다", async () => {
+    const view = setup({ permission: "granted" });
+    await mount(view.Probe);
+    await press(() => view.current.state?.decline());
+    expect(view.saves).toMatchObject([{ enabled: false, expoPushToken: NEW_ADDRESS }]);
+    expect(view.stored()).toMatchObject({ asked: true, registered: false });
   });
 
   it("서버가 무효 주소로 지웠으면 다시 켜라는 안내를 보이고, 켜면 새 주소를 넘긴다", async () => {

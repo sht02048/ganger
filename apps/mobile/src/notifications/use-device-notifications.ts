@@ -160,8 +160,16 @@ export function useDeviceNotifications({
 
   const decline = useCallback(() => {
     setAsking(false);
-    void remember({ ...remembered.current, asked: true });
-  }, [remember]);
+    void run(async () => {
+      await remember({ ...remembered.current, asked: true });
+      if (settings === null || (await device.permission()) !== "granted") return;
+      const address = await device.pushAddress();
+      if (address === null) return;
+      if (await save(toPreferences(false, settings.groups), address)) {
+        await remember({ ...remembered.current, address });
+      }
+    });
+  }, [device, remember, run, save, settings]);
 
   return {
     supported: device.supported,

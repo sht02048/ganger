@@ -7,7 +7,13 @@ const SWIFT_FILE = "NotificationService.swift";
 const SOURCE = path.join(__dirname, "..", "ios-extension", SWIFT_FILE);
 const DEPLOYMENT_TARGET = "16.0";
 
-function infoPlist({ keychainAccessGroup }, version) {
+function localNetworkingEntry(allowLocalNetworking) {
+  return allowLocalNetworking
+    ? `<key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>`
+    : "";
+}
+
+function infoPlist({ keychainAccessGroup, allowLocalNetworking }, version, buildNumber) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -20,8 +26,9 @@ function infoPlist({ keychainAccessGroup }, version) {
   <key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
   <key>CFBundlePackageType</key><string>XPC!</string>
   <key>CFBundleShortVersionString</key><string>${version}</string>
-  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleVersion</key><string>${buildNumber}</string>
   <key>GangerKeychainAccessGroup</key><string>${keychainAccessGroup}</string>
+  ${localNetworkingEntry(allowLocalNetworking)}
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key><string>com.apple.usernotifications.service</string>
@@ -53,7 +60,7 @@ function withExtensionFiles(config, options) {
       fs.copyFileSync(SOURCE, path.join(directory, SWIFT_FILE));
       fs.writeFileSync(
         path.join(directory, "Info.plist"),
-        infoPlist(options, modConfig.version ?? "1.0.0"),
+        infoPlist(options, modConfig.version ?? "1.0.0", modConfig.ios?.buildNumber ?? "1"),
       );
       fs.writeFileSync(
         path.join(directory, `${options.targetName}.entitlements`),

@@ -109,7 +109,7 @@ function planClears(device: PushDevice, rows: ReadonlyArray<PushDelivery>): Plan
         to: device.token,
         contentAvailable: true,
         priority: "normal",
-        data: { clear: chunk.flatMap((entry) => entry.ids) },
+        data: { device: device.id, clear: chunk.flatMap((entry) => entry.ids) },
       },
       effect: { kind: "cleared", eventIds: chunk.map((entry) => entry.eventId) },
     });
@@ -159,6 +159,7 @@ function planWindow(device: PushDevice, window: ReadonlyArray<WindowMember>): Pl
     {
       device,
       message: alert(device, messages.push.bundleBody(window.length), {
+        device: device.id,
         bundleId,
         ...(replaces.size === 0 ? {} : { replaces: [...replaces] }),
       }),
@@ -170,7 +171,7 @@ function planWindow(device: PushDevice, window: ReadonlyArray<WindowMember>): Pl
 function planEvent(device: PushDevice, eventId: number): PlannedPush {
   return {
     device,
-    message: alert(device, messages.push.body, { eventId }),
+    message: alert(device, messages.push.body, { device: device.id, eventId }),
     effect: { kind: "sent", eventIds: [eventId], bundleId: null },
   };
 }
@@ -225,6 +226,7 @@ function planReminders(
     .map((row) => ({
       device,
       message: alert(device, messages.push.body, {
+        device: device.id,
         eventId: row.eventId,
         replaces: [eventPushId(row.eventId)],
       }),
@@ -259,6 +261,8 @@ const receiptSchema = z.object({
   details: z.object({ error: z.string().optional() }).optional(),
 });
 const receiptsResponseSchema = z.object({ data: z.record(z.string(), receiptSchema) });
+
+class ExpoRefusedRequest extends Error {}
 
 export interface PushTransport {
   url: string;
@@ -296,6 +300,9 @@ export function createPushDelivery(options: {
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(PUSH_REQUEST_TIMEOUT_MS),
     });
+    if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+      throw new ExpoRefusedRequest(`expo push refused ${response.status}`);
+    }
     if (!response.ok) throw new Error(`expo push responded ${response.status}`);
     const parsed: unknown = await response.json();
     return parsed;
@@ -394,8 +401,20 @@ export function createPushDelivery(options: {
           deliveries: listPushDeliveries(db),
           now: at,
         });
-        for (let start = 0; start < planned.length; start += PUSH_BATCH_SIZE) {
-          await sendBatch(planned.slice(start, start + PUSH_BATCH_SIZE), at);
+        for (const pushes of Map.groupBy(planned, (push) => push.device.id).values()) {
+          for (let start = 0; start < pushes.length; start += PUSH_BATCH_SIZE) {
+            try {
+              await sendBatch(pushes.slice(start, start + PUSH_BATCH_SIZE), at);
+            } catch (error) {
+              if (!(error instanceof ExpoRefusedRequest)) throw error;
+              const deviceId = pushes[start]?.device.id;
+              if (deviceId !== undefined) {
+                deviceRetryAt.set(deviceId, at.getTime() + PUSH_FAILURE_BACKOFF_MS);
+              }
+              logger.warn("push.ticket_failed", { error: error.name });
+              break;
+            }
+          }
         }
         await checkReceipts(at.getTime());
       } catch (error) {

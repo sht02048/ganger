@@ -26,32 +26,35 @@ export function parseBackgroundPush(payload: unknown): PushData | null {
   }
 }
 
-export function presentedPushId(data: unknown): string | null {
+export function presentedPushId(data: unknown, device: string): string | null {
   const parsed = parsePushData(data);
-  if (parsed === null) return null;
+  if (parsed === null || parsed.device !== device) return null;
   if ("eventId" in parsed) return eventPushId(parsed.eventId);
   return "bundleId" in parsed ? parsed.bundleId : null;
 }
 
 export function notificationsToDismiss(
   presented: ReadonlyArray<{ identifier: string; data: unknown }>,
-  clear: ReadonlyArray<string>,
+  { device, clear }: { device: string; clear: ReadonlyArray<string> },
 ): string[] {
   const cleared = new Set(clear);
   return presented.flatMap(({ identifier, data }) => {
-    const id = presentedPushId(data);
+    const id = presentedPushId(data, device);
     return id !== null && cleared.has(id) ? [identifier] : [];
   });
 }
 
-export type PushOpen = { kind: "todo" } | { kind: "event"; eventId: number; action: boolean };
+export type PushOpen =
+  | { kind: "todo"; device: string }
+  | { kind: "event"; device: string; eventId: number; action: boolean };
 
 export function pushOpenOf(data: unknown, actionIdentifier: string): PushOpen | null {
   const parsed = parsePushData(data);
   if (parsed === null || "clear" in parsed) return null;
-  if ("bundleId" in parsed) return { kind: "todo" };
+  if ("bundleId" in parsed) return { kind: "todo", device: parsed.device };
   return {
     kind: "event",
+    device: parsed.device,
     eventId: parsed.eventId,
     action: actionIdentifier === OPEN_SHEET_ACTION,
   };

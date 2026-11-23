@@ -69,6 +69,7 @@ export function withPush(
           bundleIdentifier: extensionBundleId,
           teamId,
           keychainAccessGroup,
+          allowLocalNetworking: variant === "development",
         },
       ],
     ],

@@ -5,6 +5,7 @@ import UserNotifications
 private struct StoredConnection: Decodable {
   let server: String
   let token: String
+  let deviceId: String?
 }
 
 private struct EventEnvelope: Decodable {
@@ -22,14 +23,15 @@ private struct EventRecord: Decodable {
   let detail: String?
 }
 
-private func kindLabel(_ kind: String) -> String {
+private func kindLabel(_ kind: String) -> String? {
   switch kind {
   case "question": return "Question"
   case "permission": return "Permission"
   case "human-check": return "Human Check"
   case "failed": return "Failed"
   case "disconnected": return "Disconnected"
-  default: return "Runner Issue"
+  case "runner-offline", "runner-auth", "runner-usage-limit": return "Runner Issue"
+  default: return nil
   }
 }
 
@@ -79,11 +81,16 @@ final class NotificationService: UNNotificationServiceExtension {
     deliver = contentHandler
     best = content
     let body = request.content.userInfo["body"] as? [String: Any]
-    removeReplaced(body?["replaces"] as? [String] ?? []) { [weak self] in
+    guard let device = body?["device"] as? String,
+      let connection = readConnection(),
+      connection.deviceId == device
+    else {
+      finish()
+      return
+    }
+    removeReplaced(body?["replaces"] as? [String] ?? [], device: device) { [weak self] in
       guard let self else { return }
-      guard let eventId = (body?["eventId"] as? NSNumber)?.intValue,
-        let connection = readConnection()
-      else {
+      guard let eventId = (body?["eventId"] as? NSNumber)?.intValue else {
         self.finish()
         return
       }
@@ -96,7 +103,11 @@ final class NotificationService: UNNotificationServiceExtension {
     finish()
   }
 
-  private func removeReplaced(_ ids: [String], then next: @escaping () -> Void) {
+  private func removeReplaced(
+    _ ids: [String],
+    device: String,
+    then next: @escaping () -> Void
+  ) {
     guard !ids.isEmpty else {
       next()
       return
@@ -106,6 +117,7 @@ final class NotificationService: UNNotificationServiceExtension {
     center.getDeliveredNotifications { delivered in
       let identifiers = delivered.compactMap { notification -> String? in
         let body = notification.request.content.userInfo["body"] as? [String: Any]
+        guard body?["device"] as? String == device else { return nil }
         if let bundleId = body?["bundleId"] as? String, replaced.contains(bundleId) {
           return notification.request.identifier
         }
@@ -137,10 +149,10 @@ final class NotificationService: UNNotificationServiceExtension {
     let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
       guard let self else { return }
       if let data, (response as? HTTPURLResponse)?.statusCode == 200,
-        let record = try? JSONDecoder().decode(EventEnvelope.self, from: data).data
+        let record = try? JSONDecoder().decode(EventEnvelope.self, from: data).data,
+        let label = kindLabel(record.kind)
       {
         self.lock.lock()
-        let label = kindLabel(record.kind)
         content.title = record.target.ticketKey.map { "\(label) · \($0)" } ?? label
         content.body = record.detail ?? record.subject
         if let category = categoryIdentifier(record.kind) {

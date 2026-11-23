@@ -40,6 +40,7 @@ class FakeExpo {
   receiptRequests = 0;
   ticketFor: (message: ExpoMessage) => unknown = () => null;
   down = false;
+  refusedToken: string | null = null;
   private nextId = 0;
 
   readonly fetch: typeof fetch = (input, init) => {
@@ -51,6 +52,9 @@ class FakeExpo {
       return Promise.resolve(Response.json({ data: this.receipts }));
     }
     const batch = expoBatchSchema.parse(body);
+    if (batch.some((message) => message.to === this.refusedToken)) {
+      return Promise.resolve(Response.json({ errors: [] }, { status: 400 }));
+    }
     this.sent.push(...batch);
     return Promise.resolve(
       Response.json({
@@ -132,7 +136,7 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
       mutableContent: true,
     });
     expect(pushDataSchema.safeParse(message?.data).success).toBe(true);
-    expect(Object.keys(message?.data ?? {})).toEqual(["eventId"]);
+    expect(Object.keys(message?.data ?? {}).toSorted()).toEqual(["device", "eventId"]);
     const wire = JSON.stringify(message);
     expect(wire).not.toContain("ACME");
     expect(wire).not.toContain("비밀");
@@ -266,7 +270,7 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
   });
 
   it("해결된 사건은 소리 없는 조용한 푸시로 한 번 지운다", async () => {
-    addPushDevice();
+    const id = addPushDevice();
     sync([runCause(1)]);
     const push = delivery();
     await push.run();
@@ -279,7 +283,7 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
       to: TOKEN,
       contentAvailable: true,
       priority: "normal",
-      data: { clear: ["event-1"] },
+      data: { device: id, clear: ["event-1"] },
     });
 
     await push.run();
@@ -296,11 +300,11 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
 
     sync(causes.slice(1));
     await push.run();
-    expect(expo.take()[0]?.data).toEqual({ clear: ["event-1"] });
+    expect(expo.take()[0]?.data).toMatchObject({ clear: ["event-1"] });
 
     sync([]);
     await push.run();
-    expect(expo.take()[0]?.data).toEqual({
+    expect(expo.take()[0]?.data).toMatchObject({
       clear: ["event-2", "bundle-1", "event-3", "event-4"],
     });
   });
@@ -321,13 +325,13 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
 
     advance(PUSH_REMIND_AFTER_MS);
     await push.run();
-    expect(expo.take().map((message) => message.data)).toEqual([
+    expect(expo.take().map((message) => message.data)).toMatchObject([
       { eventId: 1, replaces: ["event-1"] },
     ]);
 
     sync([]);
     await push.run();
-    expect(expo.take().map((message) => message.data)).toEqual([{ clear: ["event-1"] }]);
+    expect(expo.take().map((message) => message.data)).toMatchObject([{ clear: ["event-1"] }]);
   });
 
   it("지울 사건이 많으면 4KiB 안의 메시지로 나눈다", async () => {
@@ -361,6 +365,23 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     sync([runCause(1), runCause(2)]);
     await push.run();
     expect(expo.take().map((message) => message.to)).toEqual(["ExponentPushToken[healthy]"]);
+  });
+
+  it("Expo 가 한 기기의 요청을 통째로 거절해도 다른 기기에는 보낸다", async () => {
+    const other = "ExponentPushToken[other-project]";
+    addPushDevice(other);
+    addPushDevice("ExponentPushToken[healthy]");
+    expo.refusedToken = other;
+    sync([runCause(1)]);
+    await delivery().run();
+    expect(expo.take().map((message) => message.to)).toEqual(["ExponentPushToken[healthy]"]);
+  });
+
+  it("푸시마다 받을 기기를 실어 다른 서버의 같은 번호와 가른다", async () => {
+    const id = addPushDevice();
+    sync([runCause(1)]);
+    await delivery().run();
+    expect(expo.take()[0]?.data).toMatchObject({ device: id, eventId: 1 });
   });
 
   it("모르는 표 상태가 와도 응답 전체를 버리지 않는다", async () => {

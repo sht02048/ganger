@@ -27,14 +27,14 @@ function permissionOf(status: Notifications.PermissionStatus): PushPermission {
   return status === Notifications.PermissionStatus.DENIED ? "denied" : "undetermined";
 }
 
-async function dismiss(clear: ReadonlyArray<string>): Promise<void> {
+async function dismiss(push: { device: string; clear: ReadonlyArray<string> }): Promise<void> {
   const presented = await Notifications.getPresentedNotificationsAsync();
   const identifiers = notificationsToDismiss(
     presented.map(({ request }) => ({
       identifier: request.identifier,
       data: request.content.data,
     })),
-    clear,
+    push,
   );
   await Promise.all(identifiers.map((id) => Notifications.dismissNotificationAsync(id)));
 }
@@ -51,7 +51,7 @@ export function setUpPushHandling(): void {
   });
   TaskManager.defineTask<Notifications.NotificationTaskPayload>(CLEAR_TASK, async ({ data }) => {
     const push = parseBackgroundPush(data);
-    if (push !== null && "clear" in push) await dismiss(push.clear);
+    if (push !== null && "clear" in push) await dismiss(push);
   });
   void Notifications.registerTaskAsync(CLEAR_TASK).catch(() => undefined);
   void Notifications.setNotificationCategoryAsync(QUESTION_CATEGORY, [

@@ -180,6 +180,8 @@ export function LiveScreens({
     const open = async ({ data, actionIdentifier }: PushResponse) => {
       const target = pushOpenOf(data, actionIdentifier);
       if (target === null) return;
+      const thisDevice = await client.thisDevice();
+      if (!thisDevice.ok || thisDevice.data.id !== target.device) return;
       if (target.kind === "todo") {
         setView((current) => ({
           ...current,

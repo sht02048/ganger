@@ -73,10 +73,15 @@ const pushIdSchema = z.string().regex(/^(?:event|bundle)-[1-9]\d*$/u);
 
 export const pushDataSchema = z.union([
   z.strictObject({
+    device: z.string().min(1),
     eventId: z.number().int().positive(),
     replaces: z.array(pushIdSchema).optional(),
   }),
-  z.strictObject({ bundleId: pushIdSchema, replaces: z.array(pushIdSchema).optional() }),
-  z.strictObject({ clear: z.array(pushIdSchema).min(1) }),
+  z.strictObject({
+    device: z.string().min(1),
+    bundleId: pushIdSchema,
+    replaces: z.array(pushIdSchema).optional(),
+  }),
+  z.strictObject({ device: z.string().min(1), clear: z.array(pushIdSchema).min(1) }),
 ]);
 export type PushData = z.infer<typeof pushDataSchema>;
