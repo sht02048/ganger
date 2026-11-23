@@ -383,7 +383,13 @@ describe("PR 기록 만들기 (0150)", () => {
 
   it.each(["merged", "closed"])("PR 정보를 못 읽어도 %s PR 은 열림이 아니라고 적는다", (state) => {
     const record = pullRequestRecord({ ...snapshot, state }, new Date(1));
-    expect(record.signals).toMatchObject({ open: false, ciFailed: false, conflict: null });
+    expect(record.signals).toMatchObject({
+      open: false,
+      ciFailed: false,
+      conflict: null,
+      title: snapshot.title,
+      baseBranch: "main",
+    });
   });
 
   it("PR 정보를 못 읽은 열린 PR 은 값을 지어내지 않는다", () => {

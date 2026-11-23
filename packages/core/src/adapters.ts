@@ -392,6 +392,17 @@ export interface PullRequestSignals {
   checksTruncated: boolean;
   conflict: boolean | null;
   behindBy: number | null;
+  title?: string;
+  baseBranch?: string;
+  commits?: ReadonlyArray<PullRequestCommit>;
+}
+
+export interface PullRequestCommit {
+  oid: string;
+  url: string;
+  headline: string;
+  author: string | null;
+  committedAt: string;
 }
 
 export interface PullRequestSnapshot {
