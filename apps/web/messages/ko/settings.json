@@ -395,6 +395,7 @@
       "cancelling": "취소하는 중인 런이에요",
       "no-human-check": "기다리는 Human Check가 없어요",
       "not-paused": "멈춘 런이 아니에요",
+      "control-pending": "러너가 멈추기나 재개를 처리하는 중이에요",
       "not-ended": "아직 끝나지 않은 런이에요",
       "not-started": "시작하지 않은 런이에요",
       "superseded": "이 티켓의 더 새로운 런이 있어요",

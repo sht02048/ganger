@@ -73,6 +73,7 @@ export const MCP_REJECT_REASONS = [
   "cancelling",
   "no-human-check",
   "not-paused",
+  "control-pending",
   "not-ended",
   "not-started",
   "superseded",

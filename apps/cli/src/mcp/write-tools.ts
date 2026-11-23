@@ -60,6 +60,8 @@ import {
   continueRunBlock,
   getMcpWriteAllowed,
   getRun,
+  getRunControlRequest,
+  inTransaction,
   listRunners,
   listTrackerConnections,
   listWorkspaceTrackerProjects,
@@ -135,6 +137,8 @@ const runnerArg = z.string().min(1).max(200).describe("Runner id or name.");
 
 const MCP_HUMAN_CHECK_ACTION = "mcp-human-check";
 
+class OppositeControlPending extends Error {}
+
 const REUSED_ERROR = "This requestId was already used with different values.";
 
 const CONTROL_ERRORS: Record<string, string> = {
@@ -143,6 +147,7 @@ const CONTROL_ERRORS: Record<string, string> = {
   "not-running": "Only a Running run can be paused.",
   "not-paused": "Only a Paused run can be resumed.",
   cancelling: "The run is being canceled.",
+  "control-pending": "The runner is still handling the opposite request. Try again shortly.",
   [REQUEST_REUSED]: REUSED_ERROR,
 };
 
@@ -580,12 +585,31 @@ export function registerWriteTools(
       if (run === null) return noRun(runId);
       const base = { target: run.ticket.key, runId: run.id };
       let replayed = false;
-      const result =
-        requestId === undefined
-          ? requestControl(context.db, run.id, control, context.now())
-          : controlRunOnce(context.db, { runId: run.id, requestId }, control, context.now(), () => {
-              replayed = true;
-            });
+      let result: { ok: true } | { ok: false; reason: string };
+      try {
+        result = inTransaction(context.db, () => {
+          const requested =
+            requestId === undefined
+              ? requestControl(context.db, run.id, control, context.now())
+              : controlRunOnce(
+                  context.db,
+                  { runId: run.id, requestId },
+                  control,
+                  context.now(),
+                  () => {
+                    replayed = true;
+                  },
+                );
+          const stored = getRunControlRequest(context.db, run.id);
+          if (requested.ok && !replayed && stored?.control !== control) {
+            throw new OppositeControlPending();
+          }
+          return requested;
+        });
+      } catch (error) {
+        if (!(error instanceof OppositeControlPending)) throw error;
+        result = { ok: false, reason: "control-pending" };
+      }
       if (!result.ok) {
         return rejected({
           ...base,

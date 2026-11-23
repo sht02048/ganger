@@ -753,6 +753,36 @@ describe("MCP 멈추기·재개(0190)", () => {
     ]);
   });
 
+  it("멈추기를 처리하는 중이면 재개를 저장한 척하지 않고 거절한다", async () => {
+    moveWaitingRunTo("running");
+    await connect();
+    await call("pause_run", { runId: seeded.waiting });
+    const paused = changeRunState(
+      seeded.db,
+      seeded.waiting,
+      { to: "paused", source: "operator" },
+      at(32),
+    );
+    if (!paused.ok) throw new Error("move to paused");
+
+    const args = { runId: seeded.waiting, requestId: "mcp-control-0190-c" };
+    const resumed = await call("resume_run", args);
+
+    expect(resumed.json["reason"]).toBe("control-pending");
+    expect(getRunControlRequest(seeded.db, seeded.waiting)?.control).toBe("pause");
+    expect(mcpLog(seeded.waiting)).toEqual([
+      ["pause_run", "done", null],
+      ["resume_run", "rejected", "control-pending"],
+    ]);
+
+    failPendingControl();
+    expect((await call("resume_run", args)).isError).toBe(false);
+    expect(getRunControlRequest(seeded.db, seeded.waiting)).toMatchObject({
+      control: "resume",
+      status: "pending",
+    });
+  });
+
   it("러너에서 실패한 재개는 같은 requestId 로 다시 요청한다", async () => {
     moveWaitingRunTo("paused");
     await connect();
