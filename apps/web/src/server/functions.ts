@@ -54,7 +54,7 @@ export const getTitleBarHidden = createServerFn({ method: "GET" }).handler(() =>
 export const getShell = createServerFn({ method: "GET" }).handler(() => loadShell(getDatabase()));
 
 export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
-  loadRunnersPage(getDatabase(), new Date(), { includeLoad: true }),
+  loadRunnersPage(getDatabase(), new Date(), { includeLoad: true, includeGhAccounts: true }),
 );
 
 export const getHomePage = createServerFn({ method: "GET" })

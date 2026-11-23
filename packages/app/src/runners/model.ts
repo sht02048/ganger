@@ -1,5 +1,6 @@
 import type {
   CpuLoad,
+  GhAccountsReading,
   GpuLoad,
   MemoryLoad,
   ProviderUsageStatus,
@@ -77,6 +78,8 @@ export type RunnerLoadView = { readAt: string; agoMs: number } & (
   | { kind: "unreadable" }
 );
 
+export type RunnerGhAccountsView = { readAt: string; agoMs: number } & GhAccountsReading;
+
 export interface RunnerLoadHigh {
   cpuPercent: number | null;
   memoryPercent: number | null;
@@ -106,6 +109,7 @@ export interface RunnerView {
   orcaPath: string | null;
   usage: RunnerUsageView | null;
   load?: RunnerLoadView | null;
+  ghAccounts?: RunnerGhAccountsView | null;
 }
 
 export interface RunnersPage {

@@ -1,7 +1,7 @@
 import { blockedProjectsOf, currentWindows, highestUsage, summarizeRunOutcome } from "@ganger/core";
 import type { UsageWindow } from "@ganger/core";
 import { listRunners, listRunsWithRecords, listWorkspaces, listTakenOverRunIds } from "@ganger/db";
-import type { Database, StoredProviderUsage, StoredRun } from "@ganger/db";
+import type { Database, StoredGhAccounts, StoredProviderUsage, StoredRun } from "@ganger/db";
 import { z } from "zod";
 import { pendingInput } from "../home/load.js";
 import { prerequisiteHint, prerequisiteProject } from "../prerequisites.js";
@@ -10,6 +10,7 @@ import type {
   LeftWorktree,
   OccupyingRun,
   RunWorkspace,
+  RunnerGhAccountsView,
   RunnerUsageView,
   RunnerView,
   RunnersPage,
@@ -25,7 +26,10 @@ const runnerConfigSchema = z.object({
 export function loadRunnersPage(
   db: Database,
   now: Date,
-  { includeLoad = false }: { includeLoad?: boolean } = {},
+  {
+    includeLoad = false,
+    includeGhAccounts = false,
+  }: { includeLoad?: boolean; includeGhAccounts?: boolean } = {},
 ): RunnersPage {
   const workspaces = new Map(listWorkspaces(db).map((w) => [w.id, { id: w.id, name: w.name }]));
   const workspaceOf = (run: StoredRun): RunWorkspace =>
@@ -115,6 +119,7 @@ export function loadRunnersPage(
       orcaPath: config.orcaPath ?? null,
       usage: usageView(runner.providerUsage, now),
       ...(includeLoad ? { load: runnerLoadView(runner.load, runner.online, now) } : {}),
+      ...(includeGhAccounts ? { ghAccounts: ghAccountsView(runner.ghAccounts, now) } : {}),
     };
   });
   return { runners };
@@ -148,5 +153,22 @@ export function usageView(stored: StoredProviderUsage | null, now: Date): Runner
     })),
     highest:
       highest === null ? null : { provider: highest.provider, window: windowView(highest.window) },
+  };
+}
+
+export function ghAccountsView(
+  stored: StoredGhAccounts | null,
+  now: Date,
+): RunnerGhAccountsView | null {
+  if (stored === null) return null;
+  const base = {
+    readAt: stored.readAt.toISOString(),
+    agoMs: Math.max(0, now.getTime() - stored.readAt.getTime()),
+  };
+  if (stored.reading.kind !== "logged-in") return { ...base, kind: stored.reading.kind };
+  return {
+    ...base,
+    kind: "logged-in",
+    accounts: stored.reading.accounts.toSorted((a, b) => Number(b.active) - Number(a.active)),
   };
 }

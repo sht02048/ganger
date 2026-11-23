@@ -15,7 +15,6 @@ import type {
   MailboxRef,
   PermissionRequestId,
   ProviderUsageReading,
-  RunnerLoadReading,
   QuestionId,
   ResumeAgentInput,
   ResumedAgent,
@@ -27,6 +26,7 @@ import type {
   RunnerPrerequisite,
   RunnerProject,
   RunOnRunner,
+  UsageAndLoad,
   RunProgress,
   StartedRun,
   ContinuationPlace,
@@ -50,6 +50,7 @@ import {
   needsAgentPaneKey,
 } from "./progress.js";
 import { parseProviderUsage } from "./provider-usage.js";
+import { parseGhAccounts, splitLoadAndGhAccounts } from "./gh-accounts.js";
 import { parseRunnerLoad, READ_USAGE_AND_LOAD_SCRIPT, splitUsageAndLoad } from "./runner-load.js";
 import {
   PUSH_CHECK_CONCURRENCY,
@@ -255,17 +256,24 @@ export class OrcaRunner implements Runner {
     return parseProviderUsage(result.stdout);
   }
 
-  async readUsageAndLoad(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }> {
+  async readUsageAndLoad(): Promise<UsageAndLoad> {
     let result: RemoteResult;
     try {
       result = await this.run(["sh", "-c", READ_USAGE_AND_LOAD_SCRIPT, "sh", this.config.orcaPath]);
     } catch {
-      return { usage: { kind: "unreadable" }, load: { kind: "unreadable" } };
+      return {
+        usage: { kind: "unreadable" },
+        load: { kind: "unreadable" },
+        ghAccounts: { kind: "unreadable" },
+      };
     }
-    const { load, usage } = splitUsageAndLoad(result.stdout);
+    const { load: loadAndGh, usage } = splitUsageAndLoad(result.stdout);
+    const { load, gh } = splitLoadAndGhAccounts(loadAndGh);
+    const loadFinished = gh !== null || !result.timedOut;
     return {
       usage: parseProviderUsage(usage),
-      load: result.timedOut ? { kind: "unreadable" } : parseRunnerLoad(load),
+      load: loadFinished ? parseRunnerLoad(load) : { kind: "unreadable" },
+      ghAccounts: gh === null || result.timedOut ? { kind: "unreadable" } : parseGhAccounts(gh),
     };
   }
 

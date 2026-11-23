@@ -1,5 +1,6 @@
 import type { CpuLoad, GpuLoad, MemoryLoad, RunnerLoadReading } from "@ganger/core";
 import { z } from "zod";
+import { READ_GH_ACCOUNTS_SCRIPT } from "./gh-accounts.js";
 
 export const LOAD_SECTION_MARK = "@@ganger-load:";
 export const USAGE_SECTION_MARK = "@@ganger-usage";
@@ -23,6 +24,7 @@ export const READ_USAGE_AND_LOAD_SCRIPT = [
   "section meminfo; cat /proc/meminfo 2>/dev/null",
   "fi",
   "section nvidia; nvidia-smi --query-gpu=utilization.gpu,name --format=csv,noheader,nounits 2>/dev/null",
+  READ_GH_ACCOUNTS_SCRIPT,
   "exit 0",
 ].join("\n");
 

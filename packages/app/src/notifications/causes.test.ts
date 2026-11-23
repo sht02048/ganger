@@ -32,6 +32,7 @@ function runner(id: string, overrides: Partial<StoredRunner> = {}): StoredRunner
     offlineSince: null,
     providerUsage: null,
     load: null,
+    ghAccounts: null,
     projects: [],
     ...overrides,
   };

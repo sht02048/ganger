@@ -67,6 +67,27 @@ describe("러너 점검의 공급자 사용량(0086)", () => {
     expect(storedRunner().load?.cpuHighSince).toBeNull();
   });
 
+  it("gh 계정을 사용량과 같은 주기에 읽어 계정 이름만 저장한다", async () => {
+    const id = h.addRunner({ id: "runner-a", capacity: 1, projects: [projectA] });
+    const reading = {
+      kind: "logged-in" as const,
+      accounts: [
+        { host: "github.com", login: "acme-bot", active: true },
+        { host: "github.com", login: "acme-ci", active: false },
+      ],
+    };
+    h.runner(id).ghAccounts = Object.assign({ token: "gho_FAKE" }, reading);
+    const worker = h.worker();
+    h.advance(RUNNER_CHECK_INTERVAL_MS);
+    await worker.tick();
+    expect(storedRunner().ghAccounts).toEqual({ readAt: h.now, reading });
+
+    h.runner(id).ghAccounts = { kind: "logged-out" };
+    h.advance(PROVIDER_USAGE_INTERVAL_MS);
+    await worker.tick();
+    expect(storedRunner().ghAccounts).toEqual({ readAt: h.now, reading: { kind: "logged-out" } });
+  });
+
   it("사용량은 몇 분에 한 번만 다시 읽는다", async () => {
     const id = h.addRunner({ id: "runner-a", capacity: 1, projects: [projectA] });
     const read = vi.spyOn(h.runner(id), "readProviderUsage");

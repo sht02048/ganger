@@ -12,6 +12,7 @@ import {
   RUNNER_PROJECTS,
   demoRelations,
   providerUsageFor,
+  ghAccountsFor,
   runnerLoadFor,
   trackerCatalog,
   trackerSpecFor,
@@ -72,6 +73,7 @@ export class DemoWorld {
     runner.setProjects(RUNNER_PROJECTS);
     runner.online = !target.includes(FAIL_OFFLINE);
     runner.load = runnerLoadFor(sshTarget);
+    runner.ghAccounts = ghAccountsFor(sshTarget);
     const readProviderUsage = runner.readProviderUsage.bind(runner);
     runner.readProviderUsage = () => {
       runner.providerUsage = providerUsageFor(sshTarget, this.now());

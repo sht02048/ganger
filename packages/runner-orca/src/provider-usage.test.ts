@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, test } from "vitest";
 import { DEFAULT_ORCA_PATH } from "./config.js";
+import { GH_SECTION_MARK } from "./gh-accounts.js";
 import { parseProviderUsage } from "./provider-usage.js";
 import {
   LOAD_SECTION_MARK,
@@ -159,6 +160,7 @@ describe("OrcaRunner.readUsageAndLoad", () => {
     expect(await runnerWith(exec).readUsageAndLoad()).toEqual({
       usage: { kind: "unreadable" },
       load: { kind: "unreadable" },
+      ghAccounts: { kind: "unreadable" },
     });
   });
 
@@ -166,7 +168,37 @@ describe("OrcaRunner.readUsageAndLoad", () => {
     expect(await runnerWith(new ScriptedExec()).readUsageAndLoad()).toEqual({
       usage: { kind: "unreadable" },
       load: { kind: "unreadable" },
+      ghAccounts: { kind: "unreadable" },
     });
+  });
+
+  test("reads the gh accounts after the load in the same ssh command", async () => {
+    const exec = new ScriptedExec().on(
+      "sh -c",
+      stdout(
+        `${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}\n${GH_SECTION_MARK}\n  ✓ Logged in to github.com account acme-bot (keyring)\n  - Active account: true\n`,
+      ),
+    );
+    const { load, ghAccounts } = await runnerWith(exec).readUsageAndLoad();
+    expect(exec.commands()).toHaveLength(1);
+    expect(load).toMatchObject({ kind: "read", cpu: { percent: 50, cores: 8 } });
+    expect(ghAccounts).toEqual({
+      kind: "logged-in",
+      accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+    });
+  });
+
+  test("a gh command hanging until the timeout keeps the finished load", async () => {
+    const exec = new ScriptedExec().on("sh -c", {
+      exitCode: null,
+      stdout: `${own("account-list.json")}\n${USAGE_SECTION_MARK}\n${loadOutput}\n${GH_SECTION_MARK}\n`,
+      stderr: "",
+      timedOut: true,
+    });
+    const { usage, load, ghAccounts } = await runnerWith(exec).readUsageAndLoad();
+    expect(usage.kind).toBe("read");
+    expect(load).toMatchObject({ kind: "read" });
+    expect(ghAccounts).toEqual({ kind: "unreadable" });
   });
 
   test("the quoted script runs in a real shell and reaches the orca command", () => {
