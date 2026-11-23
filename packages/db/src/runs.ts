@@ -1002,7 +1002,8 @@ export function updateRunRecords(
     set.prCiState = pr?.ci ?? null;
     set.prCheckedAt = pr?.checkedAt ?? null;
     if (pr === null || (pr.signals ?? null) !== null) {
-      set.prSignals = pr?.signals ?? null;
+      set.prSignals =
+        pr?.signals == null ? null : withStoredCommits(getRunRow(db, runId), pr, pr.signals);
       set.prSignalsReadAt = pr === null ? null : pr.checkedAt;
     } else if (!sameCommitAsStored(getRunRow(db, runId), pr)) {
       set.prSignals = null;
@@ -1118,6 +1119,18 @@ export function countUnreadPrRuns(db: Database): Record<PrReadError, number> {
     if (row.error !== null) counts[row.error] += row.runs;
   }
   return counts;
+}
+
+function withStoredCommits(
+  row: RunRow | undefined,
+  pr: { id: PullRequestId },
+  signals: PullRequestSignals,
+): PullRequestSignals {
+  if (signals.commits !== undefined || row?.prId !== pr.id) return signals;
+  const storedSignals = row.prSignals;
+  const sameHead = storedSignals?.headCommit === signals.headCommit;
+  const stored = signals.open && !sameHead ? undefined : storedSignals?.commits;
+  return stored === undefined ? signals : { ...signals, commits: stored };
 }
 
 function sameCommitAsStored(

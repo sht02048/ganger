@@ -607,6 +607,71 @@ describe("loadHomePage PR 신호(0167)", () => {
     expect(endedView(db, "ACME-43").pullRequest?.state).toBe("closed");
   });
 
+  it("「PR」 탭에 쓸 PR 제목·base·커밋을 담고, 머지된 뒤에도 커밋을 남긴다(티켓 0200)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-46",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    expect(endedView(db, "ACME-46").pullRequest).toBeNull();
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-46").pullRequest).toMatchObject({
+      title: null,
+      baseBranch: null,
+      commits: [],
+    });
+
+    const commit = {
+      oid: "0123456789abcdef",
+      url: "https://code.example.com/acme/web/commit/0123456789abcdef",
+      headline: "Add retry",
+      author: "kim",
+      committedAt: minutes(90).toISOString(),
+    };
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("pr-41"),
+        displayId: "#41",
+        url: "https://code.example.com/acme/web/pull/41",
+        ci: "success",
+        checkedAt: minutes(95),
+        signals: {
+          open: true,
+          headCommit: "abc",
+          ciFailed: false,
+          checkTotal: 4,
+          failedCount: 0,
+          failedChecks: [],
+          checksTruncated: false,
+          conflict: false,
+          behindBy: 0,
+          title: "Retry failed payments",
+          baseBranch: "develop",
+          commits: [commit, { ...commit, oid: "fedcba9876", url: "javascript:alert(1)" }],
+        },
+      },
+    });
+    const view = endedView(db, "ACME-46").pullRequest;
+    expect(view).toMatchObject({ title: "Retry failed payments", baseBranch: "develop" });
+    expect(view?.commits).toEqual([
+      {
+        oid: "0123456789abcdef",
+        shortSha: "0123456",
+        url: commit.url,
+        headline: "Add retry",
+        author: "kim",
+        committedAt: commit.committedAt,
+        agoMs: now.getTime() - minutes(90).getTime(),
+      },
+      expect.objectContaining({ shortSha: "fedcba9", url: null }),
+    ]);
+
+    updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
+    expect(endedView(db, "ACME-46").pullRequest?.commits).toHaveLength(2);
+  });
+
   it("더 읽지 않는 PR 의 저장된 CI 는 알 수 없음으로 내린다(티켓 0199)", () => {
     const { db } = seedDatabase();
     const id = addEndedRun(db, {

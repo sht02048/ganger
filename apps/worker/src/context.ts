@@ -165,7 +165,7 @@ export async function decideRunPrState(
 
 export function pullRequestRecord(pr: PullRequestSnapshot, checkedAt: Date) {
   const { id, displayId, url, ci, signals, headCommit } = pr;
-  const read = signals ?? (isSettledPr(pr) ? settledSignals(headCommit) : null);
+  const read = signals ?? (isSettledPr(pr) ? settledSignals(pr) : null);
   return { id, displayId, url, ci, checkedAt, headCommit, signals: read };
 }
 
@@ -173,10 +173,10 @@ function isSettledPr(pr: PullRequestSnapshot): boolean {
   return pr.state === "merged" || pr.state === "closed";
 }
 
-function settledSignals(headCommit: string): PullRequestSignals {
+function settledSignals(pr: PullRequestSnapshot): PullRequestSignals {
   return {
     open: false,
-    headCommit,
+    headCommit: pr.headCommit,
     ciFailed: false,
     checkTotal: null,
     failedCount: 0,
@@ -184,6 +184,8 @@ function settledSignals(headCommit: string): PullRequestSignals {
     checksTruncated: false,
     conflict: null,
     behindBy: null,
+    title: pr.title,
+    baseBranch: pr.baseBranch,
   };
 }
 

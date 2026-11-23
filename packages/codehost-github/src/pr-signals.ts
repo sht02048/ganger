@@ -1,7 +1,7 @@
-import type { CiState, PullRequestSignals } from "@ganger/core";
+import type { CiState, PullRequestCommit, PullRequestSignals } from "@ganger/core";
 import { z } from "zod";
 import type { GitHubHttp } from "./http.js";
-import { PULL_REQUEST_SIGNALS } from "./queries.js";
+import { PULL_REQUEST_COMMITS_PAGE, PULL_REQUEST_SIGNALS } from "./queries.js";
 
 const checkContext = z.object({
   __typename: z.string(),
@@ -21,11 +21,39 @@ const rollup = z.object({
   }),
 });
 
+const historyCommit = z.object({
+  oid: z.string(),
+  url: z.string(),
+  message: z.string(),
+  committedDate: z.iso.datetime({ offset: true }),
+  author: z
+    .object({
+      name: z.string().nullable(),
+      user: z.object({ login: z.string() }).nullable(),
+    })
+    .nullable(),
+});
+type HistoryCommit = z.infer<typeof historyCommit>;
+
+const commitHistory = z.object({
+  totalCount: z.number().int().nonnegative(),
+  pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+  nodes: z.array(z.object({ commit: historyCommit }).nullable()),
+});
+type CommitHistory = z.infer<typeof commitHistory>;
+
+export const pullRequestCommitsPageResponse = z.object({
+  repository: z.object({ pullRequest: z.object({ history: commitHistory }) }),
+});
+
 export const pullRequestSignalsResponse = z.object({
   repository: z.object({
     pullRequest: z.object({
       state: z.string(),
       mergeable: z.string(),
+      title: z.string(),
+      baseRefName: z.string(),
+      history: commitHistory,
       baseRef: z
         .object({
           compare: z.object({ behindBy: z.number().int().nonnegative() }).nullable(),
@@ -56,6 +84,7 @@ const FAILED_CHECK_CONCLUSIONS = new Set([
   "STARTUP_FAILURE",
 ]);
 const FAILED_STATUS_STATES = new Set(["FAILURE", "ERROR"]);
+const MAX_LATER_COMMIT_PAGES = 9;
 
 export async function readPullRequestSignals(
   http: GitHubHttp,
@@ -69,15 +98,50 @@ export async function readPullRequestSignals(
       { owner, repo: name, number: pr.number, head: pr.headRefOid },
       pullRequestSignalsResponse,
     );
-    return toSignalsRead(data, pr.headRefOid);
+    if (!headMatches(data, pr.headRefOid)) return null;
+    const laterPages = await readLaterCommitPages(
+      http,
+      { owner, name, number: pr.number },
+      data.repository.pullRequest.history,
+    );
+    return toSignalsRead(data, pr.headRefOid, laterPages);
   } catch {
     return null;
   }
 }
 
+async function readLaterCommitPages(
+  http: GitHubHttp,
+  pr: { owner: string; name: string; number: number },
+  first: CommitHistory,
+): Promise<CommitHistory[] | null> {
+  const pages: CommitHistory[] = [];
+  let pageInfo = first.pageInfo;
+  while (pageInfo.hasNextPage && pageInfo.endCursor !== null) {
+    if (pages.length >= MAX_LATER_COMMIT_PAGES) break;
+    const read = await http
+      .graphql(
+        PULL_REQUEST_COMMITS_PAGE,
+        { owner: pr.owner, repo: pr.name, number: pr.number, after: pageInfo.endCursor },
+        pullRequestCommitsPageResponse,
+      )
+      .catch(() => null);
+    if (read === null) return null;
+    const page = read.data.repository.pullRequest.history;
+    pages.push(page);
+    pageInfo = page.pageInfo;
+  }
+  return pages;
+}
+
+function headMatches(data: SignalsResponse, headCommit: string): boolean {
+  return data.repository.pullRequest.commits.nodes.at(-1)?.commit.oid === headCommit;
+}
+
 export function toSignalsRead(
   data: SignalsResponse,
   headCommit: string,
+  laterPages: ReadonlyArray<CommitHistory> | null = [],
 ): PullRequestSignalsRead | null {
   const pr = data.repository.pullRequest;
   const commit = pr.commits.nodes.at(-1)?.commit;
@@ -98,7 +162,27 @@ export function toSignalsRead(
       checksTruncated: checks?.contexts.pageInfo.hasNextPage ?? false,
       conflict: open ? conflictOf(pr.mergeable) : null,
       behindBy: open ? (pr.baseRef?.compare?.behindBy ?? null) : null,
+      title: pr.title,
+      baseBranch: pr.baseRefName,
+      ...(laterPages === null ? {} : { commits: newestFirst([pr.history, ...laterPages]) }),
     },
+  };
+}
+
+function newestFirst(pages: ReadonlyArray<CommitHistory>): PullRequestCommit[] {
+  return pages
+    .flatMap((page) => page.nodes)
+    .flatMap((node) => (node === null ? [] : [toCommit(node.commit)]))
+    .reverse();
+}
+
+function toCommit(commit: HistoryCommit): PullRequestCommit {
+  return {
+    oid: commit.oid,
+    url: commit.url,
+    headline: commit.message.split(/\r?\n/, 1)[0] ?? "",
+    author: commit.author?.user?.login ?? commit.author?.name ?? null,
+    committedAt: commit.committedDate,
   };
 }
 

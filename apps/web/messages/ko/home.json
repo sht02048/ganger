@@ -188,7 +188,10 @@
       "merged": "Merged",
       "mergedAgo": "Merged · {ago}",
       "closed": "닫힘",
-      "link": "PR"
+      "link": "PR",
+      "linkValue": "{pr} {title}",
+      "branches": "{head} → {base}",
+      "commits": "커밋 {count}개 · 마지막 {ago}"
     }
   },
   "question": {

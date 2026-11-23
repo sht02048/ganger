@@ -1,6 +1,7 @@
 import { summarizeRunOutcome } from "@ganger/core";
 import type { CiState } from "@ganger/core";
 import type { RunRecords, StoredRun } from "@ganger/db";
+import { isWebUrl } from "./format/url.js";
 import type { CiView } from "./run-detail/model.js";
 
 export function toCiView(ci: CiState): CiView {
@@ -53,5 +54,37 @@ export function prSignalsViewOf(run: StoredRun, records: RunRecords): PrSignalsV
     conflict: signals?.conflict ?? null,
     behindBy: signals?.behindBy ?? null,
     checkedAt: (pr.signalsReadAt ?? pr.checkedAt).toISOString(),
+  };
+}
+
+const SHORT_SHA_LENGTH = 7;
+
+export interface PrCommitView {
+  oid: string;
+  shortSha: string;
+  url: string | null;
+  headline: string;
+  author: string | null;
+  committedAt: string;
+  agoMs: number;
+}
+
+export function prDetailsOf(
+  records: RunRecords,
+  now: Date,
+): { title: string | null; baseBranch: string | null; commits: PrCommitView[] } {
+  const signals = records.pullRequest?.signals ?? null;
+  return {
+    title: signals?.title ?? null,
+    baseBranch: signals?.baseBranch ?? null,
+    commits: (signals?.commits ?? []).map((commit) => ({
+      oid: commit.oid,
+      shortSha: commit.oid.slice(0, SHORT_SHA_LENGTH),
+      url: isWebUrl(commit.url) ? commit.url : null,
+      headline: commit.headline,
+      author: commit.author,
+      committedAt: commit.committedAt,
+      agoMs: Math.max(0, now.getTime() - new Date(commit.committedAt).getTime()),
+    })),
   };
 }

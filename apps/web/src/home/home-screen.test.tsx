@@ -1165,6 +1165,9 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
               settledAt: null,
               settledAgoMs: null,
               branch: null,
+              title: null,
+              baseBranch: null,
+              commits: [],
             },
           }
         : run;

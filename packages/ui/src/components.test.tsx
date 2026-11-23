@@ -32,6 +32,7 @@ import {
   CapacityCells,
   CapacityTrack,
   CheckResultRow,
+  CommitHistory,
   ExpandableRow,
   Card,
   Checkbox,
@@ -1355,6 +1356,30 @@ describe("새 컴포넌트(티켓 0073)", () => {
       return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
     });
     expect(new Set(paths).size).toBe(tones.length);
+  });
+
+  it("CommitHistory 는 접힌 한 줄만 그리고 커밋 목록은 펼치기 전까지 두지 않는다(티켓 0200)", () => {
+    const html = renderToString(
+      <CommitHistory
+        summary="커밋 2개 · 마지막 5 min ago"
+        newTabLabel="새 탭"
+        commits={[
+          {
+            id: "b",
+            headline: "Fix",
+            sha: "bbbbbbb",
+            author: "kim",
+            time: "5 min ago",
+            href: "https://example.com/b",
+          },
+          { id: "a", headline: "Add", sha: "aaaaaaa", author: null, time: "1 hr ago", href: null },
+        ]}
+      />,
+    );
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain("커밋 2개 · 마지막 5 min ago");
+    expect(html).not.toContain("<ol");
+    expect(html).not.toContain("bbbbbbb");
   });
 
   it("SignalRow 는 tone 이 없으면 아이콘 없이 같은 자리에 값을 둔다(티켓 0199)", () => {

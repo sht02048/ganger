@@ -31,6 +31,7 @@ import {
   SegmentedTabs,
   SignalList,
   SignalRow,
+  CommitHistory,
   FactCell,
   FactCells,
   StatTile,
@@ -334,6 +335,36 @@ export function RoleSections() {
                     {t("signals.factWorkedValue")}
                   </FactCell>
                 </FactCells>
+                <CommitHistory
+                  summary={t("signals.commits")}
+                  newTabLabel={t("signals.commitNewTab")}
+                  commits={[
+                    {
+                      id: "c3",
+                      headline: t("signals.commitFix"),
+                      sha: "c3a91f2",
+                      author: "kim",
+                      time: t("signals.commitTimeRecent"),
+                      href: "https://example.com/acme/web/commit/c3a91f2",
+                    },
+                    {
+                      id: "c2",
+                      headline: t("signals.commitLong"),
+                      sha: "b81d0e4",
+                      author: "ganger-agent",
+                      time: t("signals.commitTimeMiddle"),
+                      href: "https://example.com/acme/web/commit/b81d0e4",
+                    },
+                    {
+                      id: "c1",
+                      headline: t("signals.commitAdd"),
+                      sha: "a07c5d9",
+                      author: null,
+                      time: t("signals.commitTimeOld"),
+                      href: null,
+                    },
+                  ]}
+                />
               </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>

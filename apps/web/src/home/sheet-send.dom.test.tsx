@@ -532,6 +532,9 @@ const failingPr: HomeRun["pullRequest"] = {
   settledAt: null,
   settledAgoMs: null,
   branch: "acme-30",
+  title: null,
+  baseBranch: null,
+  commits: [],
 };
 
 function withEndedPr(page: HomePage, pullRequest: HomeRun["pullRequest"]): HomePage {
