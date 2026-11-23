@@ -7,7 +7,7 @@ export const GH_MISSING_MARK = "@@ganger-gh-missing";
 export const READ_GH_ACCOUNTS_SCRIPT = [
   `printf '\\n${GH_SECTION_MARK}\\n'`,
   "gh_bin=$(command -v gh 2>/dev/null)",
-  "for candidate in /opt/homebrew/bin/gh /usr/local/bin/gh /home/linuxbrew/.linuxbrew/bin/gh; do",
+  "for candidate in /opt/homebrew/bin/gh /usr/local/bin/gh; do",
   '  if [ -z "$gh_bin" ] && [ -x "$candidate" ]; then gh_bin=$candidate; fi',
   "done",
   'if [ -z "$gh_bin" ]; then',

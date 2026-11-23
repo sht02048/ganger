@@ -20,7 +20,7 @@ blocked_by: []
 ## 구현 메모
 
 - 0191의 사용량·부하 고정 스크립트 끝에 gh 구역을 더해 같은 ssh 연결, 같은 주기(5분)에 읽는다. 스크립트는 고정 문자열이다.
-- ssh 비대화형 셸의 PATH에 gh가 없을 수 있어 `command -v gh` 다음에 Homebrew 경로(`/opt/homebrew/bin`, `/usr/local/bin`, `/home/linuxbrew/.linuxbrew/bin`)를 차례로 본다.
+- ssh 비대화형 셸의 PATH에 gh가 없을 수 있어 `command -v gh` 다음에 Homebrew 경로(`/opt/homebrew/bin`, `/usr/local/bin`)를 차례로 본다. Linuxbrew 경로(`/home/...`)는 서버 배포물 검사가 빌드 기계 경로로 막고, 리눅스 러너는 1단계 밖이라 넣지 않는다.
 - 러너 쪽에서 `Token:`이 든 줄을 지워 보내고, 파서는 계정 줄의 호스트·이름과 `Active account` 줄만 읽는다. 저장할 때 스키마로 다시 걸러 다른 값이 섞이지 않는다.
 - 예전 gh(계정 하나 형식, `Logged in to HOST as LOGIN`)는 호스트마다 계정이 하나라 사용 중으로 본다.
 - gh가 시간 제한까지 끝나지 않아도 먼저 끝난 부하 값은 버리지 않는다.
