@@ -41,6 +41,7 @@ class FakeExpo {
   ticketFor: (message: ExpoMessage) => unknown = () => null;
   down = false;
   refusedToken: string | null = null;
+  receiptsDown = false;
   private nextId = 0;
 
   readonly fetch: typeof fetch = (input, init) => {
@@ -49,6 +50,7 @@ class FakeExpo {
     const url = input instanceof Request ? input.url : input.toString();
     if (url.endsWith("/getReceipts")) {
       this.receiptRequests += 1;
+      if (this.receiptsDown) return Promise.reject(new TypeError("offline"));
       return Promise.resolve(Response.json({ data: this.receipts }));
     }
     const batch = expoBatchSchema.parse(body);
@@ -201,6 +203,34 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     advance(PUSH_REMIND_AFTER_MS);
     await push.run();
     expect(expo.take()).toEqual([]);
+  });
+
+  it("꺼진 동안 기한이 지난 다시 알림은 다시 켜도 보내지 않는다", async () => {
+    const id = addPushDevice();
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    expo.take();
+    saveDevicePushSettings(h.db, id, { enabled: false, groups: ALL_GROUPS }, clock);
+    advance(PUSH_REMIND_AFTER_MS);
+    saveDevicePushSettings(h.db, id, { enabled: true, groups: ALL_GROUPS }, clock);
+    await push.run();
+    expect(expo.take()).toEqual([]);
+  });
+
+  it("영수증 조회가 실패해도 새 알림을 미루지 않는다", async () => {
+    addPushDevice();
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    expo.take();
+    expo.receiptsDown = true;
+    advance(PUSH_RECEIPT_DELAY_MS);
+    await push.run();
+    expo.take();
+    sync([runCause(1), runCause(2)]);
+    await push.run();
+    expect(expo.take().map((message) => message.data)).toMatchObject([{ eventId: 2 }]);
   });
 
   it("Failed 는 다시 알리지 않고, 다시 알리기 전에 해결되면 보내지 않는다", async () => {

@@ -1,10 +1,12 @@
-import { and, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, lte, ne } from "drizzle-orm";
 import { inTransaction } from "./database.js";
 import type { Database } from "./database.js";
 import type { DeviceNotificationGroup, DeviceNotifications } from "./devices.js";
 import { DEVICE_NOTIFICATION_GROUPS, getDeviceNotifications } from "./devices.js";
 import type { NotificationEventKind } from "./notification-events-model.js";
 import { devicePushDeliveries, devices, notificationEvents } from "./schema.js";
+
+export const PUSH_REMIND_AFTER_MS = 10 * 60_000;
 
 export function deviceGroupOfKind(kind: NotificationEventKind): DeviceNotificationGroup {
   switch (kind) {
@@ -51,6 +53,7 @@ function skipOpenEvents(
   deviceId: string,
   before: Set<DeviceNotificationGroup>,
   after: Set<DeviceNotificationGroup>,
+  now: Date,
 ): void {
   const open = db
     .select({ id: notificationEvents.id, kind: notificationEvents.kind })
@@ -62,9 +65,21 @@ function skipOpenEvents(
     return after.has(group) && !before.has(group);
   });
   if (skipped.length === 0) return;
+  const eventIds = skipped.map((event) => event.id);
   db.insert(devicePushDeliveries)
-    .values(skipped.map((event) => ({ deviceId, eventId: event.id })))
+    .values(eventIds.map((eventId) => ({ deviceId, eventId })))
     .onConflictDoNothing()
+    .run();
+  db.update(devicePushDeliveries)
+    .set({ remindedAt: now })
+    .where(
+      and(
+        eq(devicePushDeliveries.deviceId, deviceId),
+        inArray(devicePushDeliveries.eventId, eventIds),
+        isNull(devicePushDeliveries.remindedAt),
+        lte(devicePushDeliveries.firstSentAt, new Date(now.getTime() - PUSH_REMIND_AFTER_MS)),
+      ),
+    )
     .run();
 }
 
@@ -72,6 +87,7 @@ export function saveDevicePushSettings(
   db: Database,
   id: string,
   input: DeviceNotifications & { expoPushToken?: string | undefined },
+  now: Date = new Date(),
 ): SaveDevicePushResult {
   return inTransaction(db, () => {
     const current = db
@@ -103,7 +119,7 @@ export function saveDevicePushSettings(
       })
       .where(eq(devices.id, id))
       .run();
-    skipOpenEvents(db, id, before, allowedGroups(input));
+    skipOpenEvents(db, id, before, allowedGroups(input), now);
     return "saved";
   });
 }

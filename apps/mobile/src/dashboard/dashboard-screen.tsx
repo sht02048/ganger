@@ -223,7 +223,7 @@ export function DashboardScreen({
   useEffect(() => {
     if (openRun === null || dashboard === null) return;
     const run = runsOf(dashboard).find((candidate) => candidate.id === openRun.id);
-    if (run === undefined && !openRunSettled) return;
+    if (!openRunSettled && (run === undefined || openRun.action)) return;
     if (run !== undefined) setSheet({ kind: sheetKindFor(run, openRun.action), run });
     onOpenRunHandled?.();
   }, [openRun, openRunSettled, dashboard, onOpenRunHandled]);

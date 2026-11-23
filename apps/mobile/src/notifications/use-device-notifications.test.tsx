@@ -184,6 +184,24 @@ describe("앱의 알림 설정(M11, M40, 결정 1)", () => {
     expect(view.saves[0]).not.toHaveProperty("expoPushToken");
   });
 
+  it("주소를 읽는 사이 알림을 끄면 지난 켜짐으로 되돌리지 않는다", async () => {
+    let giveAddress: (address: string) => void = () => undefined;
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: "ExponentPushToken[old]" },
+    });
+    view.device.pushAddress = () =>
+      new Promise((resolve) => {
+        giveAddress = resolve;
+      });
+    await mount(view.Probe);
+    const preferences = view.current.state?.preferences;
+    if (!preferences) throw new Error("설정을 읽지 못했다");
+    await press(() => view.current.state?.change({ ...preferences, enabled: false }));
+    await press(() => giveAddress(NEW_ADDRESS));
+    expect(view.saves.map((save) => save.enabled)).toEqual([false]);
+  });
+
   it("앱을 열 때 주소가 바뀌었으면 새 주소를 넘긴다", async () => {
     const view = setup({
       server: { enabled: true, groups: GROUPS, hasPushAddress: true },

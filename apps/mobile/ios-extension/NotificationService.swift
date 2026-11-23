@@ -154,7 +154,9 @@ final class NotificationService: UNNotificationServiceExtension {
       {
         self.lock.lock()
         content.title = record.target.ticketKey.map { "\(label) · \($0)" } ?? label
-        content.body = record.detail ?? record.subject
+        content.body = record.kind == "runner-usage-limit"
+          ? [record.subject, record.detail].compactMap { $0 }.joined(separator: " · ")
+          : record.detail ?? record.subject
         if let category = categoryIdentifier(record.kind) {
           content.categoryIdentifier = category
         }

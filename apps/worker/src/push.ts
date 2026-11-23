@@ -6,6 +6,7 @@ import {
   listOpenNotificationEvents,
   listPushDeliveries,
   listPushDevices,
+  PUSH_REMIND_AFTER_MS,
   recordPushCleared,
   recordPushReminded,
   recordPushSent,
@@ -22,10 +23,10 @@ import { z } from "zod";
 import type { WorkerLogger } from "./context.js";
 import { messages } from "./messages.js";
 
+export { PUSH_REMIND_AFTER_MS };
 export const DEFAULT_EXPO_PUSH_URL = "https://exp.host/--/api/v2/push";
 export const PUSH_BUNDLE_WINDOW_MS = 5_000;
 export const PUSH_BUNDLE_AFTER = 3;
-export const PUSH_REMIND_AFTER_MS = 10 * 60_000;
 export const PUSH_RECEIPT_DELAY_MS = 15 * 60_000;
 export const PUSH_RECEIPT_GIVE_UP_MS = 60 * 60_000;
 export const PUSH_FAILURE_BACKOFF_MS = 60_000;
@@ -368,9 +369,19 @@ export function createPushDelivery(options: {
       .filter((receipt) => at - receipt.sentAt >= PUSH_RECEIPT_DELAY_MS)
       .slice(0, RECEIPT_BATCH_SIZE);
     if (due.length === 0) return;
-    const { data } = receiptsResponseSchema.parse(
-      await post("getReceipts", { ids: due.map((receipt) => receipt.id) }),
-    );
+    let data: z.infer<typeof receiptsResponseSchema>["data"];
+    try {
+      ({ data } = receiptsResponseSchema.parse(
+        await post("getReceipts", { ids: due.map((receipt) => receipt.id) }),
+      ));
+    } catch (error) {
+      logger.warn("push.send_failed", {
+        error: error instanceof Error ? error.name : "unknown",
+      });
+      const kept = receipts.filter((receipt) => at - receipt.sentAt < PUSH_RECEIPT_GIVE_UP_MS);
+      receipts.splice(0, receipts.length, ...kept);
+      return;
+    }
     const settled = new Set<string>();
     for (const receipt of due) {
       const result = data[receipt.id];

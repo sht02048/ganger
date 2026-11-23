@@ -48,6 +48,7 @@ export function useDeviceNotifications({
   const [asking, setAsking] = useState(false);
   const remembered = useRef<PushMemoryValue>(EMPTY_PUSH_MEMORY);
   const writing = useRef(false);
+  const writes = useRef(0);
 
   const remember = useCallback(
     async (value: PushMemoryValue) => {
@@ -76,6 +77,7 @@ export function useDeviceNotifications({
     if (!foreground) return;
     let cancelled = false;
     const refresh = async () => {
+      const writesAtStart = writes.current;
       const stored = await memory.load().catch(() => EMPTY_PUSH_MEMORY);
       const reply = await client.deviceNotifications();
       if (cancelled || writing.current) return;
@@ -91,7 +93,8 @@ export function useDeviceNotifications({
       if (!device.supported || !reply.data.enabled || !reply.data.hasPushAddress) return;
       if ((await device.permission()) !== "granted") return;
       const address = await device.pushAddress();
-      if (cancelled || writing.current || address === null || address === stored.address) return;
+      if (cancelled || writes.current !== writesAtStart) return;
+      if (address === null || address === stored.address) return;
       if (await save(toPreferences(reply.data.enabled, reply.data.groups), address)) {
         await remember({ ...stored, address });
       }
@@ -105,6 +108,7 @@ export function useDeviceNotifications({
   const run = useCallback(async (work: () => Promise<void>) => {
     if (writing.current) return;
     writing.current = true;
+    writes.current += 1;
     setBusy(true);
     try {
       await work();

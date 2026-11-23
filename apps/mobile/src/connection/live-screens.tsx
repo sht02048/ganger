@@ -312,7 +312,10 @@ export function LiveScreens({
             openRunSettled={
               openRun !== null &&
               view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
-              (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt
+              (state.phase === "stale" ||
+                state.phase === "host-blocked" ||
+                state.phase === "incompatible" ||
+                (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
             }
             onOpenRunHandled={clearOpenRun}
             snapshot={snapshot}
