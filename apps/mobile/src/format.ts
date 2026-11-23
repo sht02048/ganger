@@ -77,6 +77,7 @@ export function queuedLine(run: QueuedRun): string {
     case "blockers-waiting":
       return t("card.blockerLine.waiting");
     case "blockers-stuck":
+      if (reason.cause === "unknown") return t("card.blockerLine.unknown");
       return reason.blocker === null && reason.blockers.length === 0
         ? t("card.blockerLine.unreadable")
         : t(`card.blockerLine.${reason.cause}`);

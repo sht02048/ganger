@@ -99,6 +99,14 @@ describe("앱의 쓰기 요청", () => {
     expect(await w.port.write(run, answer)).toEqual({ kind: "unconfirmed" });
   });
 
+  it("맞지 않는 서버의 쓰기 응답은 처리됐을 수 있어 실패라고 단정하지 않는다", async () => {
+    const failure = { kind: "incompatible", update: "app", serverVersion: "0.5.0" } as const;
+    const w = world([{ ok: false, failure }]);
+    expect(await w.port.write(run, answer)).toEqual({ kind: "unconfirmed" });
+    expect(w.runAction).toHaveBeenCalledOnce();
+    expect(w.session.noteFailure).toHaveBeenCalledWith(failure);
+  });
+
   it("다시 보낸 요청을 서버가 거절하면 이유를 돌려준다", async () => {
     const w = world([lost, { ok: false, failure: { kind: "refused", reason: "already-ended" } }]);
     expect(await w.port.write(run, { action: "cancel" })).toEqual({

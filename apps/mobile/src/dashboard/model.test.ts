@@ -271,3 +271,35 @@ describe("Done 칸의 모르는 상태", () => {
     expect(columnRestCount(board, "done")).toBe(2);
   });
 });
+
+describe("모르는 선행 티켓 원인", () => {
+  it("선행 티켓 목록이 비어도 읽지 못했다고 하지 않는다", () => {
+    const queued: QueuedRun = {
+      ...endedRunBase(),
+      state: "queued",
+      queuedReason: { kind: "blockers-stuck", cause: "unknown", blocker: null, blockers: [] },
+    };
+    expect(queuedLine(queued)).toBe("선행 티켓을 알 수 없는 이유로 기다려요");
+  });
+});
+
+function endedRunBase() {
+  const { id, ticketId, ticketKey, ticketTitle, trackerProject, workspace, runner, agent } =
+    endedRun("Q", "succeeded");
+  return {
+    id,
+    ticketId,
+    ticketKey,
+    ticketTitle,
+    trackerProject,
+    workspace,
+    runner,
+    agent,
+    waitMs: 0,
+    executionMs: null,
+    pullRequest: null,
+    cancelling: false,
+    control: null,
+    todoTag: null,
+  };
+}

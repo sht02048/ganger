@@ -307,7 +307,7 @@ const pillColors: Record<PillStatus, { dot: string; surface: string }> = {
   queued: { dot: colors.idle, surface: colors.idleSoft },
   paused: { dot: colors.idle, surface: colors.idleSoft },
   canceled: { dot: colors.idle, surface: colors.idleSoft },
-  unknown: { dot: colors.idle, surface: colors.idleSoft },
+  unknown: { dot: colors.textDisabled, surface: colors.bgControl },
 };
 
 export function pillColorsOf(status: PillStatus): { dot: string; surface: string } {

@@ -161,7 +161,9 @@ export function createLiveRunPort(
       note(failure);
       if (isDefiniteAnswer(failure)) ids.forget(slot);
       if (failure.kind === "refused") void session.refresh();
-      if (lostFirstReply && !isDefiniteAnswer(failure)) return { kind: "unconfirmed" };
+      if (failure.kind === "incompatible" || (lostFirstReply && !isDefiniteAnswer(failure))) {
+        return { kind: "unconfirmed" };
+      }
       return writeFailure(failure);
     },
   };
