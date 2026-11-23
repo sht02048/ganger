@@ -27,10 +27,23 @@ The CLI keeps its files in one installation folder: `~/.ganger` by default, or t
 | `GANGER_LOG_LEVEL`  | `info`                                                  | Server log level                        |
 | `GANGER_LOG_MAX_MB` | `10`                                                    | Size at which a server log file rotates |
 | `GANGER_LOG_FILES`  | `5`                                                     | Rotated server log files to keep        |
+| `GANGER_GH_CLI`     | `gh` on `PATH`, then Homebrew and `/usr/bin`            | GitHub CLI used for GitHub access       |
 
 Mobile push goes through Expo Push only after a device turns on notifications. The worker sends to `https://exp.host/--/api/v2/push` by default. To use a different relay, set `GANGER_EXPO_PUSH_URL` in the environment of the process that runs `start`.
 
 `start` reads only `WEB_HOST`, `WEB_PORT`, `DATABASE_PATH`, and `ENCRYPTION_KEY` from `.env`. Set the `GANGER_LOG_*` variables in the environment of the process that runs `start`; a line for them in `.env` has no effect. A launchd or systemd service does not inherit your shell's variables and gets only `PATH`, so add them to the service file. For detailed logs without any variable, turn on **자세한 서버 로그** (detailed server logs) in Settings > **서버 로그와 진단** (server logs and diagnostics).
+
+## GitHub access
+
+Ganger reads pull requests and merges them from the Dashboard with the GitHub CLI (`gh`) login of the user that runs the server, the same way Orca uses it. A token pasted in Settings is the fallback.
+
+1. Install `gh` on the machine that runs the server (`brew install gh` on macOS, or see [cli.github.com](https://cli.github.com/)).
+2. Log in as the user that runs `start` or the service: `gh auth login`. To use more than one account, for example a work and a personal account, run `gh auth login` once per account. Using several accounts needs `gh` 2.40 or later; an older `gh` uses only the active account.
+3. In onboarding step 2 or Settings > **연결** (connections) > **GitHub**, choose **다시 확인** (check again), or **이 로그인으로 연결** (connect with this login) in onboarding.
+
+For each repository, Ganger picks the first logged-in account that can see it, starting with the active account, and remembers the choice for a while. It uses the pasted token only when `gh` is not installed, no account is logged in, or no account can see the repository. When the chosen account cannot merge, the merge button stays off; Ganger does not switch to the pasted token for the merge. A pasted token needs Pull requests read access to read pull requests (Actions read shows CI state), and Pull requests and Contents write access to merge.
+
+A launchd or systemd service runs as its own user with only `PATH`. Log in to `gh` as that user, or set `GANGER_GH_CLI` to the `gh` binary if it is not on that `PATH`. Ganger never stores the `gh` token and never shows it in the app, logs, or MCP responses.
 
 ## Ticket state after a merge
 
