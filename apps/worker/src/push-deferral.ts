@@ -1,6 +1,6 @@
 import { DESKTOP_ACTIVITY_REPORT_INTERVAL_MS } from "@ganger/api";
-import { NOTIFICATION_REOPEN_WINDOW_MS } from "@ganger/db";
-import type { StoredNotificationEvent } from "@ganger/db";
+import { NOTIFICATION_REOPEN_WINDOW_MS, PUSH_REMIND_AFTER_MS } from "@ganger/db";
+import type { PushDelivery, StoredNotificationEvent } from "@ganger/db";
 import { isTodo, todoWindows } from "./push-windows.js";
 
 export const MAC_RECENT_USE_MS = 2 * 60_000;
@@ -12,12 +12,61 @@ const SEND_NOW = 0;
 export interface PushDeferral {
   recordUse(deviceId: string, lastUsedAt: number): void;
   releasable(open: ReadonlyArray<StoredNotificationEvent>, now: Date): StoredNotificationEvent[];
+  releasableReminders(due: ReadonlyArray<PushDelivery>, now: Date): PushDelivery[];
+}
+
+interface Pending<Key> {
+  key: Key;
+  dueAt: number;
+}
+
+function createHoldBook<Key>() {
+  const sendAt = new Map<Key, number>();
+  const closedAt = new Map<Key, number>();
+
+  const forgetClosed = (pending: ReadonlyArray<Pending<Key>>, at: number): void => {
+    const present = new Set(pending.map((item) => item.key));
+    for (const key of sendAt.keys()) {
+      if (present.has(key)) continue;
+      sendAt.delete(key);
+      closedAt.set(key, at);
+    }
+    for (const [key, closed] of closedAt) {
+      if (at - closed > NOTIFICATION_REOPEN_WINDOW_MS) closedAt.delete(key);
+    }
+  };
+
+  return {
+    sendAtOf: (key: Key) => sendAt.get(key),
+    decide: (
+      pending: ReadonlyArray<Pending<Key>>,
+      at: number,
+      usedRecently: boolean,
+      waitingForReport: boolean,
+    ): void => {
+      forgetClosed(pending, at);
+      for (const { key, dueAt } of pending) {
+        if (sendAt.has(key)) continue;
+        if (usedRecently) {
+          sendAt.set(key, (closedAt.has(key) ? at : dueAt) + PUSH_DEFER_MS);
+          closedAt.delete(key);
+        } else if (!waitingForReport) {
+          sendAt.set(key, SEND_NOW);
+          closedAt.delete(key);
+        }
+      }
+    },
+  };
+}
+
+function reminderKey(row: PushDelivery): string {
+  return `${row.deviceId}:${row.eventId}`;
 }
 
 export function createPushDeferral(options: { waitForReportUntil: number }): PushDeferral {
   const lastUsedAt = new Map<string, number>();
-  const sendAt = new Map<number, number>();
-  const closedAt = new Map<number, number>();
+  const events = createHoldBook<number>();
+  const reminders = createHoldBook<string>();
 
   const usedRecently = (at: number): boolean => {
     for (const [deviceId, usedAt] of lastUsedAt) {
@@ -26,33 +75,9 @@ export function createPushDeferral(options: { waitForReportUntil: number }): Pus
     return lastUsedAt.size > 0;
   };
 
-  const decide = (open: ReadonlyArray<StoredNotificationEvent>, at: number): void => {
-    const openIds = new Set(open.map((event) => event.id));
-    for (const eventId of sendAt.keys()) {
-      if (openIds.has(eventId)) continue;
-      sendAt.delete(eventId);
-      closedAt.set(eventId, at);
-    }
-    for (const [eventId, closed] of closedAt) {
-      if (at - closed > NOTIFICATION_REOPEN_WINDOW_MS) closedAt.delete(eventId);
-    }
-    const recent = usedRecently(at);
-    for (const event of open) {
-      if (sendAt.has(event.id)) continue;
-      if (recent) {
-        const deferFrom = closedAt.has(event.id) ? at : event.createdAt.getTime();
-        sendAt.set(event.id, deferFrom + PUSH_DEFER_MS);
-        closedAt.delete(event.id);
-      } else if (at >= options.waitForReportUntil) {
-        sendAt.set(event.id, SEND_NOW);
-        closedAt.delete(event.id);
-      }
-    }
-  };
-
   const bundledSendAt = (open: ReadonlyArray<StoredNotificationEvent>): Map<number, number> => {
     const deferredTodos = open.flatMap((event) => {
-      const due = sendAt.get(event.id);
+      const due = events.sendAtOf(event.id);
       if (due === undefined || due === SEND_NOW || !isTodo(event.kind)) return [];
       return [{ eventId: event.id, createdAt: due }];
     });
@@ -70,11 +95,32 @@ export function createPushDeferral(options: { waitForReportUntil: number }): Pus
     },
     releasable: (open, now) => {
       const at = now.getTime();
-      decide(open, at);
+      events.decide(
+        open.map((event) => ({ key: event.id, dueAt: event.createdAt.getTime() })),
+        at,
+        usedRecently(at),
+        at < options.waitForReportUntil,
+      );
       const bundled = bundledSendAt(open);
       return open.filter((event) => {
-        const due = bundled.get(event.id) ?? sendAt.get(event.id);
+        const due = bundled.get(event.id) ?? events.sendAtOf(event.id);
         return due !== undefined && due <= at;
+      });
+    },
+    releasableReminders: (due, now) => {
+      const at = now.getTime();
+      reminders.decide(
+        due.map((row) => ({
+          key: reminderKey(row),
+          dueAt: (row.firstSentAt?.getTime() ?? at) + PUSH_REMIND_AFTER_MS,
+        })),
+        at,
+        usedRecently(at),
+        at < options.waitForReportUntil,
+      );
+      return due.filter((row) => {
+        const sendAt = reminders.sendAtOf(reminderKey(row));
+        return sendAt !== undefined && sendAt <= at;
       });
     },
   };

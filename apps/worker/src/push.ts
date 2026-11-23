@@ -189,45 +189,55 @@ function planFresh(
   return [...issues, ...todoWindows(members).flatMap((window) => planWindow(device, window))];
 }
 
-function planReminders(
-  device: PushDevice,
-  rows: ReadonlyArray<PushDelivery>,
+function isReminderDue(device: PushDevice, row: PushDelivery, now: Date): boolean {
+  return (
+    row.firstSentAt !== null &&
+    row.remindedAt === null &&
+    row.clearedAt === null &&
+    row.resolvedAt === null &&
+    reminds(row.kind) &&
+    allows(device, row.kind) &&
+    now.getTime() - row.firstSentAt.getTime() >= PUSH_REMIND_AFTER_MS
+  );
+}
+
+function dueReminders(
+  devices: ReadonlyArray<PushDevice>,
+  deliveries: ReadonlyArray<PushDelivery>,
   now: Date,
-): PlannedPush[] {
-  return rows
-    .filter(
-      (row) =>
-        row.firstSentAt !== null &&
-        row.remindedAt === null &&
-        row.clearedAt === null &&
-        row.resolvedAt === null &&
-        reminds(row.kind) &&
-        allows(device, row.kind) &&
-        now.getTime() - row.firstSentAt.getTime() >= PUSH_REMIND_AFTER_MS,
-    )
-    .map((row) => ({
-      device,
-      message: alert(device, messages.push.body, {
-        device: device.id,
-        eventId: row.eventId,
-        replaces: [eventPushId(row.eventId)],
-      }),
-      effect: { kind: "reminded", eventId: row.eventId },
-    }));
+): PushDelivery[] {
+  return devices.flatMap((device) =>
+    deliveries.filter((row) => row.deviceId === device.id && isReminderDue(device, row, now)),
+  );
+}
+
+function planReminders(device: PushDevice, rows: ReadonlyArray<PushDelivery>): PlannedPush[] {
+  return rows.map((row) => ({
+    device,
+    message: alert(device, messages.push.body, {
+      device: device.id,
+      eventId: row.eventId,
+      replaces: [eventPushId(row.eventId)],
+    }),
+    effect: { kind: "reminded", eventId: row.eventId },
+  }));
 }
 
 export function planPushes(input: {
   devices: ReadonlyArray<PushDevice>;
   open: ReadonlyArray<StoredNotificationEvent>;
   deliveries: ReadonlyArray<PushDelivery>;
-  now: Date;
+  reminders: ReadonlyArray<PushDelivery>;
 }): PlannedPush[] {
   return input.devices.flatMap((device) => {
     const rows = input.deliveries.filter((row) => row.deviceId === device.id);
     return [
       ...planClears(device, rows),
       ...planFresh(device, rows, input.open),
-      ...planReminders(device, rows, input.now),
+      ...planReminders(
+        device,
+        input.reminders.filter((row) => row.deviceId === device.id),
+      ),
     ];
   });
 }
@@ -391,13 +401,13 @@ export function createPushDelivery(options: {
       if (at.getTime() < retryAt) return;
       try {
         reopenClearedPushes(db);
+        const devices = listPushDevices(db);
+        const deliveries = listPushDeliveries(db);
         const planned = planPushes({
-          devices: listPushDevices(db).filter(
-            (device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime(),
-          ),
+          devices: devices.filter((device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime()),
           open: deferral.releasable(listOpenNotificationEvents(db), at),
-          deliveries: listPushDeliveries(db),
-          now: at,
+          deliveries,
+          reminders: deferral.releasableReminders(dueReminders(devices, deliveries, at), at),
         });
         for (const pushes of Map.groupBy(planned, (push) => push.device.id).values()) {
           for (let start = 0; start < pushes.length; start += PUSH_BATCH_SIZE) {

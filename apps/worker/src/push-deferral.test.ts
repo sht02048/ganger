@@ -4,7 +4,7 @@ import type { NotificationCause } from "@ganger/db";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { MAC_RECENT_USE_MS, PUSH_DEFER_MS, PUSH_FIRST_REPORT_WAIT_MS } from "./push-deferral.js";
-import { createPushDelivery } from "./push.js";
+import { PUSH_REMIND_AFTER_MS, createPushDelivery } from "./push.js";
 import { Harness, workspaceId } from "./test-fixtures.js";
 
 const GROUPS = {
@@ -15,7 +15,13 @@ const GROUPS = {
   runnerIssue: true,
 };
 const batchSchema = z.array(
-  z.object({ data: z.object({ eventId: z.number().optional(), bundleId: z.string().optional() }) }),
+  z.object({
+    data: z.object({
+      eventId: z.number().optional(),
+      bundleId: z.string().optional(),
+      replaces: z.array(z.string()).optional(),
+    }),
+  }),
 );
 
 function cause(n: number): NotificationCause {
@@ -178,6 +184,84 @@ describe("Mac 앞이면 푸시 미루기(M15, M32, M51)", () => {
     advance(3 * 60_000);
     await pushes.run();
     expect(sent).toHaveLength(1);
+  });
+
+  describe("10분 뒤 다시 알림(M52)", () => {
+    const reminders = () => sent.filter((message) => message.data.replaces !== undefined);
+    const sentFirst = async () => {
+      const pushes = delivery();
+      sync([cause(1)]);
+      await pushes.run();
+      expect(sent).toHaveLength(1);
+      return pushes;
+    };
+
+    it("Mac을 쓰지 않으면 10분에 바로 다시 알린다", async () => {
+      const pushes = await sentFirst();
+      advance(PUSH_REMIND_AFTER_MS);
+      await pushes.run();
+      expect(reminders()).toHaveLength(1);
+    });
+
+    it("Mac을 쓰고 있으면 5분 미뤄 다시 알리고 한 번만 보낸다", async () => {
+      const pushes = await sentFirst();
+      advance(PUSH_REMIND_AFTER_MS);
+      pushes.recordDeviceUse("mac", clock.getTime());
+      await pushes.run();
+      advance(PUSH_DEFER_MS - 1);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+      advance(1);
+      await pushes.run();
+      advance(60_000);
+      await pushes.run();
+      expect(reminders()).toHaveLength(1);
+    });
+
+    it("미룬 사이 해결되면 다시 알리지 않는다", async () => {
+      const pushes = await sentFirst();
+      advance(PUSH_REMIND_AFTER_MS);
+      pushes.recordDeviceUse("mac", clock.getTime());
+      await pushes.run();
+      advance(60_000);
+      sync([]);
+      await pushes.run();
+      advance(PUSH_DEFER_MS);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+    });
+
+    it("미루다 해결된 뒤 다시 열리면 다시 열린 때부터 5분을 미룬다", async () => {
+      const pushes = await sentFirst();
+      advance(PUSH_REMIND_AFTER_MS);
+      pushes.recordDeviceUse("mac", clock.getTime());
+      await pushes.run();
+      advance(2 * 60_000);
+      sync([]);
+      await pushes.run();
+      advance(4 * 60_000);
+      pushes.recordDeviceUse("mac", clock.getTime());
+      sync([cause(1)]);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+      advance(PUSH_DEFER_MS - 1);
+      await pushes.run();
+      expect(reminders()).toHaveLength(0);
+      advance(1);
+      await pushes.run();
+      expect(reminders()).toHaveLength(1);
+    });
+
+    it("재시작 직후에는 보고를 기다렸다가 보고가 없으면 다시 알린다", async () => {
+      await sentFirst();
+      advance(PUSH_REMIND_AFTER_MS);
+      const restarted = delivery(clock.getTime() + PUSH_FIRST_REPORT_WAIT_MS);
+      await restarted.run();
+      expect(reminders()).toHaveLength(0);
+      advance(PUSH_FIRST_REPORT_WAIT_MS);
+      await restarted.run();
+      expect(reminders()).toHaveLength(1);
+    });
   });
 
   it("재시작 직후에는 보고를 기다렸다가 보고가 없으면 보낸다", async () => {
