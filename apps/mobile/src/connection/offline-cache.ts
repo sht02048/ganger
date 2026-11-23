@@ -13,6 +13,18 @@ export interface CacheFiles {
   removeAll(): Promise<void>;
 }
 
+export async function readCacheText(file: {
+  text(): Promise<string>;
+  bytes(): Promise<Uint8Array>;
+}): Promise<string> {
+  try {
+    return await file.text();
+  } catch {
+    await file.bytes();
+    return "";
+  }
+}
+
 export interface CachedEntry<Data> {
   data: Data;
   fetchedAt: number;

@@ -198,7 +198,7 @@ export function DashboardScreen({
 }) {
   const [picking, setPicking] = useState(false);
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
-  const previewedRunId = useRef<string | null>(null);
+  const previewedOpenRun = useRef<{ id: string; action: boolean } | null>(null);
   const [resumeNotice, setResumeNotice] = useState<OpenRunSheet | null>(null);
   const [resumingRunIds, setResumingRunIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmingRunIds, setConfirmingRunIds] = useState<ReadonlySet<string>>(new Set());
@@ -243,19 +243,18 @@ export function DashboardScreen({
     if (openRun === null || dashboard === null) return;
     const run = runsOf(dashboard).find((candidate) => candidate.id === openRun.id);
     if (!openRunSettled && run === undefined) return;
-    if (!openRunSettled && openRun.action) {
-      if (run === undefined || previewedRunId.current === openRun.id) return;
-      if ((port.cachedDetail?.(run) ?? null) === null) return;
-      previewedRunId.current = openRun.id;
+    const hasCachedDetail = run !== undefined && (port.cachedDetail?.(run) ?? null) !== null;
+    const waitingForActions = openRun.action && actionsDisabled && hasCachedDetail;
+    if ((!openRunSettled && openRun.action) || waitingForActions) {
+      if (run === undefined || !hasCachedDetail || previewedOpenRun.current === openRun) return;
+      previewedOpenRun.current = openRun;
       setSheet({ kind: "detail", run });
       return;
     }
-    const previewed = previewedRunId.current === openRun.id;
-    previewedRunId.current = null;
+    const previewed = previewedOpenRun.current === openRun;
+    previewedOpenRun.current = null;
     if (run !== undefined) {
-      const hasCachedDetail = (port.cachedDetail?.(run) ?? null) !== null;
-      const kind =
-        actionsDisabled && hasCachedDetail ? "detail" : sheetKindFor(run, openRun.action);
+      const kind = sheetKindFor(run, openRun.action);
       setSheet((current) => {
         if (!previewed) return { kind, run };
         if (kind === "detail" || current === null || current.kind === "notice") return current;

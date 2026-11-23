@@ -1,6 +1,7 @@
 import { CryptoDigestAlgorithm, digestStringAsync } from "expo-crypto";
 import { Directory, File, Paths } from "expo-file-system";
 
+import { readCacheText } from "./offline-cache";
 import type { CacheFiles } from "./offline-cache";
 
 const DIRECTORY_NAME = "ganger-offline";
@@ -15,7 +16,7 @@ async function fileFor(server: string): Promise<File> {
 export const cacheFiles: CacheFiles = {
   read: async (server) => {
     const file = await fileFor(server);
-    return file.exists ? file.text() : null;
+    return file.exists ? readCacheText(file) : null;
   },
   write: async (server, text) => {
     const directory = cacheDirectory();

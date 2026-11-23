@@ -8,6 +8,7 @@ import {
   CACHE_FORMAT_VERSION,
   CACHE_MAX_AGE_MS,
   OfflineCache,
+  readCacheText,
 } from "./offline-cache";
 import type { CacheFiles } from "./offline-cache";
 
@@ -146,6 +147,31 @@ describe("버리는 캐시", () => {
     const content = await cache.load();
     expect(content.dashboards.size).toBe(0);
     expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
+  });
+});
+
+describe("글자로 풀 수 없는 파일", () => {
+  const undecodable = () => Promise.reject(new Error("invalid UTF-8"));
+
+  it("바이트는 읽히면 손상으로 보고 버린 뒤 다시 저장한다", async () => {
+    const memory = memoryFiles({ [SERVER]: "broken" });
+    const files: CacheFiles = {
+      ...memory.files,
+      read: () =>
+        readCacheText({ text: undecodable, bytes: () => Promise.resolve(new Uint8Array([255])) }),
+    };
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    expect((await cache.load()).dashboards.size).toBe(0);
+    expect(memory.saved.has(SERVER)).toBe(false);
+    cache.saveDashboard("all", dashboard, NOW, workspaces);
+    await cache.settled();
+    expect(memory.saved.has(SERVER)).toBe(true);
+  });
+
+  it("바이트도 읽지 못하면 잠긴 파일로 보고 실패를 그대로 알린다", async () => {
+    await expect(
+      readCacheText({ text: undecodable, bytes: () => Promise.reject(new Error("locked")) }),
+    ).rejects.toThrow("locked");
   });
 });
 
