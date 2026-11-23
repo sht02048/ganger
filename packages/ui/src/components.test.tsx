@@ -950,6 +950,9 @@ describe("서버 렌더", () => {
     expect(blocked).not.toContain("aria-expanded");
     expect(blocked).not.toContain("내용");
     expect(blocked).toContain('disabled=""');
+    const describedBy = /aria-describedby="([^"]+)"/.exec(blocked)?.[1];
+    expect(blocked).toContain(`id="${describedBy}"`);
+    expect(blocked).toMatch(new RegExp(`id="${describedBy}"[^>]*>넣을 수 있는 프로젝트가 없어요<`));
   });
 
   it("Select 는 aria-label 을 트리거에 붙인다", () => {

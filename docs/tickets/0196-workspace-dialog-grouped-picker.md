@@ -17,7 +17,7 @@ blocked_by: []
 
 ## 결정
 
-- `packages/ui`의 `Checkbox`에 선택 속성 `indeterminate`를 더하고, 머리 체크박스와 펼치기 버튼이 따로 포커스되는 `CheckboxDisclosure`를 새로 둔다. 펼치기 버튼은 `aria-expanded`를 단다.
+- `packages/ui`의 `CheckboxControl`에 선택 속성 `indeterminate`를 더하고, 머리 체크박스와 펼치기 버튼이 따로 포커스되는 `CheckboxDisclosure`를 새로 둔다. 펼치기 버튼은 `aria-expanded`를 단다. 좁은 폭에서는 요약이 다음 줄로 내려가 연결 이름을 지킨다.
 - 서버 응답에 연결 이름이 이미 있어 서버 함수는 바꾸지 않는다.
 - Settings의 Workspace 프로젝트 더하기는 줄마다 버튼으로 바로 더하는 다른 고르기라 이 티켓에서 바꾸지 않는다. 온보딩의 프로젝트 고르기도 범위 밖이다.
 

@@ -37,6 +37,7 @@ export function CheckboxDisclosure({
 }: CheckboxDisclosureProps) {
   const labelId = useId();
   const bodyId = useId();
+  const summaryId = useId();
   const open = expanded && !disabled;
   return (
     <div {...stylex.props(surfaceStyles("inset"), styles.group)}>
@@ -47,13 +48,16 @@ export function CheckboxDisclosure({
             indeterminate={indeterminate}
             onCheckedChange={onCheckedChange}
             disabled={disabled}
+            describedBy={disabled ? summaryId : undefined}
           />
           <span id={labelId} {...stylex.props(disabled ? styles.nameDisabled : styles.name)}>
             {label}
           </span>
         </label>
         {disabled ? (
-          <span {...stylex.props(styles.summary, styles.summaryDisabled)}>{summary}</span>
+          <span id={summaryId} {...stylex.props(styles.summary, styles.summaryDisabled)}>
+            {summary}
+          </span>
         ) : (
           <SdkButton
             aria-label={toggleLabel}
@@ -84,6 +88,7 @@ const styles = stylex.create({
   head: {
     display: "flex",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: space.s2,
     minHeight: size.rowMinHeight,
     paddingInlineStart: space.s3,
@@ -93,6 +98,7 @@ const styles = stylex.create({
     display: "flex",
     alignItems: "center",
     flexGrow: 1,
+    flexBasis: 160,
     gap: space.s3,
     minWidth: 0,
     cursor: "pointer",
@@ -103,9 +109,9 @@ const styles = stylex.create({
   toggle: {
     display: "inline-flex",
     alignItems: "center",
-    flexShrink: 0,
     gap: space.s2,
-    maxWidth: "70%",
+    marginInlineStart: "auto",
+    maxWidth: "100%",
     minHeight: 40,
     paddingInline: space.s2,
     borderWidth: 0,
@@ -120,7 +126,11 @@ const styles = stylex.create({
     cursor: "pointer",
   },
   summary: { minWidth: 0, color: colors.textTertiary, fontSize: fontSize.small },
-  summaryDisabled: { flexShrink: 0, paddingInlineEnd: space.s2, color: colors.textDisabled },
+  summaryDisabled: {
+    marginInlineStart: "auto",
+    paddingInlineEnd: space.s2,
+    color: colors.textDisabled,
+  },
   chevron: { display: "inline-flex", flexShrink: 0, color: colors.textTertiary },
   chevronOpen: { transform: "rotate(180deg)" },
   note: { paddingInline: space.s3, paddingBottom: space.s2 },
