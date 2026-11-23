@@ -7,6 +7,7 @@ import {
   recordRunnerCheck,
   listRunners,
   recordProviderUsage,
+  recordRunnerLoad,
   updateRunRecords,
 } from "@ganger/db";
 import type { StoredRunner } from "@ganger/db";
@@ -84,7 +85,7 @@ async function readProviderUsage(
   stored: StoredRunner,
   runner: Runner,
 ): Promise<void> {
-  if (runner.readProviderUsage === undefined) return;
+  if (runner.readProviderUsage === undefined && runner.readUsageAndLoad === undefined) return;
   const readAt = stored.providerUsage?.readAt;
   if (
     readAt !== undefined &&
@@ -93,7 +94,18 @@ async function readProviderUsage(
     return;
   }
   try {
-    const reading = await runner.readProviderUsage();
+    if (runner.readUsageAndLoad !== undefined) {
+      const { usage, load } = await runner.readUsageAndLoad();
+      recordProviderUsage(context.db, {
+        runnerId: stored.id,
+        readAt: context.now(),
+        reading: usage,
+      });
+      recordRunnerLoad(context.db, { runnerId: stored.id, readAt: context.now(), reading: load });
+      return;
+    }
+    const reading = await runner.readProviderUsage?.();
+    if (reading === undefined) return;
     recordProviderUsage(context.db, { runnerId: stored.id, readAt: context.now(), reading });
   } catch {
     context.logger.warn("runner.provider_usage_failed", { runnerId: stored.id });

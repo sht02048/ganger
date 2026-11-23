@@ -21,6 +21,7 @@ import type {
 } from "./ids.js";
 import type { TicketPriority, TicketRelations } from "./blockers.js";
 import type { ProviderUsageReading } from "./provider-usage.js";
+import type { RunnerLoadReading } from "./runner-load.js";
 
 export class AdapterError<D extends { kind: string }> extends Error {
   readonly detail: D;
@@ -339,6 +340,7 @@ export interface Runner {
   checkHealth(): Promise<RunnerHealth>;
   listProjects(): Promise<ReadonlyArray<RunnerProject>>;
   readProviderUsage?(): Promise<ProviderUsageReading>;
+  readUsageAndLoad?(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }>;
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef>;
 

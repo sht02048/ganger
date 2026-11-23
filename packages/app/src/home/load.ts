@@ -23,6 +23,8 @@ import { prSignalsViewOf } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
+import { runnerLoadView } from "../runners/load-view.js";
+import { runnerLoadHigh } from "../runners/model.js";
 import { resolveWorkspace, runnerIssueCause } from "../shell/model.js";
 import { calendarDay, DAY_MS } from "../time-zone.js";
 import { ticketId } from "../tickets/load.js";
@@ -178,6 +180,7 @@ export function loadHomePage(
       used: used.get(runner.id) ?? 0,
       capacity: runner.capacity,
       ...dashboardUsage(runner, now),
+      loadHigh: runnerLoadHigh(runnerLoadView(runner.load, runner.online, now)),
     }))
     .toSorted((a, b) => Number(a.cause === null) - Number(b.cause === null));
   const endedToday = (run: StoredRun): boolean =>

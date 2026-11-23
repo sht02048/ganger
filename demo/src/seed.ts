@@ -1,4 +1,5 @@
 import {
+  CPU_HIGH_AFTER_MS,
   EMPTY_WORKSPACE_BRIEF,
   composeAgentBrief,
   isAssignmentBlocked,
@@ -30,6 +31,7 @@ import {
   inTransaction,
   recordPermissionWaits,
   recordProviderUsage,
+  recordRunnerLoad,
   recordRunQuestions,
   recordRunnerCheck,
   recordStartRequested,
@@ -59,6 +61,7 @@ import {
   demoTicketBody,
   inProgressState,
   providerUsageFor,
+  runnerLoadFor,
   runnerProjectId,
   seededConnections,
   seededRunners,
@@ -141,6 +144,13 @@ export async function seedDemo(
         readAt,
         reading: providerUsageFor(runner.sshTarget, readAt),
       });
+      const load = runnerLoadFor(runner.sshTarget);
+      recordRunnerLoad(db, {
+        runnerId: runner.id,
+        readAt: new Date(readAt.getTime() - CPU_HIGH_AFTER_MS),
+        reading: load,
+      });
+      recordRunnerLoad(db, { runnerId: runner.id, readAt, reading: load });
     }
     return active;
   });

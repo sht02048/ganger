@@ -6,6 +6,7 @@ export * from "./blockers.js";
 export * from "./ids.js";
 export * from "./pr-state.js";
 export * from "./provider-usage.js";
+export * from "./runner-load.js";
 export * from "./queue.js";
 export * from "./registry.js";
 export * from "./run.js";

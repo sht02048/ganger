@@ -5,6 +5,7 @@ import type { Database, StoredProviderUsage, StoredRun } from "@ganger/db";
 import { z } from "zod";
 import { pendingInput } from "../home/load.js";
 import { prerequisiteHint, prerequisiteProject } from "../prerequisites.js";
+import { runnerLoadView } from "./load-view.js";
 import type {
   LeftWorktree,
   OccupyingRun,
@@ -109,6 +110,7 @@ export function loadRunnersPage(db: Database, now: Date): RunnersPage {
       sshTarget: config.sshTarget ?? null,
       orcaPath: config.orcaPath ?? null,
       usage: usageView(runner.providerUsage, now),
+      load: runnerLoadView(runner.load, runner.online, now),
     };
   });
   return { runners };

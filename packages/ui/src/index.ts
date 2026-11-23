@@ -361,6 +361,7 @@ export {
 } from "./components/settings-layout";
 export { UsageBar, usageText, type UsageBarProps, type UsageTone } from "./components/usage-bar";
 export { UsageMeter, type UsageMeterProps } from "./components/usage-meter";
+export { LoadMeters, type LoadMeterItem, type LoadMetersProps } from "./components/load-meters";
 export {
   PanelList,
   PanelListRow,

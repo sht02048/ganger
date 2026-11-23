@@ -1,4 +1,10 @@
-import type { ProviderUsageStatus, UsageWindowKind } from "@ganger/core";
+import type {
+  CpuLoad,
+  GpuLoad,
+  MemoryLoad,
+  ProviderUsageStatus,
+  UsageWindowKind,
+} from "@ganger/core";
 import type { CheckFailure } from "../prerequisites.js";
 
 export interface RunWorkspace {
@@ -61,6 +67,28 @@ export type RunnerUsageView = { readAt: string; agoMs: number; now: string } & (
   | { kind: "unreadable" }
 );
 
+export type RunnerLoadView = { readAt: string; agoMs: number } & (
+  | {
+      kind: "read";
+      cpu: (CpuLoad & { high: boolean }) | null;
+      memory: (MemoryLoad & { high: boolean }) | null;
+      gpu: GpuLoad | null;
+    }
+  | { kind: "unreadable" }
+);
+
+export interface RunnerLoadHigh {
+  cpuPercent: number | null;
+  memoryPercent: number | null;
+}
+
+export function runnerLoadHigh(load: RunnerLoadView | null): RunnerLoadHigh | null {
+  if (load?.kind !== "read") return null;
+  const cpuPercent = load.cpu?.high === true ? load.cpu.percent : null;
+  const memoryPercent = load.memory?.high === true ? load.memory.percent : null;
+  return cpuPercent === null && memoryPercent === null ? null : { cpuPercent, memoryPercent };
+}
+
 export interface RunnerView {
   id: string;
   name: string;
@@ -77,6 +105,7 @@ export interface RunnerView {
   sshTarget: string | null;
   orcaPath: string | null;
   usage: RunnerUsageView | null;
+  load: RunnerLoadView | null;
 }
 
 export interface RunnersPage {

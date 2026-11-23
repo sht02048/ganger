@@ -11,6 +11,7 @@ import {
 import type {
   ProviderUsage,
   ProviderUsageReading,
+  RunnerLoadReading,
   RunnerProject,
   TicketKey,
   TicketRelations,
@@ -274,6 +275,32 @@ export const seededRunners = [
 ] as const;
 
 const USAGE_MINUTE = 60_000;
+
+const DEMO_GB = 1024 ** 3;
+
+export function runnerLoadFor(sshTarget: string): RunnerLoadReading {
+  const target = sshTarget.toLowerCase();
+  if (target.includes(FAIL_OFFLINE)) return { kind: "unreadable" };
+  if (target.includes(FAIL_PUSH_AUTH)) {
+    return {
+      kind: "read",
+      cpu: { percent: 24, loadAverage: 1.9, cores: 8 },
+      memory: { percent: 46, usedBytes: 7.4 * DEMO_GB, totalBytes: 16 * DEMO_GB, pressure: null },
+      gpu: null,
+    };
+  }
+  return {
+    kind: "read",
+    cpu: { percent: 92, loadAverage: 9.2, cores: 10 },
+    memory: {
+      percent: 81,
+      usedBytes: 26 * DEMO_GB,
+      totalBytes: 32 * DEMO_GB,
+      pressure: "normal",
+    },
+    gpu: { percent: 12, name: "Apple GPU" },
+  };
+}
 
 export function providerUsageFor(sshTarget: string, now: Date): ProviderUsageReading {
   const inMinutes = (minutes: number) => new Date(now.getTime() + minutes * USAGE_MINUTE);

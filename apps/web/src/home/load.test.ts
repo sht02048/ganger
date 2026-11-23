@@ -300,6 +300,7 @@ describe("loadHomePage", () => {
         capacity: 1,
         usage: null,
         limits: [],
+        loadHigh: null,
       },
       {
         id: "runner-a",
@@ -310,6 +311,7 @@ describe("loadHomePage", () => {
         capacity: 10,
         usage: null,
         limits: [],
+        loadHigh: null,
       },
     ]);
     expect(loadShell(db).runnerIssues).toBe(1);

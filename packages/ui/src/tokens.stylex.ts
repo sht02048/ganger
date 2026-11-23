@@ -204,6 +204,8 @@ export const size = stylex.defineVars({
   rowActionColumn: "96px",
   capacityCellsColumn: "120px",
   usageColumn: "200px",
+  loadColumn: "176px",
+  loadNameCompactColumn: "44px",
   panelLabelColumn: "72px",
   fieldMinWidth: "200px",
   compareMinWidth: "220px",

@@ -15,6 +15,7 @@ import type {
   MailboxRef,
   PermissionRequestId,
   ProviderUsageReading,
+  RunnerLoadReading,
   QuestionId,
   ResumeAgentInput,
   ResumedAgent,
@@ -49,6 +50,7 @@ import {
   needsAgentPaneKey,
 } from "./progress.js";
 import { parseProviderUsage } from "./provider-usage.js";
+import { parseRunnerLoad, READ_USAGE_AND_LOAD_SCRIPT, splitUsageAndLoad } from "./runner-load.js";
 import {
   PUSH_CHECK_CONCURRENCY,
   PUSH_CHECK_TIMEOUT_MS,
@@ -251,6 +253,20 @@ export class OrcaRunner implements Runner {
     }
     if (result.timedOut) return { kind: "unreadable" };
     return parseProviderUsage(result.stdout);
+  }
+
+  async readUsageAndLoad(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }> {
+    let result: RemoteResult;
+    try {
+      result = await this.run(["sh", "-c", READ_USAGE_AND_LOAD_SCRIPT, "sh", this.config.orcaPath]);
+    } catch {
+      return { usage: { kind: "unreadable" }, load: { kind: "unreadable" } };
+    }
+    const { load, usage } = splitUsageAndLoad(result.stdout);
+    return {
+      usage: result.timedOut ? { kind: "unreadable" } : parseProviderUsage(usage),
+      load: parseRunnerLoad(load),
+    };
   }
 
   private async servicePrerequisite(): Promise<RunnerPrerequisite> {

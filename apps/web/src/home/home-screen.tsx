@@ -35,6 +35,7 @@ import {
   dashboardBoard,
   freeCapacity,
   limitedRunners,
+  loadHighRunners,
   readyAgainInMs,
   runnerIssues,
   todoGroupOf,
@@ -546,6 +547,9 @@ function RunnersSection({
     }),
   );
   const problemCount = new Set([...issues, ...limited].map((runner) => runner.id)).size;
+  const loadHigh = loadHighRunners({ list: runners });
+  const loadOnly = problemCount === 0 && loadHigh.length > 0;
+  const loadTitle = t("runners.loadTitle", { count: loadHigh.length });
   return (
     <Card surface="plain" label={t("section.runners")}>
       <Section
@@ -568,16 +572,16 @@ function RunnersSection({
                 <RunnerRow key={runner.id} runner={runner} href={runnersPath(runner.id)} />
               ))}
             </ul>
-            {problemCount === 0 ? null : (
+            {problemCount === 0 && loadHigh.length === 0 ? null : (
               <ProblemCallout
-                title={t("runners.problemTitle", { count: problemCount })}
+                title={loadOnly ? loadTitle : t("runners.problemTitle", { count: problemCount })}
                 actions={
                   <a
                     href={runnersPath()}
                     data-variant="secondary"
                     {...stylex.props(...buttonStyles("secondary"))}
                   >
-                    {t("runners.fix")}
+                    {loadOnly ? t("runners.loadView") : t("runners.fix")}
                   </a>
                 }
               >
@@ -596,6 +600,13 @@ function RunnersSection({
                     {line.text}
                   </p>
                 ))}
+                {loadHigh.length === 0 || loadOnly ? null : (
+                  <p {...stylex.props(styles.reset)}>{loadTitle}</p>
+                )}
+                {loadHigh.flatMap((runner) => loadLines(runner, t))}
+                {loadHigh.length === 0 ? null : (
+                  <p {...stylex.props(styles.reset)}>{t("runners.loadNote")}</p>
+                )}
               </ProblemCallout>
             )}
           </div>
@@ -603,6 +614,29 @@ function RunnersSection({
       </Section>
     </Card>
   );
+}
+
+function loadLines(runner: DashboardRunner, t: ReturnType<typeof useTranslations<"home">>) {
+  const { cpuPercent, memoryPercent } = runner.loadHigh ?? {
+    cpuPercent: null,
+    memoryPercent: null,
+  };
+  return [
+    ...(cpuPercent === null
+      ? []
+      : [
+          <p key={`${runner.id}:cpu`} {...stylex.props(styles.reset)}>
+            {t("runners.loadCpu", { name: runner.name, percent: Math.round(cpuPercent) })}
+          </p>,
+        ]),
+    ...(memoryPercent === null
+      ? []
+      : [
+          <p key={`${runner.id}:memory`} {...stylex.props(styles.reset)}>
+            {t("runners.loadMemory", { name: runner.name, percent: Math.round(memoryPercent) })}
+          </p>,
+        ]),
+  ];
 }
 
 function runnerStatus(runner: DashboardRunner): PillStatus {
@@ -648,6 +682,16 @@ function RunnerRow({ runner, href: rowHref }: { runner: DashboardRunner; href: s
 function RunnerUsage({ runner }: { runner: DashboardRunner }) {
   const t = useTranslations("home.runners");
   const names = useUsageNames();
+  if (runner.loadHigh !== null) {
+    const { cpuPercent, memoryPercent } = runner.loadHigh;
+    return (
+      <Text variant="meta" numeric tone="problem">
+        {cpuPercent !== null
+          ? t("rowLoadCpu", { percent: Math.round(cpuPercent) })
+          : t("rowLoadMemory", { percent: Math.round(memoryPercent ?? 0) })}
+      </Text>
+    );
+  }
   if (runner.usage === null) return null;
   const { provider, window, usedPercent } = runner.usage;
   return (

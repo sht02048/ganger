@@ -10,6 +10,7 @@ import type {
 } from "@ganger/core";
 import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
+import type { RunnerLoadHigh } from "../runners/model.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { RunnerIssueCause, WorkspaceChoice, WorkspaceSummary } from "../shell/model.js";
 
@@ -111,10 +112,15 @@ export interface DashboardRunner {
   capacity: number;
   usage: DashboardUsageLine | null;
   limits: DashboardUsageLimit[];
+  loadHigh: RunnerLoadHigh | null;
 }
 
 export function limitedRunners(runners: RunnersSummary): DashboardRunner[] {
   return runners.list.filter((runner) => runner.limits.length > 0);
+}
+
+export function loadHighRunners(runners: RunnersSummary): DashboardRunner[] {
+  return runners.list.filter((runner) => runner.loadHigh !== null);
 }
 
 export function readyAgainInMs(runner: DashboardRunner): number | null {

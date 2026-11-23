@@ -796,6 +796,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-full",
@@ -806,6 +807,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-auth",
@@ -816,6 +818,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
           ],
         },
@@ -848,6 +851,7 @@ describe("Runners", () => {
               capacity: 3,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-free",
@@ -858,6 +862,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-over",
@@ -868,6 +873,7 @@ describe("Runners", () => {
               capacity: 2,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-off",
@@ -878,6 +884,7 @@ describe("Runners", () => {
               capacity: 4,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
             {
               id: "r-auth",
@@ -888,6 +895,7 @@ describe("Runners", () => {
               capacity: 4,
               usage: null,
               limits: [],
+              loadHigh: null,
             },
           ],
         },
@@ -958,8 +966,67 @@ describe("문구", () => {
   });
 });
 
+describe("Runners 부하(0191)", () => {
+  const base = {
+    cause: null,
+    offlineMs: null,
+    used: 1,
+    capacity: 2,
+    limits: [],
+    usage: { provider: "claude", window: "weekly" as const, usedPercent: 72 },
+  };
+  const calm = { ...base, id: "r-b", name: "runner-b", loadHigh: null };
+  const hot = {
+    ...base,
+    id: "r-a",
+    name: "runner-a",
+    loadHigh: { cpuPercent: 92, memoryPercent: null },
+  };
+  const pageWith = (list: HomePage["runners"]["list"]): HomePage => ({
+    ...seededPage(),
+    runners: { list },
+  });
+
+  it("보통이면 사용량 줄을 그대로 두고 문제 상자를 띄우지 않는다", () => {
+    const runners = section(render(pageWith([calm])), "Runners");
+    expect(text(row(runners, "runner-b"))).toBe("Online runner-b Claude 주간 72% 1/2");
+    expect(text(runners)).not.toContain("부하");
+  });
+
+  it("높으면 둘째 줄을 이유로 바꾸고 상자에 묶음과 안내를 더한다", () => {
+    const runners = section(render(pageWith([hot, calm])), "Runners");
+    expect(text(row(runners, "runner-a"))).toContain("CPU 92% · 5분 넘게 높아요");
+    expect(text(row(runners, "runner-a"))).not.toContain("Claude 주간");
+    expect(text(runners)).toContain("러너 1대의 부하가 높아요");
+    expect(text(runners)).toContain("CPU 부하가 높아요: runner-a · 5분 넘게 92%");
+    expect(text(runners)).toContain("새 런은 그대로 받아요. 느려질 수 있어요.");
+    expect(text(runners)).toContain("Runners에서 보기");
+    expect(text(runners)).not.toContain("문제가 있어요");
+  });
+
+  it("다른 러너 문제와 함께면 기존 제목에 부하 묶음을 더한다", () => {
+    const offline = {
+      ...calm,
+      id: "r-c",
+      name: "runner-c",
+      cause: "offline" as const,
+    };
+    const runners = section(render(pageWith([offline, hot])), "Runners");
+    expect(text(runners)).toContain("러너 1대에 문제가 있어요");
+    expect(text(runners)).toContain("러너 1대의 부하가 높아요");
+    expect(text(runners)).toContain("Runners에서 고치기");
+  });
+});
+
 describe("Runners 공급자 사용량(0086)", () => {
-  const base = { cause: null, offlineMs: null, used: 1, capacity: 2, limits: [] };
+  const base = {
+    cause: null,
+    offlineMs: null,
+    used: 1,
+    capacity: 2,
+    limits: [],
+    loadHigh: null,
+  };
 
   it("러너 행 아래에 가장 높은 사용량을 숫자로, 90% 이상이면 빨강 글자로 보인다", () => {
     const html = section(
