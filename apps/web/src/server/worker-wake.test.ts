@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { WORKER_WAKE_ENV, WORKER_WAKE_VIA_IPC } from "@ganger/core";
 import { describe, expect, it } from "vitest";
-import { wakeWorkerVia } from "./worker-wake";
+import { sendDeviceActivityVia, wakeWorkerVia } from "./worker-wake";
 
 const enabled = { [WORKER_WAKE_ENV]: WORKER_WAKE_VIA_IPC };
 
@@ -21,6 +21,20 @@ function recordingChannel(env: Record<string, string>, connected = true) {
     },
   };
 }
+
+describe("web 의 기기 사용 보고 전달", () => {
+  it("start 가 띄운 web 은 기기와 마지막 사용 시각을 IPC 로 보낸다", () => {
+    const { sent, channel } = recordingChannel(enabled);
+    sendDeviceActivityVia(channel, { deviceId: "mac", lastUsedAt: 1000 });
+    expect(sent).toEqual([{ type: "device-activity", deviceId: "mac", lastUsedAt: 1000 }]);
+  });
+
+  it("start 가 띄우지 않았으면 보내지 않는다", () => {
+    const { sent, channel } = recordingChannel({});
+    sendDeviceActivityVia(channel, { deviceId: "mac", lastUsedAt: 1000 });
+    expect(sent).toEqual([]);
+  });
+});
 
 describe("web 의 worker 깨우기 신호", () => {
   it("start 가 띄운 web 은 IPC 통로로 { type: wake } 를 보낸다", () => {

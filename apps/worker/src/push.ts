@@ -22,10 +22,12 @@ import type {
 import { z } from "zod";
 import type { WorkerLogger } from "./context.js";
 import { messages } from "./messages.js";
+import { createPushDeferral } from "./push-deferral.js";
+import type { PushDeferral } from "./push-deferral.js";
+import { PUSH_BUNDLE_WINDOW_MS, isTodo, todoWindows } from "./push-windows.js";
 
-export { PUSH_REMIND_AFTER_MS };
+export { PUSH_BUNDLE_WINDOW_MS, PUSH_REMIND_AFTER_MS };
 export const DEFAULT_EXPO_PUSH_URL = "https://exp.host/--/api/v2/push";
-export const PUSH_BUNDLE_WINDOW_MS = 5_000;
 export const PUSH_BUNDLE_AFTER = 3;
 export const PUSH_RECEIPT_DELAY_MS = 15 * 60_000;
 export const PUSH_RECEIPT_GIVE_UP_MS = 60 * 60_000;
@@ -60,10 +62,6 @@ export interface PlannedPush {
 
 function allows(device: PushDevice, kind: NotificationEventKind): boolean {
   return device.enabled && device.groups[deviceGroupOfKind(kind)];
-}
-
-function isTodo(kind: NotificationEventKind): boolean {
-  return deviceGroupOfKind(kind) !== "runnerIssue";
 }
 
 function reminds(kind: NotificationEventKind): boolean {
@@ -122,23 +120,6 @@ interface WindowMember {
   eventId: number;
   createdAt: number;
   row: PushDelivery | null;
-}
-
-function todoWindows(members: ReadonlyArray<WindowMember>): WindowMember[][] {
-  const sorted = members.toSorted((a, b) => a.createdAt - b.createdAt || a.eventId - b.eventId);
-  const windows: WindowMember[][] = [];
-  for (const member of sorted) {
-    const current = windows.at(-1);
-    const startedAt = current?.[0]?.createdAt;
-    if (current !== undefined && startedAt !== undefined) {
-      if (member.createdAt - startedAt <= PUSH_BUNDLE_WINDOW_MS) {
-        current.push(member);
-        continue;
-      }
-    }
-    windows.push([member]);
-  }
-  return windows;
 }
 
 function planWindow(device: PushDevice, window: ReadonlyArray<WindowMember>): PlannedPush[] {
@@ -208,45 +189,55 @@ function planFresh(
   return [...issues, ...todoWindows(members).flatMap((window) => planWindow(device, window))];
 }
 
-function planReminders(
-  device: PushDevice,
-  rows: ReadonlyArray<PushDelivery>,
+function isReminderDue(device: PushDevice, row: PushDelivery, now: Date): boolean {
+  return (
+    row.firstSentAt !== null &&
+    row.remindedAt === null &&
+    row.clearedAt === null &&
+    row.resolvedAt === null &&
+    reminds(row.kind) &&
+    allows(device, row.kind) &&
+    now.getTime() - row.firstSentAt.getTime() >= PUSH_REMIND_AFTER_MS
+  );
+}
+
+function dueReminders(
+  devices: ReadonlyArray<PushDevice>,
+  deliveries: ReadonlyArray<PushDelivery>,
   now: Date,
-): PlannedPush[] {
-  return rows
-    .filter(
-      (row) =>
-        row.firstSentAt !== null &&
-        row.remindedAt === null &&
-        row.clearedAt === null &&
-        row.resolvedAt === null &&
-        reminds(row.kind) &&
-        allows(device, row.kind) &&
-        now.getTime() - row.firstSentAt.getTime() >= PUSH_REMIND_AFTER_MS,
-    )
-    .map((row) => ({
-      device,
-      message: alert(device, messages.push.body, {
-        device: device.id,
-        eventId: row.eventId,
-        replaces: [eventPushId(row.eventId)],
-      }),
-      effect: { kind: "reminded", eventId: row.eventId },
-    }));
+): PushDelivery[] {
+  return devices.flatMap((device) =>
+    deliveries.filter((row) => row.deviceId === device.id && isReminderDue(device, row, now)),
+  );
+}
+
+function planReminders(device: PushDevice, rows: ReadonlyArray<PushDelivery>): PlannedPush[] {
+  return rows.map((row) => ({
+    device,
+    message: alert(device, messages.push.body, {
+      device: device.id,
+      eventId: row.eventId,
+      replaces: [eventPushId(row.eventId)],
+    }),
+    effect: { kind: "reminded", eventId: row.eventId },
+  }));
 }
 
 export function planPushes(input: {
   devices: ReadonlyArray<PushDevice>;
   open: ReadonlyArray<StoredNotificationEvent>;
   deliveries: ReadonlyArray<PushDelivery>;
-  now: Date;
+  reminders: ReadonlyArray<PushDelivery>;
 }): PlannedPush[] {
   return input.devices.flatMap((device) => {
     const rows = input.deliveries.filter((row) => row.deviceId === device.id);
     return [
       ...planClears(device, rows),
       ...planFresh(device, rows, input.open),
-      ...planReminders(device, rows, input.now),
+      ...planReminders(
+        device,
+        input.reminders.filter((row) => row.deviceId === device.id),
+      ),
     ];
   });
 }
@@ -279,6 +270,7 @@ interface PendingReceipt {
 
 export interface PushDeliveryRunner {
   run(): Promise<void>;
+  recordDeviceUse(deviceId: string, lastUsedAt: number): void;
 }
 
 export function createPushDelivery(options: {
@@ -286,8 +278,12 @@ export function createPushDelivery(options: {
   now: () => Date;
   logger: WorkerLogger;
   transport: Partial<PushTransport>;
+  waitForReportUntil?: number;
 }): PushDeliveryRunner {
   const { db, now, logger } = options;
+  const deferral: PushDeferral = createPushDeferral({
+    waitForReportUntil: options.waitForReportUntil ?? 0,
+  });
   const url = (options.transport.url ?? DEFAULT_EXPO_PUSH_URL).replace(/\/+$/u, "");
   const send = options.transport.fetch ?? fetch;
   const receipts: PendingReceipt[] = [];
@@ -399,18 +395,19 @@ export function createPushDelivery(options: {
   };
 
   return {
+    recordDeviceUse: (deviceId, lastUsedAt) => deferral.recordUse(deviceId, lastUsedAt),
     run: async () => {
       const at = now();
       if (at.getTime() < retryAt) return;
       try {
         reopenClearedPushes(db);
+        const devices = listPushDevices(db);
+        const deliveries = listPushDeliveries(db);
         const planned = planPushes({
-          devices: listPushDevices(db).filter(
-            (device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime(),
-          ),
-          open: listOpenNotificationEvents(db),
-          deliveries: listPushDeliveries(db),
-          now: at,
+          devices: devices.filter((device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime()),
+          open: deferral.releasable(listOpenNotificationEvents(db), at),
+          deliveries,
+          reminders: deferral.releasableReminders(dueReminders(devices, deliveries, at), at),
         });
         for (const pushes of Map.groupBy(planned, (push) => push.device.id).values()) {
           for (let start = 0; start < pushes.length; start += PUSH_BATCH_SIZE) {

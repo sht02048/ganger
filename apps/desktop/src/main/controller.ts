@@ -17,6 +17,7 @@ import {
 import type { IpcMainEvent, IpcMainInvokeEvent, MenuItemConstructorOptions } from "electron";
 import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
+import { ActivityReporter } from "../core/activity-report.js";
 import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
 import type { TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
@@ -133,7 +134,9 @@ export class Controller {
   private mode: Mode = "choosing";
   private serverUrl: string | undefined;
   private readonly watch: ServerWatch;
-  private feed: { url: string; feed: NotificationFeed; notifier: Notifier } | undefined;
+  private feed:
+    | { url: string; feed: NotificationFeed; notifier: Notifier; activity: ActivityReporter }
+    | undefined;
   private catchUp = true;
   private readonly delivered = new Map<string, Notification>();
   private reminderTimer: NodeJS.Timeout | undefined;
@@ -187,6 +190,7 @@ export class Controller {
     powerMonitor.on("resume", () => {
       this.catchUp = true;
       this.feed?.feed.reconnect();
+      void this.feed?.activity.report();
     });
     this.offerTimer = setInterval(() => void this.pollOffer(), OFFER_POLL_MS);
     this.updateTimer = setTimeout(() => {
@@ -246,6 +250,7 @@ export class Controller {
     this.watch.stop();
     if (this.reminderTimer !== undefined) clearInterval(this.reminderTimer);
     this.feed?.feed.stop();
+    this.feed?.activity.stop();
     if (this.offerTimer !== undefined) clearInterval(this.offerTimer);
     if (this.updateTimer !== undefined) clearInterval(this.updateTimer);
     this.enrollment.stop();
@@ -786,15 +791,24 @@ export class Controller {
       prefs: () => this.notificationPrefs(),
       lastSeen: this.options.settings.read().notificationsSeen?.[url] ?? null,
     });
+    const activity = new ActivityReporter({
+      origin: url,
+      connection: () => this.deviceLink.connection(url),
+      idleSeconds: () => powerMonitor.getSystemIdleTime(),
+    });
     const feed = new NotificationFeed({
       origin: url,
       onBatch: (batch) => this.receiveNotifications(url, batch),
       connection: () => this.deviceLink.connection(url),
       onRejected: () => this.onDeviceRejected(url),
+      onTransport: (transport) => {
+        if (transport !== "down") void activity.report();
+      },
     });
-    this.feed = { url, feed, notifier };
+    this.feed = { url, feed, notifier, activity };
     this.setDeviceLinkState("connected");
     feed.start();
+    activity.start();
   }
 
   private onDeviceRejected(url: string): void {
@@ -842,6 +856,7 @@ export class Controller {
     this.feed = undefined;
     this.setDeviceLinkState("connected");
     current.feed.stop();
+    current.activity.stop();
     this.applyNotifications(current.url, current.notifier.clear());
   }
 

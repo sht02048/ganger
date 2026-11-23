@@ -1,4 +1,5 @@
 import { SecretBox, migrate, openDatabase, parseBootConfig } from "@ganger/db";
+import { isWorkerWakeEnabled } from "@ganger/core";
 import type { AdapterRegistry } from "@ganger/core";
 import { log } from "@ganger/log";
 import { z } from "zod";
@@ -38,6 +39,7 @@ export function bootWorker(options: BootOptions): { migrated: string[]; worker: 
     registry: options.registry ?? createAdapterRegistry(),
     secretBox: new SecretBox(config.encryptionKey),
     pollIntervalMs: options.pollIntervalMs ?? POLL_INTERVAL_MS,
+    receivesDeviceReports: isWorkerWakeEnabled(options.env),
     ...(pushUrl === undefined ? {} : { push: { url: pushUrl } }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   });
