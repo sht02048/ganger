@@ -11,6 +11,8 @@ import {
   submitHumanCheckAnswer,
 } from "@ganger/app/home/actions";
 import { mobileContinueBlock } from "@ganger/app/devices/run-retry";
+import { mergeRunPullRequest } from "@ganger/app/home/merge-pr";
+import type { MergePrRejection } from "@ganger/app/home/merge-pr";
 import { pendingInput } from "@ganger/app/home/load";
 import { mcpClientName } from "@ganger/app/mcp/actions";
 import type { McpWriteTool } from "@ganger/app/mcp/actions";
@@ -54,7 +56,7 @@ import type { SettingsContext } from "@ganger/app/settings/load";
 import { MAX_RUN_MINUTES } from "@ganger/app/settings/model";
 import { submitAssignment } from "@ganger/app/tickets/assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
-import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
+import { CONTINUE_MESSAGE_MAX_LENGTH, MERGE_METHODS, toRunId } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import {
   continueRunBlock,
@@ -162,6 +164,23 @@ const CONTINUE_ERRORS: Record<string, string> = {
   "previous-agent":
     "The previous agent may still be running. The operator can stop it on Run detail first.",
   [REQUEST_REUSED]: REUSED_ERROR,
+};
+
+const MERGE_ERRORS: Record<MergePrRejection, string> = {
+  "no-write-access":
+    "The GitHub token cannot merge in this repository. The operator can give it Pull requests and Contents write access in Ganger Settings.",
+  blocked:
+    "The repository's rules block the merge (failing checks, conflicts, or branch protection).",
+  "head-changed": "New commits arrived on the pull request. Check it again before merging.",
+  "method-not-allowed": "The repository does not allow this merge method.",
+  "not-open": "The pull request is already merged or closed.",
+  "not-found": "The pull request or the repository was not found.",
+  "no-pull-request": "The run has no pull request.",
+  "no-code-host": "No GitHub token can reach the run's repository.",
+  unauthorized: "GitHub refused the token. The operator can enter a new one in Ganger Settings.",
+  "rate-limited": "GitHub is rate limiting requests. Try again later.",
+  network: "Ganger could not reach GitHub.",
+  "request-reused": REUSED_ERROR,
 };
 
 export interface WriteTools {
@@ -575,6 +594,48 @@ export function registerWriteTools(
         return rejected({ ...base, reason: REQUEST_REUSED, error: REUSED_ERROR });
       }
       return outcome;
+    },
+  );
+
+  register(
+    "merge_pr",
+    {
+      title: "Merge a run's pull request",
+      description:
+        "Merges the pull request of a run on GitHub, the same as the merge button in the Dashboard run panel. A merge is hard to undo, so confirm with the operator first. Leave method out to use the repository's default merge method. When the run is waiting on a Human Check, Ganger answers it as confirmed and says the operator merged the PR.",
+      annotations: { ...DESTRUCTIVE, openWorldHint: true },
+    },
+    {
+      runId: runIdArg,
+      method: z
+        .enum(MERGE_METHODS)
+        .optional()
+        .describe("squash, merge (merge commit), or rebase. Only methods the repository allows."),
+      requestId: requestIdArg,
+    },
+    async ({ runId, method, requestId }) => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      const base = { target: run.ticket.key, runId: run.id };
+      const result = await mergeRunPullRequest(
+        { db: context.db, secretBox: context.secretBox, registry: context.registry },
+        { runId: run.id, method: method ?? null, requestId: requestId ?? randomUUID() },
+        () => context.now(),
+      );
+      if (!result.ok) {
+        return rejected({
+          ...base,
+          reason: result.reason,
+          error: `Could not merge: ${MERGE_ERRORS[result.reason]}`,
+          ...(result.message === null ? {} : { extra: { external: { detail: result.message } } }),
+        });
+      }
+      return done({
+        ...base,
+        serverHandles: false,
+        replayed: result.replayed,
+        result: { merged: true, method: result.method },
+      });
     },
   );
 
