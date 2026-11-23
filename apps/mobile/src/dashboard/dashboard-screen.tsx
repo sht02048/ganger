@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import type { V1Dashboard } from "@ganger/api";
 import { ScrollView, StyleSheet, View } from "react-native";
 
 import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
@@ -7,6 +8,7 @@ import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { dashboardSummary } from "../format";
 import { t } from "../i18n";
+import { sheetKindFor } from "../notifications/push-data";
 import { demoRunPort } from "../runs/run-port";
 import type { RunPort } from "../runs/run-port";
 import { RunSheets, outcomeMessage } from "../runs/run-sheets";
@@ -155,6 +157,11 @@ function ColumnBody({
   }
 }
 
+function runsOf({ columns }: V1Dashboard): DashboardRun[] {
+  const { queued, running, done } = columns;
+  return [...queued, ...running.todo, ...running.rest, ...done.todo, ...done.rest];
+}
+
 export function DashboardScreen({
   snapshot,
   view,
@@ -165,6 +172,9 @@ export function DashboardScreen({
   actionsDisabled = false,
   port = demoRunPort,
   onRetry,
+  openRun = null,
+  openRunSettled = false,
+  onOpenRunHandled,
 }: {
   snapshot: MobileSnapshot;
   view: DashboardView;
@@ -175,6 +185,9 @@ export function DashboardScreen({
   actionsDisabled?: boolean;
   port?: RunPort;
   onRetry?: () => void;
+  openRun?: { id: string; action: boolean } | null;
+  openRunSettled?: boolean;
+  onOpenRunHandled?: () => void;
 }) {
   const [picking, setPicking] = useState(false);
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
@@ -207,6 +220,13 @@ export function DashboardScreen({
   useEffect(() => {
     if (openingColumn !== null) onViewChange({ ...view, column: openingColumn });
   }, [openingColumn, onViewChange, view]);
+  useEffect(() => {
+    if (openRun === null || dashboard === null) return;
+    const run = runsOf(dashboard).find((candidate) => candidate.id === openRun.id);
+    if (!openRunSettled && (run === undefined || openRun.action)) return;
+    if (run !== undefined) setSheet({ kind: sheetKindFor(run, openRun.action), run });
+    onOpenRunHandled?.();
+  }, [openRun, openRunSettled, dashboard, onOpenRunHandled]);
   const workspaceName =
     snapshot.workspaces.find((workspace) => workspace.id === workspaceId)?.name ??
     t("dashboard.allWorkspaces");

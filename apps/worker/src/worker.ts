@@ -70,6 +70,8 @@ import { assignAutomatically, createAutoAssignState } from "./auto-assign.js";
 import { blockersClearToStart, createBlockerRefreshState, refreshBlockers } from "./blockers.js";
 import { processAgentMessages } from "./agent-messages.js";
 import { processRunControlRequests } from "./control.js";
+import { createPushDelivery } from "./push.js";
+import type { PushTransport } from "./push.js";
 import { processWebRequests } from "./requests.js";
 import { checkRunners } from "./runner-check.js";
 import { startTickLoop } from "./tick-loop.js";
@@ -83,6 +85,7 @@ export interface WorkerOptions {
   secretBox: SecretBox;
   now?: () => Date;
   logger?: WorkerLogger;
+  push?: Partial<PushTransport>;
 }
 
 export interface Worker {
@@ -162,6 +165,7 @@ export function createWorker(options: WorkerOptions): Worker {
     autoAssign: createAutoAssignState(),
     blockerRefresh: createBlockerRefreshState(),
   };
+  const pushes = createPushDelivery({ db, now, logger, transport: options.push ?? {} });
   let running: Promise<void> | null = null;
   let closed = false;
   let lastTickMs: number | null = null;
@@ -176,7 +180,11 @@ export function createWorker(options: WorkerOptions): Worker {
   const timedTick = async (): Promise<void> => {
     const startedAt = performance.now();
     try {
-      await tick(context);
+      try {
+        await tick(context);
+      } finally {
+        await pushes.run();
+      }
     } finally {
       lastTickMs = Math.round(performance.now() - startedAt);
       if (logger.enabled("debug"))

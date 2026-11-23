@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { AppState, StyleSheet, View } from "react-native";
 
 import { DashboardScreen, INITIAL_DASHBOARD_VIEW } from "../dashboard/dashboard-screen";
-import { Button, NoticeBand } from "../design/components";
+import { Button, NoticeBand, Sheet } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { t } from "../i18n";
+import { destinationOf, pushOpenOf } from "../notifications/push-data";
+import type { PushDevicePort, PushMemory, PushResponse } from "../notifications/push-port";
+import { useDeviceNotifications } from "../notifications/use-device-notifications";
+import type { PushNotice } from "../notifications/use-device-notifications";
 import { RunnersScreen } from "../runners/runners-screen";
 import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
@@ -98,15 +102,36 @@ function useClock(intervalMs: number): number {
 
 type Screen = "dashboard" | "runners" | "settings";
 
+function pushNoticeText(notice: PushNotice | null): string | null {
+  switch (notice) {
+    case "address-lost":
+      return t("settings.pushAddressLost");
+    case "permission-denied":
+      return t("settings.pushPermissionDenied");
+    case "address-failed":
+      return t("settings.pushAddressFailed");
+    case "save-failed":
+      return t("settings.pushSaveFailed");
+    case "load-failed":
+      return t("settings.pushLoadFailed");
+    case null:
+      return null;
+  }
+}
+
 export function LiveScreens({
   connection,
   fetcher,
+  pushDevice,
+  pushMemory,
   onRejected,
   onDisconnected,
   onForgetLocal,
 }: {
   connection: { server: string; token: string };
   fetcher: FetchLike;
+  pushDevice: PushDevicePort;
+  pushMemory: PushMemory;
   onRejected: () => void;
   onDisconnected: () => void;
   onForgetLocal: () => Promise<boolean>;
@@ -136,12 +161,59 @@ export function LiveScreens({
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectFailed, setDisconnectFailed] = useState(false);
   const [forgetFailed, setForgetFailed] = useState(false);
+  const [foreground, setForeground] = useState(AppState.currentState !== "background");
+  const [openRun, setOpenRun] = useState<{
+    id: string;
+    action: boolean;
+    requestedAt: number;
+  } | null>(null);
   const now = useClock(BAND_TICK_MS);
+  const notifications = useDeviceNotifications({
+    client,
+    device: pushDevice,
+    memory: pushMemory,
+    foreground,
+  });
+  const clearOpenRun = useCallback(() => setOpenRun(null), []);
+
+  useEffect(() => {
+    const open = async ({ data, actionIdentifier }: PushResponse) => {
+      const target = pushOpenOf(data, actionIdentifier);
+      if (target === null) return;
+      const thisDevice = await client.thisDevice();
+      if (!thisDevice.ok || thisDevice.data.id !== target.device) return;
+      if (target.kind === "todo") {
+        setView((current) => ({
+          ...current,
+          workspaceId: INITIAL_DASHBOARD_VIEW.workspaceId,
+          column: null,
+          todoOnly: true,
+        }));
+        setScreen("dashboard");
+        return;
+      }
+      const reply = await client.notificationEvent(target.eventId);
+      const destination = destinationOf(reply.ok ? reply.data : null, target.action);
+      setScreen(destination.screen);
+      if (destination.screen === "dashboard" && destination.run !== null) {
+        setView((current) => ({
+          ...current,
+          workspaceId: INITIAL_DASHBOARD_VIEW.workspaceId,
+          column: null,
+        }));
+        setOpenRun({ ...destination.run, requestedAt: Date.now() });
+        session.setWorkspace(INITIAL_DASHBOARD_VIEW.workspaceId);
+        void session.refresh();
+      }
+    };
+    return pushDevice.subscribeResponses((response) => void open(response));
+  }, [client, pushDevice, session]);
 
   useEffect(() => {
     session.setForeground(AppState.currentState !== "background");
     const subscription = AppState.addEventListener("change", (next) => {
       session.setForeground(next === "active");
+      setForeground(next === "active");
     });
     return () => {
       subscription.remove();
@@ -194,6 +266,13 @@ export function LiveScreens({
         forgetFailed,
         onForgetLocal: () => void forgetLocal(),
       }}
+      notifications={{
+        preferences: notifications.preferences,
+        disabled: notifications.busy || !notifications.supported,
+        message: pushNoticeText(notifications.notice),
+        hint: notifications.supported ? null : t("settings.pushUnsupported"),
+        onChange: notifications.change,
+      }}
       onBack={() => setScreen("dashboard")}
     />
   );
@@ -208,22 +287,51 @@ export function LiveScreens({
       </View>
     );
   }
+  const askSheet = (
+    <Sheet
+      visible={notifications.asking}
+      title={t("settings.pushAskTitle")}
+      closeLabel={t("settings.pushAskDecline")}
+      onClose={notifications.decline}
+    >
+      <Text variant="body">{t("settings.pushAskBody")}</Text>
+      <Button
+        label={t("settings.pushAskAccept")}
+        variant="primary"
+        onPress={notifications.accept}
+      />
+      <Button label={t("settings.pushAskDecline")} onPress={notifications.decline} />
+    </Sheet>
+  );
   switch (screen) {
     case "dashboard":
       return (
-        <DashboardScreen
-          snapshot={snapshot}
-          view={view}
-          onViewChange={setView}
-          onOpenRunners={() => setScreen("runners")}
-          onOpenSettings={() => setScreen("settings")}
-          band={band}
-          actionsDisabled={state.phase !== "live" || !state.actionsReady}
-          port={port}
-          {...(state.phase === "loading" || state.phase === "live"
-            ? {}
-            : { onRetry: () => void session.refresh() })}
-        />
+        <>
+          <DashboardScreen
+            openRun={openRun}
+            openRunSettled={
+              openRun !== null &&
+              view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
+              (state.phase === "stale" ||
+                state.phase === "host-blocked" ||
+                state.phase === "incompatible" ||
+                (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
+            }
+            onOpenRunHandled={clearOpenRun}
+            snapshot={snapshot}
+            view={view}
+            onViewChange={setView}
+            onOpenRunners={() => setScreen("runners")}
+            onOpenSettings={() => setScreen("settings")}
+            band={band}
+            actionsDisabled={state.phase !== "live" || !state.actionsReady}
+            port={port}
+            {...(state.phase === "loading" || state.phase === "live"
+              ? {}
+              : { onRetry: () => void session.refresh() })}
+          />
+          {askSheet}
+        </>
       );
     case "runners":
       return (

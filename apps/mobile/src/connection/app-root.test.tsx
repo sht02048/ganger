@@ -7,6 +7,9 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { busySnapshot } from "../demo/data";
+import { pushDevice as webPushDevice } from "../notifications/push-device.web";
+import { EMPTY_PUSH_MEMORY } from "../notifications/push-port";
+import type { PushMemory } from "../notifications/push-port";
 import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
@@ -56,6 +59,20 @@ function fakeServer() {
       );
     }
     switch (path) {
+      case V1_PATHS.thisDeviceNotifications:
+        return Promise.resolve(
+          ok({
+            enabled: false,
+            hasPushAddress: false,
+            groups: {
+              question: true,
+              permission: true,
+              humanCheckRequest: true,
+              failedDisconnected: true,
+              runnerIssue: true,
+            },
+          }),
+        );
       case V1_PATHS.connect:
         return Promise.resolve(ok({ deviceId: "new", token: "new-token" }));
       case V1_PATHS.dashboard:
@@ -96,6 +113,12 @@ function memoryStore(initial: StoredConnection | null) {
   return { store, failing, current: () => value };
 }
 
+const memoryPush: PushMemory = {
+  load: () => Promise.resolve(EMPTY_PUSH_MEMORY),
+  save: () => Promise.resolve(),
+  clear: () => Promise.resolve(),
+};
+
 const mounted: Array<() => void> = [];
 
 async function mount(
@@ -119,6 +142,8 @@ async function mount(
           fetcher={fetcher}
           devConnection={devConnection}
           deviceName="Acme iPhone"
+          pushDevice={webPushDevice}
+          pushMemory={memoryPush}
           allowPaste
         />
       </SafeAreaProvider>,

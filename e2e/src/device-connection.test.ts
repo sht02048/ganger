@@ -9,6 +9,7 @@ import {
   V1_PATHS,
   connectResponseSchema,
   dashboardResponseSchema,
+  deviceNotificationsResponseSchema,
   disconnectResponseSchema,
   notificationEventResponseSchema,
   notificationFeedResponseSchema,
@@ -565,5 +566,62 @@ describe("v1 알림 사건", () => {
 
     expect(await endOf(stream)).toBe(true);
     expect(await refusalOf(await dashboard(token))).toEqual(refused(401, "invalid-token"));
+  });
+});
+
+describe("v1 이 기기의 알림 설정", () => {
+  const groups = {
+    question: true,
+    permission: false,
+    humanCheckRequest: true,
+    failedDisconnected: true,
+    runnerIssue: true,
+  };
+  const save = (token: string | undefined, body: unknown) =>
+    fetch(new URL(V1_PATHS.thisDeviceNotifications, baseUrl), {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        ...(token === undefined ? {} : authorized(token)),
+      },
+      body: JSON.stringify(body),
+    });
+
+  it("토큰 없는 읽기와 쓰기를 거절한다", async () => {
+    expect(await refusalOf(await v1Get(V1_PATHS.thisDeviceNotifications))).toEqual(
+      refused(401, "invalid-token"),
+    );
+    expect(await refusalOf(await save(undefined, {}))).toEqual(refused(401, "invalid-token"));
+  });
+
+  it("주소와 종류를 저장하고 응답에는 주소를 싣지 않는다", async () => {
+    const { token } = await connectedDevice();
+    const address = "ExponentPushToken[e2e-device]";
+    const response = await save(token, {
+      requestId: "request-id-000001",
+      enabled: true,
+      groups,
+      expoPushToken: address,
+    });
+    expect(response.status).toBe(200);
+    const text = await response.text();
+    expect(text).not.toContain(address);
+    expect(deviceNotificationsResponseSchema.parse(JSON.parse(text)).data).toEqual({
+      enabled: true,
+      groups,
+      hasPushAddress: true,
+    });
+    const read = await v1Get(V1_PATHS.thisDeviceNotifications, token);
+    expect(deviceNotificationsResponseSchema.parse(await read.json()).data.groups).toEqual(groups);
+  });
+
+  it("requestId 가 없거나 주소 없이 켜면 거절한다", async () => {
+    const { token } = await connectedDevice();
+    expect(await refusalOf(await save(token, { enabled: false, groups }))).toEqual(
+      refused(400, "invalid-request"),
+    );
+    expect(
+      await refusalOf(await save(token, { requestId: "request-id-000002", enabled: true, groups })),
+    ).toEqual(refused(400, "invalid-request"));
   });
 });

@@ -751,3 +751,23 @@ export const devices = sqliteTable(
   },
   (t) => [uniqueIndex("devices_token_hash").on(t.tokenHash)],
 );
+
+export const devicePushDeliveries = sqliteTable(
+  "device_push_deliveries",
+  {
+    deviceId: text("device_id")
+      .notNull()
+      .references(() => devices.id, { onDelete: "cascade" }),
+    eventId: integer("event_id")
+      .notNull()
+      .references(() => notificationEvents.id, { onDelete: "cascade" }),
+    firstSentAt: timeMs("first_sent_at"),
+    remindedAt: timeMs("reminded_at"),
+    clearedAt: timeMs("cleared_at"),
+    bundleId: text("bundle_id"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.deviceId, t.eventId] }),
+    index("device_push_deliveries_event").on(t.eventId),
+  ],
+);

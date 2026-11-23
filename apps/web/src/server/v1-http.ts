@@ -9,6 +9,10 @@ import {
   parseV1RunAction,
 } from "@ganger/app/devices/run-actions";
 import { loadThisDevice, loadV1Runners, loadV1Workspaces } from "@ganger/app/devices/runners";
+import {
+  loadV1DeviceNotifications,
+  saveV1DeviceNotifications,
+} from "@ganger/app/devices/push-settings";
 import { loadHomePage } from "@ganger/app/home/load";
 import { parseAfter, toNotificationRecord } from "@ganger/app/notifications/feed";
 import { parseTimeZone } from "@ganger/app/time-zone";
@@ -138,6 +142,19 @@ export function serveV1ThisDevice(request: Request): Response {
   const deviceId = requestDevice(request);
   const device = deviceId === null ? null : loadThisDevice(getDatabase(), deviceId);
   return device === null ? v1Error(401, "invalid-token") : v1Data(device);
+}
+
+export function serveV1DeviceNotifications(request: Request): Response {
+  const deviceId = requestDevice(request);
+  const settings = deviceId === null ? null : loadV1DeviceNotifications(getDatabase(), deviceId);
+  return settings === null ? v1Error(401, "invalid-token") : v1Data(settings);
+}
+
+export async function serveV1SaveDeviceNotifications(request: Request): Promise<Response> {
+  const deviceId = requestDevice(request);
+  if (deviceId === null) return v1Error(401, "invalid-token");
+  const reply = saveV1DeviceNotifications(getDatabase(), deviceId, await readJson(request));
+  return reply.status === 200 ? v1Data(reply.settings) : v1Error(reply.status, reply.reason);
 }
 
 export function serveV1RunDetail(request: Request, runId: string): Response {
