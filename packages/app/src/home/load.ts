@@ -19,7 +19,7 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { prSignalsViewOf, toCiView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -29,8 +29,35 @@ import { resolveWorkspace, runnerIssueCause } from "../shell/model.js";
 import { calendarDay, DAY_MS } from "../time-zone.js";
 import { ticketId } from "../tickets/load.js";
 import type { QueuedReason } from "../runs/model.js";
-import type { DashboardRunner, DoneRun, HomePage, HomeRun, InputWait } from "./model.js";
+import type {
+  DashboardRunner,
+  DoneRun,
+  HomePage,
+  HomePrState,
+  HomePullRequest,
+  HomeRun,
+  InputWait,
+} from "./model.js";
 import { DONE_COLUMN_DAYS, partitionHome } from "./model.js";
+
+function homePrStateOf(
+  run: StoredRun,
+  records: RunRecords,
+  now: Date,
+): Pick<HomePullRequest, "state" | "settledAt" | "settledAgoMs"> {
+  const later = records.laterPrState;
+  if (later !== null)
+    return {
+      state: later.state,
+      settledAt: later.at.toISOString(),
+      settledAgoMs: Math.max(0, now.getTime() - later.at.getTime()),
+    };
+  const state: HomePrState =
+    run.state === "ended" && (run.prState === "merged" || run.prState === "closed")
+      ? run.prState
+      : "open";
+  return { state, settledAt: null, settledAgoMs: null };
+}
 
 export function loadHomePage(
   db: Database,
@@ -113,6 +140,9 @@ export function loadHomePage(
               displayId: pr.displayId,
               url: pr.url,
               signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+              ci: toCiView(pr.ci),
+              ...homePrStateOf(run, records, now),
+              branch: run.state === "queued" ? null : run.branch,
             },
       cancelling: cancelling.has(run.id),
       control:

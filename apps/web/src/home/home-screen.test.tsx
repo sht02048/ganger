@@ -1160,6 +1160,11 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
               displayId: "#42",
               url: "https://code.example.com/acme/web/pull/420",
               signals,
+              ci: signals.ciFailed ? "failure" : "success",
+              state: "open",
+              settledAt: null,
+              settledAgoMs: null,
+              branch: null,
             },
           }
         : run;

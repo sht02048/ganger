@@ -202,7 +202,23 @@ async function press(element: HTMLElement) {
   await settle();
 }
 
+function cardAnswerButton(runId: string): HTMLElement | null {
+  const names: ReadonlyArray<string> = [homeJson.card.answer, homeJson.card.check];
+  return (
+    [
+      ...container.querySelectorAll<HTMLElement>(
+        `li[data-run="${runId}"] button:not([aria-haspopup])`,
+      ),
+    ].find((button) => names.includes(button.textContent)) ?? null
+  );
+}
+
 async function openSheet(runId: string) {
+  await press(cardAnswerButton(runId) ?? cardButton(runId));
+  expect(dialog()).not.toBeNull();
+}
+
+async function openSummary(runId: string) {
   await press(cardButton(runId));
   expect(dialog()).not.toBeNull();
 }
@@ -481,5 +497,137 @@ describe("Dashboard 패널 보내기(티켓 0193)", () => {
     expect(dialog()?.textContent).toContain(questionJson.failed);
     expect(dialogButton(questionJson.send)).toBeDefined();
     expect(toast).not.toHaveBeenCalled();
+  });
+});
+
+function tabs(): HTMLElement[] {
+  return [...(dialog()?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
+}
+
+function selectedTab(): string | undefined {
+  return tabs().find((tab) => tab.getAttribute("aria-selected") === "true")?.textContent;
+}
+
+function tabNamed(prefix: string): HTMLElement {
+  const tab = tabs().find((candidate) => candidate.textContent.startsWith(prefix));
+  if (tab === undefined) throw new Error(`no tab ${prefix}`);
+  return tab;
+}
+
+const failingPr: HomeRun["pullRequest"] = {
+  displayId: "#42",
+  url: "https://code.example.com/acme/web/pull/42",
+  signals: {
+    ciFailed: true,
+    checkTotal: 4,
+    failedCount: 1,
+    failedChecks: ["lint"],
+    checksTruncated: false,
+    conflict: false,
+    behindBy: 0,
+    checkedAt: "2026-11-23T00:00:00.000Z",
+  },
+  ci: "failure",
+  state: "open",
+  settledAt: null,
+  settledAgoMs: null,
+  branch: "acme-30",
+};
+
+function withEndedPr(page: HomePage, pullRequest: HomeRun["pullRequest"]): HomePage {
+  return {
+    ...page,
+    endedRecently: page.endedRecently.map((run) => ({ ...run, pullRequest })),
+  };
+}
+
+const sheet = homeJson.sheet;
+
+describe("Dashboard 패널 탭(티켓 0199)", () => {
+  it("「런」과 「PR」 탭을 두고, PR 이 없으면 「PR」 옆에 흐린 없음을 단다", async () => {
+    const page = withInput(loadSeededPage(), checkInput);
+    draw(page);
+    await openSheet(targetRun(page).id);
+    expect(dialog()?.querySelector('[role="tablist"]')?.getAttribute("aria-label")).toBe(
+      sheet.tabs.label,
+    );
+    expect(tabs().map((tab) => tab.textContent)).toEqual([
+      sheet.tabs.run,
+      `${sheet.tabs.pr}${sheet.tabs.prNone}`,
+    ]);
+    expect(selectedTab()).toBe(sheet.tabs.run);
+  });
+
+  it("Queued 런은 「PR」 탭이 없다", async () => {
+    const page: HomePage = {
+      ...loadSeededPage(),
+      queued: [
+        { ...baseRun("run-queued", "ACME-40"), state: "queued", queuedReason: { kind: "behind" } },
+      ],
+    };
+    draw(page);
+    await openSummary("run-queued");
+    expect(tabs().map((tab) => tab.textContent)).toEqual([sheet.tabs.run]);
+  });
+
+  it("answer 모드는 「런」 탭 맨 위에 폼을 보이고, 카드 본문으로 연 summary 모드는 폼 없이 기다리는 일을 줄로 보인다", async () => {
+    const page = withInput(loadSeededPage(), questionInput);
+    draw(page);
+    const runId = targetRun(page).id;
+    await openSheet(runId);
+    expect(dialog()?.querySelector('input[type="radio"]')).not.toBeNull();
+    await press(dialogButton(sheet.close));
+
+    await openSummary(runId);
+    expect(dialog()?.querySelector('input[type="radio"]')).toBeNull();
+    expect(dialog()?.textContent).toContain(sheet.waitingFor.question);
+    expect(dialog()?.textContent).toContain(sheet.worked);
+  });
+
+  it("Permission 은 따로 여는 버튼이 없어 summary 모드에서도 거절 폼을 보인다", async () => {
+    const page = withInput(loadSeededPage(), permissionInput);
+    draw(page);
+    await openSummary(targetRun(page).id);
+    expect(dialogButton(homeJson.permission.send)).toBeDefined();
+  });
+
+  it("끝난 런의 PR 에 CI 실패가 있으면 「PR」 탭으로 열고 탭 이름에 번호와 빨간 점 이름을 단다", async () => {
+    draw(withEndedPr(loadSeededPage(), failingPr));
+    await openSummary("run-ended");
+    const pr = tabNamed("PR #42");
+    expect(pr.getAttribute("aria-selected")).toBe("true");
+    expect(pr.querySelector("[data-tab-dot]")?.getAttribute("data-tab-dot")).toBe("problem");
+    expect(pr.textContent).toBe(`PR #42${sheet.prDot.problem}`);
+    expect(dialog()?.textContent).toContain("lint");
+  });
+
+  it("고른 탭은 다시 읽어도 남고, 패널을 닫았다 다시 열면 처음 규칙으로 돌아간다", async () => {
+    const page = withEndedPr(loadSeededPage(), failingPr);
+    draw(page);
+    await openSummary("run-ended");
+    await press(tabNamed(sheet.tabs.run));
+    expect(selectedTab()).toBe(sheet.tabs.run);
+    draw({ ...page });
+    await settle();
+    expect(selectedTab()).toBe(sheet.tabs.run);
+    await press(dialogButton(sheet.close));
+    await openSummary("run-ended");
+    expect(selectedTab()).toBe(`PR #42${sheet.prDot.problem}`);
+  });
+
+  it("「PR」 탭에 다녀와도 「런」 탭에 쓰던 답이 남는다", async () => {
+    const page = withInput(loadSeededPage(), { ...questionInput, choices: [] });
+    draw(page);
+    await openSheet(targetRun(page).id);
+    const textarea = dialog()?.querySelector("textarea");
+    if (textarea === null || textarea === undefined) throw new Error("no textarea");
+    await act(async () => {
+      Reflect.set(HTMLTextAreaElement.prototype, "value", "지수 백오프로 바꿔 주세요", textarea);
+      textarea.dispatchEvent(new Event("input", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await press(tabNamed(sheet.tabs.pr));
+    await press(tabNamed(sheet.tabs.run));
+    expect(dialog()?.querySelector("textarea")?.value).toBe("지수 백오프로 바꿔 주세요");
   });
 });

@@ -54,7 +54,7 @@ function addEndedRun(
     key: string;
     trackerProject: string;
     agentResult: "timed-out" | "canceled" | "reported-success";
-    prState?: "open" | "unknown";
+    prState?: "open" | "merged" | "unknown";
     prReadError?: "no-access";
     endedAt?: Date;
   },
@@ -86,7 +86,7 @@ function addEndedRun(
             prState: "unknown",
             prReadError: input.prReadError ?? "other",
           }
-        : { to: "ended", agentResult: input.agentResult, prState: "open" },
+        : { to: "ended", agentResult: input.agentResult, prState: input.prState ?? "open" },
       endedAt,
     ),
   ]) {
@@ -576,6 +576,50 @@ describe("loadHomePage PR 신호(0167)", () => {
 
     updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
     expect(endedView(db, "ACME-41").pullRequest?.signals).toBeNull();
+  });
+
+  it("런 패널 「PR」 탭에 쓸 CI·PR 상태·머지 시각·브랜치를 담는다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-43",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    recordOpenPr(db, id);
+    const open = endedView(db, "ACME-43").pullRequest;
+    expect(open).toMatchObject({
+      ci: "failure",
+      state: "open",
+      settledAt: null,
+      settledAgoMs: null,
+    });
+    expect(open?.branch).toBe("acme/ACME-43");
+
+    updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
+    expect(endedView(db, "ACME-43").pullRequest).toMatchObject({
+      state: "merged",
+      settledAt: minutes(96).toISOString(),
+      settledAgoMs: now.getTime() - minutes(96).getTime(),
+    });
+
+    updateRunRecords(db, id, { laterPrState: { state: "closed", at: minutes(97) } });
+    expect(endedView(db, "ACME-43").pullRequest?.state).toBe("closed");
+  });
+
+  it("끝날 때 이미 머지된 PR 은 머지 시각 없이 머지됨이다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-44",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "merged",
+    });
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-44").pullRequest).toMatchObject({
+      state: "merged",
+      settledAt: null,
+    });
   });
 
   it("PR을 못 읽은 런은 읽기 오류를 담고 신호는 비운다", () => {

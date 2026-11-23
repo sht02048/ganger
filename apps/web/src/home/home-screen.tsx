@@ -45,6 +45,8 @@ import { cardTag, RunCard } from "./run-card";
 import type { SheetMode } from "./run-card";
 import { RunSheet } from "./run-sheet";
 import type { SheetSentHandler, SheetTarget } from "./run-sheet";
+import { initialSheetTab } from "./sheet-tabs";
+import type { SheetTab } from "./sheet-tabs";
 import { href } from "./run-text";
 
 export { runHref } from "./run-text";
@@ -131,6 +133,7 @@ export function HomeScreen({
   }
   const [target, setTarget] = useState<SheetTarget | null>(null);
   const [open, setOpen] = useState(false);
+  const [sheetTab, setSheetTab] = useState<SheetTab>("run");
   const [revealedId, setRevealedId] = useState<RunId | null>(null);
   const shownRunId = useRef<RunId | undefined>(undefined);
   const columnHeads = useRef(new Map<BoardColumn, HTMLElement>());
@@ -182,7 +185,9 @@ export function HomeScreen({
     if (run === undefined) return;
     const tagged = page.attention.some((item) => item.run.id === run.id);
     setRevealedId(run.id);
-    setTarget({ run, tagged, mode: opensAnswer(run) ? "answer" : "summary" });
+    const mode = opensAnswer(run) ? "answer" : "summary";
+    setTarget({ run, tagged, mode });
+    setSheetTab(initialSheetTab(run, mode));
     setSheetOpening((count) => count + 1);
     setOpen(true);
   }, [openRunId, page, onOpenRunShown]);
@@ -212,6 +217,7 @@ export function HomeScreen({
     focusCard: (id) => cards.current.get(id)?.focus(),
     onOpen: (run, tagged, mode) => {
       setTarget({ run, tagged, mode });
+      setSheetTab(initialSheetTab(run, mode));
       setSheetOpening((count) => count + 1);
       setOpen(true);
     },
@@ -380,6 +386,8 @@ export function HomeScreen({
             return element;
           }}
           all={all}
+          tab={sheetTab}
+          onTabChange={setSheetTab}
           onAnswer={onAnswer}
           onHumanCheck={onHumanCheck}
           onDeny={onDeny}

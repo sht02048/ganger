@@ -19,6 +19,14 @@ function ageQueuedReason(reason: QueuedReason, by: number): QueuedReason {
 }
 
 function ageRun(run: HomeRun, by: number): HomeRun {
+  const aged = ageRunState(run, by);
+  const pr = aged.pullRequest;
+  return pr === null || pr.settledAgoMs === null
+    ? aged
+    : { ...aged, pullRequest: { ...pr, settledAgoMs: pr.settledAgoMs + by } };
+}
+
+function ageRunState(run: HomeRun, by: number): HomeRun {
   switch (run.state) {
     case "queued":
       return {

@@ -98,6 +98,11 @@ describe("v1 Dashboard 계약", () => {
           behindBy: 2,
           checkedAt: "2026-11-23T00:00:00.000Z",
         },
+        ci: "failure",
+        state: "open",
+        settledAt: null,
+        settledAgoMs: null,
+        branch: "acme-12",
       },
     };
     const dashboard = toV1Dashboard(
