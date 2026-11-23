@@ -103,11 +103,10 @@ const appInputWaitSchema = z.union([
 
 const appRunControlSchema = z
   .object({
-    control: z.enum(["pause", "resume"]),
+    control: tolerantEnum(["pause", "resume"]),
     status: tolerantEnum(["pending", "failed"]),
   })
-  .nullable()
-  .catch(null);
+  .nullable();
 
 const appRunBaseSchema = runBaseSchema.extend({
   pullRequest: z

@@ -12,7 +12,7 @@ import {
   firstColumn,
   hasNoRuns,
 } from "./model";
-import type { DashboardRun, EndedRun, QueuedRun } from "./model";
+import type { DashboardRun, EndedRun, QueuedRun, UnknownStateRun } from "./model";
 
 const NOW = new Date(2026, 10, 23, 12, 0, 0);
 const MINUTE = 60_000;
@@ -242,5 +242,32 @@ describe("머리 요약", () => {
     expect(dashboardSummary(emptySnapshot().dashboardFor(ALL_WORKSPACES))).toBe(
       "처리할 일도, 진행 중인 런도 없어요.",
     );
+  });
+});
+
+describe("Done 칸의 모르는 상태", () => {
+  it("끝난 런과 따로 담아 개수에 넣는다", () => {
+    const ended = endedRun("S", "succeeded");
+    const unknownRun: UnknownStateRun = {
+      id: "unknown-run",
+      ticketId: ended.ticketId,
+      ticketKey: "U",
+      ticketTitle: ended.ticketTitle,
+      trackerProject: ended.trackerProject,
+      workspace: ended.workspace,
+      runner: ended.runner,
+      agent: ended.agent,
+      waitMs: ended.waitMs,
+      executionMs: ended.executionMs,
+      pullRequest: ended.pullRequest,
+      cancelling: ended.cancelling,
+      control: ended.control,
+      todoTag: null,
+      state: "unknown",
+    };
+    const board = buildBoard(dashboardWith({ done: { todo: [], rest: [ended, unknownRun] } }));
+    expect(board.done.unknownState.map((run) => run.ticketKey)).toEqual(["U"]);
+    expect(board.done.settledTotal).toBe(1);
+    expect(columnRestCount(board, "done")).toBe(2);
   });
 });

@@ -229,6 +229,35 @@ describe("모르는 값", () => {
     expect(host.querySelector('[aria-label="재개하기"]')).toBeNull();
   });
 
+  it.each([
+    ["모르는 제어 상태", { control: "resume", status: "unknown" }],
+    ["모르는 제어 종류", { control: "unknown", status: "pending" }],
+  ] as const)("%s의 멈춘 런에는 재개를 보이지 않는다", (_name, control) => {
+    const run: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+      todoTag: null,
+      control,
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.querySelector('[aria-label="재개하기"]')).toBeNull();
+  });
+
+  it("제어 실패로 멈춘 런은 다시 재개할 수 있다", () => {
+    const run: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+      todoTag: null,
+      control: { control: "resume", status: "failed" },
+    };
+    const host = mount(<RunCard run={run} onAction={() => undefined} />);
+    expect(host.querySelector('[aria-label="재개하기"]')).not.toBeNull();
+  });
+
   it("모르는 PR 문제가 여럿이어도 화면을 깨지 않는다", () => {
     const run: DashboardRun = {
       ...unknownRun,

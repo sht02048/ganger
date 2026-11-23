@@ -77,6 +77,19 @@ describe("앱의 응답 검사", () => {
     expect(run).toMatchObject({ queuedReason: { kind: "unknown" } });
   });
 
+  it("모르는 제어 값은 unknown으로 읽고 잘못된 제어는 숨기지 않고 실패한다", () => {
+    const run = appDashboardRunSchema.parse({
+      ...base,
+      state: "running",
+      control: { control: "restart", status: "future" },
+    });
+    expect(run.control).toEqual({ control: "unknown", status: "unknown" });
+    expect(
+      appDashboardRunSchema.safeParse({ ...base, state: "running", control: { status: "pending" } })
+        .success,
+    ).toBe(false);
+  });
+
   it("런 상세의 모르는 값을 unknown으로 읽는다", () => {
     const parsed = appRunDetailSchema.parse({
       ...detail,

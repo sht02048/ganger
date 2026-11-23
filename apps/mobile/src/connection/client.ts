@@ -85,8 +85,9 @@ const identitySchema = z.object({
 const metaEnvelopeSchema = z.object({ meta: v1MetaSchema });
 
 async function readJson(response: Response): Promise<unknown> {
+  const text = await response.text();
   try {
-    const body: unknown = await response.json();
+    const body: unknown = JSON.parse(text);
     return body;
   } catch {
     return null;
@@ -149,7 +150,7 @@ async function send<Data>(
       failure: { kind: "incompatible", update: "server", serverVersion: null },
     };
   }
-  if (!response.ok) return { ok: false, failure: failureOfRefusal(body) };
+  if (!response.ok) return { ok: false, failure: failureOfRefusal(body, response.status) };
   const envelope = metaEnvelopeSchema.safeParse(body);
   if (!envelope.success) return { ok: false, failure: { kind: "server-error" } };
   const { meta } = envelope.data;
@@ -173,8 +174,8 @@ function incompatibleWith(meta: V1Meta, update: NeededUpdate): V1Failure {
   return { kind: "incompatible", update, serverVersion: meta.serverVersion };
 }
 
-function failureOfRefusal(body: unknown): SendFailure {
-  const failure = refusalOf(body);
+function failureOfRefusal(body: unknown, status: number): SendFailure {
+  const failure = refusalOf(body, status);
   if (failure.kind === "token-rejected") return failure;
   const envelope = metaEnvelopeSchema.safeParse(body);
   if (!envelope.success) return failure;
@@ -182,7 +183,7 @@ function failureOfRefusal(body: unknown): SendFailure {
   return update === null ? failure : incompatibleWith(envelope.data.meta, update);
 }
 
-function refusalOf(body: unknown): SendFailure {
+function refusalOf(body: unknown, status: number): SendFailure {
   const refusal = appErrorSchema.safeParse(body);
   if (!refusal.success) return { kind: "server-error" };
   const { reason } = refusal.data.error;
@@ -209,8 +210,9 @@ function refusalOf(body: unknown): SendFailure {
     case "active-run":
     case "previous-agent":
     case "cannot-assign":
-    case "unknown":
       return { kind: "refused", reason };
+    case "unknown":
+      return status >= 500 ? { kind: "server-error" } : { kind: "refused", reason };
   }
 }
 

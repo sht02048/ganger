@@ -102,11 +102,24 @@ function busyLabelOf(phase: WritePhase): string | null {
   }
 }
 
-function useRunWrite(port: RunPort, run: DashboardRun, onSent: () => void, disabled: boolean) {
+interface UnconfirmedWrite {
+  value: boolean;
+  set: (value: boolean) => void;
+}
+
+function useRunWrite(
+  port: RunPort,
+  run: DashboardRun,
+  onSent: () => void,
+  disabled: boolean,
+  sharedUnconfirmed?: UnconfirmedWrite,
+) {
   const [phase, setPhase] = useState<WritePhase>("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [locked, setLocked] = useState(false);
-  const [unconfirmed, setUnconfirmed] = useState(false);
+  const [refused, setRefused] = useState(false);
+  const [ownUnconfirmed, setOwnUnconfirmed] = useState(false);
+  const unconfirmed = sharedUnconfirmed?.value ?? ownUnconfirmed;
+  const setUnconfirmed = sharedUnconfirmed?.set ?? setOwnUnconfirmed;
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
   const send = async (write: RunWrite) => {
@@ -124,19 +137,20 @@ function useRunWrite(port: RunPort, run: DashboardRun, onSent: () => void, disab
       onSent();
       return;
     }
-    setLocked(outcome.kind === "refused" || outcome.kind === "unconfirmed");
-    setUnconfirmed(outcome.kind === "unconfirmed");
-    setMessageTone(
-      outcome.kind === "demo" || outcome.kind === "unconfirmed" ? "secondary" : "problem",
-    );
+    setRefused(outcome.kind === "refused");
+    if (outcome.kind === "unconfirmed") setUnconfirmed(true);
+    setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
   };
   return {
     sending: phase !== "idle",
     busyLabel: busyLabelOf(phase),
-    message: unconfirmed && !disabled ? t("actions.unconfirmedRead") : message,
-    messageTone,
-    locked,
+    message: unconfirmed
+      ? t(disabled ? "actions.unconfirmed" : "actions.unconfirmedRead")
+      : message,
+    messageTone: unconfirmed ? "secondary" : messageTone,
+    locked: refused || unconfirmed,
+    unconfirmed,
     send,
   };
 }
@@ -641,6 +655,7 @@ function RetryForm({
   detail,
   port,
   disabled,
+  sharedUnconfirmed,
   onContinue,
   onClose,
 }: {
@@ -648,14 +663,16 @@ function RetryForm({
   detail: AppRunDetail;
   port: RunPort;
   disabled: boolean;
+  sharedUnconfirmed: UnconfirmedWrite;
   onContinue: () => void;
   onClose: () => void;
 }) {
-  const { sending, busyLabel, message, messageTone, locked, send } = useRunWrite(
+  const { sending, busyLabel, message, messageTone, locked, unconfirmed, send } = useRunWrite(
     port,
     run,
     onClose,
     disabled,
+    sharedUnconfirmed,
   );
   const { retry, continue: continueOffer } = detail.nextActions;
   if (retry === "not-offered" || retry === "unknown") {
@@ -700,7 +717,7 @@ function RetryForm({
         {continueOffer === "available" ? (
           <Button
             label={t("actions.continue.open")}
-            disabled={disabled || sending}
+            disabled={disabled || sending || unconfirmed}
             onPress={onContinue}
           />
         ) : null}
@@ -713,12 +730,14 @@ function ContinueForm({
   run,
   port,
   disabled,
+  sharedUnconfirmed,
   onBack,
   onClose,
 }: {
   run: DashboardRun;
   port: RunPort;
   disabled: boolean;
+  sharedUnconfirmed: UnconfirmedWrite;
   onBack: () => void;
   onClose: () => void;
 }) {
@@ -728,6 +747,7 @@ function ContinueForm({
     run,
     onClose,
     disabled,
+    sharedUnconfirmed,
   );
   const trimmed = text.trim();
   return (
@@ -773,6 +793,8 @@ function RetrySheet({
 }) {
   const read = useRunDetail(port, run);
   const [continuing, setContinuing] = useState(false);
+  const [unconfirmed, setUnconfirmed] = useState(false);
+  const sharedUnconfirmed = { value: unconfirmed, set: setUnconfirmed };
   const closeSheet = useCloseUnlessSending(onClose);
   return (
     <Sheet
@@ -789,6 +811,7 @@ function RetrySheet({
               run={run}
               port={port}
               disabled={disabled}
+              sharedUnconfirmed={sharedUnconfirmed}
               onBack={() => setContinuing(false)}
               onClose={onClose}
             />
@@ -798,6 +821,7 @@ function RetrySheet({
               detail={detail}
               port={port}
               disabled={disabled}
+              sharedUnconfirmed={sharedUnconfirmed}
               onContinue={() => setContinuing(true)}
               onClose={onClose}
             />

@@ -7,13 +7,19 @@ export const SETTLED_VISIBLE = 5;
 export type DashboardRun = AppDashboardRun;
 export type EndedRun = Extract<DashboardRun, { state: "ended" }>;
 export type QueuedRun = Extract<DashboardRun, { state: "queued" }>;
+export type UnknownStateRun = Extract<DashboardRun, { state: "unknown" }>;
 export type PrProblem = NonNullable<DashboardRun["pullRequest"]>["problems"][number];
 export type ColumnKey = "queued" | "running" | "done";
 
 export interface Board {
   queued: DashboardRun[];
   running: { humanCheck: DashboardRun[]; todo: DashboardRun[]; rest: DashboardRun[] };
-  done: { todo: DashboardRun[]; settled: EndedRun[]; settledTotal: number };
+  done: {
+    todo: DashboardRun[];
+    unknownState: UnknownStateRun[];
+    settled: EndedRun[];
+    settledTotal: number;
+  };
 }
 
 export function buildBoard({ columns }: AppDashboard): Board {
@@ -27,6 +33,9 @@ export function buildBoard({ columns }: AppDashboard): Board {
     },
     done: {
       todo: columns.done.todo,
+      unknownState: columns.done.rest.filter(
+        (run): run is UnknownStateRun => run.state === "unknown",
+      ),
       settled: settled.slice(0, SETTLED_VISIBLE),
       settledTotal: settled.length,
     },
@@ -61,7 +70,7 @@ export function columnRestCount(board: Board, column: ColumnKey): number {
     case "running":
       return board.running.rest.length;
     case "done":
-      return board.done.settledTotal;
+      return board.done.unknownState.length + board.done.settledTotal;
   }
 }
 

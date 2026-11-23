@@ -161,6 +161,43 @@ describe("v1 응답 가르기", () => {
     });
   });
 
+  it("응답 본문을 받다 끊기면 닿지 않음으로 읽는다", async () => {
+    const cut = new Response(
+      new ReadableStream({
+        start: (controller) => controller.error(new TypeError("connection lost")),
+      }),
+    );
+    const fetcher: FetchLike = () => Promise.resolve(cut);
+    expect(
+      await client(fetcher).runAction("run-1", {
+        action: "cancel",
+        body: { requestId: "0123456789abcdef" },
+      }),
+    ).toEqual({ ok: false, failure: { kind: "unreachable" } });
+  });
+
+  it("JSON이 아닌 온전한 응답은 서버 오류로 읽는다", async () => {
+    const proxy = routes({
+      [V1_PATHS.runners]: () => new Response("<html>", { status: 502 }),
+    });
+    expect(await client(proxy).runners()).toEqual({
+      ok: false,
+      failure: { kind: "server-error" },
+    });
+  });
+
+  it("모르는 이유의 5xx는 분명한 거절이 아니다", async () => {
+    const fetcher = routes({
+      "/api/v1/runs/run-1/cancel": () => json({ meta: META, error: { reason: "overloaded" } }, 503),
+    });
+    expect(
+      await client(fetcher).runAction("run-1", {
+        action: "cancel",
+        body: { requestId: "0123456789abcdef" },
+      }),
+    ).toEqual({ ok: false, failure: { kind: "server-error" } });
+  });
+
   it("모르는 거절 이유는 분명한 거절로 읽는다", async () => {
     const fetcher = routes({
       "/api/v1/runs/run-1/cancel": () =>

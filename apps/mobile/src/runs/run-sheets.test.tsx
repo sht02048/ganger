@@ -527,6 +527,34 @@ describe("응답을 잃은 쓰기", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it("다시 맡기기를 확인하지 못하면 이어서 맡기기로 넘어가지 못한다", async () => {
+    const world = confirmingPort();
+    await open({ kind: "retry", run: failedRun }, world.port);
+    await press("다시 맡기기");
+    await world.finish({ kind: "unconfirmed" });
+    expect(isDisabled("이어서 맡기기")).toBe(true);
+    expect(isDisabled("다시 맡기기")).toBe(true);
+  });
+
+  it("이어서 맡기기를 확인하지 못하면 뒤로 갔다 와도 잠금과 안내가 남는다", async () => {
+    const world = confirmingPort();
+    await open({ kind: "retry", run: failedRun }, world.port);
+    await press("이어서 맡기기");
+    await type("에이전트에게 할 말", "이어서 해 주세요");
+    const send = document.body.querySelector(
+      '[data-testid="sheet-footer"] [aria-label="이어서 맡기기"]',
+    );
+    await act(async () => {
+      send?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    await world.finish({ kind: "unconfirmed" });
+    await press("돌아가기");
+    expect(document.body.textContent).toContain("보냈는지 확인하지 못했어요");
+    expect(isDisabled("이어서 맡기기")).toBe(true);
+    expect(isDisabled("다시 맡기기")).toBe(true);
+  });
+
   it("서버가 분명히 거절하면 이유를 보이고 시트를 닫지 않는다", async () => {
     const world = confirmingPort();
     const { onClose } = await open({ kind: "cancel", run: questionRun }, world.port);

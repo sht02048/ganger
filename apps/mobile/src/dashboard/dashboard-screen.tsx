@@ -148,6 +148,7 @@ function ColumnBody({
       return (
         <>
           {list(board.done.todo)}
+          {todoOnly ? null : list(board.done.unknownState)}
           {todoOnly || board.done.settled.length === 0 ? null : (
             <View>
               <Text variant="meta" tone="secondary" heading>

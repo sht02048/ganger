@@ -86,6 +86,7 @@ function RunnerUsage({ usage }: { usage: AppRunner["usage"] }) {
       .join(t("runners.usageListSeparator"));
   const signedOut = namesWith("signed-out");
   const unavailable = namesWith("unavailable");
+  const unknownStatus = namesWith("unknown");
   return (
     <>
       {using.map((provider) => (
@@ -96,6 +97,9 @@ function RunnerUsage({ usage }: { usage: AppRunner["usage"] }) {
       )}
       {unavailable === "" ? null : (
         <Text variant="small">{t("runners.usageUnavailable", { providers: unavailable })}</Text>
+      )}
+      {unknownStatus === "" ? null : (
+        <Text variant="small">{t("runners.usageUnknown", { providers: unknownStatus })}</Text>
       )}
     </>
   );
@@ -119,15 +123,13 @@ function ProviderWindows({ usage }: { usage: AppProviderUsage }) {
 }
 
 function RunnerCard({ runner }: { runner: AppRunner }) {
-  const offline = runner.cause === "offline";
+  const status =
+    runner.cause === "offline" ? "offline" : runner.cause === "unknown" ? "unknown" : "online";
   return (
     <Card>
       <View style={styles.runnerHead}>
         <Text variant="title">{runner.name}</Text>
-        <StatusPill
-          status={offline ? "offline" : "online"}
-          label={t(offline ? "status.offline" : "status.online")}
-        />
+        <StatusPill status={status} label={t(`status.${status}`)} />
       </View>
       <Text variant="meta">
         {t("runners.capacity", { total: runner.capacity, used: runner.used })}

@@ -136,7 +136,9 @@ function actionOf(
     case "waiting-for-input":
     case null:
       if (run.state === "unknown") return { action: "detail", key: "card.detail", danger: false };
-      return run.state === "paused" && !run.cancelling && run.control?.status !== "pending"
+      return run.state === "paused" &&
+        !run.cancelling &&
+        (run.control === null || run.control.status === "failed")
         ? { action: "resume", key: "card.resume", danger: false }
         : null;
   }
@@ -157,6 +159,18 @@ function timeOf(run: DashboardRun): string | null {
       return null;
     case "ended":
       return formatAgo(run.endedAt, run.endedAgoMs);
+  }
+}
+
+function controlNote({ control }: DashboardRun): string | null {
+  if (control?.status !== "pending") return null;
+  switch (control.control) {
+    case "pause":
+      return t("card.pausing");
+    case "resume":
+      return t("card.resuming");
+    case "unknown":
+      return null;
   }
 }
 
@@ -193,9 +207,7 @@ export function RunCard({
     waitsOnBlockers ? null : agentName(run.agent),
     showWorkspace ? run.workspace.name : null,
     run.cancelling ? t("card.cancelling") : null,
-    run.control?.status === "pending"
-      ? t(run.control.control === "pause" ? "card.pausing" : "card.resuming")
-      : null,
+    controlNote(run),
     run.pullRequest === null ? null : t("card.pullRequest", { pr: run.pullRequest.displayId }),
   ]
     .filter((part) => part !== null)
