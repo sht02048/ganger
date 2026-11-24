@@ -282,7 +282,7 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     }
   });
 
-  it("할당 뒤에는 Tickets 의 DB 부분만 다시 읽고 트래커·루트·셸은 다시 읽지 않는다", async (context) => {
+  it("할당 뒤에는 Tickets 의 DB 부분과 처리할 일 수가 든 셸만 다시 읽고 트래커·루트는 다시 읽지 않는다", async (context) => {
     const ticket = addTicket("Assign without tracker reread");
     const { page, serverCalls } = await newPage(context, { stream: false });
     await open(page, "/tickets?f=assignable", "tickets");
@@ -302,7 +302,8 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
     await dialog.waitFor({ state: "hidden" });
     await settle(page);
 
-    expect(serverCalls).toEqual(["assignTicket", "getTicketRuns"]);
+    expect(serverCalls[0]).toBe("assignTicket");
+    expect(serverCalls.slice(1).toSorted()).toEqual(["getShell", "getTicketRuns"]);
     expect(tracker.ticketReads + tracker.labelReads).toBe(trackerReads);
   });
 
