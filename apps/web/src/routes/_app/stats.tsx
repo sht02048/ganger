@@ -4,7 +4,7 @@ import { conditionsForStatsGroup } from "@ganger/app/runs/conditions";
 import { createTranslator } from "use-intl";
 import { z } from "zod";
 import { ScreenMessages, defaultLocale } from "../../i18n";
-import { requestTimeZone, useRequestTimeZone } from "../../query/request-time-zone";
+import { loadInRequestTimeZone } from "../../query/request-time-zone";
 import { loadRouteQuery } from "../../query/route-query";
 import { statsMessages } from "../../stats/messages";
 import { statsQuery } from "../../stats/query";
@@ -27,14 +27,16 @@ export const Route = createFileRoute("/_app/stats")({
   }),
   loaderDeps: ({ search }) => ({ ws: search.ws, days: search.days ?? DEFAULT_STATS_PERIOD_DAYS }),
   loader: (load) =>
-    loadRouteQuery(load, statsQuery(load.deps.ws, load.deps.days, requestTimeZone())),
+    loadInRequestTimeZone((timeZone) =>
+      loadRouteQuery(load, statsQuery(load.deps.ws, load.deps.days, timeZone)),
+    ),
   head: () => ({ meta: [{ title: t("documentTitle") }] }),
   component: StatsRoute,
 });
 
 function StatsRoute() {
   const { ws, days } = Route.useLoaderDeps();
-  const timeZone = useRequestTimeZone();
+  const timeZone = Route.useLoaderData({ select: (data) => data.timeZone });
   const { data: page } = useSuspenseQuery(statsQuery(ws, days, timeZone));
   const shell = useShell();
   const { by } = Route.useSearch();

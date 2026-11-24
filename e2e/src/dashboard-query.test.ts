@@ -53,6 +53,8 @@ import shell from "../../apps/web/messages/ko/shell.json" with { type: "json" };
 import stats from "../../apps/web/messages/ko/stats.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
 import { serverFnName, waitForRouterIdle } from "./navigation-timing.js";
+import { DONE_COLUMN_DAYS } from "@ganger/app/home/model";
+import { DAY_MS, calendarDay } from "@ganger/app/time-zone";
 import { startWebServer } from "./web-server.js";
 
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
@@ -65,6 +67,7 @@ const VISIBLE_WITHIN_MS = 3_000;
 const CONTROL_POLL_MS = 2_000;
 const DISCONNECTED_POLL_MS = 30_000;
 const SETTLE_MS = 1_500;
+const SEOUL = "Asia/Seoul";
 const QUERY_GC_TIME_MS = 5 * 60_000;
 const TIME_TEXT_TICK_MS = 15_000;
 const ROOT_READS = ["getTimeZone", "getTitleBarHidden"];
@@ -130,6 +133,7 @@ afterAll(async () => {
 
 const dashboardPath = `/?ws=${workspaceId}`;
 const statsPath = `/stats?ws=${workspaceId}`;
+const runsPath = `/runs?ws=${workspaceId}`;
 
 describe("Dashboard·Stats query와 hydration(브라우저, 0126)", () => {
   it.for([
@@ -467,6 +471,39 @@ describe("시간대 쿠키가 없는 첫 방문(브라우저, 0126)", () => {
   );
 });
 
+describe("서버 렌더 뒤 바뀐 시간대 쿠키(브라우저, 0208)", () => {
+  it.for([
+    { name: "Dashboard", path: dashboardPath, pathname: "/", drawsDoneLink: true },
+    { name: "Stats", path: statsPath, pathname: "/stats", drawsDoneLink: false },
+    { name: "Runs", path: runsPath, pathname: "/runs", drawsDoneLink: false },
+  ])(
+    "$name는 서버가 정한 시간대로 hydration해 서버 렌더와 같은 개수를 그린다",
+    async ({ path, pathname, drawsDoneLink }, context) => {
+      const { page } = await newPage(context, { stream: "blocked" });
+      await page.addInitScript((cookie) => {
+        document.cookie = cookie;
+      }, `tz=${SEOUL}; Path=/`);
+      const hydrationErrors: string[] = [];
+      page.on("pageerror", (error) => {
+        if (/hydrat/i.test(error.message)) hydrationErrors.push(error.message);
+      });
+      page.on("console", (message) => {
+        if (message.type() === "error" && /hydrat/i.test(message.text()))
+          hydrationErrors.push(message.text());
+      });
+
+      const response = await page.goto(path);
+      const serverDoneLink = doneLinkIn((await response?.text()) ?? "");
+      await waitForRouterIdle(page, pathname);
+      await page.waitForTimeout(SETTLE_MS);
+
+      expect(hydrationErrors).toEqual([]);
+      expect(serverDoneLink !== null).toBe(drawsDoneLink);
+      expect(doneLinkIn(await page.content())).toBe(serverDoneLink);
+    },
+  );
+});
+
 describe("오래 떠났다 돌아오기(브라우저, 0126)", () => {
   it.for([
     { name: "Dashboard", path: dashboardPath, pathname: "/", away: "runs", back: "dashboard" },
@@ -569,6 +606,29 @@ function fill(template: string, values: Record<string, string>): string {
     (text, [name, value]) => text.replace(`{${name}}`, value),
     template,
   );
+}
+
+function doneLinkIn(html: string): string | null {
+  const label = fill(home.board.doneLink, { column: home.column.done, count: "(\\d+)" });
+  return new RegExp(label).exec(html)?.[0] ?? null;
+}
+
+function inDoneColumn(at: Date, now: Date, timeZone: string): boolean {
+  const today = calendarDay(now, timeZone);
+  const day = calendarDay(at, timeZone);
+  return day >= today - (DONE_COLUMN_DAYS - 1) * DAY_MS && day <= today;
+}
+
+function endedOnlyForOneTimeZone(now: Date): Date {
+  const HOUR_MS = 60 * 60_000;
+  const differing: Date[] = [];
+  for (let hours = 0; hours <= (DONE_COLUMN_DAYS + 2) * 24; hours += 1) {
+    const at = new Date(now.getTime() - hours * HOUR_MS - HOUR_MS / 2);
+    if (inDoneColumn(at, now, "UTC") !== inDoneColumn(at, now, SEOUL)) differing.push(at);
+  }
+  const middle = differing[Math.floor(differing.length / 2)];
+  if (middle === undefined) throw new Error("no time that only one time zone counts as Done");
+  return middle;
 }
 
 function countOf(serverCalls: ReadonlyArray<string>, name: string): number {
@@ -712,4 +772,15 @@ function seed(database: Database): void {
       }),
     );
   }
+
+  const boundaryRun = assign(toTicketKey("ACME-90"));
+  start(boundaryRun);
+  ok(
+    changeRunState(
+      database,
+      boundaryRun,
+      { to: "ended", agentResult: "reported-success", prState: "none" },
+      endedOnlyForOneTimeZone(new Date()),
+    ),
+  );
 }
