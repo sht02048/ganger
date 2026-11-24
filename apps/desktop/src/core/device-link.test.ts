@@ -132,9 +132,9 @@ describe("데스크톱 기기 연결(M48)", () => {
     expect(requestIds[2]).not.toBe(requestIds[0]);
   });
 
-  it("v1 이 없는 옛 서버는 옛 경로로, 등록 실패는 나중에 다시 시도로 돌린다", async () => {
-    const legacy = linkWith(memorySettings(), [{ kind: "unsupported" }]);
-    expect(await legacy.link.connection(ORIGIN)).toEqual({ kind: "legacy" });
+  it("v1 이 없는 옛 서버는 지원하지 않는 서버로, 등록 실패는 나중에 다시 시도로 돌린다", async () => {
+    const outdated = linkWith(memorySettings(), [{ kind: "unsupported" }]);
+    expect(await outdated.link.connection(ORIGIN)).toEqual({ kind: "unsupported" });
     const failed = linkWith(memorySettings(), [{ kind: "failed" }]);
     expect(await failed.link.connection(ORIGIN)).toEqual({ kind: "unavailable" });
   });

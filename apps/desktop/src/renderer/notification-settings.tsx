@@ -95,7 +95,11 @@ export function NotificationSettings({
         </span>
         {view.deviceLink === "connected" || reconnected ? null : (
           <ProblemCallout
-            title={t("deviceLink.title")}
+            title={
+              view.deviceLink === "unsupported"
+                ? t("deviceLink.unsupportedTitle")
+                : t("deviceLink.title")
+            }
             actions={
               <Button
                 disabled={view.deviceLink === "reconnecting"}
@@ -107,7 +111,11 @@ export function NotificationSettings({
               </Button>
             }
           >
-            {view.deviceLink === "failed" ? t("deviceLink.failed") : t("deviceLink.body")}
+            {view.deviceLink === "failed"
+              ? t("deviceLink.failed")
+              : view.deviceLink === "unsupported"
+                ? t("deviceLink.unsupportedBody")
+                : t("deviceLink.body")}
           </ProblemCallout>
         )}
         <PermissionCard permission={view.permission} />

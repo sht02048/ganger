@@ -853,6 +853,7 @@ export class Controller {
       onBatch: (batch) => this.receiveNotifications(url, batch),
       connection: () => this.deviceLink.connection(url),
       onRejected: () => this.onDeviceRejected(url),
+      onUnsupported: () => this.onDeviceUnsupported(url),
       onTransport: (transport) => {
         if (transport !== "down") void activity.report();
       },
@@ -871,11 +872,22 @@ export class Controller {
     if (firstNotice) this.notifyDeviceRejected();
   }
 
+  private onDeviceUnsupported(url: string): void {
+    if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
+    const firstNotice = this.deviceLinkState !== "unsupported";
+    this.setDeviceLinkState("unsupported");
+    if (firstNotice) this.notifyDeviceLinkProblem("deviceUnsupported");
+  }
+
   private notifyDeviceRejected(): void {
+    this.notifyDeviceLinkProblem("deviceRejected");
+  }
+
+  private notifyDeviceLinkProblem(notice: "deviceRejected" | "deviceUnsupported"): void {
     if (!this.notificationPrefs().enabled || !this.notificationCenterReady()) return;
     const notification = new Notification({
-      title: t("notifications.deviceRejected.title"),
-      body: t("notifications.deviceRejected.body"),
+      title: t(`notifications.${notice}.title`),
+      body: t(`notifications.${notice}.body`),
     });
     notification.on("click", () => {
       this.deviceRejectedNotice = undefined;
@@ -1174,7 +1186,11 @@ export class Controller {
         click: () => this.showNotificationSettings(),
       },
     );
-    if (this.deviceLinkState === "rejected" || this.deviceLinkState === "failed") {
+    if (
+      this.deviceLinkState === "rejected" ||
+      this.deviceLinkState === "unsupported" ||
+      this.deviceLinkState === "failed"
+    ) {
       items.push({
         id: "reconnect-device",
         label: t("menu.reconnectDevice"),

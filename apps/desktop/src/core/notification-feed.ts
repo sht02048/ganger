@@ -1,10 +1,4 @@
-import {
-  NOTIFICATION_FEED_PATH,
-  NOTIFICATION_STREAM_PATH,
-  notificationFeedSchema,
-  notificationReadySchema,
-  notificationRecordSchema,
-} from "@ganger/app/notifications/feed";
+import { notificationReadySchema, notificationRecordSchema } from "@ganger/app/notifications/feed";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
 import { V1_NOTIFICATION_PATHS, notificationFeedResponseSchema, v1ErrorSchema } from "@ganger/api";
 import type { FeedConnection } from "./device-link.js";
@@ -22,8 +16,9 @@ export interface NotificationFeedOptions {
   origin: string;
   onBatch: (batch: FeedBatch) => void;
   onTransport?: (transport: FeedTransport) => void;
-  connection?: () => Promise<FeedConnection>;
+  connection: () => Promise<FeedConnection>;
   onRejected?: () => void;
+  onUnsupported?: () => void;
   fetch?: typeof fetch;
   pollMs?: number;
   reconnectMs?: number;
@@ -83,8 +78,8 @@ export class SseParser {
   }
 }
 
-function authorization(connection: FeedConnection): Record<string, string> {
-  return connection.kind === "token" ? { authorization: `Bearer ${connection.token}` } : {};
+function authorization(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}` };
 }
 
 async function isTokenRefused(response: Response): Promise<boolean> {
@@ -166,14 +161,31 @@ export class NotificationFeed {
     }, ms);
   }
 
-  private connection(): Promise<FeedConnection> {
-    return this.options.connection?.() ?? Promise.resolve({ kind: "legacy" });
+  private async token(generation: number): Promise<string | null> {
+    const connection = await this.options.connection();
+    if (generation !== this.generation) return null;
+    switch (connection.kind) {
+      case "token":
+        return connection.token;
+      case "rejected":
+        this.giveUp(this.options.onRejected);
+        return null;
+      case "unsupported":
+        this.giveUp(this.options.onUnsupported);
+        return null;
+      case "unavailable":
+        throw new Error("no device connection");
+    }
   }
 
   private reject(): void {
+    this.giveUp(this.options.onRejected);
+  }
+
+  private giveUp(notify: (() => void) | undefined): void {
     this.stop();
     this.setTransport("down");
-    this.options.onRejected?.();
+    notify?.();
   }
 
   private setTransport(transport: FeedTransport): void {
@@ -202,26 +214,22 @@ export class NotificationFeed {
     };
     try {
       watch();
-      const connection = await this.connection();
-      if (generation !== this.generation) return;
-      if (connection.kind === "rejected") {
-        this.reject();
-        return;
-      }
-      if (connection.kind === "unavailable") throw new Error("no device connection");
+      const token = await this.token(generation);
+      if (token === null) return;
       const headers: Record<string, string> = {
         accept: "text/event-stream",
-        ...authorization(connection),
+        ...authorization(token),
       };
       if (this.cursor !== null) headers["last-event-id"] = String(this.cursor);
-      const path =
-        connection.kind === "token" ? V1_NOTIFICATION_PATHS.stream : NOTIFICATION_STREAM_PATH;
-      const response = await this.fetch(new URL(path, this.options.origin), {
-        headers,
-        signal: abort.signal,
-        redirect: "error",
-      });
-      if (connection.kind === "token" && (await isTokenRefused(response))) {
+      const response = await this.fetch(
+        new URL(V1_NOTIFICATION_PATHS.stream, this.options.origin),
+        {
+          headers,
+          signal: abort.signal,
+          redirect: "error",
+        },
+      );
+      if (await isTokenRefused(response)) {
         if (generation === this.generation) this.reject();
         return;
       }
@@ -281,34 +289,24 @@ export class NotificationFeed {
 
   private async poll(generation: number): Promise<void> {
     try {
-      const connection = await this.connection();
-      if (generation !== this.generation) return;
-      if (connection.kind === "rejected") {
-        this.reject();
-        return;
-      }
-      if (connection.kind === "unavailable") throw new Error("no device connection");
-      const path =
-        connection.kind === "token" ? V1_NOTIFICATION_PATHS.feed : NOTIFICATION_FEED_PATH;
-      const url = new URL(path, this.options.origin);
+      const token = await this.token(generation);
+      if (token === null) return;
+      const url = new URL(V1_NOTIFICATION_PATHS.feed, this.options.origin);
       if (this.cursor !== null) url.searchParams.set("after", String(this.cursor));
       const response = await this.fetch(url, {
-        headers: authorization(connection),
+        headers: authorization(token),
         signal: AbortSignal.timeout(this.options.requestTimeoutMs ?? 5_000),
         redirect: "error",
       });
       if (generation !== this.generation) return;
-      if (connection.kind === "token" && (await isTokenRefused(response))) {
+      if (await isTokenRefused(response)) {
         if (generation === this.generation) this.reject();
         return;
       }
       if (!response.ok) throw new Error(`poll failed: ${response.status}`);
       const body: unknown = await response.json();
       if (generation !== this.generation) return;
-      const feed =
-        connection.kind === "token"
-          ? notificationFeedResponseSchema.safeParse(body).data?.data
-          : notificationFeedSchema.safeParse(body).data;
+      const feed = notificationFeedResponseSchema.safeParse(body).data?.data;
       if (feed === undefined) throw new Error("poll response did not parse");
       this.setTransport("polling");
       this.emit(feed.events, feed.open, feed.cursor);
