@@ -13,6 +13,7 @@ import { serverVersionDiffers } from "@ganger/app/updates/view";
 import type { UpdateAction, UpdateView } from "@ganger/app/updates/view";
 import { useId } from "react";
 import { useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { particlesOf } from "../format/particles";
 import { useTime } from "../format/time";
 import { PRODUCT_VERSION } from "../identity/identity";
@@ -134,7 +135,13 @@ function CheckLine({ view }: { view: UpdateView }) {
   const time = useTime();
   const at = view.lastCheckedAt;
   const when =
-    at === null ? t("never") : time.ago(at, Math.max(0, Date.now() - new Date(at).getTime()));
+    at === null ? (
+      t("never")
+    ) : (
+      <LabeledTime dateTime={at} label={t("checkedLabel")}>
+        {time.ago(at, Math.max(0, Date.now() - new Date(at).getTime()))}
+      </LabeledTime>
+    );
   const check = view.check;
   switch (check.kind) {
     case "unavailable":
@@ -146,7 +153,7 @@ function CheckLine({ view }: { view: UpdateView }) {
     case "idle":
       return when;
     case "latest":
-      return t("latestStatus", { when });
+      return t.rich("latestStatus", { when: () => when });
     case "downloading":
       return t("downloadingStatus", {
         version: check.version,
@@ -158,8 +165,8 @@ function CheckLine({ view }: { view: UpdateView }) {
         object: particlesOf(check.version).object,
       });
     case "manual":
-      return t("manualStatus", {
-        when,
+      return t.rich("manualStatus", {
+        when: () => when,
         version: check.version,
         subject: particlesOf(check.version).subject,
       });

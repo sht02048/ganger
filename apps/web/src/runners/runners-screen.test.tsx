@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import runnersJson from "../../messages/ko/runners.json" with { type: "json" };
+import { labeledTimesOf } from "../testing/labeled-times";
 import { pillsOf } from "../testing/pills";
 import { renderWithMessages } from "../testing/render";
 import { recordGhAccounts, recordProviderUsage, recordRunnerCheck } from "@ganger/db";
@@ -139,11 +140,15 @@ describe("Runners 부하(0191)", () => {
   });
 
   it("상세의 부하 구역은 자리와 사용량 사이에 읽은 때와 값을 보인다", () => {
-    const text = textOf(panelHtml(render({ runners: [runner({ id: "r-a", load: readLoad })] })));
+    const html = panelHtml(render({ runners: [runner({ id: "r-a", load: readLoad })] }));
+    const text = textOf(html);
     expect(text).toContain("코어 10개에 부하 9.2 · 5분 넘게 높아요");
     expect(text).toContain("26 / 32 GB · 메모리 압박 보통");
     expect(text).toContain("Apple GPU");
-    expect(text).toContain("2 min ago 읽음");
+    expect(labeledTimesOf(html)).toContainEqual(
+      expect.objectContaining({ hidden: panel.load.readLabel, visible: "2 min ago" }),
+    );
+    expect(text).not.toContain("2 min ago 읽음");
     const load = text.indexOf("코어 10개");
     expect(text.indexOf(panel.capacity)).toBeLessThan(load);
     expect(load).toBeLessThan(text.indexOf(panel.usage.title, load));
@@ -490,7 +495,13 @@ describe("Runners 고른 러너 패널", () => {
       }),
     );
     expect(pillsOf(html)[0]).toEqual({ status: "online", label: domain.runnerState.online });
-    expect(textOf(html)).toContain("2 hr ago 확인");
+    expect(labeledTimesOf(html)).toContainEqual({
+      dateTime: now.toISOString(),
+      title: panel.checkedLabel,
+      hidden: panel.checkedLabel,
+      visible: "2 hr ago",
+    });
+    expect(textOf(html)).not.toContain("2 hr ago 확인");
     expect(html).toMatch(/<h2[^>]*>build-1<\/h2>/);
     expect(html).toMatch(/<p[^>]*>dev@runner.example.com<\/p>/);
   });
@@ -772,7 +783,10 @@ describe("공급자 사용량(0086)", () => {
     const html = panelHtml(render(seededWithUsage(), "runner-a"));
     const text = textOf(html);
     expect(text).toContain(panel.usage.title);
-    expect(text).toContain("3 min ago 읽음");
+    expect(labeledTimesOf(html)).toContainEqual(
+      expect.objectContaining({ hidden: panel.usage.readLabel, visible: "3 min ago" }),
+    );
+    expect(text).not.toContain("3 min ago 읽음");
     expect(text).toMatch(/5시간 100% \S+에 초기화돼요 · 한도에 닿았어요/);
     expect(text).toContain("주간 72% Fable 주간 9%");
     expect(text).toContain("Fable 주간");
@@ -897,7 +911,11 @@ describe("Runners 다시 그리기(0092)", () => {
     expect(a).toMatch(
       new RegExp(`>${panel.usage.title}</h3><button[^>]*aria-label="${panel.usage.privacyLabel}"`),
     );
-    expect(a).toMatch(/<span[^>]*>3 min ago 읽음<\/span>/);
+    expect(a).toMatch(
+      new RegExp(
+        `<span[^>]*><time[^>]*title="${panel.usage.readLabel}"><span[^>]*>[^<]*</span>3 min ago</time></span>`,
+      ),
+    );
   });
 
   it("로그인하지 않은 공급자만, 쓰지 않는 공급자만 있으면 그 문장 하나로 이름을 보인다", () => {
@@ -953,7 +971,8 @@ describe("러너의 gh 계정(0205)", () => {
     expect(text).toContain("acme-bot · github.com · 사용 중");
     expect(text).toContain("acme-ci · ghe.acme.example");
     expect(text).not.toContain("acme-ci · ghe.acme.example · 사용 중");
-    expect(text).toContain("3 min ago 읽음");
+    expect(text).toContain(`${panel.ghAccounts.readLabel} 3 min ago`);
+    expect(text).not.toContain("3 min ago 읽음");
     expect(text.indexOf(panel.usage.title)).toBeLessThan(text.indexOf("GitHub (gh)"));
   });
 
@@ -1034,7 +1053,8 @@ describe("러너의 gh 계정(0205)", () => {
       false,
     );
     expect(text).toContain("acme-bot · github.com · 사용 중");
-    expect(text).toContain("3 min ago 읽음");
+    expect(text).toContain(`${panel.ghAccounts.readLabel} 3 min ago`);
+    expect(text).not.toContain("3 min ago 읽음");
   });
 
   it("저장한 값에서 사용 중 계정을 먼저 두고 토큰 같은 다른 값은 화면까지 오지 않는다", () => {

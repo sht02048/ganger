@@ -9,6 +9,7 @@ import {
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import runsJson from "../../messages/ko/runs.json" with { type: "json" };
+import { labeledTimesOf } from "../testing/labeled-times";
 import { renderWithMessages } from "../testing/render";
 import { addTitledRun, labs, minutes, now, offlineQueuedKey, seedDatabase } from "../testing/seed";
 import { loadRunsBoard } from "@ganger/app/runs/board-load";
@@ -294,6 +295,21 @@ describe("Runs 패널(0173)", () => {
     expect(text).toContain("7개 중 2개 실패");
     expect(text).toContain("3커밋 뒤");
     expect(html.match(/data-variant="primary"/g)).toHaveLength(1);
+  });
+
+  it("끝난 때와 PR 을 읽은 때는 시간만 보이고 뜻은 숨긴 글과 툴팁에 둔다(0216)", () => {
+    const { page, id } = endWithPr("open");
+    const html = panelHtml(find(page, id));
+    const times = labeledTimesOf(html);
+    const ended = times.find((time) => time.title === runsJson.panel.endedLabel);
+    const read = times.find((time) => time.title === runsJson.panel.prSection.readLabel);
+    expect(ended).toMatchObject({ hidden: runsJson.panel.endedLabel });
+    expect(read).toMatchObject({ hidden: runsJson.panel.prSection.readLabel });
+    const text = textOf(html);
+    expect(text).toMatch(
+      new RegExp(`${runsJson.panel.endedLabel} ${ended?.visible ?? "?"} · \\S.* 걸림`),
+    );
+    expect(text).not.toMatch(/ (끝남|읽음)( |$)/);
   });
 
   it("이어서 맡길 수 없는 런에는 이어서 맡기기를 두지 않는다", () => {

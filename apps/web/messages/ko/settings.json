@@ -339,7 +339,7 @@
       "fixTitle": "해결 방법",
       "fixToken": "러너에서 gh auth login --insecure-storage로 토큰을 파일에 저장하고, gh auth setup-git으로 git 자격 증명 도우미를 gh로 바꿔요.",
       "fixSsh": "또는 러너에 GitHub용 ssh 키를 둬요.",
-      "checkedAt": "{time} 확인"
+      "checkedLabel": "마지막으로 확인한 때"
     }
   },
   "addresses": {
@@ -456,7 +456,7 @@
   },
   "updates": {
     "version": "지금 버전",
-    "lastChecked": "마지막 확인",
+    "checkedLabel": "마지막으로 확인한 때",
     "same": "{version} · 앱과 서버가 같아요",
     "differs": "앱 {app} · 서버 {server}",
     "appOnly": "앱 {app}",
@@ -464,11 +464,11 @@
     "checkNow": "지금 확인",
     "checking": "확인하는 중…",
     "checkingStatus": "새 버전이 있는지 확인하고 있어요",
-    "latestStatus": "{when} · 새 버전이 없어요",
+    "latestStatus": "<when></when> · 새 버전이 없어요",
     "failedStatus": "새 버전을 확인하지 못했어요. 인터넷 연결을 살핀 뒤 지금 확인을 다시 눌러 주세요",
     "downloadingStatus": "새 버전 {version}{object} 받고 있어요",
     "readyStatus": "새 버전 {version}{object} 받았어요. 다시 시작하면 바뀌어요",
-    "manualStatus": "{when} · 새 버전 {version}{subject} 있어요",
+    "manualStatus": "<when></when> · 새 버전 {version}{subject} 있어요",
     "unavailable": "이 빌드에는 업데이트 주소가 없어 확인하지 않아요",
     "restart": "다시 시작",
     "notes": "바뀐 내용",

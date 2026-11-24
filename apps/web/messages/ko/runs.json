@@ -101,12 +101,14 @@
     "label": "고른 런",
     "where": "{key} · {project}",
     "whereSeparator": " · ",
-    "endedAgo": "{ago} 끝남 · {duration} 걸림",
+    "endedLabel": "끝난 때",
+    "took": "{duration} 걸림",
+    "metaSeparator": " · ",
     "runInfo": "런 정보",
     "prSection": {
       "title": "PR",
       "titleWithId": "PR {pr}",
-      "readAt": "{time} 읽음",
+      "readLabel": "마지막으로 읽은 때",
       "none": "아직 PR이 없어요",
       "state": {
         "open": "Open",

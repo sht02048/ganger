@@ -2,6 +2,7 @@ import type { UpdateView } from "@ganger/app/updates/view";
 import { describe, expect, it } from "vitest";
 import settings from "../../messages/ko/settings.json" with { type: "json" };
 import { PRODUCT_VERSION } from "../identity/identity";
+import { labeledTimesOf } from "../testing/labeled-times";
 import { renderWithMessages } from "../testing/render";
 import { settingsMessages } from "./messages";
 import { BrowserUpdates, DesktopUpdates } from "./updates-panel";
@@ -43,6 +44,28 @@ describe("Settings 업데이트 구역(0083)", () => {
     expect(shown).toContain("IP와 지금 버전이 GitHub Releases에 전해져요");
     expect(shown).toContain("끄면 확인하지 않고");
   });
+
+  it.each([
+    ["idle", { kind: "idle" }, ""],
+    ["latest", { kind: "latest" }, " · 새 버전이 없어요"],
+    [
+      "manual",
+      { kind: "manual", version: "0.3.0", notesUrl: NOTES, reason: "outside-applications" },
+      " · 새 버전 0.3.0이 있어요",
+    ],
+  ] as const)(
+    "%s 확인 줄은 마지막으로 확인한 때를 시간만 보이고 뜻은 숨긴 글과 툴팁에 둔다(0216)",
+    (_kind, check, rest) => {
+      const at = new Date(Date.now() - 5 * 60_000 - 1000).toISOString();
+      const html = render(view({ lastCheckedAt: at, check }));
+      const label = settings.updates.checkedLabel;
+      expect(labeledTimesOf(html)).toEqual([
+        { dateTime: at, title: label, hidden: label, visible: "5 min ago" },
+      ]);
+      expect(text(html)).toContain(`${label} 5 min ago${rest}`);
+      expect(text(html)).not.toContain("5 min ago 확인");
+    },
+  );
 
   it("자동 업데이트를 끈 상태를 그대로 보인다", () => {
     const html = render(view({ autoUpdate: false }));
