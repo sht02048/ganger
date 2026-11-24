@@ -8,6 +8,7 @@ import type {
   SummaryOutcome,
   TicketKey,
 } from "@ganger/core";
+import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
 import type { MergeView, PrCommitView, PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { CiView } from "../run-detail/model.js";
@@ -99,6 +100,7 @@ export type HomeRun =
       agentResult: AgentResult;
       prState: PrState;
       prReadError: PrReadError | null;
+      prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
       endedAt: string;
       endedAgoMs: number;

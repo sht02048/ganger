@@ -72,22 +72,55 @@ describe("gh 버전 (0204)", () => {
 });
 
 describe("gh auth status 읽기 (0204)", () => {
-  it("JSON 은 github.com 의 로그인된 계정만 활성 계정을 앞에 두고 읽는다", () => {
+  it("JSON 은 github.com 의 계정을 활성 계정을 앞에 두고 읽고, 로그인에 실패한 계정은 만료로 뒤에 둔다", () => {
     expect(parseStatusJson(STATUS_JSON)).toEqual([
-      { login: "acme-bot", active: true },
-      { login: "jane-doe", active: false },
+      { login: "acme-bot", active: true, expired: false },
+      { login: "jane-doe", active: false, expired: false },
+      { login: "expired-one", active: false, expired: true },
     ]);
     expect(parseStatusJson("not json")).toBeNull();
     expect(parseStatusJson(JSON.stringify({ hosts: {} }))).toEqual([]);
   });
 
-  it("글 출력은 여러 계정 형식과 옛 형식을 모두 읽고 로그인에 실패한 계정은 뺀다", () => {
+  it("글 출력은 여러 계정 형식과 옛 형식을 모두 읽고 로그인에 실패한 계정은 만료로 둔다", () => {
     expect(parseStatusText(STATUS_TEXT_MULTI)).toEqual([
-      { login: "acme-bot", active: true },
-      { login: "jane-doe", active: false },
+      { login: "acme-bot", active: true, expired: false },
+      { login: "jane-doe", active: false, expired: false },
+      { login: "expired-one", active: false, expired: true },
     ]);
-    expect(parseStatusText(STATUS_TEXT_OLD)).toEqual([{ login: "acme-bot", active: true }]);
+    expect(parseStatusText(STATUS_TEXT_OLD)).toEqual([
+      { login: "acme-bot", active: true, expired: false },
+    ]);
     expect(parseStatusText("You are not logged into any GitHub hosts.")).toEqual([]);
+  });
+
+  it("활성 계정이 만료돼도 만료로 읽고, 시간이 끝난 계정은 계정 목록에도 활성 표시에도 넣지 않는다 (0207)", () => {
+    const output = `github.com
+  X Failed to log in to github.com account acme-old (keyring)
+  - Active account: true
+  - The token in keyring is invalid.
+  - To re-authenticate, run: gh auth login -h github.com
+  ✓ Logged in to github.com account acme-bot (keyring)
+  - Active account: false
+  X Timeout trying to log in to github.com account jane-doe (keyring)
+  - Active account: false
+`;
+    expect(parseStatusText(output)).toEqual([
+      { login: "acme-bot", active: false, expired: false },
+      { login: "acme-old", active: true, expired: true },
+    ]);
+    expect(
+      parseStatusJson(
+        JSON.stringify({
+          hosts: {
+            "github.com": [
+              { state: "error", active: true, login: "acme-old" },
+              { state: "timeout", active: false, login: "jane-doe" },
+            ],
+          },
+        }),
+      ),
+    ).toEqual([{ login: "acme-old", active: true, expired: true }]);
   });
 
   it("계정 이름이 GitHub 로그인 꼴이 아니면 버린다", () => {
@@ -114,8 +147,9 @@ describe("gh 상태 (0204)", () => {
       kind: "logged-in",
       multiAccount: true,
       accounts: [
-        { login: "acme-bot", active: true },
-        { login: "jane-doe", active: false },
+        { login: "acme-bot", active: true, expired: false },
+        { login: "jane-doe", active: false, expired: false },
+        { login: "expired-one", active: false, expired: true },
       ],
     });
     expect(calls).toEqual([
@@ -143,7 +177,7 @@ describe("gh 상태 (0204)", () => {
     expect(await readGhCli(gh)).toEqual({
       kind: "logged-in",
       multiAccount: false,
-      accounts: [{ login: "acme-bot", active: true }],
+      accounts: [{ login: "acme-bot", active: true, expired: false }],
     });
     expect(calls.some((args) => args.includes("--json"))).toBe(false);
   });

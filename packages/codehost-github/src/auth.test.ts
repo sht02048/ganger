@@ -16,7 +16,11 @@ const TOKENS: Record<string, string> = {
 type GhScene =
   | { kind: "missing" }
   | { kind: "logged-out" }
-  | { kind: "logged-in"; version?: string; accounts: Array<{ login: string; active: boolean }> };
+  | {
+      kind: "logged-in";
+      version?: string;
+      accounts: Array<{ login: string; active: boolean; expired?: boolean }>;
+    };
 
 function fakeGh(scene: () => GhScene): { gh: GhRunner; calls: string[][] } {
   const calls: string[][] = [];
@@ -30,7 +34,11 @@ function fakeGh(scene: () => GhScene): { gh: GhRunner; calls: string[][] } {
     const accounts = now.kind === "logged-in" ? now.accounts : [];
     if (args[1] === "status" && args.includes("--json")) {
       const hosts = {
-        "github.com": accounts.map((a) => ({ state: "success", active: a.active, login: a.login })),
+        "github.com": accounts.map((a) => ({
+          state: a.expired === true ? "error" : "success",
+          active: a.active,
+          login: a.login,
+        })),
       };
       return { code: 0, stdout: JSON.stringify({ hosts }), stderr: "" };
     }
@@ -205,7 +213,7 @@ describe("gh 계정 자동 고르기 (0204)", () => {
     expect(await auth.view()).toEqual({
       kind: "logged-in",
       multiAccount: false,
-      accounts: [{ login: "acme-bot", active: true, owners: ["acme-bot", "acme"] }],
+      accounts: [{ login: "acme-bot", active: true, expired: false, owners: ["acme-bot", "acme"] }],
     });
   });
 
@@ -220,8 +228,8 @@ describe("gh 계정 자동 고르기 (0204)", () => {
       kind: "logged-in",
       multiAccount: true,
       accounts: [
-        { login: "acme-bot", active: true, owners: ["acme-bot", "acme"] },
-        { login: "jane-doe", active: false, owners: ["jane-doe", "jane-labs"] },
+        { login: "acme-bot", active: true, expired: false, owners: ["acme-bot", "acme"] },
+        { login: "jane-doe", active: false, expired: false, owners: ["jane-doe", "jane-labs"] },
       ],
     });
     const shown = JSON.stringify(view);
@@ -236,6 +244,63 @@ describe("gh 계정 자동 고르기 (0204)", () => {
     expect((await auth.cli()).kind).toBe("logged-out");
     auth.refresh();
     expect((await auth.cli()).kind).toBe("logged-in");
+  });
+});
+
+describe("만료된 gh 계정 (0207)", () => {
+  const EXPIRED_ACTIVE: GhScene = {
+    kind: "logged-in",
+    accounts: [
+      { login: "acme-bot", active: true, expired: true },
+      { login: "jane-doe", active: false },
+    ],
+  };
+
+  it("만료된 계정은 저장소를 볼 수 있어도 자동 고르기에서 빠지고 토큰도 읽지 않는다", async () => {
+    const { fetch, sent } = github({
+      [TOKENS["acme-bot"] ?? ""]: ["acme"],
+      [TOKENS["jane-doe"] ?? ""]: ["jane-labs"],
+    });
+    const { gh, calls } = fakeGh(() => EXPIRED_ACTIVE);
+    const auth = new GitHubAuth({ gh, fetch });
+    expect((await auth.credentialFor(acme, PASTED))?.source).toEqual({ kind: "token" });
+    expect((await auth.credentialFor(acme, null))?.source).toEqual({
+      kind: "gh",
+      login: "jane-doe",
+    });
+    expect((await auth.credentialFor(null, null))?.source).toEqual({
+      kind: "gh",
+      login: "jane-doe",
+    });
+    expect(calls.some((args) => args.includes("acme-bot"))).toBe(false);
+    expect(sent.some((req) => tokenOf(req) === TOKENS["acme-bot"])).toBe(false);
+  });
+
+  it("모든 계정이 만료됐으면 gh 계정을 쓰지 않는다", async () => {
+    const { fetch } = github({ [TOKENS["acme-bot"] ?? ""]: ["acme"] });
+    const scene: GhScene = {
+      kind: "logged-in",
+      accounts: [{ login: "acme-bot", active: true, expired: true }],
+    };
+    const auth = new GitHubAuth({ gh: fakeGh(() => scene).gh, fetch });
+    expect(await auth.credentialFor(acme, null)).toBeNull();
+    expect(await auth.credentialFor(null, PASTED)).toEqual({
+      token: PASTED,
+      source: { kind: "token" },
+    });
+  });
+
+  it("화면용 상태는 만료된 계정을 뒤에 두고 볼 수 있는 곳을 읽지 않는다", async () => {
+    const { fetch } = github({ [TOKENS["jane-doe"] ?? ""]: ["jane-doe", "jane-labs"] });
+    const auth = new GitHubAuth({ gh: fakeGh(() => EXPIRED_ACTIVE).gh, fetch });
+    expect(await auth.view()).toEqual({
+      kind: "logged-in",
+      multiAccount: true,
+      accounts: [
+        { login: "jane-doe", active: false, expired: false, owners: ["jane-doe", "jane-labs"] },
+        { login: "acme-bot", active: true, expired: true, owners: null },
+      ],
+    });
   });
 });
 

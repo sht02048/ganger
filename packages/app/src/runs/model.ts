@@ -3,6 +3,7 @@ import type { CiView } from "../run-detail/model.js";
 import type { AgentResult, PrReadError, PrState, SummaryOutcome } from "@ganger/core";
 import type { WorkspaceChoice } from "../shell/model.js";
 import type { StatsPeriodDays } from "../stats/model.js";
+import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
 
 export type QueuedReason =
   | {
@@ -76,6 +77,7 @@ export type RunView =
       prState: PrState;
       laterPrState: "merged" | "closed" | null;
       prReadError: PrReadError | null;
+      prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
     });
 

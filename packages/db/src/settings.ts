@@ -549,7 +549,14 @@ export function recordRunnerLoad(
 const storedGhAccounts = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("logged-in"),
-    accounts: z.array(z.object({ host: z.string(), login: z.string(), active: z.boolean() })),
+    accounts: z.array(
+      z.object({
+        host: z.string(),
+        login: z.string(),
+        active: z.boolean(),
+        expired: z.boolean().default(false),
+      }),
+    ),
   }),
   z.object({ kind: z.literal("logged-out") }),
   z.object({ kind: z.literal("not-installed") }),

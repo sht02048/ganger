@@ -945,8 +945,8 @@ describe("러너의 gh 계정(0205)", () => {
       ...readGh,
       kind: "logged-in",
       accounts: [
-        { host: "github.com", login: "acme-bot", active: true },
-        { host: "ghe.acme.example", login: "acme-ci", active: false },
+        { host: "github.com", login: "acme-bot", active: true, expired: false },
+        { host: "ghe.acme.example", login: "acme-ci", active: false, expired: false },
       ],
     });
     expect(text).toContain("GitHub (gh)");
@@ -955,6 +955,58 @@ describe("러너의 gh 계정(0205)", () => {
     expect(text).not.toContain("acme-ci · ghe.acme.example · 사용 중");
     expect(text).toContain("3 min ago 읽음");
     expect(text.indexOf(panel.usage.title)).toBeLessThan(text.indexOf("GitHub (gh)"));
+  });
+
+  it("로그인이 만료된 계정은 흐리게 로그인이 만료됐다고 보이고 사용 중 계정 뒤에 둔다(0207)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r-a",
+            ghAccounts: {
+              ...readGh,
+              kind: "logged-in",
+              accounts: [
+                { host: "github.com", login: "acme-old", active: false, expired: true },
+                { host: "github.com", login: "acme-bot", active: true, expired: false },
+              ],
+            },
+          }),
+        ],
+      }),
+    );
+    const text = textOf(html);
+    expect(text).toContain("acme-bot · github.com · 사용 중");
+    expect(text).toContain("acme-old · github.com · 로그인이 만료됐어요");
+    expect(html).toMatch(/<p[^>]*>acme-old · github.com · 로그인이 만료됐어요<\/p>/);
+    expect(html).not.toMatch(callout);
+  });
+
+  it("저장한 계정은 만료된 계정을 뒤에 두고, 만료 표시가 없던 옛 값은 만료되지 않은 것으로 읽는다(0207)", () => {
+    const { db } = seedDatabase();
+    db.$client
+      .prepare("UPDATE runners SET gh_accounts = ?, gh_accounts_read_at = ? WHERE id = ?")
+      .run(
+        JSON.stringify({
+          kind: "logged-in",
+          accounts: [
+            { host: "github.com", login: "old", active: true, expired: true },
+            { host: "github.com", login: "legacy", active: false },
+          ],
+        }),
+        now.getTime(),
+        "runner-a",
+      );
+    const gh = loadRunnersPage(db, now, { includeGhAccounts: true }).runners.find(
+      (r) => r.id === "runner-a",
+    )?.ghAccounts;
+    expect(gh).toMatchObject({
+      kind: "logged-in",
+      accounts: [
+        { login: "legacy", expired: false },
+        { login: "old", expired: true },
+      ],
+    });
   });
 
   it("gh 가 없거나 로그인하지 않았거나 읽지 못했으면 그대로 말한다", () => {
@@ -977,7 +1029,7 @@ describe("러너의 gh 계정(0205)", () => {
       {
         ...readGh,
         kind: "logged-in",
-        accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+        accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
       },
       false,
     );
@@ -995,8 +1047,11 @@ describe("러너의 gh 계정(0205)", () => {
         {
           kind: "logged-in" as const,
           accounts: [
-            Object.assign({ token: "gho_FAKE" }, { host: "github.com", login: "b", active: false }),
-            { host: "github.com", login: "a", active: true },
+            Object.assign(
+              { token: "gho_FAKE" },
+              { host: "github.com", login: "b", active: false, expired: false },
+            ),
+            { host: "github.com", login: "a", active: true, expired: false },
           ],
         },
       ),

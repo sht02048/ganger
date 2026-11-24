@@ -956,8 +956,13 @@ function RunnerGhAccounts({ runner }: { runner: RunnerView }) {
         <Text variant="ui">{t("notRead")}</Text>
       ) : gh.kind === "logged-in" ? (
         gh.accounts.map((account) => (
-          <Text key={`${account.host}/${account.login}`} variant="ui" as="p">
-            {t("account", {
+          <Text
+            key={`${account.host}/${account.login}`}
+            variant="ui"
+            as="p"
+            {...(account.expired ? { tone: "muted" as const } : {})}
+          >
+            {t(account.expired ? "accountExpired" : "account", {
               login: account.login,
               host: account.host,
               active: String(account.active),

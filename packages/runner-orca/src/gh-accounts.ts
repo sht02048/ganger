@@ -23,7 +23,7 @@ const host = z
   .max(260);
 const login = z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,99})$/);
 
-const ACCOUNT_LINE = /(?:Logged in to|log in to) (\S+) account (\S+) \(/;
+const ACCOUNT_LINE = /(Logged in to|Failed to log in to|log in to) (\S+) account (\S+) \(/;
 const ANY_ACCOUNT_LINE = / account \S+ \(| as \S+ \(/;
 const LEGACY_ACCOUNT_LINE = /Logged in to (\S+) as (\S+) \(/;
 const ACTIVE_LINE = /^\s*-\s*Active account:\s*(true|false)\s*$/;
@@ -70,10 +70,18 @@ export function parseGhAccounts(output: string): GhAccountsReading {
 }
 
 function accountOf(line: string): GhAccount | null {
-  const match = ACCOUNT_LINE.exec(line) ?? LEGACY_ACCOUNT_LINE.exec(line);
-  if (match === null) return null;
-  const parsedHost = host.safeParse(match[1]);
-  const parsedLogin = login.safeParse(match[2]);
+  const current = ACCOUNT_LINE.exec(line);
+  const legacy = current === null ? LEGACY_ACCOUNT_LINE.exec(line) : null;
+  const [hostText, loginText] =
+    current === null ? [legacy?.[1], legacy?.[2]] : [current[2], current[3]];
+  if (hostText === undefined || loginText === undefined) return null;
+  const parsedHost = host.safeParse(hostText);
+  const parsedLogin = login.safeParse(loginText);
   if (!parsedHost.success || !parsedLogin.success) return null;
-  return { host: parsedHost.data, login: parsedLogin.data, active: false };
+  return {
+    host: parsedHost.data,
+    login: parsedLogin.data,
+    active: false,
+    expired: current?.[1] === "Failed to log in to",
+  };
 }

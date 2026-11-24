@@ -184,7 +184,7 @@ describe("OrcaRunner.readUsageAndLoad", () => {
     expect(load).toMatchObject({ kind: "read", cpu: { percent: 50, cores: 8 } });
     expect(ghAccounts).toEqual({
       kind: "logged-in",
-      accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+      accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
     });
   });
 

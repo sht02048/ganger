@@ -49,7 +49,7 @@ describe("parseGhAccounts", () => {
   test("reads one logged-in account as active", () => {
     expect(parseGhAccounts(ONE_ACCOUNT)).toEqual({
       kind: "logged-in",
-      accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+      accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
     });
   });
 
@@ -57,9 +57,9 @@ describe("parseGhAccounts", () => {
     expect(parseGhAccounts(TWO_ACCOUNTS)).toEqual({
       kind: "logged-in",
       accounts: [
-        { host: "github.com", login: "acme-bot", active: false },
-        { host: "github.com", login: "acme-ci", active: true },
-        { host: "ghe.acme.example", login: "acme_corp", active: true },
+        { host: "github.com", login: "acme-bot", active: false, expired: false },
+        { host: "github.com", login: "acme-ci", active: true, expired: false },
+        { host: "ghe.acme.example", login: "acme_corp", active: true, expired: true },
       ],
     });
   });
@@ -67,7 +67,7 @@ describe("parseGhAccounts", () => {
   test("reads the older single-account format, whose one account per host is active", () => {
     expect(parseGhAccounts(LEGACY)).toEqual({
       kind: "logged-in",
-      accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+      accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
     });
   });
 
@@ -80,8 +80,8 @@ describe("parseGhAccounts", () => {
     expect(parseGhAccounts(output)).toEqual({
       kind: "logged-in",
       accounts: [
-        { host: "github.com", login: "acme-bot", active: false },
-        { host: "github.com", login: "acme-ci", active: true },
+        { host: "github.com", login: "acme-bot", active: false, expired: false },
+        { host: "github.com", login: "acme-ci", active: true, expired: false },
       ],
     });
   });
@@ -94,7 +94,26 @@ describe("parseGhAccounts", () => {
   - Active account: true`;
     expect(parseGhAccounts(output)).toEqual({
       kind: "logged-in",
-      accounts: [{ host: "github.com", login: "acme-bot", active: false }],
+      accounts: [{ host: "github.com", login: "acme-bot", active: false, expired: false }],
+    });
+  });
+
+  test("an account gh failed to log in to is kept and marked expired (0207)", () => {
+    const output = `github.com
+  X Failed to log in to github.com account acme-old (keyring)
+  - Active account: true
+  - The token in keyring is invalid.
+  - To re-authenticate, run: gh auth login -h github.com
+  - To forget about this account, run: gh auth logout -h github.com -u acme-old
+
+  ✓ Logged in to github.com account acme-bot (keyring)
+  - Active account: false`;
+    expect(parseGhAccounts(output)).toEqual({
+      kind: "logged-in",
+      accounts: [
+        { host: "github.com", login: "acme-old", active: true, expired: true },
+        { host: "github.com", login: "acme-bot", active: false, expired: false },
+      ],
     });
   });
 
@@ -168,7 +187,7 @@ describe("READ_GH_ACCOUNTS_SCRIPT", () => {
     const { gh: section } = splitLoadAndGhAccounts(output);
     expect(parseGhAccounts(section ?? "")).toEqual({
       kind: "logged-in",
-      accounts: [{ host: "github.com", login: "acme-bot", active: true }],
+      accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
     });
   });
 });

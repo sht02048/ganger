@@ -850,7 +850,12 @@ describe("다섯 단계를 마치기", () => {
     await connectTracker(f);
     const settings = await page(f);
     const github = await loadGitHubAuthView(f.context);
-    expect(github).toEqual({ cli: { kind: "missing" }, tokenSaved: false, source: "none" });
+    expect(github).toEqual({
+      cli: { kind: "missing" },
+      tokenSaved: false,
+      source: "none",
+      prReadDiagnoses: [],
+    });
     const before = render(settings, "github", [], github);
     const shown = text(before);
     expect(shown).toContain("GitHub에 연결해요");
@@ -917,10 +922,13 @@ describe("다섯 단계를 마치기", () => {
       cli: {
         kind: "logged-in",
         multiAccount: true,
-        accounts: [{ login: "acme-bot", active: true, owners: ["acme-bot", "acme"] }],
+        accounts: [
+          { login: "acme-bot", active: true, expired: false, owners: ["acme-bot", "acme"] },
+        ],
       },
       tokenSaved: false,
       source: "gh",
+      prReadDiagnoses: [],
     });
     const html = render(await page(f), "github", [], github);
     const shown = text(html);

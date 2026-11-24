@@ -1,6 +1,13 @@
-import { AdapterRegistry, toCodeHostKind } from "@ganger/core";
+import { AdapterRegistry, toCodeHostKind, toRunnerId } from "@ganger/core";
 import { FakeCodeHost } from "@ganger/core/testing";
-import { SecretBox, listCodeHostConnections, migrate, openDatabase } from "@ganger/db";
+import {
+  SecretBox,
+  listCodeHostConnections,
+  listRuns,
+  migrate,
+  openDatabase,
+  recordGhAccounts,
+} from "@ganger/db";
 import { GitHubAuth } from "@ganger/codehost-github";
 import { describe, expect, it } from "vitest";
 import { saveGitHubToken } from "@ganger/app/settings/actions";
@@ -9,6 +16,7 @@ import type { SettingsContext } from "@ganger/app/settings/load";
 import type { GitHubAuthView } from "@ganger/app/settings/model";
 import { buttonsOf } from "../testing/buttons";
 import { renderWithMessages } from "../testing/render";
+import { seedDatabase } from "../testing/seed";
 import { GitHubAuthPanel } from "./github-auth";
 import { settingsMessages } from "./messages";
 import type { SettingsActions } from "./settings-screen";
@@ -118,7 +126,7 @@ describe("Settings GitHub 구역 (0204)", () => {
   });
 });
 
-function context(scene: { loggedIn: boolean }) {
+function context(scene: { loggedIn: boolean; expired?: boolean }) {
   const db = openDatabase(":memory:");
   migrate(db);
   const codeHost = new FakeCodeHost(toCodeHostKind("fake-host"));
@@ -136,9 +144,10 @@ function context(scene: { loggedIn: boolean }) {
         if (args[0] === "--version") {
           return Promise.resolve({ code: 0, stdout: "gh version 2.60.0", stderr: "" });
         }
-        const accounts = scene.loggedIn
-          ? [{ state: "success", active: true, login: "acme-bot" }]
-          : [];
+        const accounts = [
+          ...(scene.loggedIn ? [{ state: "success", active: true, login: "acme-bot" }] : []),
+          ...(scene.expired === true ? [{ state: "error", active: false, login: "acme-old" }] : []),
+        ];
         if (args[1] === "status") {
           return Promise.resolve({
             code: 0,
@@ -198,5 +207,125 @@ describe("GitHub 연결 확인과 토큰 저장 (0204)", () => {
     await saveGitHubToken(ctx, { token: "github_pat_example" }, now);
     expect(await checkGitHubConnection(ctx, now)).toEqual({ ok: true });
     expect((await loadGitHubAuthView(ctx)).source).toBe("token");
+  });
+});
+
+describe("만료된 gh 계정과 PR 읽기 진단 (0207)", () => {
+  const withExpired: GitHubAuthView = {
+    cli: {
+      kind: "logged-in",
+      multiAccount: true,
+      accounts: [
+        { login: "jane-doe", active: false, expired: false, owners: ["jane-doe"] },
+        { login: "acme-old", active: true, expired: true, owners: null },
+      ],
+    },
+    tokenSaved: false,
+    source: "gh",
+  };
+
+  it("만료된 계정은 흐리게 로그인이 만료됐다고 보이고 볼 수 있는 곳을 말하지 않는다", () => {
+    const html = panel(withExpired);
+    const shown = text(html);
+    expect(shown).toContain("gh로 연결했어요");
+    expect(shown).toContain("jane-doe 볼 수 있는 곳 · jane-doe");
+    expect(shown).toContain("acme-old 활성 로그인이 만료됐어요");
+    expect(shown).not.toContain("acme-old 활성 볼 수 있는 곳");
+  });
+
+  it("모든 계정이 만료됐으면 다시 로그인하라고 gh auth login 명령을 보인다", () => {
+    const html = panel(
+      {
+        cli: {
+          kind: "logged-in",
+          multiAccount: true,
+          accounts: [{ login: "acme-old", active: true, expired: true, owners: null }],
+        },
+        tokenSaved: false,
+        source: "none",
+      },
+      false,
+    );
+    const shown = text(html);
+    expect(shown).toContain("gh 계정의 로그인이 모두 만료됐어요");
+    expect(shown).not.toContain("gh로 연결했어요");
+    expect(html).toContain(">gh auth login</pre>");
+    expect(shown).toContain("acme-old 활성 로그인이 만료됐어요");
+    expect(buttonsOf(html).find((b) => b.label === "확인하고 저장")?.variant).toBe("primary");
+  });
+
+  it("PR을 읽지 못한 러너마다 런 수와 러너·서버 계정 진단을 보인다", () => {
+    const shown = text(
+      panel({
+        ...withExpired,
+        prReadDiagnoses: [
+          {
+            runs: 2,
+            diagnosis: {
+              kind: "different",
+              runner: "runner-a",
+              runnerLogin: "acme-dev",
+              server: { kind: "gh", logins: ["jane-doe"] },
+            },
+          },
+          {
+            runs: 1,
+            diagnosis: {
+              kind: "runner-unknown",
+              runner: "runner-b",
+              server: { kind: "gh", logins: ["jane-doe"] },
+            },
+          },
+        ],
+      }),
+    );
+    expect(shown).toContain("PR을 읽지 못한 러너");
+    expect(shown).toContain(
+      "런 2개 · 러너(runner-a)는 acme-dev, 서버는 jane-doe 계정으로 읽어요. 서버 계정이 그 저장소를 볼 수 없어요.",
+    );
+    expect(shown).toContain("런 1개 · 서버는 jane-doe 계정으로 읽어요. 러너(runner-b)의 gh 계정을");
+    expect(text(panel(withExpired))).not.toContain("PR을 읽지 못한 러너");
+  });
+
+  it("서버 상태는 만료된 계정만 있으면 gh로 연결했다고 하지 않고 다시 확인도 gh 를 쓰지 않는다", async () => {
+    const { ctx } = context({ loggedIn: false, expired: true });
+    const view = await loadGitHubAuthView(ctx);
+    expect(view.source).toBe("none");
+    expect(view.cli).toMatchObject({ kind: "logged-in", accounts: [{ login: "acme-old" }] });
+    expect(await checkGitHubConnection(ctx, now)).toEqual({ ok: false, reason: "no-credentials" });
+    expect(JSON.stringify(view)).not.toContain("gho_");
+  });
+
+  it("저장소를 볼 수 없어 PR을 읽지 못한 런의 러너를 서버 계정과 견줘 진단을 싣는다", async () => {
+    const { db } = seedDatabase();
+    const ctx = { ...context({ loggedIn: true }).ctx, db };
+    const runnerId = toRunnerId("runner-a");
+    recordGhAccounts(db, {
+      runnerId,
+      readAt: now,
+      reading: {
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: false }],
+      },
+    });
+    const ended = listRuns(db, { states: ["ended"] }).filter((run) => run.runnerId === runnerId);
+    expect(ended.length).toBeGreaterThan(1);
+    for (const run of ended.slice(0, 2)) {
+      db.$client
+        .prepare(`UPDATE runs SET pr_state = 'unknown', pr_read_error = 'no-access' WHERE id = ?`)
+        .run(run.id);
+    }
+    const view = await loadGitHubAuthView(ctx);
+    expect(view.prReadDiagnoses).toEqual([
+      {
+        runs: 2,
+        diagnosis: {
+          kind: "different",
+          runner: "runner-a",
+          runnerLogin: "acme-dev",
+          server: { kind: "gh", logins: ["acme-bot"] },
+        },
+      },
+    ]);
   });
 });

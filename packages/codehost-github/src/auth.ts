@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { localGhRunner, readGhCli, readGhToken } from "./gh-cli.js";
+import { localGhRunner, readGhCli, readGhToken, usableAccounts } from "./gh-cli.js";
 import type { GhAccount, GhCliStatus, GhRunner } from "./gh-cli.js";
 import { GitHubHttp } from "./http.js";
 
@@ -78,7 +78,7 @@ export class GitHubAuth {
     const accounts = await Promise.all(
       status.accounts.map(async (account) => ({
         ...account,
-        owners: await this.ownersOf(account, status.multiAccount),
+        owners: account.expired ? null : await this.ownersOf(account, status.multiAccount),
       })),
     );
     return { kind: "logged-in", multiAccount: status.multiAccount, accounts };
@@ -90,7 +90,7 @@ export class GitHubAuth {
   ): Promise<GitHubCredential | null> {
     const status = await this.cli();
     if (repo === null) {
-      const active = status.kind === "logged-in" ? status.accounts[0] : undefined;
+      const active = usableAccountsOf(status)[0];
       if (active !== undefined) {
         const token = await this.tokenOf(active.login, multiAccountOf(status));
         if (token !== null) return { token, source: { kind: "gh", login: active.login } };
@@ -131,7 +131,7 @@ export class GitHubAuth {
 
   private async choose(repo: RepoParts, hasPasted: boolean): Promise<CredentialSource | null> {
     const status = await this.cli();
-    const accounts = status.kind === "logged-in" ? status.accounts : [];
+    const accounts = usableAccountsOf(status);
     for (const account of accounts) {
       const token = await this.tokenOf(account.login, multiAccountOf(status));
       if (token === null) continue;
@@ -194,6 +194,10 @@ export class GitHubAuth {
       ...(this.fetchFn === undefined ? {} : { fetch: this.fetchFn }),
     });
   }
+}
+
+export function usableAccountsOf(status: GhCliStatus): GhAccount[] {
+  return status.kind === "logged-in" ? usableAccounts(status.accounts) : [];
 }
 
 function multiAccountOf(status: GhCliStatus): boolean {

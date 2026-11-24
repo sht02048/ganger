@@ -1,5 +1,11 @@
-import { toPullRequestId } from "@ganger/core";
-import { changeRunState, requestRunCancel, updateRunRecords } from "@ganger/db";
+import { toPullRequestId, toRunId } from "@ganger/core";
+import {
+  changeRunState,
+  getRun,
+  recordGhAccounts,
+  requestRunCancel,
+  updateRunRecords,
+} from "@ganger/db";
 import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import runsJson from "../../messages/ko/runs.json" with { type: "json" };
@@ -359,6 +365,45 @@ describe("Runs 패널(0173)", () => {
     );
     const page = loadRunsBoard(db, undefined, now, { view: "all" });
     expect(textOf(panelHtml(find(page, id)))).toContain(runsJson.panel.prUnread["no-access"]);
+  });
+
+  it("저장소를 볼 수 없어 못 읽은 PR 은 러너와 서버의 gh 계정 진단을 함께 보인다(0207)", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    if (id === undefined) throw new Error("seed");
+    changeRunState(
+      db,
+      id,
+      {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "unknown",
+        prReadError: "no-access",
+      },
+      minutes(110),
+    );
+    const runnerId = getRun(db, toRunId(id))?.runnerId;
+    if (runnerId === null || runnerId === undefined) throw new Error("runner");
+    recordGhAccounts(db, {
+      runnerId,
+      readAt: now,
+      reading: {
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: false }],
+      },
+    });
+    const serverGitHub = { ghLogins: ["my-personal"], tokenSaved: false, tokenOnly: false };
+    const text = (server: typeof serverGitHub | null) =>
+      textOf(
+        panelHtml(
+          find(loadRunsBoard(db, undefined, now, { view: "all", serverGitHub: server }), id),
+        ),
+      );
+    const shown = text(serverGitHub);
+    expect(shown).toContain(runsJson.panel.prUnread["no-access"]);
+    expect(shown).toContain("는 acme-dev, 서버는 my-personal 계정으로 읽어요.");
+    expect(text({ ...serverGitHub, ghLogins: ["acme-dev"] })).not.toContain("서버는");
+    expect(text(null)).not.toContain("서버는");
   });
 
   it("제목 있는 런도 패널을 그린다", () => {

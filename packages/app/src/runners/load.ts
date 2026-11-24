@@ -169,6 +169,8 @@ export function ghAccountsView(
   return {
     ...base,
     kind: "logged-in",
-    accounts: stored.reading.accounts.toSorted((a, b) => Number(b.active) - Number(a.active)),
+    accounts: stored.reading.accounts.toSorted(
+      (a, b) => Number(a.expired) - Number(b.expired) || Number(b.active) - Number(a.active),
+    ),
   };
 }

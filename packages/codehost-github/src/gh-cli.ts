@@ -23,6 +23,11 @@ export interface GhRunner {
 export interface GhAccount {
   login: string;
   active: boolean;
+  expired: boolean;
+}
+
+export function usableAccounts<T extends GhAccount>(accounts: ReadonlyArray<T>): T[] {
+  return accounts.filter((account) => !account.expired);
 }
 
 export type GhCliStatus =
@@ -77,9 +82,11 @@ export function parseStatusJson(output: string): GhAccount[] | null {
   if (!parsed.success) return null;
   return uniqueAccounts(
     (parsed.data.hosts[GH_HOST] ?? []).flatMap((entry) => {
-      if (entry.state !== "success") return [];
+      if (entry.state !== "success" && entry.state !== "error") return [];
       const login = githubLogin.safeParse(entry.login);
-      return login.success ? [{ login: login.data, active: entry.active }] : [];
+      return login.success
+        ? [{ login: login.data, active: entry.active, expired: entry.state === "error" }]
+        : [];
     }),
   );
 }
@@ -88,14 +95,20 @@ export function parseStatusText(output: string): GhAccount[] {
   const accounts: GhAccount[] = [];
   let current: GhAccount | null = null;
   for (const line of output.split(/\r?\n/u)) {
-    const loggedIn = /Logged in to github\.com (?:account|as) (\S+)/u.exec(line);
-    if (loggedIn !== null) {
-      const login = githubLogin.safeParse(loggedIn[1]);
-      current = login.success ? { login: login.data, active: false } : null;
+    const account = /(Logged in|Failed to log in) to github\.com (?:account|as) (\S+)/u.exec(line);
+    if (account !== null) {
+      const login = githubLogin.safeParse(account[2]);
+      current = login.success
+        ? { login: login.data, active: false, expired: account[1] === "Failed to log in" }
+        : null;
       if (current !== null) accounts.push(current);
       continue;
     }
-    if (/(?:Failed to log in|not logged in|token .* (?:is )?invalid)/iu.test(line)) {
+    if (
+      /(?:Failed to log in|Timeout trying to log in|not logged in|token .* (?:is )?invalid)/iu.test(
+        line,
+      )
+    ) {
       current = null;
       continue;
     }
@@ -118,7 +131,7 @@ function uniqueAccounts(accounts: GhAccount[]): GhAccount[] {
       seen.add(key);
       return true;
     })
-    .sort((a, b) => Number(b.active) - Number(a.active));
+    .sort((a, b) => Number(a.expired) - Number(b.expired) || Number(b.active) - Number(a.active));
 }
 
 export async function readGhCli(runner: GhRunner): Promise<GhCliStatus> {

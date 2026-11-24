@@ -72,8 +72,8 @@ describe("러너 점검의 공급자 사용량(0086)", () => {
     const reading = {
       kind: "logged-in" as const,
       accounts: [
-        { host: "github.com", login: "acme-bot", active: true },
-        { host: "github.com", login: "acme-ci", active: false },
+        { host: "github.com", login: "acme-bot", active: true, expired: false },
+        { host: "github.com", login: "acme-ci", active: false, expired: false },
       ],
     };
     h.runner(id).ghAccounts = Object.assign({ token: "gho_FAKE" }, reading);

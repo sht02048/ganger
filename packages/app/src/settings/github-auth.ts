@@ -1,6 +1,16 @@
-import { defaultGitHubAuth } from "@ganger/codehost-github";
+import { defaultGitHubAuth, usableAccountsOf } from "@ganger/codehost-github";
 import type { GitHubAuth } from "@ganger/codehost-github";
-import { clearMergeDenials, listCodeHostConnections, saveCodeHostConnection } from "@ganger/db";
+import {
+  clearMergeDenials,
+  listCodeHostConnections,
+  listRunners,
+  listRunsWithRecords,
+  saveCodeHostConnection,
+} from "@ganger/db";
+import type { Database } from "@ganger/db";
+import type { RunnerId } from "@ganger/core";
+import { diagnosePrRead, serverGitHubOf } from "../pr-read-diagnosis.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { toCodeHostConnectionId } from "@ganger/db";
 import {
   hasPastedGitHubToken,
@@ -9,25 +19,53 @@ import {
   remoteErrorOfDetail,
 } from "./load.js";
 import type { SettingsContext } from "./load.js";
-import type { GhCliView, GitHubAuthView, RemoteError, SaveResult } from "./model.js";
+import type {
+  GhCliView,
+  GitHubAuthView,
+  RemoteError,
+  RunnerPrReadDiagnosis,
+  SaveResult,
+} from "./model.js";
 
 function authOf(context: SettingsContext): GitHubAuth {
   return context.githubAuth ?? defaultGitHubAuth();
 }
 
 export async function loadGitHubAuthView(context: SettingsContext): Promise<GitHubAuthView> {
-  const tokenSaved = hasPastedGitHubToken(listCodeHostConnections(context.db, context.secretBox));
+  const connections = listCodeHostConnections(context.db, context.secretBox);
+  const tokenSaved = hasPastedGitHubToken(connections);
   let cli: GhCliView;
   try {
     cli = await authOf(context).view();
   } catch {
     cli = { kind: "missing" };
   }
+  const server = serverGitHubOf(cli, connections);
   return {
     cli,
     tokenSaved,
-    source: cli.kind === "logged-in" ? "gh" : tokenSaved ? "token" : "none",
+    source: server.ghLogins.length > 0 ? "gh" : tokenSaved ? "token" : "none",
+    prReadDiagnoses: runnerPrReadDiagnoses(context.db, server),
   };
+}
+
+export function runnerPrReadDiagnoses(db: Database, server: ServerGitHub): RunnerPrReadDiagnosis[] {
+  const unread = new Map<RunnerId, number>();
+  for (const { run, records } of listRunsWithRecords(db, { states: ["ended"] })) {
+    if (records.prReadError !== "no-access" || run.runnerId === null) continue;
+    unread.set(run.runnerId, (unread.get(run.runnerId) ?? 0) + 1);
+  }
+  if (unread.size === 0) return [];
+  return listRunners(db).flatMap((runner) => {
+    const runs = unread.get(runner.id);
+    if (runs === undefined) return [];
+    const diagnosis = diagnosePrRead(
+      "no-access",
+      { name: runner.name, ghAccounts: runner.ghAccounts?.reading ?? null },
+      server,
+    );
+    return diagnosis === null ? [] : [{ runs, diagnosis }];
+  });
 }
 
 export type GitHubCheckFailure = RemoteError | "no-credentials";
@@ -40,7 +78,7 @@ export async function checkGitHubConnection(
   auth.refresh();
   const existing = listCodeHostConnections(context.db, context.secretBox)[0];
   const status = await auth.cli().catch(() => ({ kind: "missing" as const }));
-  const usesCli = status.kind === "logged-in";
+  const usesCli = usableAccountsOf(status).length > 0;
   if (!usesCli && pastedGitHubToken(existing?.secrets) === null) {
     return { ok: false, reason: "no-credentials" };
   }
