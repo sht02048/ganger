@@ -36,6 +36,7 @@ import { describe, expect, it } from "vitest";
 import { GANGER_YELLOW_HEX } from "@ganger/ui/brand-color";
 import { serverMcpLaunch } from "../server/mcp-launch";
 import { installPowerSettings } from "../server/power-settings";
+import { labeledTimesOf } from "../testing/labeled-times";
 import { renderWithMessages } from "../testing/render";
 import {
   addTrackerProject,
@@ -1208,7 +1209,12 @@ describe("러너 확인", () => {
     );
     const check = later.install.runners[0]?.check;
     expect(check).toMatchObject({ status: "done", completedAgoMs: 25 * 60_000 - 5000 });
-    expect(textOf(renderRunnerCheck(later))).toContain("24 min ago 확인");
+    const html = renderRunnerCheck(later);
+    const checkedLabel = settingsJson.runners.check.checkedLabel;
+    expect(labeledTimesOf(html)).toContainEqual(
+      expect.objectContaining({ title: checkedLabel, hidden: checkedLabel, visible: "24 min ago" }),
+    );
+    expect(textOf(html)).not.toContain("24 min ago 확인");
   });
 
   it("GitHub 인증이 깨진 결과는 실패와 해결 방법을 보인다", async () => {

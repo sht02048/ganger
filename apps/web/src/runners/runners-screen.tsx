@@ -44,6 +44,7 @@ import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { useLocale, useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { useTime } from "../format/time";
 import { usePrerequisiteName, useUsageNames } from "../labels";
 import { useCheckingText } from "../push-check";
@@ -377,9 +378,13 @@ function RunnerPanel({
           <StatusPill status={status}>{statusName(status)}</StatusPill>
           <span {...stylex.props(styles.statusTime)}>
             <Text variant="meta" numeric>
-              {runner.checked === null
-                ? t("neverChecked")
-                : t("checkedAgo", { time: ago(runner.checked.at, runner.checked.agoMs) })}
+              {runner.checked === null ? (
+                t("neverChecked")
+              ) : (
+                <LabeledTime dateTime={runner.checked.at} label={t("checkedLabel")}>
+                  {ago(runner.checked.at, runner.checked.agoMs)}
+                </LabeledTime>
+              )}
             </Text>
           </span>
           {checkingText === null ? null : (
@@ -926,7 +931,15 @@ function RunnerLoadSection({ runner }: { runner: RunnerView }) {
     <PanelSection
       titleRole="subheading"
       title={t("title")}
-      {...(load === null ? {} : { meta: t("readAgo", { time: ago(load.readAt, load.agoMs) }) })}
+      {...(load === null
+        ? {}
+        : {
+            meta: (
+              <LabeledTime dateTime={load.readAt} label={t("readLabel")}>
+                {ago(load.readAt, load.agoMs)}
+              </LabeledTime>
+            ),
+          })}
     >
       {!runner.online ? (
         <Text variant="ui">{tLoad("offline")}</Text>
@@ -950,7 +963,15 @@ function RunnerGhAccounts({ runner }: { runner: RunnerView }) {
       titleRole="subheading"
       title={t("title")}
       info={<InfoTip label={t("infoLabel")} content={t("info")} />}
-      {...(gh === null ? {} : { meta: t("readAgo", { time: ago(gh.readAt, gh.agoMs) }) })}
+      {...(gh === null
+        ? {}
+        : {
+            meta: (
+              <LabeledTime dateTime={gh.readAt} label={t("readLabel")}>
+                {ago(gh.readAt, gh.agoMs)}
+              </LabeledTime>
+            ),
+          })}
     >
       {gh === null ? (
         <Text variant="ui">{t("notRead")}</Text>
@@ -991,7 +1012,15 @@ function ProviderUsage({ runner }: { runner: RunnerView }) {
       titleRole="subheading"
       title={t("title")}
       info={<InfoTip label={t("privacyLabel")} content={t("privacy")} />}
-      {...(usage === null ? {} : { meta: t("readAgo", { time: ago(usage.readAt, usage.agoMs) }) })}
+      {...(usage === null
+        ? {}
+        : {
+            meta: (
+              <LabeledTime dateTime={usage.readAt} label={t("readLabel")}>
+                {ago(usage.readAt, usage.agoMs)}
+              </LabeledTime>
+            ),
+          })}
     >
       {usage === null ? (
         <Text variant="ui">{t("notRead")}</Text>

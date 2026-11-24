@@ -38,6 +38,7 @@ import { breakpoints, size, space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { useTime } from "../format/time";
 import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { runTicketHref } from "../run-ticket-href";
@@ -680,7 +681,11 @@ function PrSection({ run }: { run: RunDetail }) {
         {stateText === null ? null : <Text variant="ui">{stateText}</Text>}
         <span {...stylex.props(styles.prHeadEnd)}>
           {signals === null ? null : (
-            <Text variant="meta">{t("readAt", { time: stamp(signals.checkedAt, run.now) })}</Text>
+            <Text variant="meta">
+              <LabeledTime dateTime={signals.checkedAt} label={t("readLabel")}>
+                {stamp(signals.checkedAt, run.now)}
+              </LabeledTime>
+            </Text>
           )}
           {pr === null ? null : (
             <TextLink href={pr.url} external>
@@ -1457,8 +1462,12 @@ function LogTail({
   const [refresh, setRefresh] = useState<"idle" | "refreshing" | "failed">("idle");
   const refreshing = refresh === "refreshing";
   const { ago } = useTime();
-  const time = (at: string): string => ago(at, Date.parse(now) - Date.parse(at));
-  let note: string | undefined;
+  const time = (at: string, label: string): ReactNode => (
+    <LabeledTime dateTime={at} label={label}>
+      {ago(at, Date.parse(now) - Date.parse(at))}
+    </LabeledTime>
+  );
+  let note: ReactNode;
   let body: ReactNode;
   switch (log.kind) {
     case "none":
@@ -1472,7 +1481,7 @@ function LogTail({
       );
       break;
     case "failed":
-      note = time(log.at);
+      note = time(log.at, t("failedAtLabel"));
       body = <Text variant="body">{t("failed", { error: log.error })}</Text>;
       break;
     case "stored":
@@ -1480,7 +1489,10 @@ function LogTail({
       body = <LogLines lines={log.lines} />;
       break;
     case "done":
-      note = t("fetched", { time: time(log.at), count: log.lines.length });
+      note = t.rich("fetched", {
+        count: log.lines.length,
+        time: () => time(log.at, t("fetchedLabel")),
+      });
       body = <LogLines lines={log.lines} />;
       break;
   }
@@ -1623,7 +1635,7 @@ function OtherRuns({ run, runHref }: { run: RunDetail; runHref: (runId: string) 
   );
 }
 
-function useStatusLine(): (run: RunDetail) => { status: PillStatus; when: string } {
+function useStatusLine(): (run: RunDetail) => { status: PillStatus; when: ReactNode } {
   const t = useTranslations("run.when");
   const root = useTranslations("run");
   const domain = useTranslations("domain");
@@ -1633,18 +1645,22 @@ function useStatusLine(): (run: RunDetail) => { status: PillStatus; when: string
     switch (status.state) {
       case "ended": {
         const endedAt = run.endedAt ?? run.now;
-        const timing =
-          run.startedAt === null
-            ? [t("endedBeforeStart", { duration: duration(run.waitMs) })]
-            : [
-                t("endedAgo", { time: ago(endedAt, Date.parse(run.now) - Date.parse(endedAt)) }),
-                t("took", { duration: duration(run.executionMs ?? 0) }),
-              ];
+        const separator = root("metaSeparator");
+        const result = domain(`agentResult.${status.agentResult}`);
         return {
           status: runStatus(status),
-          when: [...timing, domain(`agentResult.${status.agentResult}`)].join(
-            root("metaSeparator"),
-          ),
+          when:
+            run.startedAt === null ? (
+              [t("endedBeforeStart", { duration: duration(run.waitMs) }), result].join(separator)
+            ) : (
+              <>
+                <LabeledTime dateTime={endedAt} label={t("endedLabel")}>
+                  {ago(endedAt, Date.parse(run.now) - Date.parse(endedAt))}
+                </LabeledTime>
+                {separator}
+                {[t("took", { duration: duration(run.executionMs ?? 0) }), result].join(separator)}
+              </>
+            ),
         };
       }
       case "queued":

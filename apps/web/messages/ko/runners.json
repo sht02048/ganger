@@ -48,7 +48,7 @@
   "panel": {
     "label": "고른 러너",
     "empty": "러너를 고르면 여기에 자세히 보여요.",
-    "checkedAgo": "{time} 확인",
+    "checkedLabel": "마지막으로 확인한 때",
     "neverChecked": "아직 확인하지 않았어요",
     "fix": {
       "brokenTitle": "{name} 항목이 깨졌어요",
@@ -100,7 +100,7 @@
     },
     "load": {
       "title": "부하",
-      "readAgo": "{time} 읽음",
+      "readLabel": "마지막으로 읽은 때",
       "notRead": "아직 부하를 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
       "unreadable": "부하를 읽지 못했어요. 다음 점검 때 다시 읽어요.",
       "cpuNote": "코어 {cores}개에 부하 {load}",
@@ -112,7 +112,7 @@
       "title": "GitHub (gh)",
       "infoLabel": "GitHub (gh) 안내",
       "info": "러너에서 gh에 로그인한 계정이에요. 에이전트는 이 계정으로 push하고 PR을 열어요.",
-      "readAgo": "{time} 읽음",
+      "readLabel": "마지막으로 읽은 때",
       "notRead": "아직 gh 계정을 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
       "unreadable": "gh 계정을 읽지 못했어요. 다음 점검 때 다시 읽어요.",
       "notInstalled": "gh 없음",
@@ -123,7 +123,7 @@
     "usage": {
       "title": "사용량",
       "privacyLabel": "사용량 정보 안내",
-      "readAgo": "{time} 읽음",
+      "readLabel": "마지막으로 읽은 때",
       "notRead": "아직 사용량을 읽지 않았어요. 러너가 Online이면 몇 분 안에 읽어요.",
       "unreadable": "사용량을 읽지 못했어요. 다음 점검 때 다시 읽어요.",
       "resetsAt": "{time}에 초기화돼요",

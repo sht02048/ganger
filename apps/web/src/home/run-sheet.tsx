@@ -25,6 +25,7 @@ import { space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { useTime } from "../format/time";
 import type { HomeRun, InputWait } from "@ganger/app/home/model";
 import { todoTagOf } from "@ganger/app/home/model";
@@ -169,11 +170,11 @@ function PrTab({ run }: { run: HomeRun }) {
   );
 }
 
-function SheetStatus({ run, status }: { run: HomeRun; status: PillStatus }) {
+export function SheetStatus({ run, status }: { run: HomeRun; status: PillStatus }) {
   const t = useTranslations("home.sheet");
   const { statusName } = useRunText();
   const { ago, elapsed } = useTime();
-  const since = ((): string | null => {
+  const since = ((): ReactNode => {
     switch (run.state) {
       case "queued":
         return t("since.waiting", { elapsed: elapsed(run.waitMs) });
@@ -190,7 +191,11 @@ function SheetStatus({ run, status }: { run: HomeRun; status: PillStatus }) {
       case "disconnected":
         return null;
       case "ended":
-        return t("since.ended", { ago: ago(run.endedAt, run.endedAgoMs) });
+        return (
+          <LabeledTime dateTime={run.endedAt} label={t("since.endedLabel")}>
+            {ago(run.endedAt, run.endedAgoMs)}
+          </LabeledTime>
+        );
     }
   })();
   return (

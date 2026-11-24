@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import { useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { useTime } from "../format/time";
 import { isPushCheck, prerequisiteHint, summarizePushChecks } from "@ganger/app/prerequisites";
 import { usePrerequisiteName } from "../labels";
@@ -591,9 +592,9 @@ function CheckResult({
             </DividedList>
           )}
           <Text variant="meta">
-            <time dateTime={check.completedAt}>
-              {t("checkedAt", { time: ago(check.completedAt, check.completedAgoMs) })}
-            </time>
+            <LabeledTime dateTime={check.completedAt} label={t("checkedLabel")}>
+              {ago(check.completedAt, check.completedAgoMs)}
+            </LabeledTime>
           </Text>
         </div>
       );

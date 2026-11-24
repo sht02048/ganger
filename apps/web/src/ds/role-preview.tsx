@@ -47,6 +47,7 @@ import {
 import { colors, space } from "@ganger/ui/tokens.stylex";
 import { useState, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
+import { LabeledTime } from "../format/labeled-time";
 import { useStatusName } from "../status";
 
 export const roleSectionIds = [
@@ -309,7 +310,11 @@ export function RoleSections() {
               <PanelSection
                 title={t("signals.title")}
                 detail={t("signals.detail")}
-                meta={t("signals.meta")}
+                meta={
+                  <LabeledTime dateTime="2026-11-24T00:00:00.000Z" label={t("signals.metaLabel")}>
+                    {t("signals.meta")}
+                  </LabeledTime>
+                }
               >
                 <SignalList>
                   <SignalRow label={t("signals.ci")} tone="problem">
@@ -377,7 +382,17 @@ export function RoleSections() {
                   }}
                 />
               </PanelSection>
-              <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
+              <PanelSection
+                title={t("usage.panelTitle")}
+                meta={
+                  <LabeledTime
+                    dateTime="2026-11-24T00:00:00.000Z"
+                    label={t("usage.panelMetaLabel")}
+                  >
+                    {t("usage.panelMeta")}
+                  </LabeledTime>
+                }
+              >
                 <Text variant="ui">{t("usage.panelBody")}</Text>
                 <PanelRows>
                   <li>
