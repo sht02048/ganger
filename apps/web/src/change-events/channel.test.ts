@@ -8,6 +8,7 @@ import {
   DISCONNECTED_POLL_MS,
   EVENT_SOURCE_CLOSED,
   EVENT_SOURCE_OPEN,
+  SHOWN_REFRESH_AFTER_MS,
 } from "./channel";
 import type { ChangeEventSource } from "./channel";
 
@@ -237,6 +238,68 @@ describe("변경 기록 구독(스펙 0003 5.3·5.4·5.5)", () => {
     h.channel.show();
     expect(h.sources).toHaveLength(2);
     h.channel.close();
+  });
+
+  describe("다시 볼 때 오래 못 들었으면 다시 읽기(티켓 0210)", () => {
+    it("1분 넘게 숨었다 다시 보이면 이어 받으면서 보이는 query도 한 번 다시 읽는다", () => {
+      const h = start(3);
+      h.latest().open();
+      h.channel.hide();
+      vi.advanceTimersByTime(SHOWN_REFRESH_AFTER_MS + 1);
+
+      h.channel.show();
+      h.channel.show();
+
+      expect(h.sources).toHaveLength(2);
+      expect(h.refetches).toBe(1);
+      h.channel.close();
+    });
+
+    it("1분 안에 다시 보이면 이어 받기만 하고 따로 다시 읽지 않는다", () => {
+      const h = start(3);
+      h.latest().open();
+      h.channel.hide();
+      vi.advanceTimersByTime(SHOWN_REFRESH_AFTER_MS - 1);
+
+      h.channel.show();
+
+      expect(h.sources).toHaveLength(2);
+      expect(h.refetches).toBe(0);
+      h.channel.close();
+    });
+
+    it("하트비트를 받고 있는 연결은 포커스를 얻어도 건드리지 않는다", () => {
+      const h = start(3);
+      h.latest().open();
+      for (let beat = 0; beat < 8; beat += 1) {
+        vi.advanceTimersByTime(15_000);
+        h.latest().emit("heartbeat", null);
+      }
+
+      h.channel.show();
+
+      expect(h.sources).toHaveLength(1);
+      expect(h.refetches).toBe(0);
+      h.channel.close();
+    });
+
+    it("잠듦으로 타이머가 멈춘 채 시계만 1분 넘게 흘렀으면, 보이는 채로 포커스를 얻을 때 다시 붙고 다시 읽는다", () => {
+      const h = start(3);
+      h.latest().open();
+      h.latest().emit("change", runChange("run-1"), 8);
+      vi.setSystemTime(Date.now() + SHOWN_REFRESH_AFTER_MS * 10);
+
+      h.channel.show();
+
+      expect(h.sources[0]?.closed).toBe(true);
+      expect(h.sources).toHaveLength(2);
+      expect(h.latest().url).toBe("/api/change-events/stream?after=8");
+      expect(h.refetches).toBe(1);
+      h.channel.show();
+      expect(h.sources).toHaveLength(2);
+      expect(h.refetches).toBe(1);
+      h.channel.close();
+    });
   });
 
   it("닫으면 연결과 타이머를 모두 거둔다", () => {
