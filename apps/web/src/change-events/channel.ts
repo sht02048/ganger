@@ -101,6 +101,8 @@ export class ChangeChannel {
       this.#hidden = false;
       this.#connect();
     } else if (unheard) {
+      clearTimeout(this.#batch);
+      this.#flush();
       this.#stop();
       this.#connect();
     }

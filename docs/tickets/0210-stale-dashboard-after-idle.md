@@ -31,7 +31,7 @@ blocked_by: []
 
 - `ChangeChannel.show()` 는 마지막으로 서버에서 받은 때(연결 열림, ready, change, reset, heartbeat)가 60초(`SHOWN_REFRESH_AFTER_MS`)를 넘었으면 연결을 다시 붙이고 보이는 query 를 한 번 다시 읽는다. 숨어 있었으면 이어 받기로 다시 붙는다. heartbeat 가 15초마다 오므로 살아 있는 연결은 건드리지 않는다.
 - `show()` 계기에 window focus 와 pageshow 를 더한다. focus 는 visibilityState 와 관계없이 보임으로 다루고, pageshow 는 visibilityState 를 따른다.
-- 보이는 query 다시 읽기는 `cancelRefetch: false` 로, 이미 진행 중인 읽기(TanStack 의 포커스 다시 읽기 등)와 겹치면 그 읽기를 함께 쓴다.
+- 보이는 연결을 다시 붙일 때는 모아 둔 변경 줄을 먼저 무효화한다. 보이는 query 다시 읽기는 진행 중인 읽기를 취소하고 새로 읽는다. 잠듦 전에 시작돼 멈춘 요청에 합류하지 않기 위해서다. 그래서 TanStack 의 포커스 다시 읽기와 겹치면 요청이 하나 취소될 수 있다.
 
 ## 완료 조건
 

@@ -291,6 +291,7 @@ describe("변경 기록 구독(스펙 0003 5.3·5.4·5.5)", () => {
 
       h.channel.show();
 
+      expect(h.invalidated).toHaveLength(1);
       expect(h.sources[0]?.closed).toBe(true);
       expect(h.sources).toHaveLength(2);
       expect(h.latest().url).toBe("/api/change-events/stream?after=8");

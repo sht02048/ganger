@@ -11,8 +11,7 @@ export function queryClientTarget(queryClient: QueryClient): ChangeChannelTarget
       for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
     },
     invalidateAll: () => void queryClient.invalidateQueries(),
-    refetchVisible: () =>
-      void queryClient.refetchQueries({ type: "active" }, { cancelRefetch: false }),
+    refetchVisible: () => void queryClient.refetchQueries({ type: "active" }),
   };
 }
 
