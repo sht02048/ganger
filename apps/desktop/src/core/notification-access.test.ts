@@ -23,7 +23,6 @@ function fakePort(
       return Promise.resolve(options.requestResult ?? "granted");
     }),
     teamSigned: () => true,
-    bundleId: () => "dev.ganger.desktop",
   } satisfies NotificationPermissionPort;
   return {
     port,

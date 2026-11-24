@@ -115,23 +115,11 @@ static napi_value teamSigned(napi_env env, napi_callback_info info) {
   return result;
 }
 
-static napi_value bundleId(napi_env env, napi_callback_info info) {
-  NSString *identifier = [[NSBundle mainBundle] bundleIdentifier];
-  napi_value result;
-  if (identifier == nil) {
-    napi_get_null(env, &result);
-  } else {
-    napi_create_string_utf8(env, [identifier UTF8String], NAPI_AUTO_LENGTH, &result);
-  }
-  return result;
-}
-
 static napi_value init(napi_env env, napi_value exports) {
   napi_property_descriptor properties[] = {
       {"status", NULL, status, NULL, NULL, NULL, napi_default, NULL},
       {"request", NULL, request, NULL, NULL, NULL, napi_default, NULL},
       {"teamSigned", NULL, teamSigned, NULL, NULL, NULL, napi_default, NULL},
-      {"bundleId", NULL, bundleId, NULL, NULL, NULL, napi_default, NULL},
   };
   napi_define_properties(env, exports, sizeof(properties) / sizeof(properties[0]), properties);
   return exports;

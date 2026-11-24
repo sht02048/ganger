@@ -19,7 +19,6 @@ export interface NotificationPermissionPort {
   status(): Promise<NativeAuthorization>;
   request(): Promise<NativeRequestResult>;
   teamSigned(): boolean;
-  bundleId(): string | null;
 }
 
 const callable = z.custom<(...args: never[]) => unknown>((value) => typeof value === "function");
@@ -28,7 +27,6 @@ const addonSchema = z.object({
   status: callable,
   request: callable,
   teamSigned: callable,
-  bundleId: callable,
 });
 
 const authorizationSchema = z.enum(NATIVE_AUTHORIZATIONS).catch("unknown");
@@ -64,14 +62,6 @@ export function notificationAddonPort(load: () => unknown): NotificationPermissi
         return addon.teamSigned() === true;
       } catch {
         return false;
-      }
-    },
-    bundleId: () => {
-      try {
-        const value = addon.bundleId();
-        return typeof value === "string" && value.length > 0 ? value : null;
-      } catch {
-        return null;
       }
     },
   };

@@ -171,6 +171,7 @@ export class Controller {
   private readonly deviceLink: DeviceLink;
   private deviceLinkState: DeviceLinkState = "connected";
   private deviceRejectedNotice: Notification | undefined;
+  private testNotification: Notification | undefined;
   quitting = false;
 
   constructor(options: ControllerOptions) {
@@ -1019,6 +1020,8 @@ export class Controller {
         body: t("notifications.test.body"),
       });
       notification.on("click", () => this.showNotificationSettings());
+      this.testNotification?.close();
+      this.testNotification = notification;
       notification.once("show", onShow);
       notification.once("failed", onFailed);
       notification.show();
