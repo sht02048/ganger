@@ -66,6 +66,7 @@ function HomeRoute() {
         onDeny={actions.onDeny}
         onControl={actions.onControl}
         onMerge={actions.onMerge}
+        onLoadCommits={actions.onLoadCommits}
         openRunId={run === undefined ? undefined : toRunId(run)}
         onOpenRunShown={clearOpenRun}
       />

@@ -4,12 +4,14 @@ import {
   reachedUsageLimits,
   runDurations,
   summarizeRunOutcome,
+  toRunId,
 } from "@ganger/core";
 import type { RunId } from "@ganger/core";
 import {
   listPendingCancelRequests,
   listRunPermissionWaits,
   listRunQuestions,
+  getRunWithRecords,
   getWorkspaceTrackerProject,
   listRunPlacements,
   listRunners,
@@ -19,6 +21,7 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
+import { z } from "zod";
 import {
   isStillReread,
   mergeViewOf,
@@ -27,6 +30,7 @@ import {
   settledPrStateOf,
   toCiView,
 } from "../pr-signals-view.js";
+import type { PrCommitView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -45,7 +49,7 @@ import type {
   HomeRun,
   InputWait,
 } from "./model.js";
-import { DONE_COLUMN_DAYS, partitionHome } from "./model.js";
+import { DONE_COLUMN_DAYS, commitSummaryOf, partitionHome } from "./model.js";
 
 function homePrStateOf(
   run: StoredRun,
@@ -72,6 +76,22 @@ function homePrStateOf(
     };
   }
   return { state, settledAt: null, settledAgoMs: null };
+}
+
+function prSummaryOf(
+  records: RunRecords,
+  now: Date,
+): Pick<HomePullRequest, "title" | "baseBranch" | "commitSummary"> {
+  const { title, baseBranch, commits } = prDetailsOf(records, now);
+  return { title, baseBranch, commitSummary: commitSummaryOf(commits) };
+}
+
+export const runPrCommitsInput = z.object({ runId: z.string().min(1).max(200).transform(toRunId) });
+
+export function loadRunPrCommits(db: Database, runId: RunId, now: Date): PrCommitView[] | null {
+  const found = getRunWithRecords(db, runId);
+  if (found === null || found.records.pullRequest === null) return null;
+  return prDetailsOf(found.records, now).commits;
 }
 
 export function loadHomePage(
@@ -159,7 +179,7 @@ export function loadHomePage(
                 takenOver.has(run.id) || !isStillReread(run, records) ? "unknown" : toCiView(pr.ci),
               ...homePrStateOf(run, records, now),
               branch: run.state === "queued" ? null : run.branch,
-              ...prDetailsOf(records, now),
+              ...prSummaryOf(records, now),
               merge: takenOver.has(run.id) ? null : mergeViewOf(run, records),
             },
       cancelling: cancelling.has(run.id),

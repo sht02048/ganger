@@ -1,10 +1,12 @@
 import * as stylex from "@stylexjs/stylex";
 import { Button as SdkButton } from "@ui-sdk/react/button";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { cx } from "../cx";
 import { colors, fontSize, fontWeight, fonts, radius, space } from "../tokens.stylex";
+import { Button } from "./button";
 import { focusStyles } from "./focus";
 import { ChevronRightIcon } from "./icons";
+import { Spinner } from "./spinner";
 import { VisuallyHidden } from "./visually-hidden";
 
 export interface CommitHistoryItem {
@@ -16,21 +18,44 @@ export interface CommitHistoryItem {
   href: string | null;
 }
 
+export type CommitHistoryLoad =
+  | { kind: "loading"; label: string }
+  | { kind: "failed"; message: string; retryLabel: string; onRetry: () => void };
+
 export interface CommitHistoryProps {
   summary: string;
   newTabLabel: string;
   commits: ReadonlyArray<CommitHistoryItem>;
+  load?: CommitHistoryLoad | null;
+  onExpandedChange?: (expanded: boolean) => void;
 }
 
-export function CommitHistory({ summary, newTabLabel, commits }: CommitHistoryProps) {
+export function CommitHistory({
+  summary,
+  newTabLabel,
+  commits,
+  load = null,
+  onExpandedChange,
+}: CommitHistoryProps) {
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
+  const summaryRef = useRef<HTMLButtonElement>(null);
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    onExpandedChange?.(next);
+  };
+  const retry = (onRetry: () => void) => {
+    summaryRef.current?.focus();
+    onRetry();
+  };
   return (
     <div {...stylex.props(styles.history)}>
       <SdkButton
+        ref={summaryRef}
         aria-expanded={expanded}
         {...(expanded ? { "aria-controls": listId } : {})}
-        onClick={() => setExpanded((open) => !open)}
+        onClick={toggle}
         className={cx(styles.summary, focusStyles.ringInset)}
       >
         <span {...stylex.props(styles.chevron, expanded && styles.chevronOpen)}>
@@ -38,7 +63,19 @@ export function CommitHistory({ summary, newTabLabel, commits }: CommitHistoryPr
         </span>
         <span {...stylex.props(styles.summaryText)}>{summary}</span>
       </SdkButton>
-      {expanded ? (
+      {expanded && load !== null ? (
+        <div id={listId} data-commit-load={load.kind} {...stylex.props(styles.load)}>
+          <span role="status" {...stylex.props(styles.loadText)}>
+            {load.kind === "loading" ? <Spinner /> : null}
+            {load.kind === "loading" ? load.label : load.message}
+          </span>
+          {load.kind === "failed" ? (
+            <Button variant="ghost" compact onClick={() => retry(load.onRetry)}>
+              {load.retryLabel}
+            </Button>
+          ) : null}
+        </div>
+      ) : expanded ? (
         <ol id={listId} {...stylex.props(styles.list)}>
           {commits.map((commit) => (
             <li key={commit.id} {...stylex.props(styles.item)}>
@@ -115,6 +152,21 @@ const styles = stylex.create({
     cursor: "pointer",
   },
   summaryText: { flexGrow: 1, minWidth: 0 },
+  load: {
+    display: "flex",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: space.s2,
+    paddingBlock: space.s2,
+    paddingInline: space.s1,
+  },
+  loadText: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: space.s2,
+    color: colors.textSecondary,
+    fontSize: fontSize.ui,
+  },
   chevron: {
     display: "inline-flex",
     flexShrink: 0,

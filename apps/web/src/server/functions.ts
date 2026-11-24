@@ -4,7 +4,7 @@ import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
 import { markAllTrackersChanged } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
-import { loadHomePage } from "@ganger/app/home/load";
+import { loadHomePage, loadRunPrCommits, runPrCommitsInput } from "@ganger/app/home/load";
 import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
@@ -64,6 +64,10 @@ export const getHomePage = createServerFn({ method: "GET" })
       includeLoad: true,
     }),
   );
+
+export const getRunPrCommits = createServerFn({ method: "GET" })
+  .validator(runPrCommitsInput)
+  .handler(({ data }) => loadRunPrCommits(getDatabase(), data.runId, new Date()));
 
 export const answerQuestion = createServerFn({ method: "POST" })
   .validator(answerOnceInput)

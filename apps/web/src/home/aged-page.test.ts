@@ -70,6 +70,43 @@ describe("Dashboard 시간 글자는 다시 읽지 않아도 흐른다", () => {
     expect(ten).toMatchObject({ offlineMs: 15 * MINUTE, limits: [{ resetsInMs: 0 }] });
   });
 
+  it("PR 의 마지막 커밋 시각도 흐른다(티켓 0206)", () => {
+    const { db } = seedDatabase();
+    const page = loadHomePage(db, "ws-commerce", now, "UTC");
+    const run = page.running[0];
+    if (run === undefined) throw new Error("no running run");
+    const withPr = {
+      ...page,
+      running: [
+        {
+          ...run,
+          pullRequest: {
+            displayId: "#42",
+            url: "https://code.example.com/acme/web/pull/42",
+            signals: null,
+            ci: "success" as const,
+            state: "open" as const,
+            settledAt: null,
+            settledAgoMs: null,
+            branch: null,
+            title: null,
+            baseBranch: null,
+            commitSummary: { count: 3, latestAt: now.toISOString(), latestAgoMs: 5 * MINUTE },
+            merge: null,
+          },
+        },
+      ],
+    };
+
+    const aged = agedHomePage(withPr, 2 * MINUTE).running[0];
+
+    expect(aged?.pullRequest?.commitSummary).toEqual({
+      count: 3,
+      latestAt: now.toISOString(),
+      latestAgoMs: 7 * MINUTE,
+    });
+  });
+
   it("방금 읽은 값은 그대로 돌려준다", () => {
     const { db } = seedDatabase();
     const page = loadHomePage(db, "ws-commerce", now, "UTC");
