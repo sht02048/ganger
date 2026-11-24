@@ -45,11 +45,16 @@ export function ChangeEventsSubscription() {
       if (document.visibilityState === "hidden") channel.hide();
       else channel.show();
     };
+    const followFocus = () => channel.show();
     channel.start();
     followVisibility();
     document.addEventListener("visibilitychange", followVisibility);
+    window.addEventListener("pageshow", followVisibility);
+    window.addEventListener("focus", followFocus);
     return () => {
       document.removeEventListener("visibilitychange", followVisibility);
+      window.removeEventListener("pageshow", followVisibility);
+      window.removeEventListener("focus", followFocus);
       memory.seq = channel.lastSeq;
       channel.close();
     };
