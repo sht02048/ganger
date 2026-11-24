@@ -9,6 +9,7 @@
     "build": "vite build -c vite.main.config.ts && vite build -c vite.preload.config.ts && vite build -c vite.renderer.config.ts",
     "start": "electron .",
     "package": "node scripts/package.ts",
+    "build:native": "node scripts/native-addon.ts",
     "smoke": "vitest run -c vitest.smoke.config.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "brand-assets": "node scripts/brand-assets.ts"
