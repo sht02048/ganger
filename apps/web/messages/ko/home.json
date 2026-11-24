@@ -107,7 +107,7 @@
     "since": {
       "waiting": "{elapsed} 기다려요",
       "running": "{elapsed} 일하고 있어요",
-      "ended": "{ago} 끝났어요",
+      "endedLabel": "끝난 때",
       "paused": "{elapsed} 멈춰 있어요"
     },
     "running": "에이전트가 일하고 있어요. 끝나면 Done으로 옮겨요.",
