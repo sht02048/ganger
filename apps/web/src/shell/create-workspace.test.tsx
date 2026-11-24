@@ -463,9 +463,8 @@ describe("입구와 만든 뒤", () => {
     expect(mocks.invalidate).toHaveBeenCalledWith(expect.anything(), ["workspace"]);
     expect(mocks.toast).toHaveBeenCalledWith("Labs Workspace를 만들었어요");
     expect(mocks.navigate).toHaveBeenCalledWith({
-      to: "/settings",
+      to: "/settings/projects",
       search: { ws: "ws-new" },
-      hash: "projects",
     });
   });
 
@@ -525,14 +524,14 @@ describe("입구와 만든 뒤", () => {
     heading.remove();
   });
 
-  it("도착한 주소가 새 Workspace 의 프로젝트 구역일 때만 도착으로 본다", () => {
-    const base = "https://ganger.example.com/settings";
-    expect(isAtCreatedWorkspace(`${base}?ws=ws-new#projects`, "ws-new")).toBe(true);
-    expect(isAtCreatedWorkspace(`${base}?ws=ws-a#projects`, "ws-new")).toBe(false);
-    expect(isAtCreatedWorkspace(`${base}?ws=ws-new`, "ws-new")).toBe(false);
-    expect(
-      isAtCreatedWorkspace("https://ganger.example.com/runs?ws=ws-new#projects", "ws-new"),
-    ).toBe(false);
+  it("도착한 주소가 새 Workspace 의 프로젝트 페이지일 때만 도착으로 본다", () => {
+    const base = "https://ganger.example.com/settings/projects";
+    expect(isAtCreatedWorkspace(`${base}?ws=ws-new`, "ws-new")).toBe(true);
+    expect(isAtCreatedWorkspace(`${base}?ws=ws-a`, "ws-new")).toBe(false);
+    expect(isAtCreatedWorkspace("https://ganger.example.com/settings?ws=ws-new", "ws-new")).toBe(
+      false,
+    );
+    expect(isAtCreatedWorkspace("https://ganger.example.com/runs?ws=ws-new", "ws-new")).toBe(false);
   });
 
   it("저장하지 않은 편집이 있으면 이미 경고했어도 새 Workspace 로 옮기지 않는다", async () => {

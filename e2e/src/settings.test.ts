@@ -62,7 +62,8 @@ let page: Page;
 const lockedHost = "settings.example.test";
 const projectPath = `/settings/projects/${connection}/${trackerProject}`;
 const connectionPath = `/settings/connections/${connection}`;
-const githubOpen = `${settings.github.label} ${settings.github.open}`;
+const tokenOpen = new RegExp(`^${settings.github.label} 토큰`);
+const keyChange = `Acme ${settings.connections.changeKey}`;
 
 const settingsAdapters: Plugin = {
   name: "e2e-settings-adapters",
@@ -122,55 +123,49 @@ beforeEach(async (context) => {
   });
 });
 
-describe("Settings 한 페이지(브라우저, 0119)", () => {
-  it("목차를 누르면 그 구역으로 옮겨 제목에 포커스를 주고 지금 구역으로 표시한다", async () => {
+describe("Settings 페이지(브라우저, 0214)", () => {
+  it("/settings 는 일반으로 보내고, 메뉴 링크는 Workspace 를 이어 페이지를 옮기며 지금 페이지를 표시한다", async () => {
     await page.setViewportSize({ width: 1280, height: 700 });
     await openSettings(page);
+    await page.waitForURL((url) => url.pathname === "/settings/general");
     const nav = page.getByRole("navigation", { name: settings.nav.label });
-    expect(await current(nav)).toBe(settings.sections.workspace);
-    const before = page.url();
+    await expect.poll(() => current(nav)).toBe(settings.pages.general);
+    await page.evaluate(() => Object.assign(globalThis, { settingsPageMarker: true }));
 
-    await nav.getByRole("link", { name: settings.sections.advanced }).click();
-    await expect.poll(focused).toBe(settings.sections.advanced);
-    await expect.poll(() => current(nav)).toBe(settings.sections.advanced);
-    expect(page.url()).toBe(before);
-    await expect.poll(() => scrollSettledAt("advanced")).toBe(true);
-    expect(await page.evaluate(() => document.querySelector("main")?.scrollTop)).toBe(0);
-    await page.getByRole("heading", { level: 1, name: settings.title }).waitFor();
-
-    await nav.getByRole("link", { name: settings.sections.logs }).click();
-    await expect.poll(focused).toBe(settings.sections.logs);
-    await page.waitForTimeout(800);
-    expect(await current(nav)).toBe(settings.sections.logs);
-    await nav.getByRole("link", { name: settings.sections.advanced }).click();
-    await expect.poll(() => current(nav)).toBe(settings.sections.advanced);
-
-    await page.mouse.wheel(0, -5000);
-    await expect.poll(() => current(nav)).toBe(settings.sections.workspace);
-
-    await nav.getByRole("link", { name: settings.sections.server }).click();
-    await expect.poll(() => scrollSettledAt("server")).toBe(true);
-    await page.evaluate(() => {
-      let node = document.querySelector("section#workspace")?.parentElement ?? null;
-      while (node !== null && getComputedStyle(node).overflowY !== "auto")
-        node = node.parentElement;
-      node?.scrollTo({ top: 0 });
-    });
-    await expect.poll(() => current(nav)).toBe(settings.sections.workspace);
+    await nav.getByRole("link", { name: settings.pages.mcp }).click();
+    await page.waitForURL((url) => url.pathname === "/settings/mcp");
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
+    await page.getByRole("heading", { level: 1, name: settings.pages.mcp }).waitFor();
+    await expect.poll(() => current(nav)).toBe(settings.pages.mcp);
+    expect(await page.evaluate(() => "settingsPageMarker" in globalThis)).toBe(true);
+    expect(await nav.getByText(settings.navGroups.install).count()).toBe(1);
+    expect(await nav.getByRole("link", { name: settings.pages.notifications }).count()).toBe(0);
   });
 
-  it("처음에 넘치지 않던 화면이 나중에 넘쳐도 목차가 스크롤을 따라간다", async () => {
-    await page.setViewportSize({ width: 1280, height: 2400 });
-    await openSettings(page);
-    const nav = page.getByRole("navigation", { name: settings.nav.label });
-    await page.setViewportSize({ width: 1280, height: 600 });
-    await page.locator("section#advanced").scrollIntoViewIfNeeded();
-    await expect.poll(() => current(nav)).toBe(settings.sections.advanced);
+  it("없어진 /settings/brief 주소는 Workspace 를 이어 일반으로 보낸다", async () => {
+    await page.goto(`/settings/brief?ws=${workspaceId}`);
+    await page.waitForURL((url) => url.pathname === "/settings/general");
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: `${settings.brief.title} ${settings.change}` })
+      .waitFor();
+  });
+
+  it("예전 /settings#구역 주소는 그 설정이 옮겨 간 페이지로 보낸다", async () => {
+    await page.goto(`/settings?ws=${workspaceId}#connections`);
+    await page.waitForURL((url) => url.pathname === "/settings/connections");
+    await page.getByRole("heading", { level: 1, name: settings.pages.connections }).waitFor();
+    await page.goto(`/settings?ws=${workspaceId}#logs`);
+    await page.waitForURL((url) => url.pathname === "/settings/server");
+    await page.goto(`/settings?ws=${workspaceId}#connection-${connection}`);
+    await page.waitForURL((url) => url.pathname === connectionPath);
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
   });
 
   it("최대 실행 시간은 칸을 벗어나면 바로 저장하고, 맞지 않는 값은 저장하지 않고 알린다", async () => {
-    await openSettings(page);
-    const workspace = section(settings.sections.workspace);
+    await openSettings(page, "/settings/general");
+    const workspace = page.getByRole("main");
     const minutes = workspace.getByRole("textbox", { name: settings.workspace.maxRunLabel });
     expect(await minutes.getAttribute("inputmode")).toBe("numeric");
 
@@ -207,46 +202,45 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await write.click();
     await page.getByText(settings.status.saved, { exact: true }).waitFor();
     expect(await write.getAttribute("aria-checked")).toBe("true");
-    await page.getByRole("main").getByRole("link", { name: settings.mcp.back }).click();
-    await section(settings.sections.advanced).getByText(settings.mcp.rowWrite).waitFor();
+    await page.reload();
+    await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
+    await expect.poll(() => write.getAttribute("aria-checked")).toBe("true");
   });
 
   it("비밀값은 펼친 뒤에만 입력칸이 생기고, 새 비밀번호를 권하지 않고 비밀번호 관리자가 건너뛴다", async () => {
-    await openSettings(page);
+    await openSettings(page, "/settings/connections");
     expect(await page.locator('input[type="password"]').count()).toBe(0);
-    const connections = section(settings.sections.connections);
-    await connections.getByRole("button", { name: githubOpen }).click();
+    const github = section(settings.github.label);
+    await github.getByRole("button", { name: tokenOpen }).click();
     await page.getByRole("textbox", { name: settings.github.token, exact: true }).waitFor();
     const githubSecrets = await secretAttributes();
     expect(githubSecrets.length).toBe(1);
-    await connections.getByRole("link", { name: settings.github.guideLink }).waitFor();
-    await connections.getByText(settings.githubAuth.tokenPermissions).waitFor();
+    await github.getByRole("link", { name: settings.github.guideLink }).waitFor();
+    await github.getByText(settings.githubAuth.tokenPermissions).waitFor();
+    await github.getByRole("button", { name: settings.close }).click();
 
-    await openSettings(page, connectionPath);
-    expect(await page.locator('input[type="password"]').count()).toBe(0);
-    await page
-      .getByRole("button", { name: `${settings.connection.apiKey} ${settings.change}` })
-      .click();
+    await page.getByRole("button", { name: keyChange }).click();
     const keySecrets = await secretAttributes();
     expect(keySecrets.length).toBe(1);
     for (const secret of [...keySecrets, ...githubSecrets]) {
       expect(secret).toEqual({ autocomplete: "off", onePassword: true, lastPass: "true" });
     }
+    expect(await page.getByText("lin_api_example").count()).toBe(0);
   });
 
-  it("주소를 잘못 넣으면 그 줄에 이유를 보이고 저장하지 않는다", async () => {
-    await openSettings(page);
-    const server = section(settings.sections.server);
-    await server.getByRole("button", { name: settings.addresses.set }).click();
-    const address = server.getByRole("textbox", { name: settings.addresses.web, exact: true });
+  it("다른 기기의 열 주소를 잘못 넣으면 그 줄에 이유를 보이고 저장하지 않는다", async () => {
+    await openSettings(page, "/settings/devices");
+    const main = page.getByRole("main");
+    await main.getByRole("button", { name: settings.addresses.set }).click();
+    const address = main.getByRole("textbox", { name: settings.addresses.web, exact: true });
     await address.fill("server.example.ts.net/app");
-    await server.getByRole("button", { name: settings.save }).click();
-    await server
+    await main.getByRole("button", { name: settings.save }).click();
+    await main
       .getByRole("alert")
       .getByText(settings.addresses.error["invalid-web-address"])
       .waitFor();
-    await server.getByRole("button", { name: settings.close }).click();
-    await server.getByText(settings.addresses.webNone).waitFor();
+    await main.getByRole("button", { name: settings.close }).click();
+    await main.getByText(settings.addresses.webNone).waitFor();
     await expect.poll(focused).toBe(settings.addresses.set);
   });
 
@@ -258,15 +252,15 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
       new Date(),
     );
     try {
-      await page.goto(`http://${lockedHost}:${port}/settings?ws=${workspaceId}`);
+      await page.goto(`http://${lockedHost}:${port}/settings/devices?ws=${workspaceId}`);
       await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
       await page.waitForLoadState("networkidle");
-      const server = section(settings.sections.server);
-      await server.getByRole("button", { name: settings.change }).click();
-      const address = server.getByRole("textbox", { name: settings.addresses.web, exact: true });
+      const main = page.getByRole("main");
+      await main.getByRole("button", { name: settings.change }).first().click();
+      const address = main.getByRole("textbox", { name: settings.addresses.web, exact: true });
       await address.fill("https://other.example.ts.net");
-      await server.getByRole("button", { name: settings.save }).click();
-      await server.getByRole("alert").getByText(settings.addresses.error["locks-out"]).waitFor();
+      await main.getByRole("button", { name: settings.save }).click();
+      await main.getByRole("alert").getByText(settings.addresses.error["locks-out"]).waitFor();
       expect(await address.inputValue()).toBe("https://other.example.ts.net");
       await shot(page, "settings-row-error-1280");
     } finally {
@@ -274,27 +268,26 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     }
   });
 
-  it("고급에는 webhook 주소 줄이 없고, 연결 줄이 그 연결의 상세로 간다", async () => {
-    await openSettings(page);
-    const advanced = section(settings.sections.advanced);
-    await advanced.getByRole("link", { name: /^MCP/ }).waitFor();
-    expect(await advanced.getByText(settings.webhook.address.label).count()).toBe(0);
-    expect(await advanced.getByRole("button").count()).toBe(0);
-    await section(settings.sections.connections)
-      .getByRole("link", { name: /^Acme/ })
-      .getByText(settings.connections.rowOff)
-      .waitFor();
-    await section(settings.sections.connections).getByRole("link", { name: /^Acme/ }).click();
+  it("연결 상자의 webhook 줄은 상태를 보이고 설정은 그 연결의 webhook 단계로 간다", async () => {
+    await openSettings(page, "/settings/connections");
+    const acme = page.getByRole("group", { name: "Acme", exact: true });
+    await acme.getByText(settings.connections.rowOff).waitFor();
+    await acme
+      .getByRole("link", { name: fill(settings.connections.webhookSetupLabel, { name: "Acme" }) })
+      .click();
     await page.waitForURL((url) => url.pathname === connectionPath);
     await page.getByRole("heading", { level: 1, name: "Acme" }).waitFor();
+    const nav = page.getByRole("navigation", { name: settings.nav.label });
+    await expect.poll(() => current(nav)).toContain(settings.pages.connections);
   });
 
   it("프로젝트 상세의 선택은 고르는 즉시 저장한다", async () => {
-    await openSettings(page);
-    await section(settings.sections.projects).getByRole("link", { name: /^Web/ }).click();
+    await openSettings(page, "/settings/projects");
+    await page.getByRole("main").getByRole("link", { name: /^Web/ }).click();
     await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-web/);
-    const crumb = page.getByRole("main").getByRole("link", { name: settings.project.back });
+    const crumb = page.locator("header").getByRole("link", { name: settings.pages.projects });
     expect(await crumb.getAttribute("aria-current")).toBeNull();
+    expect(await page.getByRole("combobox", { name: /바로 할당 라벨/ }).count()).toBe(0);
     await shot(page, "settings-project-1280");
     const state = page.getByRole("combobox", { name: settings.project.state });
     await state.click();
@@ -303,9 +296,7 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
   });
 
   it("머지 때 바꿀 상태는 고른 상태와 바꾸지 않음을 저장한다", async () => {
-    await openSettings(page);
-    await section(settings.sections.projects).getByRole("link", { name: /^Web/ }).click();
-    await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-web/);
+    await openSettings(page, projectPath);
     const merged = page.getByRole("combobox", { name: settings.project.mergedState });
     expect(await merged.textContent()).toContain(settings.project.mergedStateKeep);
 
@@ -325,10 +316,8 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     expect(await merged.textContent()).toContain(settings.project.mergedStateKeep);
   });
 
-  it("MCP 하위 화면은 클라이언트 설정을 탭으로 바꿔 보이고 위험을 도움말로 알린다", async () => {
-    await openSettings(page);
-    await section(settings.sections.advanced).getByRole("link", { name: /^MCP/ }).click();
-    await page.waitForURL(/\/settings\/mcp/);
+  it("MCP 페이지는 클라이언트 설정을 탭으로 바꿔 보이고 위험을 도움말로 알린다", async () => {
+    await openSettings(page, "/settings/mcp");
     await page.getByText("mcp_servers:", { exact: false }).waitFor();
     await page.getByRole("tab", { name: settings.mcp.json }).click();
     await page.getByText('"mcpServers"', { exact: false }).waitFor();
@@ -340,12 +329,12 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await shot(page, "settings-mcp-1280");
   });
 
-  it("400px 에서는 목차가 가로 칩 줄이 되고 가로로 넘치지 않는다", async () => {
+  it("400px 에서는 메뉴가 가로 칩 줄이 되고 가로로 넘치지 않는다", async () => {
     await page.setViewportSize({ width: 400, height: 900 });
-    await openSettings(page);
+    await openSettings(page, "/settings/general");
     const nav = page.getByRole("navigation", { name: settings.nav.label });
-    const first = await nav.getByRole("link", { name: settings.sections.workspace }).boundingBox();
-    const second = await nav.getByRole("link", { name: settings.sections.projects }).boundingBox();
+    const first = await nav.getByRole("link", { name: settings.pages.general }).boundingBox();
+    const second = await nav.getByRole("link", { name: settings.pages.projects }).boundingBox();
     expect(first?.y).toBe(second?.y);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       400,
@@ -353,20 +342,16 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await shot(page, "settings-400");
   });
 
-  it("Runners 로 가는 러너 줄은 라우터로 Workspace 를 이어 옮긴다", async () => {
-    await openSettings(page);
-    await page.evaluate(() => Object.assign(globalThis, { settingsPageMarker: true }));
-    await section(settings.sections.connections)
-      .getByRole("link", { name: new RegExp(`^${settings.runnersRow.label}`) })
-      .click();
-    await page.waitForURL(/\/runners\?.*ws=ws-acme/);
-    expect(await page.evaluate(() => "settingsPageMarker" in globalThis)).toBe(true);
+  it("브라우저의 알림 페이지는 데스크톱 앱에서 받는다는 한 줄을 보인다", async () => {
+    await openSettings(page, "/settings/notifications");
+    await page.getByText(settings.notifications.browser).waitFor();
+    expect(await page.getByRole("switch").count()).toBe(0);
   });
 });
 
 describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
   it("도움말 단추는 눌러도 열리고 다시 누르면 닫힌다", async () => {
-    await openSettings(page);
+    await openSettings(page, "/settings/general");
     const tip = page.getByRole("button", { name: "최대 실행 시간 도움말" });
     await tip.click();
     await page.getByRole("tooltip").getByText("Failed 로 끝내요", { exact: false }).waitFor();
@@ -375,80 +360,76 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
   });
 
   it("고친 값이 남은 줄이 펼쳐져 있으면 다른 줄을 펼치지 않고 알린다", async () => {
-    await openSettings(page);
-    const workspace = section(settings.sections.workspace);
-    await workspace
-      .getByRole("button", { name: `${settings.workspace.name} ${settings.change}` })
-      .click();
-    const name = workspace.getByRole("textbox", { name: settings.workspace.name, exact: true });
-    await name.fill("Acme Draft");
-    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
+    await openSettings(page, "/settings/connections");
+    const linear = section(settings.connections.linear);
+    await linear.getByRole("button", { name: settings.connections.add }).click();
+    const key = page.getByRole("textbox", { name: settings.connections.apiKey, exact: true });
+    await key.fill("lin_api_draft");
+    await page.getByRole("button", { name: tokenOpen }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
-    expect(await name.inputValue()).toBe("Acme Draft");
+    expect(await key.inputValue()).toBe("lin_api_draft");
     expect(await page.getByRole("textbox", { name: settings.github.token }).count()).toBe(0);
-    await workspace.getByRole("button", { name: settings.close }).click();
-    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
+    await linear.getByRole("button", { name: settings.close }).click();
+    await page.getByRole("button", { name: tokenOpen }).click();
     await page.getByRole("textbox", { name: settings.github.token }).waitFor();
   });
 
   it("비밀값을 비운 채 저장하면 버튼을 막지 않고 칸 아래에 무엇을 넣을지 알린다", async () => {
-    await openSettings(page);
-    const connections = section(settings.sections.connections);
-    await connections.getByRole("button", { name: settings.connections.addLabel }).click();
-    const submit = connections.getByRole("button", { name: settings.credentials.keyCheck });
+    await openSettings(page, "/settings/connections");
+    const linear = section(settings.connections.linear);
+    await linear.getByRole("button", { name: settings.connections.add }).click();
+    const submit = linear.getByRole("button", { name: settings.credentials.keyCheck });
     expect(await submit.isDisabled()).toBe(false);
     await submit.click();
-    await connections.getByText(settings.credentials.keyRequired).waitFor();
+    await linear.getByText(settings.credentials.keyRequired).waitFor();
     await page
       .getByRole("textbox", { name: settings.connections.apiKey, exact: true })
       .fill("lin_api");
-    await connections.getByText(settings.credentials.keyRequired).waitFor({ state: "detached" });
+    await linear.getByText(settings.credentials.keyRequired).waitFor({ state: "detached" });
   });
 
   it("GitHub 토큰을 비운 채 저장하면 칸 아래에 토큰을 넣으라고 알린다", async () => {
-    await openSettings(page);
-    const connections = section(settings.sections.connections);
-    await connections.getByRole("button", { name: githubOpen }).click();
-    await connections.getByRole("button", { name: settings.github.save }).click();
-    await connections.getByText(settings.credentials.tokenRequired, { exact: true }).waitFor();
+    await openSettings(page, "/settings/connections");
+    const github = section(settings.github.label);
+    await github.getByRole("button", { name: tokenOpen }).click();
+    await github.getByRole("button", { name: settings.github.save }).click();
+    await github.getByText(settings.credentials.tokenRequired, { exact: true }).waitFor();
     const token = page.getByRole("textbox", { name: settings.github.token, exact: true });
     expect(await token.getAttribute("aria-invalid")).toBe("true");
   });
 
   it("다른 줄이 막히면 고친 값이 남은 줄을 화면에 보이고 그 칸으로 포커스를 옮긴다", async () => {
     await page.setViewportSize({ width: 1280, height: 700 });
-    await openSettings(page);
-    const server = section(settings.sections.server);
-    await server.getByRole("button", { name: settings.addresses.set }).click();
-    const webhook = page.getByRole("textbox", { name: settings.addresses.web, exact: true });
-    await webhook.fill("https://draft.example.com");
+    await openSettings(page, "/settings/connections");
     await page
-      .getByRole("navigation", { name: settings.nav.label })
-      .getByRole("link", { name: settings.sections.workspace })
+      .getByRole("button", {
+        name: `${settings.connections.webhookAddress} ${settings.addresses.set}`,
+      })
       .click();
-    await section(settings.sections.workspace)
-      .getByRole("button", { name: `${settings.workspace.name} ${settings.change}` })
-      .click();
+    const webhook = page.getByRole("textbox", { name: settings.webhook.address.field });
+    await webhook.fill("https://draft.example.com");
+    await page.getByRole("button", { name: keyChange }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
     await expect.poll(() => webhook.evaluate((el) => el === document.activeElement)).toBe(true);
     expect(await webhook.isVisible()).toBe(true);
     await page.keyboard.press("Escape");
   });
 
-  it("고친 값이 남아 있으면 다른 화면으로 옮기지 않고 그 줄을 보인다", async () => {
-    await openSettings(page);
-    const workspace = section(settings.sections.workspace);
-    await workspace
+  it("고친 값이 남아 있으면 다른 페이지로 옮기지 않고 그 줄을 보인다", async () => {
+    await openSettings(page, "/settings/general");
+    const main = page.getByRole("main");
+    await main
       .getByRole("button", { name: `${settings.workspace.name} ${settings.change}` })
       .click();
-    const name = workspace.getByRole("textbox", { name: settings.workspace.name, exact: true });
+    const name = main.getByRole("textbox", { name: settings.workspace.name, exact: true });
     await name.fill("Acme Leaving");
-    await section(settings.sections.advanced).getByRole("link", { name: /^MCP/ }).click();
+    const nav = page.getByRole("navigation", { name: settings.nav.label });
+    await nav.getByRole("link", { name: settings.pages.mcp }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
-    expect(new URL(page.url()).pathname).toBe("/settings");
+    expect(new URL(page.url()).pathname).toBe("/settings/general");
     expect(await name.inputValue()).toBe("Acme Leaving");
-    await workspace.getByRole("button", { name: settings.close }).click();
-    await section(settings.sections.advanced).getByRole("link", { name: /^MCP/ }).click();
+    await main.getByRole("button", { name: settings.close }).click();
+    await nav.getByRole("link", { name: settings.pages.mcp }).click();
     await page.waitForURL(/\/settings\/mcp/);
   });
 
@@ -521,28 +502,8 @@ describe("Runners 고치는 중 다른 러너 고르기(브라우저, 0119 리�
 });
 
 async function current(nav: Locator): Promise<string | null> {
-  const link = nav.locator('[aria-current="location"]');
+  const link = nav.locator('[aria-current="page"]');
   return (await link.count()) === 0 ? null : link.first().textContent();
-}
-
-async function scrollSettledAt(id: string): Promise<boolean> {
-  return page.evaluate(async (target) => {
-    const section = document.getElementById(target);
-    let scroller = section?.parentElement ?? null;
-    while (scroller !== null && getComputedStyle(scroller).overflowY !== "auto")
-      scroller = scroller.parentElement;
-    if (section === null || scroller === null) return false;
-    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-    const before = scroller.scrollTop;
-    await frame();
-    await frame();
-    if (scroller.scrollTop !== before) return false;
-    const margin = Number.parseFloat(getComputedStyle(section).scrollMarginTop);
-    const offset =
-      section.getBoundingClientRect().top - scroller.getBoundingClientRect().top - margin;
-    const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
-    return Math.abs(offset) < 1 || (offset > 0 && atEnd);
-  }, id);
 }
 
 function section(name: string): Locator {
@@ -635,13 +596,13 @@ describe("프로젝트 상세의 저장소 여러 개와 즉시 저장(브라우
   });
 });
 
-describe("프로젝트 상세의 Auto-assign Label 만들기(브라우저, 0115·0119)", () => {
-  it("고른 라벨이 Linear에 없으면 알리고, ganger 라벨을 만들어 고른 뒤 첫 줄은 고르기가 된다", async () => {
+describe("프로젝트 페이지의 바로 할당 라벨(브라우저, 0115·0119·0214)", () => {
+  it("연결 묶음 맨 위에서 고르면 저장하고, Linear에 없는 라벨은 ganger 라벨을 만들어 고른다", async () => {
     saveAutoAssignLabel(db, { workspaceId, connection, labelId: toLabelId("factory") });
-    await openSettings(page, projectPath);
+    await openSettings(page, "/settings/projects");
     await page.getByText(fill(settings.label.gone, { name: "ganger" })).waitFor();
 
-    const select = settings.project.label;
+    const select = fill(settings.projects.autoLabelSelect, { connection: "Acme" });
     await pick(page, select, fill(settings.label.create, { name: "ganger" }));
     await expect
       .poll(() => getAutoAssignLabel(db, workspaceId, connection))
@@ -785,25 +746,32 @@ describe("트래커 연결 상세의 webhook 켜기(브라우저, 0130)", () => 
 
   beforeEach(() => resetWebhook());
 
-  it("닿을 주소를 정하기 전에는 2·3단계가 잠겨 있고, 주소 형식이 틀리면 묻지 않고 이유를 보인다", async () => {
+  it("닿을 주소를 정하기 전에는 2·3단계가 잠겨 있고, 주소는 연결 페이지 한 줄에서 정하며 형식이 틀리면 이유를 보인다", async () => {
     await openSettings(page, connectionPath);
     const steps = page.getByRole("list", { name: settings.webhook.steps });
     const current = steps.locator('[aria-current="step"]');
-    await current.getByText(settings.webhook.address.label).waitFor();
+    await current.getByText(settings.webhook.address.label, { exact: true }).waitFor();
     expect(await steps.getByText(settings.webhook.create.urlLabel).count()).toBe(0);
     expect(await steps.getByRole("textbox", { name: settings.webhook.secret.field }).count()).toBe(
       0,
     );
     expect(await steps.getByText(settings.webhook.stepState.locked).count()).toBe(2);
-    expect(await steps.getByText(settings.webhook.address.funnelTitle).count()).toBe(0);
+    expect(await steps.getByRole("textbox").count()).toBe(0);
 
-    const field = steps.getByRole("textbox", { name: settings.webhook.address.field });
+    await steps.getByRole("link", { name: settings.webhook.address.setOnConnections }).click();
+    await page.waitForURL((url) => url.pathname === "/settings/connections");
+    await page
+      .getByRole("button", {
+        name: `${settings.connections.webhookAddress} ${settings.addresses.set}`,
+      })
+      .click();
+    const field = page.getByRole("textbox", { name: settings.webhook.address.field });
     await field.fill("http://hooks.example.com");
-    await steps.getByRole("button", { name: settings.webhook.address.check }).click();
-    await steps.getByText(settings.webhook.address.error["invalid-address"]).waitFor();
+    await page.getByRole("button", { name: settings.webhook.address.check }).click();
+    await page.getByText(settings.webhook.address.error["invalid-address"]).waitFor();
     expect(await field.getAttribute("aria-invalid")).toBe("true");
     await expect.poll(() => field.evaluate((el) => el === document.activeElement)).toBe(true);
-    await steps.getByRole("button", { name: settings.webhook.address.recheck }).waitFor();
+    await page.getByRole("button", { name: settings.webhook.address.recheck }).waitFor();
   });
 
   it("주소를 확인한 뒤 secret 을 넣고 켜면 기다리고, 가짜 webhook 을 받으면 켜짐으로 바뀐다", async () => {
@@ -818,14 +786,8 @@ describe("트래커 연결 상세의 webhook 켜기(브라우저, 0130)", () => 
     await shot(page, "webhook-create-open-1280");
 
     await webhook
-      .getByRole("button", { name: `${settings.webhook.address.label} ${settings.change}` })
-      .click();
-    const addressField = webhook.getByRole("textbox", { name: settings.webhook.address.field });
-    await expect
-      .poll(() => addressField.evaluate((el) => el === document.activeElement))
-      .toBe(true);
-    await page.keyboard.press("Escape");
-    await expect.poll(focused).toBe(settings.change);
+      .getByRole("link", { name: settings.webhook.address.changeOnConnections })
+      .waitFor();
 
     const secret = webhook.getByRole("textbox", { name: settings.webhook.secret.field });
     await webhook.getByRole("button", { name: settings.webhook.secret.turnOn }).click();
@@ -853,15 +815,25 @@ describe("트래커 연결 상세의 webhook 켜기(브라우저, 0130)", () => 
     await webhook.getByText(settings.webhook.status.rejected).waitFor();
     await shot(page, "webhook-rejected-1280");
 
-    await openSettings(page);
-    const row = section(settings.sections.connections).getByRole("link", { name: /^Acme/ });
-    await row.getByText("webhook 서명이 맞지 않아 받지 못해요", { exact: false }).waitFor();
+    await openSettings(page, "/settings/connections");
+    const acme = page.getByRole("group", { name: "Acme", exact: true });
+    await acme.getByText("서명이 맞지 않아 받지 못해요", { exact: false }).waitFor();
     const nav = page.getByRole("navigation", { name: settings.nav.label });
     await nav
-      .getByRole("link", { name: settings.sections.connections })
+      .getByRole("link", { name: settings.pages.connections })
       .getByText(settings.nav.problem)
       .waitFor();
     await shot(page, "webhook-settings-rows-1280");
+
+    await page
+      .getByRole("button", { name: `${settings.connections.webhookAddress} ${settings.change}` })
+      .click();
+    const addressField = page.getByRole("textbox", { name: settings.webhook.address.field });
+    await expect
+      .poll(() => addressField.evaluate((el) => el === document.activeElement))
+      .toBe(true);
+    await page.keyboard.press("Escape");
+    await expect.poll(focused).toBe(settings.change);
 
     await openSettings(page, connectionPath);
     await webhook
@@ -880,9 +852,9 @@ describe("트래커 연결 상세의 webhook 켜기(브라우저, 0130)", () => 
       .click();
     await webhook.getByText(settings.webhook.status.off).waitFor();
     await expect.poll(focused).toContain(settings.webhook.title);
-    await openSettings(page);
-    await section(settings.sections.connections)
-      .getByRole("link", { name: /^Acme/ })
+    await openSettings(page, "/settings/connections");
+    await page
+      .getByRole("group", { name: "Acme", exact: true })
       .getByText(settings.connections.rowOff)
       .waitFor();
   });
@@ -901,7 +873,7 @@ describe("트래커 연결 상세의 webhook 켜기(브라우저, 0130)", () => 
 
 describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
   const briefRow = () =>
-    section(settings.sections.workspace).getByRole("button", {
+    page.getByRole("main").getByRole("button", {
       name: `${settings.brief.title} ${settings.change}`,
     });
   const field = (label: string) => page.getByRole("textbox", { name: label, exact: true });
@@ -912,8 +884,8 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
   });
 
   it("두 칸에 쓰면 미리 보기가 바로 바뀌고, 저장하면 다시 열어도 같은 값이 보인다", async () => {
-    await openSettings(page);
-    await section(settings.sections.workspace).getByText(settings.brief.summaryEmpty).waitFor();
+    await openSettings(page, "/settings/general");
+    await page.getByRole("main").getByText(settings.brief.summaryEmpty).waitFor();
     await briefRow().click();
     const before = field(settings.brief.before.label);
     await expect.poll(() => before.evaluate((el) => el === document.activeElement)).toBe(true);
@@ -927,7 +899,7 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
     await page.getByText(settings.brief.appliesToNewRuns).waitFor();
     await shot(page, "settings-workspace-brief-1280");
 
-    await section(settings.sections.workspace).getByRole("button", { name: settings.save }).click();
+    await page.getByRole("main").getByRole("button", { name: settings.save }).click();
     await briefRow().waitFor();
     expect(getWorkspaceBrief(db, workspaceId)).toEqual({
       before: "Read AGENTS.md first.",
@@ -935,15 +907,15 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
     });
     await page.reload();
     await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-    await section(settings.sections.workspace).getByText("티켓 앞 1줄 · 티켓 뒤 2줄").waitFor();
+    await page.getByRole("main").getByText("티켓 앞 1줄 · 티켓 뒤 2줄").waitFor();
   });
 
   it("8,000자를 넘기면 저장하지 않고 그 칸에 이유를 보이며 포커스를 옮긴다", async () => {
-    await openSettings(page);
+    await openSettings(page, "/settings/general");
     await briefRow().click();
     const after = field(settings.brief.after.label);
     await after.fill("a".repeat(8_001));
-    await section(settings.sections.workspace).getByRole("button", { name: settings.save }).click();
+    await page.getByRole("main").getByRole("button", { name: settings.save }).click();
     await page.getByText(settings.brief.tooLong.replace("{max, number}", "8,000")).waitFor();
     expect(await after.getAttribute("aria-invalid")).toBe("true");
     await expect.poll(() => after.evaluate((el) => el === document.activeElement)).toBe(true);
@@ -953,7 +925,7 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
 
   it("400px 에서도 두 칸과 미리 보기가 가로로 넘치지 않는다", async () => {
     await page.setViewportSize({ width: 400, height: 900 });
-    await openSettings(page);
+    await openSettings(page, "/settings/general");
     await briefRow().click();
     await field(settings.brief.after.label).fill("Push the branch and open a pull request.");
     await preview().getByText(settings.brief.preview.protocol).waitFor();

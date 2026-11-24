@@ -151,6 +151,95 @@ export function SectionNav({ label, items, problemLabel }: SectionNavProps) {
   );
 }
 
+export interface SettingsNavLinkRenderProps {
+  className?: string;
+  style?: CSSProperties;
+  "aria-current"?: "page";
+  children: ReactNode;
+}
+
+export interface SettingsNavItem {
+  id: string;
+  label: string;
+  problem?: boolean;
+  render: (props: SettingsNavLinkRenderProps) => ReactNode;
+}
+
+export interface SettingsNavGroup {
+  id: string;
+  label: string;
+  items: ReadonlyArray<SettingsNavItem>;
+}
+
+export interface SettingsNavProps {
+  label: string;
+  groups: ReadonlyArray<SettingsNavGroup>;
+  current: string;
+  problemLabel: string;
+}
+
+export function SettingsNav({ label, groups, current, problemLabel }: SettingsNavProps) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = listRef.current;
+    const link = list?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (list === null || link === null || link === undefined) return;
+    if (list.scrollWidth <= list.clientWidth) return;
+    const start = link.offsetLeft - list.offsetLeft;
+    const end = start + link.offsetWidth;
+    if (start < list.scrollLeft) list.scrollLeft = start;
+    else if (end > list.scrollLeft + list.clientWidth) list.scrollLeft = end - list.clientWidth;
+  }, [current]);
+  return (
+    <nav aria-label={label} {...stylex.props(styles.nav)}>
+      <div ref={listRef} {...stylex.props(styles.pageNavGroups)}>
+        {groups.map((group) => {
+          const groupLabelId = `settings-nav-${group.id}`;
+          return (
+            <div key={group.id} {...stylex.props(styles.pageNavGroup)}>
+              <span
+                id={groupLabelId}
+                {...stylex.props(textStyles("meta"), styles.pageNavGroupLabel)}
+              >
+                {group.label}
+              </span>
+              <ul aria-labelledby={groupLabelId} {...stylex.props(styles.pageNavList)}>
+                {group.items.map((item) => {
+                  const isCurrent = item.id === current;
+                  return (
+                    <li key={item.id} {...stylex.props(styles.navItem)}>
+                      {item.render({
+                        ...stylex.props(
+                          textStyles("ui"),
+                          styles.navLink,
+                          isCurrent && styles.navLinkCurrent,
+                          focusStyles.ring,
+                        ),
+                        ...(isCurrent ? { "aria-current": "page" as const } : {}),
+                        children: (
+                          <>
+                            {item.label}
+                            {item.problem === true ? (
+                              <>
+                                <span aria-hidden="true" {...stylex.props(styles.problemDot)} />
+                                <VisuallyHidden>{problemLabel}</VisuallyHidden>
+                              </>
+                            ) : null}
+                          </>
+                        ),
+                      })}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}
+
 export function sectionScrollTop(input: {
   sectionTop: number;
   scrollerTop: number;
@@ -313,6 +402,7 @@ export interface SettingsRowProps {
   formOnly?: boolean;
   wideControl?: boolean;
   disabled?: boolean;
+  inset?: boolean;
   id?: string;
   ref?: Ref<HTMLDivElement>;
 }
@@ -333,6 +423,7 @@ export function SettingsRow({
   formOnly = false,
   wideControl = false,
   disabled = false,
+  inset = false,
   id,
   ref,
 }: SettingsRowProps) {
@@ -356,7 +447,13 @@ export function SettingsRow({
       {...(id === undefined ? {} : { id })}
       {...stylex.props(styles.row, open && styles.rowOpen)}
     >
-      <div {...stylex.props(styles.rowMain, wideControl && styles.rowMainWide)}>
+      <div
+        {...stylex.props(
+          styles.rowMain,
+          wideControl && styles.rowMainWide,
+          inset && styles.rowMainInset,
+        )}
+      >
         <RowText
           label={label}
           labelId={labelId}
@@ -643,6 +740,34 @@ const styles = stylex.create({
     scrollbarWidth: "none",
   },
   navItem: { flexShrink: 0 },
+  pageNavGroups: {
+    display: "flex",
+    flexDirection: { default: "column", [breakpoints.settingsNavTop]: "row" },
+    gap: { default: space.s5, [breakpoints.settingsNavTop]: space.px6 },
+    paddingBlock: { default: 0, [breakpoints.settingsNavTop]: space.s3 },
+    paddingInline: { default: 0, [breakpoints.settingsNavTop]: space.s4 },
+    overflowX: { default: "visible", [breakpoints.settingsNavTop]: "auto" },
+    scrollbarWidth: "none",
+  },
+  pageNavGroup: {
+    display: "flex",
+    flexDirection: { default: "column", [breakpoints.settingsNavTop]: "row" },
+    gap: { default: space.s1, [breakpoints.settingsNavTop]: space.px6 },
+    flexShrink: 0,
+  },
+  pageNavGroupLabel: {
+    display: { default: "block", [breakpoints.settingsNavTop]: "none" },
+    paddingInline: space.s3,
+    overflowWrap: "anywhere",
+  },
+  pageNavList: {
+    display: "flex",
+    flexDirection: { default: "column", [breakpoints.settingsNavTop]: "row" },
+    gap: { default: space.px2, [breakpoints.settingsNavTop]: space.px6 },
+    margin: 0,
+    padding: 0,
+    listStyle: "none",
+  },
   navLink: {
     display: "flex",
     alignItems: "center",
@@ -747,6 +872,12 @@ const styles = stylex.create({
     minHeight: size.rowMinHeight,
     paddingBlock: space.s3,
     paddingInline: { default: space.s5, [breakpoints.settingsRowStacked]: space.s4 },
+  },
+  rowMainInset: {
+    paddingInlineStart: {
+      default: `calc(${space.s5} + ${space.s6})`,
+      [breakpoints.settingsRowStacked]: `calc(${space.s4} + ${space.s4})`,
+    },
   },
   rowMainWide: { flexWrap: { default: "nowrap", [breakpoints.settingsRowStacked]: "wrap" } },
   rowEndWide: {

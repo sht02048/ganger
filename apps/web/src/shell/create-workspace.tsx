@@ -9,6 +9,7 @@ import { createWorkspace, getWorkspaceProjectChoices } from "../server/onboardin
 import { openEditorField, warnAboutUnsavedEdits } from "../settings/blocked-editor";
 import { invalidateChanged } from "../settings/settings-query";
 import { CreateWorkspaceDialog } from "./create-workspace-dialog";
+import { PROJECTS_HEADING_ID } from "../settings/settings-page";
 import { isAtCreatedWorkspace } from "./create-workspace-model";
 import { SHELL_KEY } from "./shell-query";
 import type {
@@ -18,7 +19,6 @@ import type {
 } from "./create-workspace-dialog";
 
 const WORKSPACE_CREATED: ReadonlyArray<ChangeKind> = ["workspace"];
-const PROJECTS_HEADING_ID = "projects-heading";
 
 function workspaceProjectChoicesQuery(session: number) {
   return queryOptions({
@@ -80,7 +80,7 @@ export function CreateWorkspaceProvider({ children }: { children: ReactNode }) {
     const keepEditing = warnAboutUnsavedEdits();
     setOpen(false);
     if (keepEditing) return result;
-    void navigate({ to: "/settings", search: { ws: result.id }, hash: "projects" }).then(() => {
+    void navigate({ to: "/settings/projects", search: { ws: result.id } }).then(() => {
       if (isAtCreatedWorkspace(window.location.href, result.id)) {
         document.getElementById(PROJECTS_HEADING_ID)?.focus();
       }

@@ -39,7 +39,7 @@ describe("Settings 로그와 진단 구역(0134)", () => {
       runs: [],
     });
     const shown = text(html);
-    expect(shown).toContain(settings.sections.logs);
+    expect(shown).toContain(settings.logs.title);
     expect(shown).toContain("모두 12.4MB");
     expect(shown).toContain("/srv/ganger/logs");
     expect(shown).toContain(settings.logs.copyPath);

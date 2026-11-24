@@ -373,16 +373,16 @@ describe("Runs 화면(브라우저, 0056)", () => {
     expect(narrow).toMatchObject({ headShown: false, belowTableTop: 0 });
   });
 
-  it("Settings 목차는 1100px 에서 본문 왼쪽에, 800px 에서 본문 위 한 줄에 둔다(0119)", async (context) => {
+  it("Settings 메뉴는 1100px 에서 본문 왼쪽에, 800px 에서 본문 위 한 줄에 둔다(0119·0214)", async (context) => {
     const boxes = async (width: number) => {
       const page = await newPage(context, { width, height: 900 });
-      await page.goto(`/settings?ws=${workspaceId}`);
+      await page.goto(`/settings/connections?ws=${workspaceId}`);
       await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
-      await page.locator('main nav[aria-label="Settings 목차"]').waitFor();
-      await page.locator("main section#workspace").waitFor();
+      await page.locator('main nav[aria-label="Settings 메뉴"]').waitFor();
+      await page.locator("main section#linear").waitFor();
       return page.evaluate(() => {
-        const nav = document.querySelector('main nav[aria-label="Settings 목차"]');
-        const first = document.querySelector("main section#workspace");
+        const nav = document.querySelector('main nav[aria-label="Settings 메뉴"]');
+        const first = document.querySelector("main section#linear");
         if (nav === null || first === null) throw new Error("settings layout not found");
         const box = (element: Element) => {
           const { x, y, width, height } = element.getBoundingClientRect();

@@ -63,6 +63,7 @@ describe("/ds 서버 렌더", () => {
       "settingsRows",
       "settingsSteps",
       "sectionNav",
+      "settingsNav",
       "icons",
       "motionPrimitives",
     ];

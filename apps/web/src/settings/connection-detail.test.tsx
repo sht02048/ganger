@@ -25,15 +25,20 @@ import {
 } from "@ganger/app/settings/actions";
 import { loadSettingsPage, webhookStateOf } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
+import { funnelPrefillAddress } from "@ganger/app/funnel-setup";
 import type { SettingsPage, WebhookSetupView } from "@ganger/app/settings/model";
 import { webhookPingAnswer } from "@ganger/app/webhook-address";
 import type { PingFetch } from "@ganger/app/webhook-address";
 import settings from "../../messages/ko/settings.json" with { type: "json" };
 import { renderWithMessages } from "../testing/render";
 import { ConnectionDetailScreen } from "./connection-detail";
+import { ConnectionsScreen } from "./connections-page";
 import { settingsMessages } from "./messages";
-import { SettingsScreen, sectionProblems } from "./settings-page";
+import { EditorProvider } from "./row-state";
+import { pageProblems } from "./settings-frame";
+import { WEBHOOK_ADDRESS_ROW_ID, plainSettingsLink } from "./settings-page";
 import type { SettingsActions } from "./settings-screen";
+import { AddressEditor } from "./webhook-section";
 
 const now = new Date("2026-11-20T09:00:00Z");
 const workspace = toWorkspaceId("ws-acme");
@@ -138,36 +143,49 @@ const boundToTailnet: WebhookSetupView = {
   funnel: { kind: "bind-tailnet", bindHost: "100.64.0.10" },
 };
 
-function renderDetail(
-  page: SettingsPage,
-  connectionId: string,
-  setup: WebhookSetupView = noTailscale,
-): string {
+function renderDetail(page: SettingsPage, connectionId: string): string {
   return renderWithMessages(
     <ConnectionDetailScreen
       page={page}
-      setup={setup}
       connectionId={connectionId}
-      ws={workspace}
       actions={noopActions}
+      renderLink={plainSettingsLink(workspace)}
+      nav={null}
     />,
     settingsMessages,
   );
 }
 
-function renderSettings(page: SettingsPage): string {
+function renderConnections(page: SettingsPage, setup: WebhookSetupView = noTailscale): string {
   return renderWithMessages(
-    <SettingsScreen
+    <ConnectionsScreen
       page={page}
-      runnerIssues={0}
-      workspaceView="one"
-      ws={workspace}
+      setup={setup}
+      github={undefined}
       actions={noopActions}
-      onCreateWorkspace={() => {}}
+      renderLink={plainSettingsLink(workspace)}
+      nav={null}
     />,
     settingsMessages,
   );
 }
+
+function renderAddressEditor(setup: WebhookSetupView, initial = ""): string {
+  return renderWithMessages(
+    <EditorProvider>
+      <AddressEditor
+        initial={initial === "" ? (funnelPrefillAddress(setup.funnel) ?? "") : initial}
+        setup={setup}
+        actions={noopActions}
+        onClose={() => {}}
+        onSaved={() => {}}
+      />
+    </EditorProvider>,
+    settingsMessages,
+  );
+}
+
+const ADDRESS_LINK = `href="/settings/connections?ws=${workspace}#${WEBHOOK_ADDRESS_ROW_ID}"`;
 
 function textOf(html: string): string {
   return html
@@ -313,30 +331,34 @@ describe("webhook 저장 규칙", () => {
 });
 
 describe("트래커 연결 상세의 Webhook 단계", () => {
-  it("닿을 주소가 없으면 1단계만 열리고 2·3단계는 잠긴다", async () => {
+  it("닿을 주소가 없으면 1단계만 열리고, 주소는 연결 페이지에서 정하라고 그 줄로 잇는다(0214)", async () => {
     const f = fixture();
     const id = await addConnection(f);
     const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id);
     const text = textOf(html);
     expect(text).toContain(settings.webhook.status.off);
     expect(stepOf(html, 1)).toContain('aria-current="step"');
-    expect(textOf(stepOf(html, 1))).toContain(settings.webhook.address.check);
+    expect(textOf(stepOf(html, 1))).toContain(settings.webhook.address.shared);
+    expect(stepOf(html, 1)).toContain(ADDRESS_LINK);
+    expect(stepOf(html, 1)).not.toContain('name="webhookAddress"');
     expect(textOf(stepOf(html, 2))).toContain(settings.webhook.stepState.locked);
     expect(textOf(stepOf(html, 3))).toContain(settings.webhook.stepState.locked);
     expect(textOf(stepOf(html, 2))).not.toContain(settings.webhook.create.urlLabel);
     expect(stepOf(html, 3)).not.toContain('type="password"');
-    expect(text).not.toContain(settings.webhook.address.funnelTitle);
-    expect(stepOf(html, 1)).toContain(
-      'href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"',
-    );
-    expect(stepOf(html, 1)).toContain(`${settings.webhook.address.reverseProxy} 도움말`);
+    expect(html).not.toContain(settings.connection.apiKey);
   });
 
-  it("Funnel 포트가 다 차면 쓰는 곳을 보이고 고르기 전에는 명령과 주소를 내지 않는다", async () => {
-    const f = fixture();
-    const id = await addConnection(f);
-    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id, portsFull);
-    const step = stepOf(html, 1);
+  it("주소 편집기는 Funnel 이 없으면 다른 방법 링크와 역방향 프록시 도움말을 보인다", () => {
+    const html = renderAddressEditor(noTailscale);
+    expect(textOf(html)).not.toContain(settings.webhook.address.funnelTitle);
+    expect(html).toContain(
+      'href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"',
+    );
+    expect(html).toContain(`${settings.webhook.address.reverseProxy} 도움말`);
+  });
+
+  it("Funnel 포트가 다 차면 쓰는 곳을 보이고 고르기 전에는 명령과 주소를 내지 않는다", () => {
+    const step = renderAddressEditor(portsFull);
     expect(textOf(step)).toContain(settings.webhook.address.funnelFull);
     expect(textOf(step)).toContain("/ → http://127.0.0.1:3000");
     expect(textOf(step)).toContain(
@@ -350,9 +372,7 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
     expect(step).not.toContain('value="https://server.example.ts.net');
   });
 
-  it("포트 상태를 모르면 webhook 경로만 연다고 말하지 않는다", async () => {
-    const f = fixture();
-    const id = await addConnection(f);
+  it("포트 상태를 모르면 webhook 경로만 연다고 말하지 않는다", () => {
     const unknownPort: WebhookSetupView = {
       funnel: {
         kind: "ready",
@@ -362,31 +382,20 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
         address: "https://server.example.ts.net:8443",
       },
     };
-    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id, unknownPort);
-    const step = textOf(stepOf(html, 1));
+    const step = textOf(renderAddressEditor(unknownPort));
     expect(step).toContain(settings.webhook.address.funnelRunShared);
     expect(step).not.toContain(settings.webhook.address.funnelRun);
   });
 
-  it("WEB_HOST 가 이 기기의 tailnet 주소면 명령 대신 127.0.0.1 에서도 받게 하라고 안내한다", async () => {
-    const f = fixture();
-    const id = await addConnection(f);
-    const html = renderDetail(
-      await loadSettingsPage(f.context, workspace, now),
-      id,
-      boundToTailnet,
-    );
-    const step = textOf(stepOf(html, 1));
+  it("WEB_HOST 가 이 기기의 tailnet 주소면 명령 대신 127.0.0.1 에서도 받게 하라고 안내한다", () => {
+    const step = textOf(renderAddressEditor(boundToTailnet));
     expect(step).toContain("100.64.0.10");
     expect(step).toContain("127.0.0.1에서도 받게 해 주세요");
     expect(step).not.toContain("tailscale funnel --bg");
   });
 
-  it("Tailscale 이 있으면 명령과 처음 허용 안내를 보이고 주소를 미리 채운다", async () => {
-    const f = fixture();
-    const id = await addConnection(f);
-    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id, withTailscale);
-    const step = stepOf(html, 1);
+  it("Tailscale 이 있으면 명령과 처음 허용 안내를 보이고 주소를 미리 채운다", () => {
+    const step = renderAddressEditor(withTailscale);
     expect(textOf(step)).toContain(settings.webhook.address.funnelTitle);
     expect(textOf(step)).toContain(settings.webhook.address.funnelFirst);
     expect(textOf(step)).toContain("비어 있는 8443 포트를 골랐어요.");
@@ -414,9 +423,32 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
     expect(textOf(stepOf(html, 3))).toContain(settings.webhook.secret.turnOn);
     expect(textOf(stepOf(html, 3))).toContain(settings.webhook.stepState.open);
     expect(textOf(stepOf(html, 2))).toContain(settings.webhook.stepState.current);
+    expect(stepOf(html, 1)).toContain(ADDRESS_LINK);
   });
 
-  it("확인하지 않고 저장된 예전 주소는 끝난 단계로 보지 않고 확인 칸에 채워 둔다", async () => {
+  it("2단계는 Linear webhook 폼의 칸별 값을, 3단계는 API 키와 다른 signing secret 이라고 보인다", async () => {
+    const f = fixture();
+    const id = await addConnection(f);
+    saveCheckedWebhookAddress(f.context.db, ADDRESS, now);
+    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id);
+    const create = textOf(stepOf(html, 2));
+    const c = settings.webhook.create;
+    for (const [label, value] of [
+      [c.formLabel, c.formLabelValue],
+      [c.formUrl, c.formUrlValue],
+      [c.formEvents, c.formEventsValue],
+      [c.formTeams, c.formTeamsValue],
+    ]) {
+      expect(create).toContain(`${label} ${value}`);
+    }
+    expect(stepOf(html, 2)).toContain(`aria-label="${c.formInfoLabel} 도움말"`);
+    const secret = stepOf(html, 3);
+    expect(textOf(secret)).toContain(settings.webhook.secret.description);
+    expect(textOf(secret)).toContain("lin_api_");
+    expect(secret).toMatch(/<label[^>]*>webhook signing secret \(lin_wh_…\)/);
+  });
+
+  it("확인하지 않고 저장된 예전 주소는 끝난 단계로 보지 않고, 연결 페이지의 주소 줄이 확인하라고 알린다", async () => {
     const f = fixture();
     const id = await addConnection(f);
     saveInstallAddresses(
@@ -424,11 +456,14 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
       { webAddress: null, webhookAddress: "http://192.168.0.10:3000" },
       now,
     );
-    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), id);
+    const page = await loadSettingsPage(f.context, workspace, now);
+    const html = renderDetail(page, id);
     expect(stepOf(html, 1)).toContain('aria-current="step"');
     expect(textOf(stepOf(html, 1))).not.toContain(settings.webhook.address.verified);
-    expect(stepOf(html, 1)).toContain('value="http://192.168.0.10:3000"');
     expect(textOf(stepOf(html, 2))).toContain(settings.webhook.stepState.locked);
+    expect(textOf(renderConnections(page))).toContain(
+      "http://192.168.0.10:3000 · 아직 닿는지 확인하지 않았어요",
+    );
   });
 
   it("켜진 연결도 확인하지 않은 주소면 확인하라고 알린다", async () => {
@@ -494,73 +529,89 @@ describe("트래커 연결 상세의 Webhook 단계", () => {
     expect(text).toContain(settings.webhook.urlMissing);
   });
 
-  it("없는 연결이면 Settings 로 돌아가는 링크를 보인다", async () => {
+  it("없는 연결이면 연결 페이지로 가는 링크를 보인다", async () => {
     const f = fixture();
-    const text = textOf(renderDetail(await loadSettingsPage(f.context, workspace, now), "missing"));
-    expect(text).toContain(settings.connection.notFound);
+    const html = renderDetail(await loadSettingsPage(f.context, workspace, now), "missing");
+    expect(textOf(html)).toContain(settings.connection.notFound);
+    expect(html).toContain(`href="/settings/connections?ws=${workspace}"`);
   });
 });
 
-describe("Settings 연결 줄의 webhook 상태(0130)", () => {
-  it("세 상태를 두 번째 글줄에 보이고, 서명 실패만 문제로 목차에 점을 붙인다", async () => {
+describe("연결 페이지(0214)", () => {
+  it("연결마다 webhook 줄에 지금 상태 문장을 보이고, 설정은 그 연결의 webhook 단계로 간다", async () => {
     const f = fixture();
     const off = await addConnection(f);
     const receiving = await addConnection(f, "whsec_labs", "Labs");
     recordWebhookAccepted(f.context.db, receiving, at(3));
     let page = await loadSettingsPage(f.context, workspace, now);
-    let text = textOf(renderSettings(page));
-    expect(text).toContain("1분마다 읽어요 · webhook 켜기");
-    expect(text).toContain("webhook으로 바로 받아요 · 마지막으로 받은 때 3 min ago");
-    expect(sectionProblems(page, 0).has("connections")).toBe(true);
+    let text = textOf(renderConnections(page));
+    expect(text).toContain("꺼져 있어요 · 1분마다 읽어요");
+    expect(text).toContain("바로 받아요 · 마지막으로 받은 때 3 min ago");
+    expect(pageProblems(page).has("connections")).toBe(true);
 
     recordWebhookBadSignature(f.context.db, receiving, at(18));
     page = await loadSettingsPage(f.context, workspace, now);
-    text = textOf(renderSettings(page));
-    expect(text).toContain("webhook 서명이 맞지 않아 받지 못해요 · 08:42부터");
-    expect(renderSettings(page)).toContain(`href="/settings/connections/${off}?ws=${workspace}"`);
+    const html = renderConnections(page);
+    text = textOf(html);
+    expect(text).toContain("서명이 맞지 않아 받지 못해요 · 08:42부터");
+    expect(html).toContain(`href="/settings/connections/${off}?ws=${workspace}"`);
+    expect(html).toMatch(
+      /aria-label="Labs webhook 설정"[^>]*data-variant="secondary"|data-variant="secondary"[^>]*aria-label="Labs webhook 설정"/,
+    );
   });
 
-  it("문제 점은 서명 실패에서만 생긴다", async () => {
+  it("API 키 줄은 키 값이나 넣어 둔 상태를 보이지 않고 키 바꾸기만 둔다", async () => {
+    const f = fixture();
+    await addConnection(f);
+    const html = renderConnections(await loadSettingsPage(f.context, workspace, now));
+    const text = textOf(html);
+    expect(text).toContain(settings.connection.apiKey);
+    expect(text).toContain(settings.connections.changeKey);
+    expect(text).toContain(settings.connections.check);
+    expect(html).not.toContain("lin_api_example");
+    expect(text).not.toContain("넣어 뒀어요");
+    expect(text).not.toContain("•");
+    expect(html).not.toContain('type="password"');
+  });
+
+  it("webhook 받을 주소는 맨 위 한 줄에만 있고, 확인한 주소를 보인다", async () => {
+    const f = fixture();
+    await addConnection(f);
+    await addConnection(f, "whsec_labs", "Labs");
+    saveCheckedWebhookAddress(f.context.db, ADDRESS, now);
+    const html = renderConnections(await loadSettingsPage(f.context, workspace, now));
+    expect(html.match(new RegExp(`id="${WEBHOOK_ADDRESS_ROW_ID}"`, "g"))).toHaveLength(1);
+    expect(html.match(new RegExp(ADDRESS, "g"))).toHaveLength(1);
+    expect(textOf(html)).toContain(settings.connections.webhookAddress);
+    expect(html).toContain(`aria-label="${settings.connections.webhookAddress} 도움말"`);
+    expect(html.indexOf(WEBHOOK_ADDRESS_ROW_ID)).toBeLessThan(
+      html.indexOf(settings.connection.apiKey),
+    );
+  });
+
+  it("문제 점은 서명 실패에서만 생기고 러너 상태는 보지 않는다", async () => {
     const f = fixture();
     const id = await addConnection(f, "whsec_example");
     const base = await loadSettingsPage(f.context, workspace, now);
     const complete: SettingsPage = {
       ...base,
-      install: {
-        ...base.install,
-        githubConnected: true,
-        githubToken: true,
-        runners: [
-          {
-            id: "runner-a",
-            name: "runner-a",
-            sshTarget: "runner-a.example.com",
-            orcaPath: "orca",
-            access: "manual",
-            capacity: 1,
-            check: null,
-          },
-        ],
-      },
+      install: { ...base.install, githubConnected: true, githubToken: true, runners: [] },
     };
-    expect(sectionProblems(complete, 0).has("connections")).toBe(false);
+    expect(pageProblems(complete).has("connections")).toBe(false);
     recordWebhookBadSignature(f.context.db, id, at(1));
     const failing = await loadSettingsPage(f.context, workspace, now);
     expect(
-      sectionProblems(
-        { ...complete, install: { ...complete.install, connections: failing.install.connections } },
-        0,
-      ).has("connections"),
+      pageProblems({
+        ...complete,
+        install: { ...complete.install, connections: failing.install.connections },
+      }).has("connections"),
     ).toBe(true);
   });
 
-  it("고급에는 webhook 주소 줄이 없다", async () => {
+  it("러너 줄은 없다(레일 Runners와 겹침)", async () => {
     const f = fixture();
     await addConnection(f);
-    saveCheckedWebhookAddress(f.context.db, ADDRESS, now);
-    const html = renderSettings(await loadSettingsPage(f.context, workspace, now));
-    const advanced = html.slice(html.indexOf('<section id="advanced"'));
-    expect(textOf(advanced)).not.toContain(settings.webhook.address.label);
-    expect(textOf(advanced)).not.toContain(ADDRESS);
+    const html = renderConnections(await loadSettingsPage(f.context, workspace, now));
+    expect(html).not.toContain('href="/runners');
   });
 });

@@ -2,30 +2,25 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import {
   DESKTOP_NAVIGATION_GLOBAL,
+  isDesktopPage,
   isNavScreen,
   navPathKeepingWorkspace,
 } from "@ganger/app/shell/nav-shortcuts";
-import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
+import type { DesktopPage, NavScreen } from "@ganger/app/shell/nav-shortcuts";
 import { addDragHandleIfMissing } from "./drag-handle.js";
-import { notificationSettingsViewSchema } from "../core/notification-prefs.js";
-import {
-  PERMISSION_REQUEST_RESULTS,
-  TEST_NOTIFICATION_RESULTS,
-} from "../core/notification-access.js";
+import { deliverDesktopPage } from "./page-delivery.js";
 import { DESKTOP_NOTIFICATIONS_GLOBAL } from "@ganger/app/notifications/desktop";
-import { z } from "zod";
 import { DESKTOP_UPDATES_GLOBAL } from "@ganger/app/updates/view";
 import { DESKTOP_LOGS_GLOBAL } from "@ganger/app/diagnostics/model";
-import type { DesktopApi, NotificationSettingsApi, ViewState } from "../shared/view.js";
+import type { DesktopApi, ViewState } from "../shared/view.js";
 import {
   IPC_PREFIX,
   LOGS_CAN_OPEN,
   LOGS_OPEN,
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
-  NOTIFICATION_SETTINGS_OPEN,
-  NOTIFICATION_SUMMARY_CHANNEL,
-  NOTIFICATION_SUMMARY_GET,
+  OPEN_PAGE_CHANNEL,
+  OPEN_PAGE_UNSUPPORTED,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
@@ -65,40 +60,14 @@ if (window.location.protocol === "file:") {
     openSharing: () => invoke("open-sharing"),
   };
   contextBridge.exposeInMainWorld("desktop", api);
-
-  const notifications: NotificationSettingsApi = {
-    getNotificationSettings: () =>
-      ipcRenderer
-        .invoke(`${IPC_PREFIX}get-notification-settings`)
-        .then((value: unknown) => notificationSettingsViewSchema.parse(value)),
-    onNotificationSettings: (listener) => {
-      const handler = (_event: IpcRendererEvent, value: unknown) => {
-        const parsed = notificationSettingsViewSchema.safeParse(value);
-        if (parsed.success) listener(parsed.data);
-      };
-      ipcRenderer.on(NOTIFICATION_SETTINGS_CHANNEL, handler);
-      return () => ipcRenderer.off(NOTIFICATION_SETTINGS_CHANNEL, handler);
-    },
-    setNotificationSettings: (settings) => invoke("set-notification-settings", settings),
-    openSystemNotificationSettings: () => invoke("open-system-notification-settings"),
-    openFocusSettings: () => invoke("open-focus-settings"),
-    requestPermission: () =>
-      ipcRenderer
-        .invoke(`${IPC_PREFIX}request-notification-permission`)
-        .then((value: unknown) => z.enum(PERMISSION_REQUEST_RESULTS).parse(value)),
-    sendTestNotification: () =>
-      ipcRenderer
-        .invoke(`${IPC_PREFIX}send-test-notification`)
-        .then((value: unknown) => z.enum(TEST_NOTIFICATION_RESULTS).parse(value)),
-    reconnectDevice: () => invoke("reconnect-device"),
-  };
-  contextBridge.exposeInMainWorld("desktopNotifications", notifications);
 }
 
 if (window.location.protocol === "http:" || window.location.protocol === "https:") {
   window.addEventListener("DOMContentLoaded", () =>
     addDragHandleIfMissing<HTMLDivElement>(document),
   );
+  const invoke = (action: string, ...args: unknown[]): Promise<unknown> =>
+    ipcRenderer.invoke(`${IPC_PREFIX}${action}`, ...args);
   const listeners = new Set<(screen: NavScreen) => void>();
   ipcRenderer.on(NAVIGATE_CHANNEL, (_event: IpcRendererEvent, screen: unknown) => {
     if (!isNavScreen(screen)) return;
@@ -107,6 +76,17 @@ if (window.location.protocol === "http:" || window.location.protocol === "https:
       return;
     }
     for (const listener of listeners) listener(screen);
+  });
+  const pageListeners = new Set<(page: DesktopPage) => void>();
+  ipcRenderer.on(OPEN_PAGE_CHANNEL, (_event: IpcRendererEvent, page: unknown) => {
+    if (!isDesktopPage(page)) return;
+    deliverDesktopPage(page, {
+      listeners: () => pageListeners,
+      unsupported: (missing) => ipcRenderer.send(OPEN_PAGE_UNSUPPORTED, missing),
+      later: (run, ms) => {
+        setTimeout(run, ms);
+      },
+    });
   });
   contextBridge.exposeInMainWorld(DESKTOP_UPDATES_GLOBAL, {
     getUpdate: (): Promise<unknown> => ipcRenderer.invoke(UPDATE_GET),
@@ -125,22 +105,32 @@ if (window.location.protocol === "http:" || window.location.protocol === "https:
     openFolder: (): Promise<unknown> => ipcRenderer.invoke(LOGS_OPEN),
   });
   contextBridge.exposeInMainWorld(DESKTOP_NOTIFICATIONS_GLOBAL, {
-    getSummary: (): Promise<unknown> => ipcRenderer.invoke(NOTIFICATION_SUMMARY_GET),
-    onSummary: (listener: (summary: unknown) => void) => {
-      const handler = (_event: IpcRendererEvent, summary: unknown) => listener(summary);
-      ipcRenderer.on(NOTIFICATION_SUMMARY_CHANNEL, handler);
+    getSettings: (): Promise<unknown> => invoke("get-notification-settings"),
+    onSettings: (listener: (view: unknown) => void) => {
+      const handler = (_event: IpcRendererEvent, view: unknown) => listener(view);
+      ipcRenderer.on(NOTIFICATION_SETTINGS_CHANNEL, handler);
       return () => {
-        ipcRenderer.off(NOTIFICATION_SUMMARY_CHANNEL, handler);
+        ipcRenderer.off(NOTIFICATION_SETTINGS_CHANNEL, handler);
       };
     },
-    openSettings: (): Promise<void> =>
-      ipcRenderer.invoke(NOTIFICATION_SETTINGS_OPEN).then(() => undefined),
+    saveSettings: (prefs: unknown): Promise<unknown> => invoke("set-notification-settings", prefs),
+    requestPermission: (): Promise<unknown> => invoke("request-notification-permission"),
+    sendTest: (): Promise<unknown> => invoke("send-test-notification"),
+    openSystemSettings: (): Promise<unknown> => invoke("open-system-notification-settings"),
+    openFocusSettings: (): Promise<unknown> => invoke("open-focus-settings"),
+    reconnectDevice: (): Promise<unknown> => invoke("reconnect-device"),
   });
   contextBridge.exposeInMainWorld(DESKTOP_NAVIGATION_GLOBAL, {
     onNavigate: (listener: (screen: NavScreen) => void) => {
       listeners.add(listener);
       return () => {
         listeners.delete(listener);
+      };
+    },
+    onOpenPage: (listener: (page: DesktopPage) => void) => {
+      pageListeners.add(listener);
+      return () => {
+        pageListeners.delete(listener);
       };
     },
   });

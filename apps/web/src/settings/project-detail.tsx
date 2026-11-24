@@ -3,12 +3,8 @@ import {
   Dialog,
   DialogClose,
   InfoTip,
-  NoticeLayout,
-  PageHeader,
-  ScreenLayout,
   Select,
   SettingsGroup,
-  SettingsLayout,
   SettingsRow,
   SettingsSection,
   Text,
@@ -18,23 +14,12 @@ import {
 import { breakpoints, size } from "@ganger/ui/tokens.stylex";
 import { useId, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
-import type {
-  BoundProject,
-  ConnectionLabel,
-  SettingsPage,
-  WorkspaceSettings,
-} from "@ganger/app/settings/model";
+import type { BoundProject, SettingsPage, WorkspaceSettings } from "@ganger/app/settings/model";
 import type { UnsavedGuard } from "./navigation-guard";
-import {
-  AutoSaveStatusText,
-  EditorBlockedNotice,
-  EditorProvider,
-  RevertedMessage,
-  useAutoSave,
-} from "./row-state";
+import { AutoSaveStatusText, EditorBlockedNotice, RevertedMessage, useAutoSave } from "./row-state";
 import { PROJECT_EDITOR_SELECTOR } from "./blocked-editor";
-import { AutoAssignLabelPicker } from "./label-picker";
 import { MappingEditor, ReloadFromTracker, autoAssignLabelOf } from "./mapping-editor";
+import { SettingsFrame, withSettingsEditors } from "./settings-frame";
 import {
   SubmitError,
   useReason,
@@ -43,21 +28,16 @@ import {
   type ProjectDetailActions,
   type SettingsActions,
 } from "./settings-screen";
-import {
-  SettingsBackLink,
-  plainSettingsLink,
-  projectRowId,
-  type RenderSettingsLink,
-} from "./settings-page";
+import { projectRowId, type RenderSettingsLink } from "./settings-page";
 
 export interface ProjectDetailScreenProps {
   page: SettingsPage;
   connectionId: string;
   projectId: string;
-  ws: string | undefined;
   actions: ProjectDetailActions;
   onRemoved: () => void;
-  renderLink?: RenderSettingsLink;
+  renderLink: RenderSettingsLink;
+  nav: ReactNode;
   renderGuard?: (guard: UnsavedGuard) => ReactNode;
 }
 
@@ -73,154 +53,109 @@ export function findBoundProject<B extends Pick<BoundProject, "connection" | "pr
   );
 }
 
-export function ProjectDetailScreen({
+function ProjectDetailPage({
   page,
   connectionId,
   projectId,
-  ws,
   actions,
   onRemoved,
-  renderLink = plainSettingsLink(ws),
-  renderGuard,
+  renderLink,
+  nav,
 }: ProjectDetailScreenProps) {
   const t = useTranslations("settings.project");
   const ts = useTranslations("settings");
   const tm = useTranslations("settings.mapping");
   const workspace = page.workspace;
   const bound = findBoundProject(workspace, connectionId, projectId);
-  const back = (
-    <SettingsBackLink
-      label={t("back")}
-      rowId={projectRowId(connectionId, projectId)}
-      renderLink={renderLink}
-    />
+  const toProjects = renderLink(
+    { kind: "page", page: "projects", rowId: projectRowId(connectionId, projectId) },
+    { ...stylex.props(linkStyles("action")), children: ts("pages.projects") },
   );
   if (workspace === null || bound === null) {
     return (
-      <ScreenLayout header={<PageHeader lead={back} title={t("breadcrumb")} />}>
-        <NoticeLayout>
-          <Text variant="body">{t("notFound")}</Text>
-          {renderLink(
-            { kind: "settings" },
-            { ...stylex.props(linkStyles("action")), children: t("back") },
-          )}
-        </NoticeLayout>
-      </ScreenLayout>
+      <SettingsFrame title={t("breadcrumb")} nav={nav}>
+        <SettingsGroup>
+          <SettingsRow label={t("notFound")} control={toProjects} />
+        </SettingsGroup>
+      </SettingsFrame>
     );
   }
-  const label = workspace.labels.find((l) => l.connection.id === connectionId) ?? null;
   const tracker = t("trackerName", { kind: bound.trackerKind ?? "other" });
   return (
-    <ScreenLayout
-      header={
-        <PageHeader
-          lead={back}
-          title={bound.project.name}
-          subtitle={bound.connection.name}
-          actions={<ReloadFromTracker onReload={actions.reloadFromTracker} />}
-        />
+    <SettingsFrame
+      title={bound.project.name}
+      subtitle={
+        <Text variant="meta">
+          {t.rich("trail", {
+            connection: bound.connection.name,
+            projects: () => toProjects,
+          })}
+        </Text>
       }
+      actions={<ReloadFromTracker onReload={actions.reloadFromTracker} />}
+      nav={nav}
     >
-      <EditorProvider
-        blockedSelector={PROJECT_EDITOR_SELECTOR}
-        {...(renderGuard === undefined ? {} : { renderGuard })}
-      >
-        <SettingsLayout>
-          <MappingEditor
-            ws={workspace.general.id}
-            bound={bound}
-            runnerProjects={page.runnerProjects}
-            agents={page.agents}
-            actions={actions}
-            autoAssignLabelId={autoAssignLabelOf(workspace, bound.connection.id)}
-            heading={<VisuallyHidden>{bound.project.name}</VisuallyHidden>}
-            renderSections={({ repos, agent }) => (
-              <>
-                <SettingsSection
-                  id="repo"
-                  title={t("repo")}
-                  info={
-                    <InfoTip
-                      label={ts("infoLabel", { label: t("repo") })}
-                      content={`${tm("routeHint")} ${t("repoInfo")}`}
-                    />
-                  }
-                >
-                  <SettingsGroup padded>
-                    <EditorBlockedNotice />
-                    {repos}
-                  </SettingsGroup>
-                </SettingsSection>
-                <SettingsSection id="agent" title={tm("agent")}>
-                  {agent}
-                </SettingsSection>
-              </>
-            )}
-          />
-          {label === null ? null : (
-            <SettingsSection id="assign" title={t("assign")}>
-              <SettingsGroup>
-                <LabelRow ws={workspace.general.id} label={label} actions={actions} />
+      <MappingEditor
+        ws={workspace.general.id}
+        bound={bound}
+        runnerProjects={page.runnerProjects}
+        agents={page.agents}
+        actions={actions}
+        autoAssignLabelId={autoAssignLabelOf(workspace, bound.connection.id)}
+        heading={<VisuallyHidden>{bound.project.name}</VisuallyHidden>}
+        renderSections={({ repos, agent }) => (
+          <>
+            <SettingsSection
+              id="repo"
+              title={t("repo")}
+              info={
+                <InfoTip
+                  label={ts("infoLabel", { label: t("repo") })}
+                  content={`${tm("routeHint")} ${t("repoInfo")}`}
+                />
+              }
+            >
+              <SettingsGroup padded>
+                <EditorBlockedNotice />
+                {repos}
               </SettingsGroup>
             </SettingsSection>
-          )}
-          <SettingsSection
-            id="ticket-state"
-            title={t("ticketState")}
-            detail={t("ticketStateDetail", { tracker })}
-          >
-            <SettingsGroup>
-              <StateRow ws={workspace.general.id} bound={bound} actions={actions} />
-              <MergedStateRow
-                ws={workspace.general.id}
-                bound={bound}
-                tracker={tracker}
-                actions={actions}
-              />
-            </SettingsGroup>
-          </SettingsSection>
-          <SettingsGroup>
-            <RemoveRow
-              ws={workspace.general.id}
-              bound={bound}
-              workspace={workspace}
-              actions={actions}
-              onRemoved={onRemoved}
-            />
-          </SettingsGroup>
-        </SettingsLayout>
-      </EditorProvider>
-    </ScreenLayout>
-  );
-}
-
-function LabelRow({
-  ws,
-  label,
-  actions,
-}: {
-  ws: string;
-  label: ConnectionLabel;
-  actions: SettingsActions;
-}) {
-  const t = useTranslations("settings");
-  return (
-    <SettingsRow
-      label={t("project.label")}
-      detail={t("project.labelScope", { connection: label.connection.name })}
-      wideControl
-      control={
-        <span {...stylex.props(styles.select)}>
-          <AutoAssignLabelPicker
-            ws={ws}
-            label={label}
-            actions={actions}
-            selectLabel={t("project.label")}
-            showReload={false}
+            <SettingsSection id="agent" title={tm("agent")}>
+              {agent}
+            </SettingsSection>
+          </>
+        )}
+      />
+      <SettingsSection
+        id="ticket-state"
+        title={t("ticketState", { tracker })}
+        info={
+          <InfoTip
+            label={ts("infoLabel", { label: t("ticketState", { tracker }) })}
+            content={t("ticketStateDetail", { tracker })}
           />
-        </span>
-      }
-    />
+        }
+      >
+        <SettingsGroup>
+          <StateRow ws={workspace.general.id} bound={bound} actions={actions} />
+          <MergedStateRow
+            ws={workspace.general.id}
+            bound={bound}
+            tracker={tracker}
+            actions={actions}
+          />
+        </SettingsGroup>
+      </SettingsSection>
+      <SettingsGroup>
+        <RemoveRow
+          ws={workspace.general.id}
+          bound={bound}
+          workspace={workspace}
+          actions={actions}
+          onRemoved={onRemoved}
+        />
+      </SettingsGroup>
+    </SettingsFrame>
   );
 }
 
@@ -424,3 +359,5 @@ const styles = stylex.create({
     minWidth: 0,
   },
 });
+
+export const ProjectDetailScreen = withSettingsEditors(ProjectDetailPage, PROJECT_EDITOR_SELECTOR);

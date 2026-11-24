@@ -3,21 +3,27 @@ import { useEffect, useEffectEvent, useState } from "react";
 import { z } from "zod";
 import {
   DESKTOP_NAVIGATION_GLOBAL,
+  desktopPages,
+  isDesktopPage,
   isNavScreen,
   navShortcutOf,
 } from "@ganger/app/shell/nav-shortcuts";
-import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
+import type { DesktopPage, NavScreen } from "@ganger/app/shell/nav-shortcuts";
 
 export interface DesktopNavigation {
   onNavigate(listener: (screen: NavScreen) => void): () => void;
+  onOpenPage(listener: (page: DesktopPage) => void): () => void;
 }
 
 const unsubscribeSchema = z.custom<() => unknown>((value) => typeof value === "function");
 
+const listenerSchema = z.custom<(listener: (value: unknown) => void) => unknown>(
+  (value) => typeof value === "function",
+);
+
 const bridgeSchema = z.object({
-  onNavigate: z.custom<(listener: (screen: unknown) => void) => unknown>(
-    (value) => typeof value === "function",
-  ),
+  onNavigate: listenerSchema,
+  onOpenPage: listenerSchema.optional(),
 });
 
 export function desktopNavigation(scope: object = globalThis): DesktopNavigation | null {
@@ -29,6 +35,18 @@ export function desktopNavigation(scope: object = globalThis): DesktopNavigation
       const off = unsubscribeSchema.safeParse(
         bridge.onNavigate((screen) => {
           if (isNavScreen(screen)) listener(screen);
+        }),
+      );
+      return () => {
+        if (off.success) off.data();
+      };
+    },
+    onOpenPage(listener) {
+      const subscribe = bridge.onOpenPage;
+      if (subscribe === undefined) return () => {};
+      const off = unsubscribeSchema.safeParse(
+        subscribe((page) => {
+          if (isDesktopPage(page)) listener(page);
         }),
       );
       return () => {
@@ -53,4 +71,15 @@ export function useDesktopNavigation(onNavigated: (screen: NavScreen) => void): 
     });
   }, [navigate]);
   return { inDesktopApp };
+}
+
+export function useDesktopPageOpening(): void {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const bridge = desktopNavigation();
+    if (bridge === null) return;
+    return bridge.onOpenPage((page) => {
+      void navigate({ to: desktopPages[page] });
+    });
+  }, [navigate]);
 }

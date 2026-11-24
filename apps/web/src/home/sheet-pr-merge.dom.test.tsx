@@ -278,7 +278,7 @@ describe("「PR」 탭 머지 버튼 (0201)", () => {
     const note = container.querySelector("[data-merge-control] p");
     expect(note?.textContent).toBe(`${m.noPermission} · ${m.toSettings}`);
     expect(button.getAttribute("aria-describedby")).toBe(note?.id);
-    expect(note?.querySelector("a")?.getAttribute("href")).toBe("/settings#connections");
+    expect(note?.querySelector("a")?.getAttribute("href")).toBe("/settings/connections#github");
   });
 
   it("머지 정보가 없거나 머지된 PR 에는 버튼을 두지 않는다", async () => {

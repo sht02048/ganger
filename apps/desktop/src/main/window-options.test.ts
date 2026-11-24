@@ -4,27 +4,22 @@ import { describe, expect, it } from "vitest";
 import {
   TRAFFIC_LIGHTS,
   mainWindowOptions,
-  settingsWindowOptions,
   titleBarCookie,
   trafficLightPosition,
 } from "./window-options.js";
 
 describe("창 제목 표시줄(0113)", () => {
-  it("본 창과 알림 설정 창 모두 제목 표시줄을 숨기고 신호등만 남기며, 바탕을 Ink 로 칠해 열 때 흰 화면이 번쩍이지 않는다", () => {
-    for (const options of [
-      mainWindowOptions("Ganger", "/preload.js"),
-      settingsWindowOptions("알림 설정", "/preload.js"),
-    ]) {
-      expect(options.titleBarStyle).toBe("hidden");
-      expect(options.trafficLightPosition).toEqual(trafficLightPosition());
-      expect(options.backgroundColor).toBe(windowFrame.background);
-      expect(options.webPreferences).toMatchObject({
-        preload: "/preload.js",
-        contextIsolation: true,
-        sandbox: true,
-        nodeIntegration: false,
-      });
-    }
+  it("본 창은 제목 표시줄을 숨기고 신호등만 남기며, 바탕을 Ink 로 칠해 열 때 흰 화면이 번쩍이지 않는다", () => {
+    const options = mainWindowOptions("Ganger", "/preload.js");
+    expect(options.titleBarStyle).toBe("hidden");
+    expect(options.trafficLightPosition).toEqual(trafficLightPosition());
+    expect(options.backgroundColor).toBe(windowFrame.background);
+    expect(options.webPreferences).toMatchObject({
+      preload: "/preload.js",
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    });
   });
 
   it("본 창은 최소 720px 폭을 지킨다", () => {

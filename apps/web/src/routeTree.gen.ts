@@ -22,7 +22,13 @@ import { Route as ApiBuildRouteImport } from './routes/api/build'
 import { Route as ApiDiagnosticsRouteImport } from './routes/api/diagnostics'
 import { Route as ApiIdentityRouteImport } from './routes/api/identity'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs_.$runId'
-import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings_.mcp'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings.index'
+import { Route as AppSettingsBriefRouteImport } from './routes/_app/settings.brief'
+import { Route as AppSettingsDevicesRouteImport } from './routes/_app/settings.devices'
+import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings.general'
+import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings.mcp'
+import { Route as AppSettingsNotificationsRouteImport } from './routes/_app/settings.notifications'
+import { Route as AppSettingsChar91serverChar93RouteImport } from './routes/_app/settings.[server]'
 import { Route as ApiChangeEventsStreamRouteImport } from './routes/api/change-events/stream'
 import { Route as ApiRunnerEnrollmentIndexRouteImport } from './routes/api/runner-enrollment/index'
 import { Route as ApiRunnerEnrollmentScriptRouteImport } from './routes/api/runner-enrollment/script'
@@ -30,7 +36,9 @@ import { Route as ApiV1DashboardRouteImport } from './routes/api/v1/dashboard'
 import { Route as ApiV1RunnersRouteImport } from './routes/api/v1/runners'
 import { Route as ApiV1WorkspacesRouteImport } from './routes/api/v1/workspaces'
 import { Route as RunsRunIdTicketRouteImport } from './routes/runs_.$runId_.ticket'
-import { Route as AppSettingsConnectionsConnectionIdRouteImport } from './routes/_app/settings_.connections.$connectionId'
+import { Route as AppSettingsConnectionsIndexRouteImport } from './routes/_app/settings.connections.index'
+import { Route as AppSettingsConnectionsConnectionIdRouteImport } from './routes/_app/settings.connections.$connectionId'
+import { Route as AppSettingsProjectsIndexRouteImport } from './routes/_app/settings.projects.index'
 import { Route as ApiRunnerEnrollmentOfferIndexRouteImport } from './routes/api/runner-enrollment/offer/index'
 import { Route as ApiRunnerEnrollmentOfferAcceptRouteImport } from './routes/api/runner-enrollment/offer/accept'
 import { Route as ApiV1ChangeEventsStreamRouteImport } from './routes/api/v1/change-events/stream'
@@ -42,7 +50,7 @@ import { Route as ApiV1NotificationEventsIdRouteImport } from './routes/api/v1/n
 import { Route as ApiV1NotificationEventsStreamRouteImport } from './routes/api/v1/notification-events/stream'
 import { Route as ApiWebhooksPingInstanceIdRouteImport } from './routes/api/webhooks/ping/$instanceId'
 import { Route as ApiWebhooksTrackerConnectionIdRouteImport } from './routes/api/webhooks/tracker/$connectionId'
-import { Route as AppSettingsProjectsConnectionIdProjectIdRouteImport } from './routes/_app/settings_.projects.$connectionId.$projectId'
+import { Route as AppSettingsProjectsConnectionIdProjectIdRouteImport } from './routes/_app/settings.projects.$connectionId.$projectId'
 import { Route as ApiV1DevicesMeActivityRouteImport } from './routes/api/v1/devices/me_.activity'
 import { Route as ApiV1DevicesMeNotificationsRouteImport } from './routes/api/v1/devices/me_.notifications'
 import { Route as ApiV1RunsIdIndexRouteImport } from './routes/api/v1/runs/$id/index'
@@ -113,11 +121,43 @@ const AppRunsRunIdRoute = AppRunsRunIdRouteImport.update({
   path: '/runs/$runId',
   getParentRoute: () => AppRoute,
 } as any)
-const AppSettingsMcpRoute = AppSettingsMcpRouteImport.update({
-  id: '/settings_/mcp',
-  path: '/settings/mcp',
-  getParentRoute: () => AppRoute,
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsBriefRoute = AppSettingsBriefRouteImport.update({
+  id: '/brief',
+  path: '/brief',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsDevicesRoute = AppSettingsDevicesRouteImport.update({
+  id: '/devices',
+  path: '/devices',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsMcpRoute = AppSettingsMcpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsNotificationsRoute =
+  AppSettingsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsChar91serverChar93Route =
+  AppSettingsChar91serverChar93RouteImport.update({
+    id: '/server',
+    path: '/server',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const ApiChangeEventsStreamRoute = ApiChangeEventsStreamRouteImport.update({
   id: '/api/change-events/stream',
   path: '/api/change-events/stream',
@@ -155,11 +195,23 @@ const RunsRunIdTicketRoute = RunsRunIdTicketRouteImport.update({
   path: '/runs/$runId/ticket',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppSettingsConnectionsIndexRoute =
+  AppSettingsConnectionsIndexRouteImport.update({
+    id: '/connections/',
+    path: '/connections/',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
 const AppSettingsConnectionsConnectionIdRoute =
   AppSettingsConnectionsConnectionIdRouteImport.update({
-    id: '/settings_/connections/$connectionId',
-    path: '/settings/connections/$connectionId',
-    getParentRoute: () => AppRoute,
+    id: '/connections/$connectionId',
+    path: '/connections/$connectionId',
+    getParentRoute: () => AppSettingsRoute,
+  } as any)
+const AppSettingsProjectsIndexRoute =
+  AppSettingsProjectsIndexRouteImport.update({
+    id: '/projects/',
+    path: '/projects/',
+    getParentRoute: () => AppSettingsRoute,
   } as any)
 const ApiRunnerEnrollmentOfferIndexRoute =
   ApiRunnerEnrollmentOfferIndexRouteImport.update({
@@ -225,9 +277,9 @@ const ApiWebhooksTrackerConnectionIdRoute =
   } as any)
 const AppSettingsProjectsConnectionIdProjectIdRoute =
   AppSettingsProjectsConnectionIdProjectIdRouteImport.update({
-    id: '/settings_/projects/$connectionId/$projectId',
-    path: '/settings/projects/$connectionId/$projectId',
-    getParentRoute: () => AppRoute,
+    id: '/projects/$connectionId/$projectId',
+    path: '/projects/$connectionId/$projectId',
+    getParentRoute: () => AppSettingsRoute,
   } as any)
 const ApiV1DevicesMeActivityRoute = ApiV1DevicesMeActivityRouteImport.update({
   id: '/api/v1/devices/me_/activity',
@@ -262,20 +314,26 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/runners': typeof AppRunnersRoute
   '/runs': typeof AppRunsRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
   '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
+  '/settings/brief': typeof AppSettingsBriefRoute
+  '/settings/devices': typeof AppSettingsDevicesRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
+  '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs/$runId/ticket': typeof RunsRunIdTicketRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
@@ -287,6 +345,8 @@ export interface FileRoutesByFullPath {
   '/api/v1/notification-events/stream': typeof ApiV1NotificationEventsStreamRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
+  '/settings/connections/': typeof AppSettingsConnectionsIndexRoute
+  '/settings/projects/': typeof AppSettingsProjectsIndexRoute
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events/': typeof ApiV1NotificationEventsIndexRoute
   '/settings/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
@@ -301,7 +361,6 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/runners': typeof AppRunnersRoute
   '/runs': typeof AppRunsRoute
-  '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
   '/api/build': typeof ApiBuildRoute
@@ -309,13 +368,19 @@ export interface FileRoutesByTo {
   '/api/identity': typeof ApiIdentityRoute
   '/': typeof AppIndexRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
+  '/settings/brief': typeof AppSettingsBriefRoute
+  '/settings/devices': typeof AppSettingsDevicesRoute
+  '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
+  '/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs/$runId/ticket': typeof RunsRunIdTicketRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/api/runner-enrollment': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
@@ -327,6 +392,8 @@ export interface FileRoutesByTo {
   '/api/v1/notification-events/stream': typeof ApiV1NotificationEventsStreamRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
+  '/settings/connections': typeof AppSettingsConnectionsIndexRoute
+  '/settings/projects': typeof AppSettingsProjectsIndexRoute
   '/api/runner-enrollment/offer': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events': typeof ApiV1NotificationEventsIndexRoute
   '/settings/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
@@ -343,7 +410,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/_app/runners': typeof AppRunnersRoute
   '/_app/runs': typeof AppRunsRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/stats': typeof AppStatsRoute
   '/_app/tickets': typeof AppTicketsRoute
   '/api/build': typeof ApiBuildRoute
@@ -351,15 +418,21 @@ export interface FileRoutesById {
   '/api/identity': typeof ApiIdentityRoute
   '/_app/': typeof AppIndexRoute
   '/_app/runs_/$runId': typeof AppRunsRunIdRoute
-  '/_app/settings_/mcp': typeof AppSettingsMcpRoute
+  '/_app/settings/brief': typeof AppSettingsBriefRoute
+  '/_app/settings/devices': typeof AppSettingsDevicesRoute
+  '/_app/settings/general': typeof AppSettingsGeneralRoute
+  '/_app/settings/mcp': typeof AppSettingsMcpRoute
+  '/_app/settings/notifications': typeof AppSettingsNotificationsRoute
+  '/_app/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs_/$runId_/ticket': typeof RunsRunIdTicketRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
-  '/_app/settings_/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
+  '/_app/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
   '/api/v1/change-events/stream': typeof ApiV1ChangeEventsStreamRoute
   '/api/v1/devices/connect': typeof ApiV1DevicesConnectRoute
@@ -369,9 +442,11 @@ export interface FileRoutesById {
   '/api/v1/notification-events/stream': typeof ApiV1NotificationEventsStreamRoute
   '/api/webhooks/ping/$instanceId': typeof ApiWebhooksPingInstanceIdRoute
   '/api/webhooks/tracker/$connectionId': typeof ApiWebhooksTrackerConnectionIdRoute
+  '/_app/settings/connections/': typeof AppSettingsConnectionsIndexRoute
+  '/_app/settings/projects/': typeof AppSettingsProjectsIndexRoute
   '/api/runner-enrollment/offer/': typeof ApiRunnerEnrollmentOfferIndexRoute
   '/api/v1/notification-events/': typeof ApiV1NotificationEventsIndexRoute
-  '/_app/settings_/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
+  '/_app/settings/projects/$connectionId/$projectId': typeof AppSettingsProjectsConnectionIdProjectIdRoute
   '/api/v1/devices/me_/activity': typeof ApiV1DevicesMeActivityRoute
   '/api/v1/devices/me_/notifications': typeof ApiV1DevicesMeNotificationsRoute
   '/api/v1/runs/$id/$action': typeof ApiV1RunsIdActionRoute
@@ -393,13 +468,19 @@ export interface FileRouteTypes {
     | '/api/diagnostics'
     | '/api/identity'
     | '/runs/$runId'
+    | '/settings/brief'
+    | '/settings/devices'
+    | '/settings/general'
     | '/settings/mcp'
+    | '/settings/notifications'
+    | '/settings/server'
     | '/api/change-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs/$runId/ticket'
+    | '/settings/'
     | '/api/runner-enrollment/'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
@@ -411,6 +492,8 @@ export interface FileRouteTypes {
     | '/api/v1/notification-events/stream'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
+    | '/settings/connections/'
+    | '/settings/projects/'
     | '/api/runner-enrollment/offer/'
     | '/api/v1/notification-events/'
     | '/settings/projects/$connectionId/$projectId'
@@ -425,7 +508,6 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/runners'
     | '/runs'
-    | '/settings'
     | '/stats'
     | '/tickets'
     | '/api/build'
@@ -433,13 +515,19 @@ export interface FileRouteTypes {
     | '/api/identity'
     | '/'
     | '/runs/$runId'
+    | '/settings/brief'
+    | '/settings/devices'
+    | '/settings/general'
     | '/settings/mcp'
+    | '/settings/notifications'
+    | '/settings/server'
     | '/api/change-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs/$runId/ticket'
+    | '/settings'
     | '/api/runner-enrollment'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
@@ -451,6 +539,8 @@ export interface FileRouteTypes {
     | '/api/v1/notification-events/stream'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
+    | '/settings/connections'
+    | '/settings/projects'
     | '/api/runner-enrollment/offer'
     | '/api/v1/notification-events'
     | '/settings/projects/$connectionId/$projectId'
@@ -474,15 +564,21 @@ export interface FileRouteTypes {
     | '/api/identity'
     | '/_app/'
     | '/_app/runs_/$runId'
-    | '/_app/settings_/mcp'
+    | '/_app/settings/brief'
+    | '/_app/settings/devices'
+    | '/_app/settings/general'
+    | '/_app/settings/mcp'
+    | '/_app/settings/notifications'
+    | '/_app/settings/server'
     | '/api/change-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs_/$runId_/ticket'
+    | '/_app/settings/'
     | '/api/runner-enrollment/'
-    | '/_app/settings_/connections/$connectionId'
+    | '/_app/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
     | '/api/v1/change-events/stream'
     | '/api/v1/devices/connect'
@@ -492,9 +588,11 @@ export interface FileRouteTypes {
     | '/api/v1/notification-events/stream'
     | '/api/webhooks/ping/$instanceId'
     | '/api/webhooks/tracker/$connectionId'
+    | '/_app/settings/connections/'
+    | '/_app/settings/projects/'
     | '/api/runner-enrollment/offer/'
     | '/api/v1/notification-events/'
-    | '/_app/settings_/projects/$connectionId/$projectId'
+    | '/_app/settings/projects/$connectionId/$projectId'
     | '/api/v1/devices/me_/activity'
     | '/api/v1/devices/me_/notifications'
     | '/api/v1/runs/$id/$action'
@@ -627,12 +725,54 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRunsRunIdRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/settings_/mcp': {
-      id: '/_app/settings_/mcp'
-      path: '/settings/mcp'
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/brief': {
+      id: '/_app/settings/brief'
+      path: '/brief'
+      fullPath: '/settings/brief'
+      preLoaderRoute: typeof AppSettingsBriefRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/devices': {
+      id: '/_app/settings/devices'
+      path: '/devices'
+      fullPath: '/settings/devices'
+      preLoaderRoute: typeof AppSettingsDevicesRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/general': {
+      id: '/_app/settings/general'
+      path: '/general'
+      fullPath: '/settings/general'
+      preLoaderRoute: typeof AppSettingsGeneralRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/mcp': {
+      id: '/_app/settings/mcp'
+      path: '/mcp'
       fullPath: '/settings/mcp'
       preLoaderRoute: typeof AppSettingsMcpRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/notifications': {
+      id: '/_app/settings/notifications'
+      path: '/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AppSettingsNotificationsRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/server': {
+      id: '/_app/settings/server'
+      path: '/server'
+      fullPath: '/settings/server'
+      preLoaderRoute: typeof AppSettingsChar91serverChar93RouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/api/change-events/stream': {
       id: '/api/change-events/stream'
@@ -683,12 +823,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RunsRunIdTicketRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/settings_/connections/$connectionId': {
-      id: '/_app/settings_/connections/$connectionId'
-      path: '/settings/connections/$connectionId'
+    '/_app/settings/connections/': {
+      id: '/_app/settings/connections/'
+      path: '/connections'
+      fullPath: '/settings/connections/'
+      preLoaderRoute: typeof AppSettingsConnectionsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/connections/$connectionId': {
+      id: '/_app/settings/connections/$connectionId'
+      path: '/connections/$connectionId'
       fullPath: '/settings/connections/$connectionId'
       preLoaderRoute: typeof AppSettingsConnectionsConnectionIdRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/projects/': {
+      id: '/_app/settings/projects/'
+      path: '/projects'
+      fullPath: '/settings/projects/'
+      preLoaderRoute: typeof AppSettingsProjectsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
     }
     '/api/runner-enrollment/offer/': {
       id: '/api/runner-enrollment/offer/'
@@ -767,12 +921,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWebhooksTrackerConnectionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/settings_/projects/$connectionId/$projectId': {
-      id: '/_app/settings_/projects/$connectionId/$projectId'
-      path: '/settings/projects/$connectionId/$projectId'
+    '/_app/settings/projects/$connectionId/$projectId': {
+      id: '/_app/settings/projects/$connectionId/$projectId'
+      path: '/projects/$connectionId/$projectId'
       fullPath: '/settings/projects/$connectionId/$projectId'
       preLoaderRoute: typeof AppSettingsProjectsConnectionIdProjectIdRouteImport
-      parentRoute: typeof AppRoute
+      parentRoute: typeof AppSettingsRoute
     }
     '/api/v1/devices/me_/activity': {
       id: '/api/v1/devices/me_/activity'
@@ -812,32 +966,58 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppSettingsRouteChildren {
+  AppSettingsBriefRoute: typeof AppSettingsBriefRoute
+  AppSettingsDevicesRoute: typeof AppSettingsDevicesRoute
+  AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
+  AppSettingsMcpRoute: typeof AppSettingsMcpRoute
+  AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute
+  AppSettingsChar91serverChar93Route: typeof AppSettingsChar91serverChar93Route
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+  AppSettingsConnectionsConnectionIdRoute: typeof AppSettingsConnectionsConnectionIdRoute
+  AppSettingsConnectionsIndexRoute: typeof AppSettingsConnectionsIndexRoute
+  AppSettingsProjectsIndexRoute: typeof AppSettingsProjectsIndexRoute
+  AppSettingsProjectsConnectionIdProjectIdRoute: typeof AppSettingsProjectsConnectionIdProjectIdRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsBriefRoute: AppSettingsBriefRoute,
+  AppSettingsDevicesRoute: AppSettingsDevicesRoute,
+  AppSettingsGeneralRoute: AppSettingsGeneralRoute,
+  AppSettingsMcpRoute: AppSettingsMcpRoute,
+  AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
+  AppSettingsChar91serverChar93Route: AppSettingsChar91serverChar93Route,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+  AppSettingsConnectionsConnectionIdRoute:
+    AppSettingsConnectionsConnectionIdRoute,
+  AppSettingsConnectionsIndexRoute: AppSettingsConnectionsIndexRoute,
+  AppSettingsProjectsIndexRoute: AppSettingsProjectsIndexRoute,
+  AppSettingsProjectsConnectionIdProjectIdRoute:
+    AppSettingsProjectsConnectionIdProjectIdRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppRunnersRoute: typeof AppRunnersRoute
   AppRunsRoute: typeof AppRunsRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppStatsRoute: typeof AppStatsRoute
   AppTicketsRoute: typeof AppTicketsRoute
   AppIndexRoute: typeof AppIndexRoute
   AppRunsRunIdRoute: typeof AppRunsRunIdRoute
-  AppSettingsMcpRoute: typeof AppSettingsMcpRoute
-  AppSettingsConnectionsConnectionIdRoute: typeof AppSettingsConnectionsConnectionIdRoute
-  AppSettingsProjectsConnectionIdProjectIdRoute: typeof AppSettingsProjectsConnectionIdProjectIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
   AppRunnersRoute: AppRunnersRoute,
   AppRunsRoute: AppRunsRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppStatsRoute: AppStatsRoute,
   AppTicketsRoute: AppTicketsRoute,
   AppIndexRoute: AppIndexRoute,
   AppRunsRunIdRoute: AppRunsRunIdRoute,
-  AppSettingsMcpRoute: AppSettingsMcpRoute,
-  AppSettingsConnectionsConnectionIdRoute:
-    AppSettingsConnectionsConnectionIdRoute,
-  AppSettingsProjectsConnectionIdProjectIdRoute:
-    AppSettingsProjectsConnectionIdProjectIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)

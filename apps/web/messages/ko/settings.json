@@ -1,18 +1,25 @@
 {
   "documentTitle": "Settings · Ganger",
   "title": "Settings",
+  "pageDocumentTitle": "{name} · Settings · Ganger",
   "nav": {
-    "label": "Settings 목차",
+    "label": "Settings 메뉴",
     "problem": "확인할 것이 있어요"
   },
-  "sections": {
+  "navGroups": {
     "workspace": "Workspace",
+    "workspaceNamed": "Workspace · {name}",
+    "install": "설치 전체",
+    "mac": "이 Mac"
+  },
+  "pages": {
+    "general": "일반",
     "projects": "프로젝트",
     "connections": "연결",
-    "server": "이 서버",
-    "devices": "기기 연결",
-    "logs": "서버 로그와 진단",
-    "advanced": "고급"
+    "devices": "다른 기기",
+    "server": "서버",
+    "mcp": "MCP",
+    "notifications": "알림"
   },
   "save": "저장하기",
   "saving": "저장하는 중…",
@@ -86,8 +93,7 @@
   },
   "projects": {
     "info": "한 트래커 프로젝트는 Workspace 하나에만 넣을 수 있어요.",
-    "open": "+ 넣기",
-    "openLabel": "트래커 프로젝트 넣기",
+    "open": "+ 트래커 프로젝트 넣기",
     "candidates": "넣을 트래커 프로젝트",
     "noCandidates": "더 넣을 트래커 프로젝트가 없어요.",
     "none": "아직 넣은 트래커 프로젝트가 없어요.",
@@ -95,8 +101,7 @@
     "toConnections": "연결로 가기",
     "repoAgent": "{repo} · {agent}",
     "noRepo": "저장소를 아직 정하지 않았어요",
-    "decide": "정하기",
-    "autoLabel": "{label} 라벨이면 바로 할당",
+    "autoLabel": "바로 할당 라벨",
     "statesFailed": "트래커에서 상태를 읽지 못했어요",
     "listFailed": "트래커에서 프로젝트를 읽지 못했어요. {reason}",
     "empty": "이 연결에 트래커 프로젝트가 없어요.",
@@ -110,35 +115,32 @@
     "cancel": "그대로 두기",
     "removed": "{project} 트래커 프로젝트를 뺐어요",
     "noConnections": "트래커 연결이 없어요. 설치 전체의 트래커 연결에서 먼저 추가해 주세요.",
-    "repoMore": "{repo} 외 {count}개"
+    "repoMore": "{repo} 외 {count}개",
+    "autoLabelInfo": "이 라벨이 붙은 티켓은 운영자 없이 바로 할당해요. 이 연결의 프로젝트에 같이 써요.",
+    "autoLabelNone": "정하지 않았어요 · Tickets에서 직접 할당해요",
+    "autoLabelSelect": "{connection} 연결의 바로 할당 라벨",
+    "groupTitle": "{connection} 연결"
   },
   "project": {
-    "documentTitle": "{name} · Settings · Ganger",
-    "breadcrumb": "Settings",
+    "breadcrumb": "프로젝트",
     "repo": "저장소",
     "repoInfo": "에이전트가 쓸 권한은 그 저장소의 에이전트 설정에서 미리 허용해 두세요. Ganger 화면에서는 권한 프롬프트를 허용할 수 없어요. PR 제목에 티켓 키를 넣도록 에이전트 지침에 적어 두면 브랜치가 바뀌어도 PR을 찾아요.",
-    "assign": "할당",
-    "label": "이 라벨이 붙으면 바로 할당",
-    "labelScope": "{connection} 연결의 모든 프로젝트에 같이 써요",
-    "labelChoose": "라벨 고르기",
-    "labelUnknown": "트래커에 없는 라벨({id})",
-    "labelsFailed": "트래커에서 라벨을 읽지 못했어요. {reason}",
-    "state": "런이 시작되면 바꿀 상태",
+    "state": "런이 시작되면",
     "stateChoose": "상태 고르기",
     "statesFailed": "트래커에서 상태를 읽지 못했어요. {reason}",
-    "ticketState": "트래커 티켓 상태",
+    "ticketState": "{tracker} 티켓 상태",
     "ticketStateDetail": "런이 바뀔 때 {tracker} 티켓 상태를 같이 바꿔요. 상태는 트래커 프로젝트마다 달라요.",
     "trackerName": "{kind, select, linear {Linear} other {트래커}}",
     "stateDetail": "런이 러너에서 실제로 시작될 때 바꿔요",
-    "mergedState": "PR이 머지되면 바꿀 상태",
+    "mergedState": "PR이 머지되면",
     "mergedStateDetail": "런의 PR이 머지될 때 바꿔요. 고르지 않으면 바꾸지 않아요. {tracker}의 GitHub 연동이 이미 상태를 바꾸면 비워 두세요.",
     "mergedStateInfo": "PR이 머지 없이 닫혔거나 런에 PR이 없으면 티켓 상태를 바꾸지 않아요. 한 런에서 한 번만 바꿔요.",
     "mergedStateKeep": "바꾸지 않음",
     "remove": "이 Workspace에서 빼기",
     "removeDetail": "Mapping도 함께 지워요. 지난 런과 통계는 남아요.",
     "notFound": "이 Workspace에 없는 트래커 프로젝트예요.",
-    "back": "Settings로 돌아가기",
-    "removeTrigger": "{project} 빼기"
+    "removeTrigger": "{project} 빼기",
+    "trail": "<projects></projects> › {connection} 연결"
   },
   "mapping": {
     "hint": "트래커 프로젝트의 티켓을 어느 저장소(러너 쪽 프로젝트)에서 어떤 에이전트가 처리할지 정해요. 저장소에 라벨을 붙이면 그 라벨이 붙은 티켓은 그 저장소로 가요.",
@@ -202,9 +204,9 @@
   },
   "connections": {
     "none": "아직 연결한 트래커가 없어요.",
-    "add": "+ 더하기",
-    "addLabel": "트래커 연결 더하기",
-    "check": "저장한 키로 다시 확인",
+    "add": "+ Linear 연결 더하기",
+    "addLabel": "Linear 연결 더하기",
+    "check": "다시 확인",
     "checking": "확인하는 중…",
     "checkOk": "{name}에 연결했어요",
     "name": "연결 이름",
@@ -213,10 +215,19 @@
     "keepSecret": "바꿀 때만 넣어요. 비우면 저장한 값을 그대로 써요.",
     "added": "트래커 연결을 더했어요",
     "nameRequired": "연결 이름을 넣어 주세요.",
-    "rowReceiving": "webhook으로 바로 받아요 · 마지막으로 받은 때 {time}",
-    "rowRejected": "webhook 서명이 맞지 않아 받지 못해요 · {time}부터",
-    "rowWaiting": "webhook을 켰어요 · 첫 webhook을 기다려요",
-    "rowOff": "1분마다 읽어요 · webhook 켜기"
+    "rowReceiving": "바로 받아요 · 마지막으로 받은 때 {time}",
+    "rowRejected": "서명이 맞지 않아 받지 못해요 · {time}부터",
+    "rowWaiting": "켰어요 · 첫 webhook을 기다려요",
+    "rowOff": "꺼져 있어요 · 1분마다 읽어요",
+    "linear": "Linear",
+    "checkLabel": "{name} 연결 다시 확인",
+    "changeKey": "키 바꾸기",
+    "webhook": "webhook",
+    "webhookSetup": "설정",
+    "webhookSetupLabel": "{name} webhook 설정",
+    "webhookAddress": "webhook 받을 주소",
+    "webhookAddressInfo": "Linear가 인터넷에서 이 서버로 webhook을 보내는 주소예요. 모든 Linear 연결이 이 주소를 같이 써요.",
+    "webhookAddressNone": "정하지 않았어요"
   },
   "github": {
     "label": "GitHub",
@@ -230,8 +241,14 @@
     "sourceToken": "붙여 넣은 토큰으로 연결했어요",
     "sourceNone": "연결하지 않았어요. 이 서버 기계에서 gh auth login 을 하거나 토큰을 붙여 넣어 주세요",
     "sourceLoading": "gh 로그인을 확인하는 중…",
-    "open": "보기",
-    "sourceGhNotConnected": "gh 로그인이 있어요. 펼쳐서 다시 확인하면 연결해요"
+    "open": "계정 보기",
+    "sourceGhNotConnected": "gh 로그인이 있어요. 펼쳐서 다시 확인하면 연결해요",
+    "ghRow": "gh 로그인",
+    "ghConnected": "gh로 연결했어요",
+    "tokenInfo": "gh 로그인이 안 될 때만 써요.",
+    "tokenNone": "붙여 넣은 토큰이 없어요",
+    "tokenAdd": "토큰 넣기",
+    "tokenChange": "토큰 바꾸기"
   },
   "credentials": {
     "keyDescription": "연결을 확인하면 암호화해서 저장해요. 연결 이름은 Linear 조직 이름으로 정해요.",
@@ -259,12 +276,6 @@
     },
     "keyRequired": "API 키를 붙여 넣어 주세요.",
     "tokenRequired": "토큰을 붙여 넣어 주세요."
-  },
-  "runnersRow": {
-    "label": "러너",
-    "count": "{count, plural, =0 {아직 없어요} other {#대}}",
-    "problems": "{total}대 중 {count}대를 확인해 주세요",
-    "manage": "Runners에서 더하고 고쳐요"
   },
   "runners": {
     "name": "러너 이름",
@@ -332,8 +343,8 @@
     }
   },
   "addresses": {
-    "web": "다른 기기에서 열 주소",
-    "webInfo": "노트북·휴대폰에서 이 서버를 여는 주소예요(예: Tailscale Serve 주소). 이 기계에서 http://127.0.0.1 로 연 화면은 주소와 상관없이 늘 열려요. 잘못 넣었으면 거기서 고치면 돼요.",
+    "web": "열 주소",
+    "webInfo": "노트북·휴대폰에서 이 서버를 여는 주소예요(예: Tailscale Serve 주소). 휴대폰 연결에는 https 주소가 있어야 해요. 이 기계에서 http://127.0.0.1 로 연 화면은 주소와 상관없이 늘 열려요.",
     "webNone": "이 기계에서만 열려요",
     "autoAllowed": "자동으로 허용했어요",
     "autoAllowedInfo": "서버를 모든 주소(0.0.0.0)에서 받게 띄워서, 이 기기의 tailnet 주소는 이 서버 포트로 따로 넣지 않아도 열려요. Funnel로 들어온 요청은 webhook 경로만 받아요.",
@@ -353,9 +364,6 @@
   },
   "mcp": {
     "title": "MCP",
-    "back": "Settings로 돌아가기",
-    "rowRead": "읽기만 열려 있어요",
-    "rowWrite": "쓰기도 열려 있어요",
     "intro": "같은 기계의 MCP 클라이언트가 Ganger를 읽게 해요. 비밀 값은 어떤 결과에도 담지 않아요.",
     "clientTitle": "클라이언트에 넣을 설정",
     "clientTabs": "클라이언트",
@@ -518,14 +526,11 @@
   "revertedRetry": "저장하지 못해 되돌렸어요. 연결을 확인하고 다시 바꿔 주세요.",
   "unsavedBlocked": "저장하지 않은 변경이 있어요. 저장하거나 닫아 주세요. 버리고 옮기려면 한 번 더 누르면 돼요.",
   "connection": {
-    "documentTitle": "{name} · Settings · Ganger",
-    "breadcrumb": "Settings",
+    "breadcrumb": "연결",
     "notFound": "이 서버에 없는 트래커 연결이에요.",
-    "back": "Settings로 돌아가기",
-    "section": "연결",
+    "section": "이름",
     "name": "연결 이름",
-    "apiKey": "API 키",
-    "apiKeySet": "넣어 뒀어요"
+    "apiKey": "API 키"
   },
   "webhook": {
     "title": "Webhook",
@@ -548,7 +553,7 @@
     "copyLabel": "{label} 복사하기",
     "copyFailed": "복사하지 못했어요. 직접 골라 복사해 주세요.",
     "address": {
-      "label": "Linear가 이 서버에 닿을 주소",
+      "label": "webhook 받을 주소",
       "info": "Linear는 인터넷에서 webhook을 보내요. 이 서버는 보통 이 기기나 tailnet 안에서만 열려 있어서, webhook 경로만 인터넷에 여는 주소가 따로 있어야 해요. 서버에 하나라 모든 트래커 연결이 같이 써요.",
       "description": "webhook 경로만 인터넷에 여는 주소를 만들고 확인해요.",
       "verified": "닿는 걸 확인했어요",
@@ -595,25 +600,40 @@
         "check-failed": "이 주소를 확인하지 못했어요. HTTPS 인증서가 아직 준비되지 않았을 수 있어요. 잠시 뒤에 다시 확인해 주세요."
       },
       "reverseProxy": "리버스 프록시",
-      "reverseProxyInfo": "nginx·Caddy 같은 리버스 프록시에 이미 공개 HTTPS 이름이 있으면, /api/webhooks/ 경로만 이 서버의 /api/webhooks/ 로 넘기고 그 https 주소를 넣어요. 다른 경로는 넘기지 않아요."
+      "reverseProxyInfo": "nginx·Caddy 같은 리버스 프록시에 이미 공개 HTTPS 이름이 있으면, /api/webhooks/ 경로만 이 서버의 /api/webhooks/ 로 넘기고 그 https 주소를 넣어요. 다른 경로는 넘기지 않아요.",
+      "shared": "모든 Linear 연결이 같이 쓰는 주소예요. 연결 페이지의 webhook 받을 주소에서 정하고 닿는지 확인해요.",
+      "change": "바꾸기",
+      "changeOnConnections": "연결 페이지에서 webhook 받을 주소 바꾸기",
+      "setOnConnections": "연결 페이지에서 webhook 받을 주소 정하기"
     },
     "create": {
       "label": "Linear에서 webhook 만들기",
       "urlLabel": "Linear에 넣을 주소",
-      "events": "이 주소를 넣고 Data change events에서 Issues만 골라요.",
+      "formTitle": "Linear의 새 webhook 폼에 이렇게 넣어요",
+      "formLabel": "Label",
+      "formLabelValue": "아무 이름이나 돼요. 예: Ganger",
+      "formUrl": "URL",
+      "formUrlValue": "위 'Linear에 넣을 주소'를 복사해 붙여 넣어요",
+      "formEvents": "Data change events",
+      "formEventsValue": "Issues만 골라요",
+      "formTeams": "Team",
+      "formTeamsValue": "All public teams, 또는 Ganger에 넣은 프로젝트의 팀",
+      "formInfoLabel": "Linear webhook 폼",
+      "formInfo": "다른 칸은 비워 둬도 돼요. 팀을 고르면 그 팀의 티켓 변경만 받아요. Ganger에 넣은 프로젝트의 팀이 빠지면 그 티켓은 1분마다 읽을 때만 할당해요. 만들고 나면 Linear가 signing secret(lin_wh_…)을 보여 줘요. 다음 단계에 넣어요.",
       "open": "Linear webhook 설정 열기"
     },
     "secret": {
-      "label": "signing secret 넣고 켜기",
-      "field": "Linear가 보여 준 signing secret",
-      "info": "Linear에서 webhook을 만들면 보여 줘요. 암호화해서 저장해요.",
+      "label": "Linear가 보여 준 signing secret 넣고 켜기",
+      "field": "webhook signing secret (lin_wh_…)",
+      "info": "Linear가 보내는 webhook이 진짜인지 이 값으로 확인해요. 암호화해서 저장해요.",
       "placeholder": "lin_wh_…",
       "turnOn": "켜기",
       "turningOn": "켜는 중…",
       "required": "signing secret을 붙여 넣어 주세요.",
       "turnedOn": "webhook을 켰어요",
       "save": "저장하기",
-      "reenter": "다시 넣기"
+      "reenter": "다시 넣기",
+      "description": "Linear에서 webhook을 만든 뒤 그 webhook 화면에 나오는 값이에요. 연결에 넣은 API 키(lin_api_…)와 다른 값이에요."
     },
     "waiting": {
       "title": "Linear에서 아무 티켓이나 하나 고쳐 보세요",
@@ -674,7 +694,8 @@
     "runOption": "{ticket} · {state}",
     "review": "공개하기 전에 파일을 직접 열어 확인해 주세요.",
     "made": "{name}을 만들었어요.",
-    "makeFailed": "진단 묶음을 만들지 못했어요. 다시 해 주세요."
+    "makeFailed": "진단 묶음을 만들지 못했어요. 다시 해 주세요.",
+    "title": "로그와 진단"
   },
   "devices": {
     "connect": "다른 기기 연결",
@@ -700,7 +721,8 @@
     "removeBody": "이 기기의 연결을 바로 끊어요. 다만 웹 화면에는 로그인이 없어서, 이 기기가 서버 주소에 닿는 네트워크에 있으면 브라우저로는 계속 열 수 있어요.",
     "cancel": "취소",
     "removed": "{name} 기기를 지웠어요.",
-    "removeFailed": "기기를 지우지 못했어요. 다시 해 주세요."
+    "removeFailed": "기기를 지우지 못했어요. 다시 해 주세요.",
+    "title": "연결한 기기"
   },
   "githubAuth": {
     "loading": "이 서버 기계의 gh 로그인을 확인하는 중…",
@@ -738,17 +760,83 @@
     "diagnosisRuns": "런 {count}개 · {text}"
   },
   "notifications": {
-    "label": "알림",
-    "open": "알림 설정 열기",
-    "detail": "{permission} · {receiving}",
-    "receiving": "{total}개 중 {on}개 받아요",
-    "off": "알림 받기를 껐어요",
+    "browser": "알림은 Ganger 데스크톱 앱에서 받아요.",
+    "receiveTitle": "받을 알림",
+    "note": "다른 곳에서 처리하면 이 Mac의 알림도 지워요.",
     "permission": {
-      "allowed": "허용했어요",
-      "not-asked": "아직 허용하지 않았어요",
-      "denied": "macOS에서 꺼져 있어요",
-      "unknown": "권한을 읽지 못했어요"
+      "allowed": {
+        "title": "macOS에서 알림을 허용했어요",
+        "info": "배너가 안 보이면 시스템 설정에서 Ganger의 알림 스타일과 집중 모드를 확인해요."
+      },
+      "notAsked": {
+        "title": "아직 알림을 허용하지 않았어요",
+        "body": "허용하기 전에는 이 Mac에 알림이 오지 않아요.",
+        "action": "알림 허용하기",
+        "requesting": "macOS에 묻는 중이에요",
+        "notAllowed": "macOS에서 허용하지 않았어요. 시스템 설정에서 켤 수 있어요."
+      },
+      "unknown": {
+        "title": "macOS 알림 권한을 읽지 못했어요",
+        "body": "시험 알림을 보내 보면 이 Mac에 알림이 오는지 알 수 있어요."
+      },
+      "test": "시험 알림 보내기",
+      "testing": "보내는 중이에요",
+      "openSettings": "시스템 설정 열기"
     },
-    "browser": "알림은 Ganger 데스크톱 앱에서 받아요. 데스크톱 앱의 Settings나 메뉴 막대의 '알림 설정…'에서 켜고 골라요."
+    "permissionOff": {
+      "title": "macOS에서 Ganger 알림이 꺼져 있어요",
+      "body": "시스템 설정 › 알림 › Ganger에서 '알림 허용'을 켜요. 켜고 돌아오면 이 페이지가 바로 바뀌어요."
+    },
+    "testResult": {
+      "sent": "시험 알림을 보냈어요.",
+      "checkTitle": "알림이 안 보였다면 이 순서로 확인해요.",
+      "checkStyle": "시스템 설정 › 알림 › Ganger에서 알림 스타일이 '배너'나 '알림'인지",
+      "checkFocus": "집중 모드나 방해 금지가 켜져 있지 않은지",
+      "focusLink": "집중 모드 설정 열기",
+      "checkSound": "소리를 듣고 싶다면 '알림 사운드 재생'이 켜져 있는지",
+      "unsigned": "이 빌드는 서명하지 않아 macOS가 알림을 막아요. 출시된 앱(dmg)을 쓰면 돼요.",
+      "denied": "macOS가 Ganger 알림을 막았어요. 시스템 설정에서 '알림 허용'을 켜요.",
+      "failed": "시험 알림을 보내지 못했어요. 잠시 뒤 다시 보내 보세요."
+    },
+    "deviceLink": {
+      "title": "이 Mac의 연결이 끊겼어요",
+      "body": "서버가 이 Mac의 기기 토큰을 받지 않거나 저장한 토큰을 읽지 못해 알림을 받지 못해요. 다시 연결하면 이 Mac을 새 기기로 등록해요.",
+      "action": "다시 연결",
+      "reconnecting": "다시 연결하는 중이에요",
+      "failed": "다시 연결하지 못했어요. 서버에 닿는지 확인하고 다시 눌러 주세요.",
+      "done": "다시 연결했어요.",
+      "unsupportedTitle": "서버를 업데이트해야 알림을 받아요",
+      "unsupportedBody": "이 서버는 앱보다 오래된 버전이라 기기 토큰을 주지 않아 알림을 받지 못해요. 서버를 업데이트한 뒤 다시 연결을 눌러요."
+    },
+    "enabled": {
+      "label": "알림 받기",
+      "description": "끄면 알림과 Dock 배지를 모두 멈춰요"
+    },
+    "groups": {
+      "question": {
+        "label": "Question",
+        "description": "에이전트가 답을 기다릴 때. 10분 지나도 그대로면 한 번 더 알려요."
+      },
+      "permission": {
+        "label": "Permission",
+        "description": "에이전트가 허용을 기다릴 때. 10분 지나도 그대로면 한 번 더 알려요."
+      },
+      "humanCheckRequest": {
+        "label": "Human Check",
+        "description": "에이전트가 사람의 확인을 기다릴 때. 10분 지나도 그대로면 한 번 더 알려요."
+      },
+      "failedDisconnected": {
+        "label": "Failed · Disconnected",
+        "description": "런이 실패했거나 러너에 5분 넘게 닿지 않을 때."
+      },
+      "runnerIssue": {
+        "label": "Runner Issue",
+        "description": "러너가 Offline이거나, GitHub 인증이 깨졌거나, 사용량 한도에 닿았을 때."
+      }
+    }
+  },
+  "server": {
+    "version": "버전",
+    "machine": "서버 기계"
   }
 }

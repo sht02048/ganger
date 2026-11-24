@@ -149,7 +149,7 @@ describe("화면 이동 단축키(브라우저, 0102)", () => {
       page.evaluate((detail) => dispatchEvent(new CustomEvent("menu-sends", { detail })), screen);
     for (const item of navShortcuts) {
       await menuSends(item.screen);
-      await waitForRouterIdle(page, item.path);
+      await waitForRouterIdle(page, item.screen === "settings" ? "/settings/general" : item.path);
       const link = page.getByRole("link", { name: shell.nav[item.screen], exact: true });
       expect(await link.getAttribute("aria-current")).toBe("page");
       await expect
@@ -158,24 +158,50 @@ describe("화면 이동 단축키(브라우저, 0102)", () => {
       expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
     }
     await menuSends("onboarding");
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 1_000 }).toBe("/settings");
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 1_000 })
+      .toBe("/settings/general");
     expect(await documentMarked(page)).toBe(true);
   });
+
+  it.for(["/tickets", "/onboarding"])(
+    "트레이의 알림 설정은 %s 에서도 문서를 다시 읽지 않고 Settings 알림 페이지로 옮긴다(0214)",
+    async (path, context) => {
+      const page = await newPage(context, { width: 1280, height: 800 });
+      await withDesktopBridge(page);
+      await open(page, path);
+      await markDocument(page);
+      await page.evaluate(() =>
+        dispatchEvent(new CustomEvent("page-sends", { detail: "notifications" })),
+      );
+      await page.waitForURL((url) => url.pathname === "/settings/notifications");
+      expect(await documentMarked(page)).toBe(true);
+    },
+  );
 });
 
 async function withDesktopBridge(page: Page): Promise<void> {
   await page.addInitScript((name) => {
     const listeners: Array<(screen: unknown) => void> = [];
+    const pageListeners: Array<(page: unknown) => void> = [];
     Object.assign(globalThis, {
       [name]: {
         onNavigate: (listener: (screen: unknown) => void) => {
           listeners.push(listener);
           return () => listeners.splice(listeners.indexOf(listener), 1);
         },
+        onOpenPage: (listener: (page: unknown) => void) => {
+          pageListeners.push(listener);
+          return () => pageListeners.splice(pageListeners.indexOf(listener), 1);
+        },
       },
     });
     addEventListener("menu-sends", (event) => {
       if (event instanceof CustomEvent) for (const listener of listeners) listener(event.detail);
+    });
+    addEventListener("page-sends", (event) => {
+      if (event instanceof CustomEvent)
+        for (const listener of pageListeners) listener(event.detail);
     });
   }, DESKTOP_NAVIGATION_GLOBAL);
 }
