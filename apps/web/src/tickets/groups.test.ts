@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   groupTickets,
+  groupedFilterCount,
   issueGroupsById,
   ticketStage,
   visibleGrouping,
@@ -339,6 +340,39 @@ describe("묶기 보기의 거르기·찾기(0171)", () => {
       expect(shown("all")).toContain("MID");
       expect(countByFilter(nested).todo).toBe(2);
     });
+
+    it("묶기 보기의 거르기 개수는 그 보기에 맞는 티켓으로 보인 하위 티켓만 센다(0208)", () => {
+      expect(groupedFilterCount(nestedGrouping, "todo")).toBe(shown("todo").length);
+      expect(groupedFilterCount(nestedGrouping, "todo")).toBe(1);
+      expect(groupedFilterCount(nestedGrouping, "all")).toBe(nested.length);
+    });
+  });
+
+  it("상위 이슈 자기 런만 거르기에 맞아 묶음을 숨기면 묶기 보기의 개수도 0이다(0208)", () => {
+    const own = groupTickets([
+      ticket("P", {
+        runs: [active("waiting-for-input")],
+        assignability: { kind: "active-run", runId: "x" },
+      }),
+      ticket("A", under("P")),
+    ]);
+    expect(visibleGrouping(own, "todo", "").groups).toEqual([]);
+    expect(groupedFilterCount(own, "todo")).toBe(0);
+    expect(groupedFilterCount(own, "all")).toBe(2);
+  });
+
+  it("묶기 보기의 거르기 개수는 거르기마다 보이는 하위·따로 있는 티켓 수와 같다(0208)", () => {
+    for (const filter of ["all", "assignable", "todo", "in-progress", "done"] as const) {
+      const visible = visibleGrouping(grouping, filter, "");
+      const shownTickets =
+        visible.loose.length +
+        visible.groups.reduce((sum, { children }) => sum + children.length, 0) +
+        (filter === "all" ? visible.groups.length : 0);
+      expect({ filter, count: groupedFilterCount(grouping, filter) }).toEqual({
+        filter,
+        count: shownTickets,
+      });
+    }
   });
 
   it("찾는 말이 상위 이슈에 맞으면 묶음 전체를 보인다", () => {

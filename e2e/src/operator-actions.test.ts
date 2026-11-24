@@ -210,7 +210,7 @@ describe("화면 시각의 시간대(브라우저, 0044)", () => {
         minute: "2-digit",
         hourCycle: "h23",
       }).format(assignedAt);
-    const timeIn = (timeZone: string) => `>${clockIn(timeZone)}</time>`;
+    const timeIn = (timeZone: string) => `${clockIn(timeZone)}</time>`;
     const path = `/runs/${questionRun}?ws=${workspaceId}`;
 
     try {

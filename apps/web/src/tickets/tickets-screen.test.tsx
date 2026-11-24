@@ -11,6 +11,7 @@ import type {
   TicketView,
   TicketsPage,
 } from "@ganger/app/tickets/model";
+import { TICKET_FILTERS } from "@ganger/app/tickets/model";
 import { now, setupTickets } from "./test-fixtures";
 import { TicketRelations, TicketsScreen } from "./tickets-screen";
 import type { BlockerRead } from "./tickets-screen";
@@ -56,6 +57,14 @@ function rowTexts(html: string): Map<string, string> {
     if (key !== undefined && !rows.has(key)) rows.set(key, row);
   }
   return rows;
+}
+
+function needsPerson(run: TicketRun): boolean {
+  return (
+    run.state === "waiting-for-input" ||
+    run.state === "disconnected" ||
+    (run.state === "ended" && run.summary === "failed")
+  );
 }
 
 function variants(html: string): string[] {
@@ -783,6 +792,46 @@ describe("상위 이슈로 묶기(0171)", () => {
     expect(groupedRows.has("ACME-3")).toBe(true);
     const flatRows = rowTexts(listOf(render(nested, { filter: "todo", view: "flat" })));
     expect(flatRows.has("ACME-5")).toBe(true);
+  });
+
+  it("거르기 탭 개수가 0이 아니면 목록이 보이고, 0이면 빈 목록 문구가 보인다(0208)", async () => {
+    const page = await grouped();
+    const waiting = page.tickets
+      .flatMap((ticket) => ticket.runs)
+      .find((run) => run.state === "waiting-for-input");
+    if (waiting === undefined) throw new Error("no waiting run");
+    const parentOnlyTodo: TicketsPage = {
+      ...page,
+      tickets: page.tickets.map((ticket) => {
+        if (ticket.key === "ACME-6") return { ...ticket, runs: [waiting] };
+        return { ...ticket, runs: ticket.runs.filter((run) => !needsPerson(run)) };
+      }),
+    };
+    const tabCount = (html: string, filter: TicketFilter) =>
+      Number(
+        new RegExp(`${ticketsMessages.tickets.filter[filter]}<span[^>]*>(\\d+)</span>`).exec(
+          html,
+        )?.[1],
+      );
+
+    const groupedTodo = render(parentOnlyTodo, { filter: "todo" });
+    expect(tabCount(groupedTodo, "todo")).toBe(0);
+    expect(text(listOf(groupedTodo))).toContain(ticketsMessages.tickets.empty);
+    const flatTodo = render(parentOnlyTodo, { filter: "todo", view: "flat" });
+    expect(tabCount(flatTodo, "todo")).toBe(1);
+    expect(rowTexts(listOf(flatTodo)).has("ACME-6")).toBe(true);
+
+    for (const view of ["grouped", "flat"] as const) {
+      for (const filter of TICKET_FILTERS) {
+        const html = render(parentOnlyTodo, { filter, view });
+        const emptyShown = text(listOf(html)).includes(ticketsMessages.tickets.empty);
+        expect({ view, filter, emptyShown }).toEqual({
+          view,
+          filter,
+          emptyShown: tabCount(html, filter) === 0,
+        });
+      }
+    }
   });
 
   it("할 일 칸은 테두리 버튼이고 노란 주 버튼을 쓰지 않는다", async () => {

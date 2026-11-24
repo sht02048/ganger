@@ -11,7 +11,7 @@ import { useDashboardActions } from "../../home/mutations";
 import { dashboardQuery } from "../../home/query";
 import { ScreenMessages, defaultLocale } from "../../i18n";
 import { useFirstDrawKey } from "../../query/first-draw";
-import { requestTimeZone, useRequestTimeZone } from "../../query/request-time-zone";
+import { loadInRequestTimeZone } from "../../query/request-time-zone";
 import { loadRouteQuery } from "../../query/route-query";
 import { ScreenError } from "../../shell/screen-error";
 
@@ -24,14 +24,17 @@ export const Route = createFileRoute("/_app/")({
     run: z.string().optional().catch(undefined),
   }),
   loaderDeps: ({ search }) => ({ ws: search.ws }),
-  loader: (load) => loadRouteQuery(load, dashboardQuery(load.deps.ws, requestTimeZone())),
+  loader: (load) =>
+    loadInRequestTimeZone((timeZone) =>
+      loadRouteQuery(load, dashboardQuery(load.deps.ws, timeZone)),
+    ),
   head: () => ({ meta: [{ title: t("documentTitle") }] }),
   component: HomeRoute,
 });
 
 function HomeRoute() {
   const { ws } = Route.useLoaderDeps();
-  const timeZone = useRequestTimeZone();
+  const timeZone = Route.useLoaderData({ select: (data) => data.timeZone });
   const { data: loaded, refetch, isFetching } = useSuspenseQuery(dashboardQuery(ws, timeZone));
   const drawKey = useFirstDrawKey(ws, isFetching);
   const readAgainWhenLimitLifts = useCallback(() => {
