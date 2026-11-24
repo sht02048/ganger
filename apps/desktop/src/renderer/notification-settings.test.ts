@@ -38,6 +38,11 @@ function installFakeNotifications(first: NotificationSettingsView) {
   const calls: unknown[] = [];
   const viewListeners = new Set<(view: NotificationSettingsView) => void>();
   Object.assign(window, { notificationCalls: calls });
+  window.addEventListener("push-view", (event) => {
+    if (!(event instanceof CustomEvent)) return;
+    const view: NotificationSettingsView = { ...first, permission: "allowed" };
+    if (event.detail === "allowed") for (const listener of viewListeners) listener(view);
+  });
   const api: NotificationSettingsApi = {
     getNotificationSettings: () => Promise.resolve(first),
     onNotificationSettings: (listener) => {
@@ -281,6 +286,18 @@ describe("알림 설정 창(브라우저, 0103)", () => {
     await page.getByRole("status").getByText(t.testResult.denied).waitFor();
     await page.getByRole("region", { name: t.permissionOff.title }).waitFor();
     expect(await calls()).toEqual(["test"]);
+  });
+
+  it("막혔다는 문장은 시스템 설정에서 켜고 돌아와 허용으로 바뀌면 사라진다", async () => {
+    await openSettings({ ...allOn, permission: "unknown" });
+    await page.evaluate(() => Reflect.set(window, "testResult", "denied"));
+    await page.getByRole("button", { name: t.permission.test }).click();
+    await page.getByRole("status").getByText(t.testResult.denied).waitFor();
+    await page.evaluate(() =>
+      window.dispatchEvent(new CustomEvent("push-view", { detail: "allowed" })),
+    );
+    await page.getByRole("region", { name: t.permission.allowed.title }).waitFor();
+    expect(await page.getByText(t.testResult.denied).count()).toBe(0);
   });
 
   it("종류 하나를 끄면 그 값만 저장하고, 전체를 끄면 종류는 고를 수 없다", async () => {

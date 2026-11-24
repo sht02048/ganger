@@ -1011,7 +1011,7 @@ export class Controller {
 
   private sendTestNotification(): Promise<TestNotificationResult> {
     return this.access.sendTest(({ onShow, onFailed }) => {
-      if (!Notification.isSupported()) {
+      if (!this.notificationCenterReady()) {
         onFailed();
         return;
       }

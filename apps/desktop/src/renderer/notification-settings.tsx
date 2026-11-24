@@ -156,11 +156,14 @@ export function PermissionCard({
   permission: NotificationSettingsView["permission"];
 }) {
   const t = useTranslations("screens.notificationSettings");
-  const headingRef = useRef<HTMLHeadingElement>(null);
+  const headingRef = useRef<HTMLElement>(null);
   const key = permission === "not-asked" ? "notAsked" : permission;
   const [requesting, setRequesting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [notice, setNotice] = useState<PermissionNotice>(null);
+  useEffect(() => {
+    if (permission === "allowed") setNotice((shown) => (shown === "sent" ? shown : null));
+  }, [permission]);
   const request = async () => {
     const api = window.desktopNotifications;
     if (api === undefined) return;
@@ -257,22 +260,18 @@ function PermissionHeading({
   inCallout,
   children,
 }: {
-  headingRef: RefObject<HTMLHeadingElement | null>;
+  headingRef: RefObject<HTMLElement | null>;
   inCallout: boolean;
   children: string;
 }) {
   return inCallout ? (
-    <span ref={headingRef} tabIndex={-1} {...stylex.props(styles.headingTarget)}>
+    <Text as="span" variant="title" ref={headingRef} tabIndex={-1}>
       {children}
-    </span>
+    </Text>
   ) : (
-    <h2
-      ref={headingRef}
-      tabIndex={-1}
-      {...stylex.props(...textStyles("title"), styles.headingTarget)}
-    >
+    <Text as="h2" variant="subheading" ref={headingRef} tabIndex={-1}>
       {children}
-    </h2>
+    </Text>
   );
 }
 
@@ -355,7 +354,6 @@ const styles = stylex.create({
   permission: { display: "flex", flexDirection: "column", gap: space.s3 },
   cardBody: { display: "flex", flexDirection: "column", gap: space.s3 },
   cardHead: { display: "flex", alignItems: "center", gap: space.s2 },
-  headingTarget: { outline: "none" },
   notice: { display: "contents" },
   sent: { display: "flex", flexDirection: "column", gap: space.s2 },
 });
