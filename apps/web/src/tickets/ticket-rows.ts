@@ -1,5 +1,11 @@
 import type { IssueGroupPhase, IssueRowSurface, IssueStateKind } from "@ganger/ui";
-import { lastRun, matchesFilter, matchesSearch } from "@ganger/app/tickets/model";
+import {
+  TICKET_FILTERS,
+  countByFilter,
+  lastRun,
+  matchesFilter,
+  matchesSearch,
+} from "@ganger/app/tickets/model";
 import type { TicketFilter, TicketView } from "@ganger/app/tickets/model";
 import type {
   TicketGroup,
@@ -7,7 +13,7 @@ import type {
   TicketListView,
   VisibleTicketGrouping,
 } from "@ganger/app/tickets/groups";
-import { issueGroupsById, visibleGrouping } from "@ganger/app/tickets/groups";
+import { groupedFilterCount, issueGroupsById, visibleGrouping } from "@ganger/app/tickets/groups";
 
 export type TicketListRow =
   | { kind: "parent"; id: string; group: TicketGroup; expanded: boolean; surface: IssueRowSurface }
@@ -276,4 +282,15 @@ export function listBlocks<R extends BlockRow>(
     index = bodyEnd;
   }
   return blocks;
+}
+
+export function filterCounts(
+  view: TicketListView,
+  tickets: ReadonlyArray<TicketView>,
+  grouping: TicketGrouping,
+): Record<TicketFilter, number> {
+  const counts = countByFilter(tickets);
+  if (view === "flat") return counts;
+  for (const filter of TICKET_FILTERS) counts[filter] = groupedFilterCount(grouping, filter);
+  return counts;
 }
