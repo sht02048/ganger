@@ -1,4 +1,3 @@
-import { desktopPages } from "@ganger/app/shell/nav-shortcuts";
 import type { DesktopPage } from "@ganger/app/shell/nav-shortcuts";
 import type { MenuItemConstructorOptions } from "electron";
 
@@ -8,7 +7,7 @@ export interface DesktopPagePort {
   show: () => void;
   serverPage: () => ServerPageState;
   send: (page: DesktopPage) => void;
-  load: (path: string) => void;
+  sendWhenLoaded: (page: DesktopPage) => void;
 }
 
 export function openDesktopPage(page: DesktopPage, port: DesktopPagePort): void {
@@ -17,7 +16,7 @@ export function openDesktopPage(page: DesktopPage, port: DesktopPagePort): void 
     case "none":
       return;
     case "loading":
-      port.load(desktopPages[page]);
+      port.sendWhenLoaded(page);
       return;
     case "ready":
       port.send(page);

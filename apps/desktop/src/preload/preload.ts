@@ -2,13 +2,13 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { IpcRendererEvent } from "electron";
 import {
   DESKTOP_NAVIGATION_GLOBAL,
-  desktopPagePathKeepingWorkspace,
   isDesktopPage,
   isNavScreen,
   navPathKeepingWorkspace,
 } from "@ganger/app/shell/nav-shortcuts";
 import type { DesktopPage, NavScreen } from "@ganger/app/shell/nav-shortcuts";
 import { addDragHandleIfMissing } from "./drag-handle.js";
+import { deliverDesktopPage } from "./page-delivery.js";
 import { DESKTOP_NOTIFICATIONS_GLOBAL } from "@ganger/app/notifications/desktop";
 import { DESKTOP_UPDATES_GLOBAL } from "@ganger/app/updates/view";
 import { DESKTOP_LOGS_GLOBAL } from "@ganger/app/diagnostics/model";
@@ -20,6 +20,7 @@ import {
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
   OPEN_PAGE_CHANNEL,
+  OPEN_PAGE_UNSUPPORTED,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
@@ -79,11 +80,13 @@ if (window.location.protocol === "http:" || window.location.protocol === "https:
   const pageListeners = new Set<(page: DesktopPage) => void>();
   ipcRenderer.on(OPEN_PAGE_CHANNEL, (_event: IpcRendererEvent, page: unknown) => {
     if (!isDesktopPage(page)) return;
-    if (pageListeners.size === 0) {
-      window.location.assign(desktopPagePathKeepingWorkspace(page, window.location.search));
-      return;
-    }
-    for (const listener of pageListeners) listener(page);
+    deliverDesktopPage(page, {
+      listeners: () => pageListeners,
+      unsupported: (missing) => ipcRenderer.send(OPEN_PAGE_UNSUPPORTED, missing),
+      later: (run, ms) => {
+        setTimeout(run, ms);
+      },
+    });
   });
   contextBridge.exposeInMainWorld(DESKTOP_UPDATES_GLOBAL, {
     getUpdate: (): Promise<unknown> => ipcRenderer.invoke(UPDATE_GET),

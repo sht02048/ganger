@@ -4,12 +4,12 @@ import { notificationSettingsMenuItem, openDesktopPage } from "./desktop-page.js
 import type { DesktopPagePort, ServerPageState } from "./desktop-page.js";
 
 function fakePort(state: ServerPageState) {
-  const calls: Array<string | { send: DesktopPage } | { load: string }> = [];
+  const calls: Array<string | { send: DesktopPage } | { sendWhenLoaded: DesktopPage }> = [];
   const port: DesktopPagePort = {
     show: () => calls.push("show"),
     serverPage: () => state,
     send: (page) => calls.push({ send: page }),
-    load: (path) => calls.push({ load: path }),
+    sendWhenLoaded: (page) => calls.push({ sendWhenLoaded: page }),
   };
   return { port, calls };
 }
@@ -23,10 +23,10 @@ describe("알림 설정은 메인 창의 Settings 페이지로 연다(0214)", ()
     expect(calls).toEqual(["show", { send: "notifications" }]);
   });
 
-  it("서버 화면을 읽는 중이면 알림 페이지 주소를 바로 연다", () => {
+  it("서버 화면을 읽는 중이면 다 읽은 뒤에 보낸다(주소를 직접 열지 않는다)", () => {
     const { port, calls } = fakePort("loading");
     openDesktopPage("notifications", port);
-    expect(calls).toEqual(["show", { load: "/settings/notifications" }]);
+    expect(calls).toEqual(["show", { sendWhenLoaded: "notifications" }]);
   });
 
   it("서버 화면이 아직 없으면(모드 고르기 같은 앱 화면) 창만 띄운다", () => {

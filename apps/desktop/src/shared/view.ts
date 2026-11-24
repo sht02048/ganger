@@ -70,6 +70,7 @@ export const VIEW_CHANNEL = "desktop:view";
 export const NAVIGATE_CHANNEL = "desktop:navigate";
 export const NOTIFICATION_SETTINGS_CHANNEL = "desktop:notification-settings";
 export const OPEN_PAGE_CHANNEL = "desktop:open-page";
+export const OPEN_PAGE_UNSUPPORTED = "desktop:open-page-unsupported";
 export const UPDATE_CHANNEL = "desktop:update";
 export const UPDATE_GET = "desktop:update-get";
 export const UPDATE_ACT = "desktop:update-act";

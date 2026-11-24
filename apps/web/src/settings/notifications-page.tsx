@@ -84,7 +84,9 @@ export function NotificationSettings({
   }, [reconnected]);
   const save = (next: NotificationSettingsView) => {
     onChange(next);
-    bridge.save({ enabled: next.enabled, groups: next.groups }).catch(() => onChange(view));
+    bridge.save({ enabled: next.enabled, groups: next.groups }).catch(async () => {
+      onChange((await bridge.current()) ?? view);
+    });
   };
   const setGroup = (group: NotificationGroup, checked: boolean) =>
     save({ ...view, groups: { ...view.groups, [group]: checked } });

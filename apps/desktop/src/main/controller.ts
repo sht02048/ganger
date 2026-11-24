@@ -86,6 +86,7 @@ import {
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
   OPEN_PAGE_CHANNEL,
+  OPEN_PAGE_UNSUPPORTED,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
@@ -729,13 +730,22 @@ export class Controller {
     ipcMain.handle(LOGS_OPEN, (event) =>
       this.fromServerPage(event) && logFolderOpenable(this.mode) ? this.openLogFolder() : false,
     );
+    ipcMain.on(OPEN_PAGE_UNSUPPORTED, (event) => {
+      const window = this.window;
+      if (!this.fromServerPage(event) || window === undefined) return;
+      void dialog.showMessageBox(window, {
+        type: "info",
+        message: t("pageUnsupported.message"),
+        detail: t("pageUnsupported.detail"),
+      });
+    });
     ipcMain.handle(UPDATE_GET, (event) => (this.fromServerPage(event) ? this.updateView() : null));
     ipcMain.handle(UPDATE_ACT, (event, action: unknown) => {
       if (this.fromServerPage(event) && isUpdateAction(action)) this.runUpdateAction(action);
     });
   }
 
-  private fromServerPage(event: IpcMainInvokeEvent): boolean {
+  private fromServerPage(event: IpcMainInvokeEvent | IpcMainEvent): boolean {
     const window = this.window;
     const serverUrl = this.serverUrl;
     if (window === undefined || window.isDestroyed() || serverUrl === undefined) return false;
@@ -1067,9 +1077,10 @@ export class Controller {
       show: () => this.showWindow(),
       serverPage: () => this.serverPageState(),
       send: (page: DesktopPage) => this.window?.webContents.send(OPEN_PAGE_CHANNEL, page),
-      load: (path) => {
-        if (this.serverUrl !== undefined) this.openServer(this.serverUrl, path);
-      },
+      sendWhenLoaded: (page: DesktopPage) =>
+        this.window?.webContents.once("did-finish-load", () =>
+          this.window?.webContents.send(OPEN_PAGE_CHANNEL, page),
+        ),
     };
   }
 

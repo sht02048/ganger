@@ -86,8 +86,10 @@ function ProjectDetailPage({
       title={bound.project.name}
       subtitle={
         <Text variant="meta">
-          {toProjects}
-          {` › ${ts("projects.groupTitle", { connection: bound.connection.name })}`}
+          {t.rich("trail", {
+            connection: bound.connection.name,
+            projects: () => toProjects,
+          })}
         </Text>
       }
       actions={<ReloadFromTracker onReload={actions.reloadFromTracker} />}

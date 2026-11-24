@@ -139,7 +139,8 @@
     "remove": "이 Workspace에서 빼기",
     "removeDetail": "Mapping도 함께 지워요. 지난 런과 통계는 남아요.",
     "notFound": "이 Workspace에 없는 트래커 프로젝트예요.",
-    "removeTrigger": "{project} 빼기"
+    "removeTrigger": "{project} 빼기",
+    "trail": "<projects></projects> › {connection} 연결"
   },
   "mapping": {
     "hint": "트래커 프로젝트의 티켓을 어느 저장소(러너 쪽 프로젝트)에서 어떤 에이전트가 처리할지 정해요. 저장소에 라벨을 붙이면 그 라벨이 붙은 티켓은 그 저장소로 가요.",
