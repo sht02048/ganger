@@ -8,7 +8,7 @@ import type { AppSettings, SettingsStore } from "./settings.js";
 
 export type FeedConnection =
   | { kind: "token"; token: string }
-  | { kind: "legacy" }
+  | { kind: "unsupported" }
   | { kind: "rejected" }
   | { kind: "unavailable" };
 
@@ -119,11 +119,11 @@ export class DeviceLink {
     return toConnection(await this.registerOnce(origin, instanceId));
   }
 
-  async reconnect(origin: string): Promise<boolean> {
+  async reconnect(origin: string): Promise<RegisterResult["kind"]> {
     const instanceId = await this.options.identify(origin);
-    if (instanceId === null) return false;
+    if (instanceId === null) return "failed";
     const result = await this.registerOnce(origin, instanceId);
-    return result.kind === "registered";
+    return result.kind;
   }
 
   private registerOnce(origin: string, instanceId: string): Promise<RegisterResult> {
@@ -151,7 +151,7 @@ function toConnection(result: RegisterResult): FeedConnection {
     case "registered":
       return { kind: "token", token: result.token };
     case "unsupported":
-      return { kind: "legacy" };
+      return { kind: "unsupported" };
     case "failed":
       return { kind: "unavailable" };
   }

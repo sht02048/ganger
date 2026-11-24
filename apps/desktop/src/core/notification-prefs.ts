@@ -33,6 +33,7 @@ export type { NotificationPermission };
 export const DEVICE_LINK_STATES = [
   "connected",
   "rejected",
+  "unsupported",
   "reconnecting",
   "reconnected",
   "failed",

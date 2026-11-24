@@ -31,7 +31,13 @@ import {
   saveWorkspaceTrackerProject,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
-import { notificationFeedSchema, notificationRecordSchema } from "@ganger/app/notifications/feed";
+import {
+  V1_DESKTOP_REGISTER_PATH,
+  V1_NOTIFICATION_PATHS,
+  connectResponseSchema,
+  notificationFeedResponseSchema,
+} from "@ganger/api";
+import { notificationRecordSchema } from "@ganger/app/notifications/feed";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
@@ -49,6 +55,7 @@ let db: Database;
 let web: ViteDevServer;
 let baseUrl: string;
 let questionRun: RunId;
+let deviceToken: string;
 
 const fakeAdapters: Plugin = {
   name: "e2e-fake-adapters",
@@ -72,8 +79,13 @@ beforeAll(async () => {
     plugins: [fakeAdapters],
     cacheDir: join(dir, "vite-cache"),
   }));
-  const warm = await fetch(new URL("/api/notification-events", baseUrl));
-  if (warm.status !== 200) throw new Error(`warm-up failed: ${warm.status}`);
+  const registered = await fetch(new URL(V1_DESKTOP_REGISTER_PATH, baseUrl), {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ name: "Acme Mac", requestId: "e2e-notifications-000001" }),
+  });
+  if (registered.status !== 200) throw new Error(`warm-up failed: ${registered.status}`);
+  deviceToken = connectResponseSchema.parse(await registered.json()).data.token;
 }, 240_000);
 
 afterAll(async () => {
@@ -156,8 +168,8 @@ async function readStream(
   until: (messages: StreamMessage[]) => boolean,
 ): Promise<StreamMessage[]> {
   const abort = new AbortController();
-  const response = await fetch(new URL("/api/notification-events/stream", baseUrl), {
-    headers,
+  const response = await fetch(new URL(V1_NOTIFICATION_PATHS.stream, baseUrl), {
+    headers: { ...headers, authorization: `Bearer ${deviceToken}` },
     signal: abort.signal,
   });
   expect(response.headers.get("content-type")).toContain("text/event-stream");
@@ -229,15 +241,17 @@ describe("알림 사건 전달(서버, 0103)", () => {
   });
 
   it("폴링 경로는 같은 저장소에서 같은 사건과 번호를 준다", async () => {
-    const response = await fetch(new URL("/api/notification-events?after=0", baseUrl));
-    const feed = notificationFeedSchema.parse(await response.json());
+    const url = new URL(V1_NOTIFICATION_PATHS.feed, baseUrl);
+    url.searchParams.set("after", "0");
+    const response = await fetch(url, { headers: { authorization: `Bearer ${deviceToken}` } });
+    const feed = notificationFeedResponseSchema.parse(await response.json()).data;
     expect(feed.events.some((record) => record.kind === "question")).toBe(true);
     expect(feed.cursor).toBeGreaterThan(0);
   });
 
   it("허용하지 않은 Host 로 온 SSE 요청은 요청 가드가 막는다", async () => {
     const status = await new Promise<number>((resolve, reject) => {
-      const url = new URL("/api/notification-events/stream", baseUrl);
+      const url = new URL(V1_NOTIFICATION_PATHS.stream, baseUrl);
       const req = httpRequest(
         {
           host: url.hostname,

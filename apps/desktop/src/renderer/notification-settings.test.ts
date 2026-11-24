@@ -165,6 +165,14 @@ describe("알림 설정 창(브라우저, 0103)", () => {
     expect(await calls()).toEqual([]);
   });
 
+  it("v1 이 없는 옛 서버면 서버를 업데이트해야 알림을 받는다고 안내하고 다시 연결을 둔다", async () => {
+    await openSettings({ ...allOn, deviceLink: "unsupported" });
+    const callout = page.getByRole("region", { name: t.deviceLink.unsupportedTitle });
+    await callout.getByText(t.deviceLink.unsupportedBody).waitFor();
+    expect(await callout.getByRole("button", { name: t.deviceLink.action }).isEnabled()).toBe(true);
+    expect(await calls()).toEqual([]);
+  });
+
   it("다시 연결에 실패하면 이유를 보이고 다시 누를 수 있다", async () => {
     await openSettings({ ...allOn, deviceLink: "failed" });
     const callout = page.getByRole("region", { name: t.deviceLink.title });

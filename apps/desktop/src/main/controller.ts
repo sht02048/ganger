@@ -19,7 +19,7 @@ import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
 import { ActivityReporter } from "../core/activity-report.js";
 import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
-import type { TokenCipher } from "../core/device-link.js";
+import type { RegisterResult, TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
 import {
   notificationId,
@@ -853,6 +853,7 @@ export class Controller {
       onBatch: (batch) => this.receiveNotifications(url, batch),
       connection: () => this.deviceLink.connection(url),
       onRejected: () => this.onDeviceRejected(url),
+      onUnsupported: () => this.onDeviceUnsupported(url),
       onTransport: (transport) => {
         if (transport !== "down") void activity.report();
       },
@@ -871,11 +872,22 @@ export class Controller {
     if (firstNotice) this.notifyDeviceRejected();
   }
 
+  private onDeviceUnsupported(url: string): void {
+    if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
+    const firstNotice = this.deviceLinkState !== "unsupported";
+    this.setDeviceLinkState("unsupported");
+    if (firstNotice) this.notifyDeviceLinkProblem("deviceUnsupported");
+  }
+
   private notifyDeviceRejected(): void {
+    this.notifyDeviceLinkProblem("deviceRejected");
+  }
+
+  private notifyDeviceLinkProblem(notice: "deviceRejected" | "deviceUnsupported"): void {
     if (!this.notificationPrefs().enabled || !this.notificationCenterReady()) return;
     const notification = new Notification({
-      title: t("notifications.deviceRejected.title"),
-      body: t("notifications.deviceRejected.body"),
+      title: t(`notifications.${notice}.title`),
+      body: t(`notifications.${notice}.body`),
     });
     notification.on("click", () => {
       this.deviceRejectedNotice = undefined;
@@ -889,10 +901,12 @@ export class Controller {
     const current = this.feed;
     if (current === undefined || this.deviceLinkState === "reconnecting") return;
     this.setDeviceLinkState("reconnecting");
-    const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
+    const result = await this.deviceLink
+      .reconnect(current.url)
+      .catch((): RegisterResult["kind"] => "failed");
     if (this.feed !== current) return;
-    this.setDeviceLinkState(connected ? "reconnected" : "failed");
-    if (connected) current.feed.reconnect();
+    this.setDeviceLinkState(reconnectedState(result));
+    if (result === "registered") current.feed.reconnect();
   }
 
   private setDeviceLinkState(state: DeviceLinkState): void {
@@ -1174,7 +1188,11 @@ export class Controller {
         click: () => this.showNotificationSettings(),
       },
     );
-    if (this.deviceLinkState === "rejected" || this.deviceLinkState === "failed") {
+    if (
+      this.deviceLinkState === "rejected" ||
+      this.deviceLinkState === "unsupported" ||
+      this.deviceLinkState === "failed"
+    ) {
       items.push({
         id: "reconnect-device",
         label: t("menu.reconnectDevice"),
@@ -1292,4 +1310,15 @@ export function appPaths(base: string): {
     preloadFile: join(base, "dist", "preload", "preload.cjs"),
     trayIcon: join(base, "assets", "trayTemplate.png"),
   };
+}
+
+function reconnectedState(result: RegisterResult["kind"]): DeviceLinkState {
+  switch (result) {
+    case "registered":
+      return "reconnected";
+    case "unsupported":
+      return "unsupported";
+    case "failed":
+      return "failed";
+  }
 }

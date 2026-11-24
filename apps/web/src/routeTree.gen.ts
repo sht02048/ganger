@@ -18,15 +18,12 @@ import { Route as AppRunsRouteImport } from './routes/_app/runs'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppStatsRouteImport } from './routes/_app/stats'
 import { Route as AppTicketsRouteImport } from './routes/_app/tickets'
-import { Route as ApiAttentionRouteImport } from './routes/api/attention'
 import { Route as ApiBuildRouteImport } from './routes/api/build'
 import { Route as ApiDiagnosticsRouteImport } from './routes/api/diagnostics'
 import { Route as ApiIdentityRouteImport } from './routes/api/identity'
 import { Route as AppRunsRunIdRouteImport } from './routes/_app/runs_.$runId'
 import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings_.mcp'
 import { Route as ApiChangeEventsStreamRouteImport } from './routes/api/change-events/stream'
-import { Route as ApiNotificationEventsIndexRouteImport } from './routes/api/notification-events/index'
-import { Route as ApiNotificationEventsStreamRouteImport } from './routes/api/notification-events/stream'
 import { Route as ApiRunnerEnrollmentIndexRouteImport } from './routes/api/runner-enrollment/index'
 import { Route as ApiRunnerEnrollmentScriptRouteImport } from './routes/api/runner-enrollment/script'
 import { Route as ApiV1DashboardRouteImport } from './routes/api/v1/dashboard'
@@ -96,11 +93,6 @@ const AppTicketsRoute = AppTicketsRouteImport.update({
   path: '/tickets',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiAttentionRoute = ApiAttentionRouteImport.update({
-  id: '/api/attention',
-  path: '/api/attention',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiBuildRoute = ApiBuildRouteImport.update({
   id: '/api/build',
   path: '/api/build',
@@ -131,18 +123,6 @@ const ApiChangeEventsStreamRoute = ApiChangeEventsStreamRouteImport.update({
   path: '/api/change-events/stream',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiNotificationEventsIndexRoute =
-  ApiNotificationEventsIndexRouteImport.update({
-    id: '/api/notification-events/',
-    path: '/api/notification-events/',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiNotificationEventsStreamRoute =
-  ApiNotificationEventsStreamRouteImport.update({
-    id: '/api/notification-events/stream',
-    path: '/api/notification-events/stream',
-    getParentRoute: () => rootRouteImport,
-  } as any)
 const ApiRunnerEnrollmentIndexRoute =
   ApiRunnerEnrollmentIndexRouteImport.update({
     id: '/api/runner-enrollment/',
@@ -285,20 +265,17 @@ export interface FileRoutesByFullPath {
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
-  '/api/attention': typeof ApiAttentionRoute
   '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
-  '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs/$runId/ticket': typeof RunsRunIdTicketRoute
-  '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
@@ -327,7 +304,6 @@ export interface FileRoutesByTo {
   '/settings': typeof AppSettingsRoute
   '/stats': typeof AppStatsRoute
   '/tickets': typeof AppTicketsRoute
-  '/api/attention': typeof ApiAttentionRoute
   '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
@@ -335,13 +311,11 @@ export interface FileRoutesByTo {
   '/runs/$runId': typeof AppRunsRunIdRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
-  '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs/$runId/ticket': typeof RunsRunIdTicketRoute
-  '/api/notification-events': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment': typeof ApiRunnerEnrollmentIndexRoute
   '/settings/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
@@ -372,7 +346,6 @@ export interface FileRoutesById {
   '/_app/settings': typeof AppSettingsRoute
   '/_app/stats': typeof AppStatsRoute
   '/_app/tickets': typeof AppTicketsRoute
-  '/api/attention': typeof ApiAttentionRoute
   '/api/build': typeof ApiBuildRoute
   '/api/diagnostics': typeof ApiDiagnosticsRoute
   '/api/identity': typeof ApiIdentityRoute
@@ -380,13 +353,11 @@ export interface FileRoutesById {
   '/_app/runs_/$runId': typeof AppRunsRunIdRoute
   '/_app/settings_/mcp': typeof AppSettingsMcpRoute
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
-  '/api/notification-events/stream': typeof ApiNotificationEventsStreamRoute
   '/api/runner-enrollment/script': typeof ApiRunnerEnrollmentScriptRoute
   '/api/v1/dashboard': typeof ApiV1DashboardRoute
   '/api/v1/runners': typeof ApiV1RunnersRoute
   '/api/v1/workspaces': typeof ApiV1WorkspacesRoute
   '/runs_/$runId_/ticket': typeof RunsRunIdTicketRoute
-  '/api/notification-events/': typeof ApiNotificationEventsIndexRoute
   '/api/runner-enrollment/': typeof ApiRunnerEnrollmentIndexRoute
   '/_app/settings_/connections/$connectionId': typeof AppSettingsConnectionsConnectionIdRoute
   '/api/runner-enrollment/offer/accept': typeof ApiRunnerEnrollmentOfferAcceptRoute
@@ -418,20 +389,17 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stats'
     | '/tickets'
-    | '/api/attention'
     | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
     | '/runs/$runId'
     | '/settings/mcp'
     | '/api/change-events/stream'
-    | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs/$runId/ticket'
-    | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
@@ -460,7 +428,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/stats'
     | '/tickets'
-    | '/api/attention'
     | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
@@ -468,13 +435,11 @@ export interface FileRouteTypes {
     | '/runs/$runId'
     | '/settings/mcp'
     | '/api/change-events/stream'
-    | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs/$runId/ticket'
-    | '/api/notification-events'
     | '/api/runner-enrollment'
     | '/settings/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
@@ -504,7 +469,6 @@ export interface FileRouteTypes {
     | '/_app/settings'
     | '/_app/stats'
     | '/_app/tickets'
-    | '/api/attention'
     | '/api/build'
     | '/api/diagnostics'
     | '/api/identity'
@@ -512,13 +476,11 @@ export interface FileRouteTypes {
     | '/_app/runs_/$runId'
     | '/_app/settings_/mcp'
     | '/api/change-events/stream'
-    | '/api/notification-events/stream'
     | '/api/runner-enrollment/script'
     | '/api/v1/dashboard'
     | '/api/v1/runners'
     | '/api/v1/workspaces'
     | '/runs_/$runId_/ticket'
-    | '/api/notification-events/'
     | '/api/runner-enrollment/'
     | '/_app/settings_/connections/$connectionId'
     | '/api/runner-enrollment/offer/accept'
@@ -544,18 +506,15 @@ export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   DsRoute: typeof DsRoute
   OnboardingRoute: typeof OnboardingRoute
-  ApiAttentionRoute: typeof ApiAttentionRoute
   ApiBuildRoute: typeof ApiBuildRoute
   ApiDiagnosticsRoute: typeof ApiDiagnosticsRoute
   ApiIdentityRoute: typeof ApiIdentityRoute
   ApiChangeEventsStreamRoute: typeof ApiChangeEventsStreamRoute
-  ApiNotificationEventsStreamRoute: typeof ApiNotificationEventsStreamRoute
   ApiRunnerEnrollmentScriptRoute: typeof ApiRunnerEnrollmentScriptRoute
   ApiV1DashboardRoute: typeof ApiV1DashboardRoute
   ApiV1RunnersRoute: typeof ApiV1RunnersRoute
   ApiV1WorkspacesRoute: typeof ApiV1WorkspacesRoute
   RunsRunIdTicketRoute: typeof RunsRunIdTicketRoute
-  ApiNotificationEventsIndexRoute: typeof ApiNotificationEventsIndexRoute
   ApiRunnerEnrollmentIndexRoute: typeof ApiRunnerEnrollmentIndexRoute
   ApiRunnerEnrollmentOfferAcceptRoute: typeof ApiRunnerEnrollmentOfferAcceptRoute
   ApiV1ChangeEventsStreamRoute: typeof ApiV1ChangeEventsStreamRoute
@@ -640,13 +599,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTicketsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/attention': {
-      id: '/api/attention'
-      path: '/api/attention'
-      fullPath: '/api/attention'
-      preLoaderRoute: typeof ApiAttentionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/build': {
       id: '/api/build'
       path: '/api/build'
@@ -687,20 +639,6 @@ declare module '@tanstack/react-router' {
       path: '/api/change-events/stream'
       fullPath: '/api/change-events/stream'
       preLoaderRoute: typeof ApiChangeEventsStreamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notification-events/': {
-      id: '/api/notification-events/'
-      path: '/api/notification-events'
-      fullPath: '/api/notification-events/'
-      preLoaderRoute: typeof ApiNotificationEventsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/notification-events/stream': {
-      id: '/api/notification-events/stream'
-      path: '/api/notification-events/stream'
-      fullPath: '/api/notification-events/stream'
-      preLoaderRoute: typeof ApiNotificationEventsStreamRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/runner-enrollment/': {
@@ -908,18 +846,15 @@ const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   DsRoute: DsRoute,
   OnboardingRoute: OnboardingRoute,
-  ApiAttentionRoute: ApiAttentionRoute,
   ApiBuildRoute: ApiBuildRoute,
   ApiDiagnosticsRoute: ApiDiagnosticsRoute,
   ApiIdentityRoute: ApiIdentityRoute,
   ApiChangeEventsStreamRoute: ApiChangeEventsStreamRoute,
-  ApiNotificationEventsStreamRoute: ApiNotificationEventsStreamRoute,
   ApiRunnerEnrollmentScriptRoute: ApiRunnerEnrollmentScriptRoute,
   ApiV1DashboardRoute: ApiV1DashboardRoute,
   ApiV1RunnersRoute: ApiV1RunnersRoute,
   ApiV1WorkspacesRoute: ApiV1WorkspacesRoute,
   RunsRunIdTicketRoute: RunsRunIdTicketRoute,
-  ApiNotificationEventsIndexRoute: ApiNotificationEventsIndexRoute,
   ApiRunnerEnrollmentIndexRoute: ApiRunnerEnrollmentIndexRoute,
   ApiRunnerEnrollmentOfferAcceptRoute: ApiRunnerEnrollmentOfferAcceptRoute,
   ApiV1ChangeEventsStreamRoute: ApiV1ChangeEventsStreamRoute,
