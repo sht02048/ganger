@@ -31,6 +31,7 @@ import {
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { GANGER_YELLOW_HEX } from "@ganger/ui/brand-color";
 import { serverMcpLaunch } from "../server/mcp-launch";
@@ -70,15 +71,20 @@ import { McpScreen } from "./mcp-screen";
 import { BriefPreview } from "./workspace-brief";
 import settingsJson from "../../messages/ko/settings.json" with { type: "json" };
 import { ProjectDetailScreen, findBoundProject } from "./project-detail";
+import { ConnectionsScreen } from "./connections-page";
+import { DevicesScreen } from "./devices-page";
+import { ProjectCandidates, ProjectsScreen } from "./projects-page";
+import { ServerScreen } from "./server-page";
+import { SettingsPagesNav, pageProblems, settingsNavState } from "./settings-frame";
 import {
-  MCP_ROW_ID,
-  ProjectCandidates,
-  SettingsScreen,
-  connectionRowId,
+  WEB_ADDRESS_ROW_ID,
+  plainSettingsLink,
   projectRowId,
-  sectionProblems,
   settingsHref,
+  settingsTargetOf,
+  type SettingsPageId,
 } from "./settings-page";
+import { BriefScreen, GeneralScreen } from "./workspace-pages";
 import { RunnerCheck, RunnerForm, nameFromSshTarget, sshCheckCommand } from "./settings-screen";
 import type { ProjectDetailActions } from "./settings-screen";
 
@@ -192,16 +198,57 @@ const TOKEN_ONLY_VIEW: GitHubAuthView = {
   source: "token",
 };
 
-function render(page: SettingsPage, runnerIssues = 0, github?: GitHubAuthView): string {
+type PageKind = "general" | "brief" | "projects" | "connections" | "devices" | "server";
+
+function renderPage(kind: PageKind, page: SettingsPage, github?: GitHubAuthView): string {
+  const ws = page.workspace?.general.id;
+  const view = page.workspace === null ? "all" : "one";
+  const common = { page, actions: noopActions, nav: null };
+  const workspace = { ...common, workspaceView: view, onCreateWorkspace: () => {} } as const;
+  const screens: Record<PageKind, () => ReactNode> = {
+    general: () => <GeneralScreen {...workspace} />,
+    brief: () => <BriefScreen {...workspace} />,
+    projects: () => <ProjectsScreen {...workspace} renderLink={plainSettingsLink(ws)} />,
+    connections: () => (
+      <ConnectionsScreen
+        {...common}
+        setup={{ funnel: null }}
+        github={github}
+        renderLink={plainSettingsLink(ws)}
+      />
+    ),
+    devices: () => (
+      <DevicesScreen
+        {...common}
+        devices={{ devices: [], address: page.install.addresses.webAddress }}
+        deviceActions={{
+          start: () => Promise.resolve({ ok: false, reason: "no-https-address" }),
+          cancel: () => Promise.resolve(),
+          remove: () => Promise.resolve({ ok: true }),
+        }}
+      />
+    ),
+    server: () => (
+      <ServerScreen
+        {...common}
+        logs={{ available: false }}
+        logActions={{
+          openFolder: null,
+          saveDebug: () => Promise.resolve({ ok: true }),
+          makeDiagnostics: () => Promise.resolve({ ok: false, reason: "unknown" }),
+        }}
+      />
+    ),
+  };
+  return renderWithMessages(screens[kind](), settingsMessages);
+}
+
+function renderNav(page: SettingsPage, current: SettingsPageId, desktop = false): string {
   return renderWithMessages(
-    <SettingsScreen
-      page={page}
-      runnerIssues={runnerIssues}
-      {...(github === undefined ? {} : { github })}
-      workspaceView={page.workspace === null ? "all" : "one"}
-      ws={page.workspace?.general.id}
-      actions={noopActions}
-      onCreateWorkspace={() => {}}
+    <SettingsPagesNav
+      current={current}
+      state={settingsNavState(page, desktop)}
+      renderLink={plainSettingsLink(page.workspace?.general.id)}
     />,
     settingsMessages,
   );
@@ -213,9 +260,10 @@ function renderProject(page: SettingsPage, connectionId: string, projectId: stri
       page={page}
       connectionId={connectionId}
       projectId={projectId}
-      ws={page.workspace?.general.id}
       actions={noopActions}
       onRemoved={() => {}}
+      renderLink={plainSettingsLink(page.workspace?.general.id)}
+      nav={null}
     />,
     settingsMessages,
   );
@@ -223,7 +271,7 @@ function renderProject(page: SettingsPage, connectionId: string, projectId: stri
 
 function renderMcp(page: SettingsPage): string {
   return renderWithMessages(
-    <McpScreen mcp={page.install.mcp} ws={undefined} actions={noopActions} />,
+    <McpScreen mcp={page.install.mcp} actions={noopActions} nav={null} />,
     settingsMessages,
   );
 }
@@ -369,18 +417,21 @@ describe("Settings 저장하고 다시 열기", () => {
     ]);
     expect(page.runnerProjects).toEqual([{ id: repo, name: "acme/web" }]);
 
-    const main = render(page);
-    expect(textOf(sectionOf(main, "workspace"))).toContain("Acme Store");
-    expect(main).toMatch(/name="maxRunMinutes"[^>]*value="90"/);
-    const projects = textOf(sectionOf(main, "projects"));
+    const general = renderPage("general", page);
+    expect(textOf(general)).toContain("Acme Store");
+    expect(general).toMatch(/name="maxRunMinutes"[^>]*value="90"/);
+    const projects = textOf(renderPage("projects", page));
     expect(projects).toContain("Web");
     expect(projects).toContain("acme/web · Codex");
-    expect(projects).toContain("factory 라벨이면 바로 할당");
+    expect(projects).toContain(settingsJson.projects.autoLabel);
+    expect(projects).not.toContain(settingsJson.projects.autoLabelNone);
     const detail = renderProject(page, connection, webProject);
     expect(detail).toContain("acme/web");
     expect(textOf(detail)).toContain("In Progress");
     expect(textOf(detail)).toContain("트래커 티켓 상태");
-    expect(textOf(detail)).toContain("런이 바뀔 때 트래커 티켓 상태를 같이 바꿔요");
+    expect(detail).toMatch(
+      /role="tooltip"[^>]*hidden=""[^>]*>런이 바뀔 때 트래커 티켓 상태를 같이 바꿔요/,
+    );
     const workspaceSettings = page.workspace;
     if (workspaceSettings === null) throw new Error("no workspace");
     const onLinear = renderProject(
@@ -394,10 +445,10 @@ describe("Settings 저장하고 다시 열기", () => {
       connection,
       webProject,
     );
-    expect(textOf(onLinear)).toContain("런이 바뀔 때 Linear 티켓 상태를 같이 바꿔요");
-    expect(textOf(detail)).toContain("런이 시작되면 바꿀 상태");
-    expect(textOf(detail)).toContain("PR이 머지되면 바꿀 상태");
-    expect(textOf(detail)).toContain("factory");
+    expect(textOf(onLinear)).toContain("Linear 티켓 상태");
+    expect(textOf(detail)).toContain("런이 시작되면");
+    expect(textOf(detail)).toContain("PR이 머지되면");
+    expect(textOf(detail)).not.toContain(settingsJson.projects.autoLabel);
     expect(detail).toContain('value="gpt-example"');
     const runner = page.install.runners[0];
     if (runner === undefined) throw new Error("no runner");
@@ -550,14 +601,21 @@ describe("Settings 저장하고 다시 열기", () => {
       tokenSaved: false,
       source: "none",
     };
-    const connections = sectionOf(render(page, 0, none), "connections");
+    const connections = renderPage("connections", page, none);
     expect(textOf(connections)).toContain(
       "연결하지 않았어요. 이 서버 기계에서 gh auth login 을 하거나 토큰을 붙여 넣어 주세요",
     );
-    expect(connections).toMatch(/<button[^>]*aria-label="GitHub 보기"[^>]*>보기<\/button>/);
-    expect(sectionProblems(page, 0).has("connections")).toBe(true);
+    expect(connections).toMatch(
+      /<button[^>]*aria-label="gh 로그인 계정 보기"[^>]*>계정 보기<\/button>/,
+    );
+    expect(connections).toMatch(
+      /<button[^>]*aria-label="GitHub 토큰 넣기"[^>]*>토큰 넣기<\/button>/,
+    );
+    expect(textOf(connections)).toContain(settingsJson.github.tokenNone);
+    expect(connections).toContain('aria-label="토큰 도움말"');
+    expect(pageProblems(page).has("connections")).toBe(true);
     expect(connections).not.toContain('type="password"');
-    expect(textOf(sectionOf(render(page), "connections"))).toContain("gh 로그인을 확인하는 중…");
+    expect(textOf(renderPage("connections", page))).toContain("gh 로그인을 확인하는 중…");
   });
 
   it("GitHub 줄은 지금 쓰는 출처를 보인다: gh 계정, 붙여 넣은 토큰 (0204)", async () => {
@@ -577,17 +635,16 @@ describe("Settings 저장하고 다시 열기", () => {
       tokenSaved: true,
       source: "gh",
     });
-    expect(textOf(sectionOf(render(page, 0, gh(1)), "connections"))).toContain(
-      "gh로 연결했어요 · acme-bot",
+    expect(textOf(renderPage("connections", page, gh(1)))).toContain("gh로 연결했어요 acme-bot");
+    expect(textOf(renderPage("connections", page, gh(2)))).toContain(
+      "gh로 연결했어요 acme-bot · jane-doe",
     );
-    expect(textOf(sectionOf(render(page, 0, gh(2)), "connections"))).toContain(
-      "gh로 연결했어요 · acme-bot 외 1개 계정",
-    );
-    expect(textOf(sectionOf(render(page, 0, TOKEN_ONLY_VIEW), "connections"))).toContain(
-      "붙여 넣은 토큰으로 연결했어요",
-    );
+    const tokenOnly = renderPage("connections", page, TOKEN_ONLY_VIEW);
+    expect(textOf(tokenOnly)).toContain("붙여 넣은 토큰으로 연결했어요");
+    expect(tokenOnly).toMatch(/>토큰 바꾸기<\/button>/);
+    expect(tokenOnly).not.toContain("github_pat_example");
     const fresh = await loadSettingsPage(fixture().context, commerce, now);
-    expect(textOf(sectionOf(render(fresh, 0, gh(1)), "connections"))).toContain(
+    expect(textOf(renderPage("connections", fresh, gh(1)))).toContain(
       "gh 로그인이 있어요. 펼쳐서 다시 확인하면 연결해요",
     );
   });
@@ -738,15 +795,49 @@ describe("Mapping 여러 저장소와 Auto-assign Label 만들기(0115)", () => 
   });
 });
 
-describe("Settings 돌아가기 자리(0181)", () => {
-  it("하위 화면의 돌아가기는 그 줄의 id 를 해시로 가진다", () => {
-    for (const rowId of [projectRowId("c1", "p1"), connectionRowId("c1"), MCP_ROW_ID]) {
-      expect(settingsHref({ kind: "settings", rowId }, "ws-a")).toBe(`/settings?ws=ws-a#${rowId}`);
-    }
+describe("Settings 페이지 주소(0214)", () => {
+  it("페이지마다 자기 주소가 있고 ws 와 줄 id 를 붙인다", () => {
+    expect(settingsHref({ kind: "page", page: "connections" }, "ws-a")).toBe(
+      "/settings/connections?ws=ws-a",
+    );
+    expect(
+      settingsHref({ kind: "page", page: "projects", rowId: projectRowId("c1", "p1") }, undefined),
+    ).toBe("/settings/projects#project-c1-p1");
+    expect(settingsHref({ kind: "page", page: "notifications" }, undefined)).toBe(
+      "/settings/notifications",
+    );
   });
 
-  it("줄을 정하지 않으면 해시 없이 Settings 로 간다", () => {
-    expect(settingsHref({ kind: "settings" }, undefined)).toBe("/settings");
+  it("/settings 는 일반으로, Workspace 가 없거나 전체 보기면 연결로 보낸다", () => {
+    expect(settingsTargetOf("", "one")).toEqual({ kind: "page", page: "general" });
+    expect(settingsTargetOf("", "all")).toEqual({ kind: "page", page: "connections" });
+    expect(settingsTargetOf("", "none")).toEqual({ kind: "page", page: "connections" });
+  });
+
+  it("예전 /settings#구역 링크는 그 설정이 옮겨 간 페이지로 보낸다", () => {
+    expect(settingsTargetOf("#connections", "one")).toEqual({ kind: "page", page: "connections" });
+    expect(settingsTargetOf("projects", "one")).toEqual({ kind: "page", page: "projects" });
+    expect(settingsTargetOf("#workspace", "one")).toEqual({ kind: "page", page: "general" });
+    expect(settingsTargetOf("#server", "one")).toEqual({ kind: "page", page: "server" });
+    expect(settingsTargetOf("#logs", "one")).toEqual({ kind: "page", page: "server" });
+    expect(settingsTargetOf("#devices", "one")).toEqual({ kind: "page", page: "devices" });
+    expect(settingsTargetOf("#advanced", "one")).toEqual({ kind: "page", page: "mcp" });
+    expect(settingsTargetOf("#mcp-row", "one")).toEqual({ kind: "page", page: "mcp" });
+    expect(settingsTargetOf("#web-address-row", "one")).toEqual({
+      kind: "page",
+      page: "devices",
+      rowId: WEB_ADDRESS_ROW_ID,
+    });
+    expect(settingsTargetOf("#connection-c1", "one")).toEqual({
+      kind: "connection",
+      connectionId: "c1",
+    });
+    expect(settingsTargetOf("#project-c1-p1", "one")).toEqual({
+      kind: "page",
+      page: "projects",
+      rowId: "project-c1-p1",
+    });
+    expect(settingsTargetOf("#toString", "one")).toEqual({ kind: "page", page: "general" });
   });
 });
 
@@ -779,10 +870,11 @@ describe("주소(0048)", () => {
       webhookAddressChecked: false,
       autoAllowedHosts: [],
     });
-    const server = textOf(sectionOf(render(page), "server"));
-    expect(server).toContain("다른 기기에서 열 주소");
-    expect(server).toContain("https://server.example.ts.net");
-    expect(textOf(sectionOf(render(page), "advanced"))).not.toContain("https://hooks.example.com");
+    const devices = textOf(renderPage("devices", page));
+    expect(devices).toContain(settingsJson.addresses.web);
+    expect(devices).toContain("https://server.example.ts.net");
+    expect(devices).not.toContain("https://hooks.example.com");
+    expect(textOf(renderPage("server", page))).not.toContain("https://server.example.ts.net");
 
     expect(saveAddresses(f.context, { webAddress: "", webhookAddress: "" }, now, local)).toEqual({
       ok: true,
@@ -803,13 +895,11 @@ describe("주소(0048)", () => {
       undefined,
       now,
     );
-    const server = textOf(sectionOf(render(page), "server"));
-    expect(server).toContain(settingsJson.addresses.autoAllowed);
-    expect(server).toContain("server.example.ts.net, 100.64.0.10");
+    const devices = textOf(renderPage("devices", page));
+    expect(devices).toContain(settingsJson.addresses.autoAllowed);
+    expect(devices).toContain("server.example.ts.net, 100.64.0.10");
     const none = await loadSettingsPage(f.context, undefined, now);
-    expect(textOf(sectionOf(render(none), "server"))).not.toContain(
-      settingsJson.addresses.autoAllowed,
-    );
+    expect(textOf(renderPage("devices", none))).not.toContain(settingsJson.addresses.autoAllowed);
     const from = { host: "server.example.ts.net:3000", bindHost: "0.0.0.0", webPort: 3000 };
     const input = { webAddress: "", webhookAddress: "" };
     expect(saveAddresses(f.context, input, now, { ...from, tailnetHosts })).toEqual({ ok: true });
@@ -1267,26 +1357,33 @@ describe("러너 확인", () => {
 });
 
 describe("Settings 화면", () => {
-  it("한 페이지에 Workspace · 프로젝트 · 연결 · 이 서버 · 고급 구역과 그 목차를 둔다", async () => {
+  it("메뉴는 Workspace · 이름, 설치 전체 묶음 아래 페이지 링크를 두고 지금 페이지를 표시한다(0214)", async () => {
     const f = fixture();
-    const html = render(await loadSettingsPage(f.context, commerce, now));
-    const nav = /<nav aria-label="Settings 목차"[^>]*>.*?<\/nav>/s.exec(html)?.[0] ?? "";
-    expect([...nav.matchAll(/href="#([a-z]+)"/g)].map((m) => m[1])).toEqual([
-      "workspace",
-      "projects",
-      "connections",
-      "server",
-      "advanced",
+    const page = await loadSettingsPage(f.context, commerce, now);
+    const html = renderNav(page, "connections");
+    expect(html).toContain('<nav aria-label="Settings 메뉴"');
+    expect(textOf(html)).toContain("Workspace · Acme Commerce");
+    expect(textOf(html)).toContain("설치 전체");
+    expect(textOf(html)).not.toContain("이 Mac");
+    expect([...html.matchAll(/href="([^"?]+)\?ws=ws-commerce"/g)].map((m) => m[1])).toEqual([
+      "/settings/general",
+      "/settings/brief",
+      "/settings/projects",
+      "/settings/connections",
+      "/settings/devices",
+      "/settings/server",
+      "/settings/mcp",
     ]);
-    for (const id of ["workspace", "projects", "connections", "server", "advanced"]) {
-      expect(html).toContain(`<section id="${id}" aria-labelledby="${id}-heading"`);
-    }
-    expect(textOf(html)).not.toContain("설치 전체");
-    expect(textOf(html)).not.toContain("Acme Commerce Workspace");
-    expect(html).not.toContain("<aside");
+    expect(html).toMatch(/href="\/settings\/connections\?ws=ws-commerce"[^>]*aria-current="page"/);
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    const desktop = renderNav(page, "notifications", true);
+    expect(textOf(desktop)).toContain("이 Mac");
+    expect(desktop).toMatch(
+      /href="\/settings\/notifications\?ws=ws-commerce"[^>]*aria-current="page"/,
+    );
   });
 
-  it("문제가 있는 구역만 목차에 점을 붙인다", async () => {
+  it("문제가 있는 페이지만 메뉴에 점을 붙인다", async () => {
     const f = fixture();
     const connection = await addConnection(f);
     await saveGitHubToken(f.context, { token: "github_pat_example" }, now);
@@ -1294,23 +1391,22 @@ describe("Settings 화면", () => {
     const project = { ws: commerce, connectionId: connection, projectId: webProject };
     addTrackerProject(f.context, { ...project, name: "Web" });
     const unmapped = await loadSettingsPage(f.context, commerce, now);
-    expect([...sectionProblems(unmapped, 0)]).toEqual(["projects"]);
-    const html = render(unmapped);
-    const nav = /<nav aria-label="Settings 목차"[^>]*>.*?<\/nav>/s.exec(html)?.[0] ?? "";
+    expect([...pageProblems(unmapped)]).toEqual(["projects"]);
+    const nav = renderNav(unmapped, "general");
     expect(nav.match(/확인할 것이 있어요/g)).toHaveLength(1);
-    expect(textOf(sectionOf(html, "projects"))).toContain("저장소를 아직 정하지 않았어요");
-    expect(textOf(sectionOf(html, "projects"))).toContain("정하기");
+    expect(nav).toMatch(
+      /href="\/settings\/projects\?ws=ws-commerce"[^>]*>프로젝트<span aria-hidden="true"/,
+    );
+    const projects = textOf(renderPage("projects", unmapped));
+    expect(projects).toContain("저장소를 아직 정하지 않았어요");
 
     saveMappingSetting(f.context, { ...project, runnerProjectId: repo, agentId: "claude" });
     const mapped = await loadSettingsPage(f.context, commerce, now);
-    expect([...sectionProblems(mapped, 0)]).toEqual([]);
-    expect([...sectionProblems(mapped, 1)]).toEqual(["connections"]);
-    expect(textOf(sectionOf(render(mapped, 1), "connections"))).toContain(
-      "1대 중 1대를 확인해 주세요",
-    );
+    expect([...pageProblems(mapped)]).toEqual([]);
+    expect(renderNav(mapped, "general")).not.toContain("확인할 것이 있어요");
   });
 
-  it("PR 정보를 읽지 못한 런이 있으면 GitHub 줄에 문제로 보이고 목차에 점을 붙인다 (0144)", async () => {
+  it("PR 정보를 읽지 못한 런이 있으면 GitHub 줄에 문제로 보이고 메뉴의 연결에 점을 붙인다 (0144)", async () => {
     const f = fixture();
     const connection = await addConnection(f);
     await saveGitHubToken(f.context, { token: "github_pat_example" }, now);
@@ -1340,31 +1436,31 @@ describe("Settings 화면", () => {
     };
 
     const clean = await loadSettingsPage(f.context, commerce, now);
-    expect(textOf(sectionOf(render(clean, 0, TOKEN_ONLY_VIEW), "connections"))).toContain(
+    expect(textOf(renderPage("connections", clean, TOKEN_ONLY_VIEW))).toContain(
       "붙여 넣은 토큰으로 연결했어요",
     );
-    expect([...sectionProblems(clean, 0)]).toEqual([]);
+    expect([...pageProblems(clean)]).toEqual([]);
 
     endUnread(ids[0] ?? "", "other");
     const other = await loadSettingsPage(f.context, commerce, now);
     expect(other.install.unreadPrRuns).toEqual({ "no-access": 0, other: 1 });
-    expect(textOf(sectionOf(render(other), "connections"))).toContain(
+    expect(textOf(renderPage("connections", other))).toContain(
       "런 1개의 PR 정보를 읽지 못했어요. 다시 읽고 있어요",
     );
-    expect([...sectionProblems(other, 0)]).toEqual(["connections"]);
+    expect([...pageProblems(other)]).toEqual(["connections"]);
 
     endUnread(ids[1] ?? "", "no-access");
     const noAccess = await loadSettingsPage(f.context, commerce, now);
-    const html = render(noAccess, 0, TOKEN_ONLY_VIEW);
-    expect(textOf(sectionOf(html, "connections"))).toContain(
+    const html = renderPage("connections", noAccess, TOKEN_ONLY_VIEW);
+    expect(textOf(html)).toContain(
       "런 1개의 PR 정보를 읽지 못했어요. gh 계정이나 토큰이 그 저장소를 볼 수 없어요",
     );
-    expect(textOf(sectionOf(html, "connections"))).not.toContain("붙여 넣은 토큰으로 연결했어요");
-    const nav = /<nav aria-label="Settings 목차"[^>]*>.*?<\/nav>/s.exec(html)?.[0] ?? "";
+    expect(textOf(html)).not.toContain("붙여 넣은 토큰으로 연결했어요");
+    const nav = renderNav(noAccess, "connections");
     expect(nav.match(/확인할 것이 있어요/g)).toHaveLength(1);
   });
 
-  it("프로젝트 줄은 그 프로젝트 상세 주소로 가는 링크다", async () => {
+  it("프로젝트 페이지는 트래커 연결별로 묶고, 묶음 맨 위에 바로 할당 라벨, 아래에 프로젝트 상세로 가는 줄을 둔다", async () => {
     const f = fixture();
     const connection = await addConnection(f);
     addTrackerProject(f.context, {
@@ -1373,25 +1469,49 @@ describe("Settings 화면", () => {
       projectId: webProject,
       name: "Web",
     });
-    const html = sectionOf(render(await loadSettingsPage(f.context, commerce, now)), "projects");
-    expect(html).toContain(`href="/settings/projects/${connection}/${webProject}?ws=${commerce}"`);
+    const html = renderPage("projects", await loadSettingsPage(f.context, commerce, now));
+    expect(html).toMatch(/<h1[^>]*>프로젝트<\/h1>/);
+    expect(html).toMatch(/<button[^>]*>\+ 트래커 프로젝트 넣기<\/button>/);
+    const group = sectionOf(html, `projects-${connection}`);
+    expect(textOf(group)).toContain("Acme 연결");
+    expect(group.indexOf(settingsJson.projects.autoLabel)).toBeLessThan(group.indexOf("Web"));
+    expect(group).toContain('aria-label="바로 할당 라벨 도움말"');
+    expect(group).toContain(`aria-label="Acme 연결의 바로 할당 라벨"`);
+    expect(textOf(group)).toContain(settingsJson.projects.autoLabelNone);
+    expect(group).toContain(`href="/settings/projects/${connection}/${webProject}?ws=${commerce}"`);
   });
 
-  it("처음 열 때는 비밀값 입력칸을 띄우지 않고 노란 주 버튼도 없다(ADR 0010 6번)", async () => {
+  it("페이지 머리는 제목 하나이고 설명 줄을 두지 않는다", async () => {
     const f = fixture();
-    const connection = await addConnection(f);
     const page = await loadSettingsPage(f.context, commerce, now);
-    const html = render(page);
-    expect(html).not.toContain('type="password"');
-    expect(html).not.toContain('data-variant="primary"');
-    expect(sectionOf(html, "connections")).toContain(
-      `href="/settings/connections/${connection}?ws=${commerce}"`,
-    );
+    for (const kind of [
+      "general",
+      "brief",
+      "projects",
+      "connections",
+      "devices",
+      "server",
+    ] as const) {
+      const html = renderPage(kind, page);
+      expect(html.match(/<h1/g)).toHaveLength(1);
+      expect(html).not.toMatch(/<h1[^>]*>[^<]*<\/h1><p/);
+    }
+  });
+
+  it("처음 열 때는 비밀값 입력칸을 띄우지 않는다(ADR 0010 6번)", async () => {
+    const f = fixture();
+    await addConnection(f);
+    const page = await loadSettingsPage(f.context, commerce, now);
+    for (const kind of ["general", "projects", "connections", "devices", "server"] as const) {
+      const html = renderPage(kind, page);
+      expect(html).not.toContain('type="password"');
+      expect(html).not.toContain('data-variant="primary"');
+    }
   });
 
   it("최대 실행 시간 칸은 숫자 키보드를 쓰고, 처음 열 때는 오류를 보이지 않는다(0055)", async () => {
     const f = fixture();
-    const html = render(await loadSettingsPage(f.context, commerce, now));
+    const html = renderPage("general", await loadSettingsPage(f.context, commerce, now));
     expect(/<input[^>]*name="maxRunMinutes"[^>]*>/.exec(html)?.[0]).toContain(
       'inputMode="numeric"',
     );
@@ -1399,65 +1519,67 @@ describe("Settings 화면", () => {
     expect(html).not.toContain('aria-invalid="true"');
   });
 
+  it("일반에는 이름과 최대 실행 시간만 두고 프로젝트·지시 요약을 두지 않는다", async () => {
+    const f = fixture();
+    const text = textOf(renderPage("general", await loadSettingsPage(f.context, commerce, now)));
+    expect(text).toContain("이름");
+    expect(text).toContain("최대 실행 시간");
+    expect(text).not.toContain(settingsJson.brief.title);
+    expect(text).not.toContain(settingsJson.pages.projects);
+  });
+
   it("보조 설명은 늘 보이는 문단이 아니라 라벨 옆 도움말 단추로 둔다", async () => {
     const f = fixture();
-    const html = render(await loadSettingsPage(f.context, commerce, now));
+    const page = await loadSettingsPage(f.context, commerce, now);
+    const html = renderPage("general", page);
     expect(html).toContain('aria-label="최대 실행 시간 도움말"');
-    expect(html).toContain('aria-label="다른 기기에서 열 주소 도움말"');
+    expect(renderPage("devices", page)).toContain('aria-label="열 주소 도움말"');
     const visible = textOf(
       html.replace(/<div[^>]*role="tooltip"[^>]*hidden=""[^>]*>.*?<\/div>/gs, ""),
     );
-    expect(visible).not.toContain("이 Workspace와 설치 전체의 설정을 바꿔요.");
     expect(visible).not.toContain("런이 이 시간을 넘기면");
     expect(html).toMatch(/role="tooltip"[^>]*hidden=""[^>]*>런이 이 시간을 넘기면/);
   });
 
-  it("Workspace 가 없으면 Workspace 와 프로젝트 대신 Workspace 를 만들라는 한 줄과 링크를 둔다", async () => {
+  it("Workspace 가 없으면 일반에 Workspace 를 만들라는 한 줄을 두고 메뉴는 일반만 남긴다", async () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, "all", now);
     expect(page.workspace).toBeNull();
     const none = renderWithMessages(
-      <SettingsScreen
+      <GeneralScreen
         page={page}
-        runnerIssues={0}
         workspaceView="none"
-        ws={undefined}
         actions={noopActions}
         onCreateWorkspace={() => {}}
+        nav={null}
       />,
       settingsMessages,
     );
-    const workspace = sectionOf(none, "workspace");
-    expect(textOf(workspace)).toContain("아직 Workspace가 없어요");
-    expect(workspace).toMatch(/<button[^>]*>Workspace 만들기</);
-    expect(workspace).not.toContain("/onboarding");
+    expect(textOf(none)).toContain("아직 Workspace가 없어요");
+    expect(none).toMatch(/<button[^>]*>Workspace 만들기</);
+    expect(none).not.toContain("/onboarding");
     expect(none).not.toContain('name="maxRunMinutes"');
-    expect(none).not.toContain('<section id="projects"');
-    expect(none).not.toContain('href="#projects"');
-    expect(textOf(sectionOf(render(page), "workspace"))).toContain("전체 보기에서는");
-    expect(sectionOf(render(page), "workspace")).not.toContain("Workspace 만들기");
+    expect(textOf(renderPage("general", page))).toContain("전체 보기에서는");
+    expect(renderPage("general", page)).not.toContain("Workspace 만들기");
+    expect(textOf(renderPage("projects", page))).toContain("전체 보기에서는");
+    const nav = renderNav(page, "general");
+    expect(textOf(nav)).toContain("Workspace 일반 설치 전체");
+    expect(nav).not.toContain("/settings/projects");
+    expect(nav).not.toContain("/settings/brief");
   });
 
-  it("Runners 로 가는 러너 줄과 MCP 하위 화면으로 가는 줄을 둔다", async () => {
-    const f = fixture();
-    addRunner(f);
-    const html = render(await loadSettingsPage(f.context, commerce, now));
-    expect(sectionOf(html, "connections")).toContain(`href="/runners?ws=${commerce}"`);
-    expect(textOf(sectionOf(html, "connections"))).toContain("Runners에서 더하고 고쳐요");
-    expect(html).not.toContain('name="sshTarget"');
-    expect(sectionOf(html, "advanced")).toContain(`href="/settings/mcp?ws=${commerce}"`);
-  });
-
-  it("없는 프로젝트 상세는 Settings 로 돌아가는 링크를 보인다", async () => {
+  it("없는 프로젝트 상세는 프로젝트 페이지로 가는 링크를 보인다", async () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, commerce, now);
     expect(findBoundProject(page.workspace, "nope", "nope")).toBeNull();
     const html = renderProject(page, "nope", "nope");
     expect(textOf(html)).toContain("이 Workspace에 없는 트래커 프로젝트예요.");
-    expect(html).toMatch(/href="\/settings\?ws=ws-commerce"[^>]*>Settings로 돌아가기/);
+    expect(html).toMatch(
+      /href="\/settings\/projects\?ws=ws-commerce#project-nope-nope"[^>]*>프로젝트</,
+    );
   });
 
-  it("프로젝트 상세는 머리에 Settings › 이름을 두고 바로 할당 라벨이 연결 단위라고 적는다", async () => {
+  it("프로젝트 상세는 머리에 프로젝트 › 연결 이동 경로와 프로젝트 이름을 두고, 바로 할당 라벨은 두지 않는다", async () => {
     const f = fixture();
     const connection = await addConnection(f);
     addTrackerProject(f.context, {
@@ -1473,10 +1595,14 @@ describe("Settings 화면", () => {
     );
     expect(html).toMatch(/<h1[^>]*>Web<\/h1>/);
     expect(html).toMatch(
-      /href="\/settings\?ws=ws-commerce#project-[^"]*" aria-label="Settings로 돌아가기"/,
+      new RegExp(
+        `href="/settings/projects\\?ws=ws-commerce#project-${connection}-tp-web"[^>]*>프로젝트</a> › Acme 연결`,
+      ),
     );
-    expect(textOf(html)).toContain("Acme 연결의 모든 프로젝트에 같이 써요");
-    expect(textOf(html)).toContain("런이 시작되면 바꿀 상태");
+    expect(textOf(html)).not.toContain(settingsJson.projects.autoLabel);
+    expect(html).not.toContain(settingsJson.label.choose);
+    expect(textOf(html)).toContain("런이 시작되면");
+    expect(textOf(html)).toContain(settingsJson.project.remove);
   });
 });
 
@@ -1494,7 +1620,7 @@ describe("잠자기 방지(0084)", () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, undefined, now);
     expect(page.install.power).toEqual({ available: false, preventSleep: true });
-    const server = sectionOf(render(page), "server");
+    const server = renderPage("server", page);
     expect(textOf(server)).toContain("ganger start로 띄우지 않아 여기서 바꿀 수 없어요");
     const toggle = /<button[^>]*role="switch"[^>]*>/.exec(server)?.[0] ?? "";
     expect(toggle).toContain("disabled");
@@ -1521,7 +1647,7 @@ describe("잠자기 방지(0084)", () => {
       });
       const page = await loadSettingsPage(context, undefined, now);
       expect(page.install.power).toEqual({ available: true, preventSleep: false });
-      const server = sectionOf(render(page), "server");
+      const server = renderPage("server", page);
       expect(textOf(server)).toContain("서버가 도는 동안 이 맥이 잠들지 않게");
       expect(textOf(server)).toContain("뚜껑을 닫거나");
       const toggle = /<button[^>]*role="switch"[^>]*>/.exec(server)?.[0] ?? "";
@@ -1587,7 +1713,6 @@ describe("MCP 쓰기 허용과 최근 작업(0089)", () => {
     const f = fixture();
     const off = await loadSettingsPage(f.context, commerce, now);
     expect(off.install.mcp.writeAllowed).toBe(false);
-    expect(textOf(sectionOf(render(off), "advanced"))).toContain("읽기만 열려 있어요");
     const offMcp = renderMcp(off);
     expect(textOf(offMcp)).toContain("MCP 클라이언트도 할당·답하기·취소를 하게");
     expect(textOf(offMcp)).toContain("이 화면에서만 바꿔요");
@@ -1599,7 +1724,6 @@ describe("MCP 쓰기 허용과 최근 작업(0089)", () => {
     expect(saveMcpWriteSetting(f.context, { allowed: true }, now)).toEqual({ ok: true });
     const on = await loadSettingsPage(f.context, commerce, now);
     expect(on.install.mcp.writeAllowed).toBe(true);
-    expect(textOf(sectionOf(render(on), "advanced"))).toContain("쓰기도 열려 있어요");
     expect(renderMcp(on)).toMatch(
       /role="switch"[^>]*aria-checked="true"|aria-checked="true"[^>]*role="switch"/,
     );
@@ -1739,13 +1863,13 @@ describe("Workspace 앞뒤 지시 (0146)", () => {
     });
   });
 
-  it("Workspace 줄에 지시 줄을 두고, 비어 있으면 덧붙이는 지시가 없다고 보인다", async () => {
+  it("에이전트 지시 페이지에 지시 줄을 두고, 비어 있으면 덧붙이는 지시가 없다고 보인다", async () => {
     const f = fixture();
-    const empty = sectionOf(render(await loadSettingsPage(f.context, commerce, now)), "workspace");
+    const empty = renderPage("brief", await loadSettingsPage(f.context, commerce, now));
     expect(textOf(empty)).toContain(settingsJson.brief.title);
     expect(textOf(empty)).toContain(settingsJson.brief.summaryEmpty);
     saveBrief(f.context, { ws: commerce, before: "", after: "Push.\nOpen a PR.\nRun checks." });
-    const filled = sectionOf(render(await loadSettingsPage(f.context, commerce, now)), "workspace");
+    const filled = renderPage("brief", await loadSettingsPage(f.context, commerce, now));
     expect(textOf(filled)).toContain("티켓 앞 없음 · 티켓 뒤 3줄");
   });
 

@@ -246,8 +246,8 @@ describe("앱 안 이동과 돌아가기(브라우저, 0181)", () => {
       page.setDefaultTimeout(30_000);
       await open(page, `/settings/projects/${connection}/${trackerProject}?ws=${workspaceId}`);
 
-      await backLink(page, settingsJson.project.back).click();
-      await page.waitForURL((url) => url.pathname === "/settings");
+      await page.locator("header").getByRole("link", { name: settingsJson.pages.projects }).click();
+      await page.waitForURL((url) => url.pathname === "/settings/projects");
 
       const rowId = `project-${connection}-${trackerProject}`;
       expect(decodeURIComponent(new URL(page.url()).hash)).toBe(`#${rowId}`);
@@ -276,7 +276,7 @@ describe("앱 안 이동과 돌아가기(브라우저, 0181)", () => {
 
     await openOnboarding(page, `/onboarding?step=4&from=settings&ws=${workspaceId}`);
     await backLink(page, onboardingJson.backToSettings).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
+    await page.waitForURL((url) => url.pathname === "/settings/general");
 
     expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
   });

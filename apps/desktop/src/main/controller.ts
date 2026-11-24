@@ -28,11 +28,7 @@ import {
   staleNotificationIds,
 } from "../core/notification-ids.js";
 import type { FeedBatch } from "../core/notification-feed.js";
-import {
-  DEFAULT_NOTIFICATION_PREFS,
-  notificationPrefsSchema,
-  notificationSummary,
-} from "../core/notification-prefs.js";
+import { DEFAULT_NOTIFICATION_PREFS, notificationPrefsSchema } from "../core/notification-prefs.js";
 import {
   FOCUS_SETTINGS_URL,
   NotificationAccess,
@@ -89,16 +85,15 @@ import {
   LOGS_OPEN,
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
-  NOTIFICATION_SETTINGS_OPEN,
-  NOTIFICATION_SETTINGS_WINDOW,
-  NOTIFICATION_SUMMARY_CHANNEL,
-  NOTIFICATION_SUMMARY_GET,
+  OPEN_PAGE_CHANNEL,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
   VIEW_CHANNEL,
 } from "../shared/view.js";
-import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
+import type { DesktopPage, NavScreen } from "@ganger/app/shell/nav-shortcuts";
+import { notificationSettingsMenuItem, openDesktopPage } from "./desktop-page.js";
+import type { DesktopPagePort, ServerPageState } from "./desktop-page.js";
 import { canStepHistory, navigationMenu } from "./navigation-menu.js";
 import type { HistoryDirection } from "./navigation-menu.js";
 import { screenOutlivedServerSwap, viewMenu } from "./view-menu.js";
@@ -108,7 +103,7 @@ import {
   logFolderOpenable,
 } from "./diagnostics-menu.js";
 import { cancelPendingHide, hideWindow } from "./window-close.js";
-import { mainWindowOptions, settingsWindowOptions, titleBarCookie } from "./window-options.js";
+import { mainWindowOptions, titleBarCookie } from "./window-options.js";
 
 async function loadServerScreen(window: BrowserWindow, url: string): Promise<void> {
   await Promise.resolve()
@@ -159,7 +154,6 @@ export class Controller {
   private diagnosticsListener:
     | ((event: Electron.Event, item: Electron.DownloadItem) => void)
     | undefined;
-  private settingsWindow: BrowserWindow | undefined;
   private remoteTimer: NodeJS.Timeout | undefined;
   private offerTimer: NodeJS.Timeout | undefined;
   private readonly enrollment: RunnerEnrollmentFlow;
@@ -688,34 +682,40 @@ export class Controller {
     });
     handle("choose-mode", () => this.chooseMode());
     handle("open-log", () => this.openLog());
+    const handleServer = (action: string, run: (...args: unknown[]) => unknown): void => {
+      ipcMain.handle(`${IPC_PREFIX}${action}`, async (event, ...args: unknown[]) => {
+        if (!this.fromServerPage(event)) return;
+        await run(...args);
+      });
+    };
     ipcMain.handle(`${IPC_PREFIX}get-notification-settings`, async (event) => {
-      if (!fromAppScreen(event)) return undefined;
+      if (!this.fromServerPage(event)) return undefined;
       await this.access.refresh();
       return this.notificationSettingsView();
     });
     ipcMain.handle(
       `${IPC_PREFIX}request-notification-permission`,
       (event): Promise<PermissionRequestResult> | undefined =>
-        fromAppScreen(event) ? this.access.request() : undefined,
+        this.fromServerPage(event) ? this.access.request() : undefined,
     );
     ipcMain.handle(
       `${IPC_PREFIX}send-test-notification`,
       (event): Promise<TestNotificationResult> | undefined =>
-        fromAppScreen(event) ? this.sendTestNotification() : undefined,
+        this.fromServerPage(event) ? this.sendTestNotification() : undefined,
     );
-    handle("set-notification-settings", (value) => {
+    handleServer("set-notification-settings", (value) => {
       const parsed = notificationPrefsSchema.safeParse(value);
       if (parsed.success) this.saveNotificationPrefs(parsed.data);
     });
-    handle("open-system-notification-settings", () =>
+    handleServer("open-system-notification-settings", () =>
       process.platform === "darwin"
         ? shell.openExternal(SYSTEM_NOTIFICATION_SETTINGS_URL)
         : undefined,
     );
-    handle("open-focus-settings", () =>
+    handleServer("open-focus-settings", () =>
       process.platform === "darwin" ? shell.openExternal(FOCUS_SETTINGS_URL) : undefined,
     );
-    handle("reconnect-device", () => this.reconnectDevice());
+    handleServer("reconnect-device", () => this.reconnectDevice());
     handle("enrollment-accept", () => {
       void this.enrollment.accept();
     });
@@ -729,14 +729,6 @@ export class Controller {
     ipcMain.handle(LOGS_OPEN, (event) =>
       this.fromServerPage(event) && logFolderOpenable(this.mode) ? this.openLogFolder() : false,
     );
-    ipcMain.handle(NOTIFICATION_SUMMARY_GET, async (event) => {
-      if (!this.fromServerPage(event)) return null;
-      await this.access.refresh();
-      return this.notificationSummaryView();
-    });
-    ipcMain.handle(NOTIFICATION_SETTINGS_OPEN, (event) => {
-      if (this.fromServerPage(event)) this.showNotificationSettings();
-    });
     ipcMain.handle(UPDATE_GET, (event) => (this.fromServerPage(event) ? this.updateView() : null));
     ipcMain.handle(UPDATE_ACT, (event, action: unknown) => {
       if (this.fromServerPage(event) && isUpdateAction(action)) this.runUpdateAction(action);
@@ -1050,16 +1042,9 @@ export class Controller {
     };
   }
 
-  private notificationSummaryView() {
-    return notificationSummary(this.notificationPrefs(), this.access.permission);
-  }
-
   private sendNotificationSettings(): void {
-    const main = this.window;
-    if (main !== undefined && !main.isDestroyed())
-      main.webContents.send(NOTIFICATION_SUMMARY_CHANNEL, this.notificationSummaryView());
-    const window = this.settingsWindow;
-    if (window === undefined || window.isDestroyed()) return;
+    const window = this.window;
+    if (window === undefined || window.isDestroyed() || this.serverUrl === undefined) return;
     window.webContents.send(NOTIFICATION_SETTINGS_CHANNEL, this.notificationSettingsView());
   }
 
@@ -1074,26 +1059,24 @@ export class Controller {
   }
 
   showNotificationSettings(): void {
-    const existing = this.settingsWindow;
-    if (existing !== undefined && !existing.isDestroyed()) {
-      existing.show();
-      existing.focus();
-      return;
-    }
-    const window = new BrowserWindow(
-      settingsWindowOptions(t("settingsWindow.title"), this.options.preloadFile),
-    );
-    window.once("ready-to-show", () => window.show());
-    window.on("focus", () => void this.access.refresh());
-    window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-    window.webContents.on("will-navigate", (event) => event.preventDefault());
-    window.on("closed", () => {
-      if (this.settingsWindow === window) this.settingsWindow = undefined;
-    });
-    this.settingsWindow = window;
-    void window.loadFile(this.options.rendererFile, {
-      query: { window: NOTIFICATION_SETTINGS_WINDOW },
-    });
+    openDesktopPage("notifications", this.desktopPagePort());
+  }
+
+  private desktopPagePort(): DesktopPagePort {
+    return {
+      show: () => this.showWindow(),
+      serverPage: () => this.serverPageState(),
+      send: (page: DesktopPage) => this.window?.webContents.send(OPEN_PAGE_CHANNEL, page),
+      load: (path) => {
+        if (this.serverUrl !== undefined) this.openServer(this.serverUrl, path);
+      },
+    };
+  }
+
+  private serverPageState(): ServerPageState {
+    const window = this.window;
+    if (this.serverUrl === undefined || window === undefined || window.isDestroyed()) return "none";
+    return window.webContents.isLoading() ? "loading" : "ready";
   }
 
   private notifyVersion(server: string): void {
@@ -1114,11 +1097,11 @@ export class Controller {
           label: app.name,
           submenu: [
             { role: "about" },
-            {
-              id: "notification-settings",
-              label: t("menu.notificationSettings"),
-              click: () => this.showNotificationSettings(),
-            },
+            notificationSettingsMenuItem(
+              "notification-settings",
+              t("menu.notificationSettings"),
+              this.desktopPagePort(),
+            ),
             { type: "separator" },
             { role: "hide" },
             { role: "hideOthers" },
@@ -1182,11 +1165,11 @@ export class Controller {
     items.push(
       { type: "separator" },
       { id: "open", label: t("tray.open"), click: () => this.showWindow() },
-      {
-        id: "tray-notification-settings",
-        label: t("menu.notificationSettings"),
-        click: () => this.showNotificationSettings(),
-      },
+      notificationSettingsMenuItem(
+        "tray-notification-settings",
+        t("menu.notificationSettings"),
+        this.desktopPagePort(),
+      ),
     );
     if (
       this.deviceLinkState === "rejected" ||

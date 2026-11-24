@@ -99,11 +99,7 @@ export function canCreateWorkspace(
 
 export function isAtCreatedWorkspace(href: string, workspaceId: string): boolean {
   const url = new URL(href);
-  return (
-    url.pathname === "/settings" &&
-    url.searchParams.get("ws") === workspaceId &&
-    url.hash === "#projects"
-  );
+  return url.pathname === "/settings/projects" && url.searchParams.get("ws") === workspaceId;
 }
 
 export function workspaceNameTooLong(name: string): boolean {

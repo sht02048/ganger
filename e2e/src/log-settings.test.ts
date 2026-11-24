@@ -180,7 +180,7 @@ describe("Settings 로그와 진단(브라우저, 0134)", () => {
 });
 
 async function openSettings(target: Page): Promise<void> {
-  await target.goto(`/settings?ws=${workspaceId}`);
+  await target.goto(`/settings/server?ws=${workspaceId}`);
   await target.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
   await target.waitForLoadState("networkidle");
 }

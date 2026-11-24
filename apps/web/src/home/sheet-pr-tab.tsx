@@ -21,7 +21,7 @@ import { useTime } from "../format/time";
 import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { prCiFailed } from "./sheet-tabs";
 
-const GITHUB_TOKEN_SETTINGS_HREF = "/settings#connections";
+const GITHUB_TOKEN_SETTINGS_HREF = "/settings/connections";
 
 export type MergeHandler = (
   runId: RunId,

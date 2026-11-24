@@ -149,7 +149,7 @@ describe("화면 이동 단축키(브라우저, 0102)", () => {
       page.evaluate((detail) => dispatchEvent(new CustomEvent("menu-sends", { detail })), screen);
     for (const item of navShortcuts) {
       await menuSends(item.screen);
-      await waitForRouterIdle(page, item.path);
+      await waitForRouterIdle(page, item.screen === "settings" ? "/settings/general" : item.path);
       const link = page.getByRole("link", { name: shell.nav[item.screen], exact: true });
       expect(await link.getAttribute("aria-current")).toBe("page");
       await expect
@@ -158,7 +158,9 @@ describe("화면 이동 단축키(브라우저, 0102)", () => {
       expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
     }
     await menuSends("onboarding");
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 1_000 }).toBe("/settings");
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 1_000 })
+      .toBe("/settings/general");
     expect(await documentMarked(page)).toBe(true);
   });
 });

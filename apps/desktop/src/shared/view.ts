@@ -46,17 +46,6 @@ export type ViewState =
   | { screen: "host-blocked"; host: string; url: string; checking: boolean }
   | { screen: "runner-enrollment"; server: string; enrollment: EnrollmentPhase };
 
-export interface NotificationSettingsApi {
-  getNotificationSettings(): Promise<NotificationSettingsView>;
-  onNotificationSettings(listener: (view: NotificationSettingsView) => void): () => void;
-  setNotificationSettings(settings: NotificationPrefs): Promise<void>;
-  openSystemNotificationSettings(): Promise<void>;
-  openFocusSettings(): Promise<void>;
-  requestPermission(): Promise<PermissionRequestResult>;
-  sendTestNotification(): Promise<TestNotificationResult>;
-  reconnectDevice(): Promise<void>;
-}
-
 export interface DesktopApi {
   getView(): Promise<ViewState>;
   onView(listener: (view: ViewState) => void): () => void;
@@ -80,10 +69,7 @@ export const IPC_PREFIX = "desktop:";
 export const VIEW_CHANNEL = "desktop:view";
 export const NAVIGATE_CHANNEL = "desktop:navigate";
 export const NOTIFICATION_SETTINGS_CHANNEL = "desktop:notification-settings";
-export const NOTIFICATION_SETTINGS_WINDOW = "notifications";
-export const NOTIFICATION_SUMMARY_CHANNEL = "desktop:notification-summary";
-export const NOTIFICATION_SUMMARY_GET = "desktop:notification-summary-get";
-export const NOTIFICATION_SETTINGS_OPEN = "desktop:notification-settings-open";
+export const OPEN_PAGE_CHANNEL = "desktop:open-page";
 export const UPDATE_CHANNEL = "desktop:update";
 export const UPDATE_GET = "desktop:update-get";
 export const UPDATE_ACT = "desktop:update-act";

@@ -48,7 +48,8 @@ import { checkGitHubConnection, loadGitHubAuthView } from "@ganger/app/settings/
 import { GitHubAuth } from "@ganger/codehost-github";
 import type { GhRunner } from "@ganger/codehost-github";
 import { settingsMessages } from "../settings/messages";
-import { SettingsScreen } from "../settings/settings-page";
+import { ProjectsScreen } from "../settings/projects-page";
+import { plainSettingsLink } from "../settings/settings-page";
 import { buttonsOf } from "../testing/buttons";
 import { renderWithMessages } from "../testing/render";
 import {
@@ -709,17 +710,18 @@ describe("다섯 단계를 마치기", () => {
     expect(isDisabled(nextButton(render(settings, "mapping"), "설정 마치기"))).toBe(false);
     expect(HOME_PATH).toBe("/");
     const settingsHtml = renderWithMessages(
-      <SettingsScreen
+      <ProjectsScreen
         page={settings}
-        runnerIssues={0}
         workspaceView="one"
-        ws={ws}
         actions={noopActions}
         onCreateWorkspace={() => {}}
+        renderLink={plainSettingsLink(ws)}
+        nav={null}
       />,
       settingsMessages,
     );
-    expect(text(settingsHtml)).toContain("factory 라벨이면 바로 할당");
+    expect(text(settingsHtml)).toContain(settingsMessages.settings.projects.autoLabel);
+    expect(text(settingsHtml)).not.toContain(settingsMessages.settings.projects.autoLabelNone);
     expect(text(settingsHtml)).not.toContain(settingsMessages.settings.projects.noRepo);
 
     const complete = isOnboardingComplete(f.context.db, f.context.secretBox);

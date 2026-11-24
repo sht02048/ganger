@@ -2,8 +2,10 @@ export const ROW_EDITOR_SELECTOR = "[data-editing]";
 export const PROJECT_EDITOR_SELECTOR = "#repo";
 
 export function blockedEditorField(selector: string): HTMLElement | null {
+  const editor = document.querySelector(selector);
   return (
-    document.querySelector(selector)?.querySelector<HTMLElement>("input:not([readonly]), button") ??
+    editor?.querySelector<HTMLElement>("input:not([readonly])") ??
+    editor?.querySelector<HTMLElement>("button") ??
     null
   );
 }

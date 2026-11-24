@@ -109,9 +109,6 @@
       "body": "이 알림이 보이면 Ganger 알림을 받을 수 있어요."
     }
   },
-  "settingsWindow": {
-    "title": "알림 설정"
-  },
   "providers": {
     "claude": "Claude",
     "codex": "Codex"

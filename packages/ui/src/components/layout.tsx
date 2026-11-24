@@ -1,5 +1,6 @@
 import * as stylex from "@stylexjs/stylex";
 import type { ReactNode } from "react";
+import { focusStyles } from "./focus";
 import { textStyles } from "./text";
 import { useTitleBarHidden } from "./window-chrome";
 import { windowRegion } from "../window-frame";
@@ -70,12 +71,13 @@ export function ScreenLayout({ header, fill = true, children }: ScreenLayoutProp
 
 export interface PageHeaderProps {
   title: ReactNode;
+  titleId?: string;
   subtitle?: ReactNode;
   lead?: ReactNode;
   actions?: ReactNode;
 }
 
-export function PageHeader({ title, subtitle, lead, actions }: PageHeaderProps) {
+export function PageHeader({ title, titleId, subtitle, lead, actions }: PageHeaderProps) {
   const titleBarHidden = useTitleBarHidden();
   return (
     <header {...(titleBarHidden ? windowRegion("drag") : {})} {...stylex.props(styles.pageHead)}>
@@ -85,7 +87,12 @@ export function PageHeader({ title, subtitle, lead, actions }: PageHeaderProps) 
         </div>
       )}
       <div {...stylex.props(styles.pageHeading)}>
-        <h1 {...stylex.props(styles.pageTitle)}>{title}</h1>
+        <h1
+          {...(titleId === undefined ? {} : { id: titleId, tabIndex: -1 })}
+          {...stylex.props(styles.pageTitle, titleId !== undefined && focusStyles.ring)}
+        >
+          {title}
+        </h1>
         {subtitle === undefined ? null : (
           <p {...windowRegion("no-drag")} {...stylex.props(styles.pageSub)}>
             {subtitle}

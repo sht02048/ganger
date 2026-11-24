@@ -22,10 +22,24 @@ export function isNavScreen(value: unknown): value is NavScreen {
   return typeof value === "string" && navScreens.some((screen) => screen === value);
 }
 
-export function navPathKeepingWorkspace(screen: NavScreen, currentSearch: string): string {
+function pathKeepingWorkspace(path: string, currentSearch: string): string {
   const workspace = new URLSearchParams(currentSearch).get("ws");
-  const path = navShortcutOf(screen).path;
   return workspace === null ? path : `${path}?${new URLSearchParams({ ws: workspace }).toString()}`;
+}
+
+export function navPathKeepingWorkspace(screen: NavScreen, currentSearch: string): string {
+  return pathKeepingWorkspace(navShortcutOf(screen).path, currentSearch);
+}
+
+export const desktopPages = { notifications: "/settings/notifications" } as const;
+export type DesktopPage = keyof typeof desktopPages;
+
+export function isDesktopPage(value: unknown): value is DesktopPage {
+  return typeof value === "string" && Object.hasOwn(desktopPages, value);
+}
+
+export function desktopPagePathKeepingWorkspace(page: DesktopPage, currentSearch: string): string {
+  return pathKeepingWorkspace(desktopPages[page], currentSearch);
 }
 
 export const DESKTOP_NAVIGATION_GLOBAL = "gangerDesktopNavigation";

@@ -105,7 +105,7 @@ beforeAll(async () => {
   browser = await chromium.launch({ channel: "chrome" });
   const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
   warm.setDefaultTimeout(110_000);
-  await open(warm, `/settings?ws=${workspaceId}`);
+  await open(warm, `/settings/general?ws=${workspaceId}`);
   await warm.close();
 }, 240_000);
 
@@ -122,9 +122,9 @@ afterAll(async () => {
 describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", () => {
   it("저장하지 않은 편집이 있으면 만들어도 그 자리에 남고 편집을 잃지 않는다", async (context) => {
     const page = await newPage(context);
-    await open(page, `/settings?ws=${workspaceId}`);
+    await open(page, `/settings/general?ws=${workspaceId}`);
     await page
-      .locator("#workspace")
+      .getByRole("main")
       .getByRole("button", { name: /바꾸기/u })
       .first()
       .click();
@@ -134,7 +134,7 @@ describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", (
     await expect
       .poll(() => editor.evaluate((element) => element === document.activeElement))
       .toBe(true);
-    expect(new URL(page.url()).pathname).toBe("/settings");
+    expect(new URL(page.url()).pathname).toBe("/settings/general");
 
     await page.getByRole("button", { name: /Workspace 바꾸기/u }).click();
     await page.getByRole("menuitem", { name: shellJson.workspace.new }).click();
@@ -153,9 +153,9 @@ describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", (
       .toBe(true);
   }, 120_000);
 
-  it("메뉴에서 이름과 프로젝트를 골라 만들면 새 Workspace 의 Settings 프로젝트 구역으로 간다", async (context) => {
+  it("메뉴에서 이름과 프로젝트를 골라 만들면 새 Workspace 의 Settings 프로젝트 페이지로 간다", async (context) => {
     const page = await newPage(context);
-    await open(page, `/settings?ws=${workspaceId}`);
+    await open(page, `/settings/general?ws=${workspaceId}`);
 
     await page.getByRole("button", { name: /Workspace 바꾸기/u }).click();
     await page.getByRole("menuitem", { name: shellJson.workspace.new }).click();
@@ -182,14 +182,11 @@ describe("Workspace 메뉴에서 새 Workspace 만들기(브라우저, 0187)", (
     const created = listWorkspaces(db).find((workspace) => workspace.name === "Labs");
     expect(created).toBeDefined();
     await page.waitForURL(
-      (url) =>
-        url.pathname === "/settings" &&
-        url.searchParams.get("ws") === created?.id &&
-        url.hash === "#projects",
+      (url) => url.pathname === "/settings/projects" && url.searchParams.get("ws") === created?.id,
     );
     await waitForScreenQuerySettled(page, ["settings"]);
     await page.getByRole("button", { name: /Workspace 바꾸기, 지금 Labs/u }).waitFor();
-    await page.locator("#projects").getByText("Mobile", { exact: false }).first().waitFor();
+    await page.getByRole("main").getByText("Mobile", { exact: false }).first().waitFor();
     await expect
       .poll(() => page.evaluate(() => document.activeElement?.id))
       .toBe("projects-heading");

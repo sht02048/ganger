@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  desktopPagePathKeepingWorkspace,
+  isDesktopPage,
   isNavScreen,
   navPathKeepingWorkspace,
   navScreens,
@@ -38,5 +40,15 @@ describe("화면 이동 단축키 목록(0102)", () => {
     expect(navPathKeepingWorkspace("runs", "?ws=acme&run=7")).toBe("/runs?ws=acme");
     expect(navPathKeepingWorkspace("dashboard", "?ws=a%26b")).toBe("/?ws=a%26b");
     expect(navPathKeepingWorkspace("settings", "")).toBe("/settings");
+  });
+
+  it("데스크톱 앱이 여는 앱 안 페이지는 목록에 있는 것만 받고 지금 Workspace를 남긴다(0214)", () => {
+    expect(isDesktopPage("notifications")).toBe(true);
+    expect(isDesktopPage("toString")).toBe(false);
+    expect(isDesktopPage(1)).toBe(false);
+    expect(desktopPagePathKeepingWorkspace("notifications", "?ws=acme&x=1")).toBe(
+      "/settings/notifications?ws=acme",
+    );
+    expect(desktopPagePathKeepingWorkspace("notifications", "")).toBe("/settings/notifications");
   });
 });

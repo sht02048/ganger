@@ -1,32 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { createTranslator } from "use-intl";
 import type { SettingsPage } from "@ganger/app/settings/model";
-import { ScreenMessages, defaultLocale } from "../../i18n";
 import { loadCachedRouteQuery, loadRouteQuery } from "../../query/route-query";
-import { settingsMessages } from "../../settings/messages";
 import { ProjectDetailScreen, findBoundProject } from "../../settings/project-detail";
-import type { ProjectDetailActions } from "../../settings/settings-screen";
-import { NavigationGuard } from "../../settings/navigation-guard";
+import { useTitleFollowsQuery } from "../../settings/route-title";
+import { routerSettingsLink } from "../../settings/settings-link";
 import {
   boundProjectReadsQuery,
   settingsQuery,
   trackerProjectsQuery,
   useSettingsPage,
 } from "../../settings/settings-query";
-import { useTitleFollowsQuery } from "../../settings/route-title";
-import { routerSettingsLink } from "../../settings/settings-link";
+import {
+  renderNavigationGuard,
+  settingsDocumentTitle,
+  useSettingsNav,
+} from "../../settings/settings-route";
+import type { ProjectDetailActions } from "../../settings/settings-screen";
 import { useSettingsActions, useSettingsQueryRefresh } from "../../settings/use-settings-actions";
-import { ScreenError } from "../../shell/screen-error";
 
-const t = createTranslator({
-  locale: defaultLocale,
-  messages: settingsMessages,
-  namespace: "settings",
-});
-
-export const Route = createFileRoute("/_app/settings_/projects/$connectionId/$projectId")({
-  errorComponent: ScreenError,
+export const Route = createFileRoute("/_app/settings/projects/$connectionId/$projectId")({
   loaderDeps: ({ search }) => ({ ws: search.ws }),
   loader: async (load) => {
     const [page] = await Promise.all([
@@ -44,8 +37,8 @@ export const Route = createFileRoute("/_app/settings_/projects/$connectionId/$pr
       {
         title:
           loaderData === undefined || loaderData === null
-            ? t("documentTitle")
-            : t("project.documentTitle", { name: loaderData }),
+            ? settingsDocumentTitle()
+            : settingsDocumentTitle(loaderData),
       },
     ],
   }),
@@ -59,6 +52,7 @@ function ProjectDetailRoute() {
   const page = useSettingsPage(ws);
   const [pageBeforeRemoval, setPageBeforeRemoval] = useState<SettingsPage | null>(null);
   const settingsActions = useSettingsActions(useSettingsQueryRefresh());
+  const nav = useSettingsNav("projects", ws);
   useTitleFollowsQuery(
     Route.id,
     Route.useLoaderData(),
@@ -81,19 +75,17 @@ function ProjectDetailRoute() {
     [settingsActions, page],
   );
   return (
-    <ScreenMessages messages={settingsMessages}>
-      <ProjectDetailScreen
-        page={pageBeforeRemoval ?? page}
-        connectionId={connectionId}
-        projectId={projectId}
-        ws={ws}
-        actions={actions}
-        renderLink={routerSettingsLink}
-        renderGuard={(guard) => <NavigationGuard {...guard} />}
-        onRemoved={() => {
-          void navigate({ to: "/settings", ignoreBlocker: true });
-        }}
-      />
-    </ScreenMessages>
+    <ProjectDetailScreen
+      page={pageBeforeRemoval ?? page}
+      connectionId={connectionId}
+      projectId={projectId}
+      actions={actions}
+      renderLink={routerSettingsLink}
+      nav={nav}
+      renderGuard={renderNavigationGuard}
+      onRemoved={() => {
+        void navigate({ to: "/settings/projects", ignoreBlocker: true });
+      }}
+    />
   );
 }

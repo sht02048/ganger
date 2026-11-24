@@ -146,7 +146,7 @@ beforeAll(async () => {
 
   const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
   warm.setDefaultTimeout(110_000);
-  for (const path of ["/settings", "/settings/mcp", projectPath, connectionPath]) {
+  for (const path of ["/settings/general", "/settings/mcp", projectPath, connectionPath]) {
     await warm.goto(`${path}?ws=${workspaceId}`);
     await warm.waitForLoadState("networkidle");
   }
@@ -246,7 +246,7 @@ async function addApiRepo(page: Page): Promise<void> {
 
 describe("Settings 의 Query(브라우저, 0128)", () => {
   it("서버 렌더한 Settings 세 화면과 연결 상세는 hydration 이 끝날 때까지 서버 함수를 다시 부르지 않는다", async (context) => {
-    for (const path of ["/settings", "/settings/mcp", projectPath, connectionPath]) {
+    for (const path of ["/settings/general", "/settings/mcp", projectPath, connectionPath]) {
       const { page, serverCalls } = await newPage(context, { stream: false });
       await open(page, path);
       await settle(page);
@@ -324,12 +324,9 @@ describe("Settings 의 Query(브라우저, 0128)", () => {
 
   it("Workspace 이름을 저장하면 DB 설정과 셸만 다시 읽고 트래커는 다시 읽지 않는다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: false });
-    await open(page, "/settings");
+    await open(page, "/settings/general");
     await settle(page);
-    const workspace = page.getByRole("region", {
-      name: settings.sections.workspace,
-      exact: true,
-    });
+    const workspace = page.getByRole("main");
     await workspace
       .getByRole("button", { name: `${settings.workspace.name} ${settings.change}` })
       .click();
@@ -413,13 +410,13 @@ describe("Settings 의 Query(브라우저, 0128)", () => {
 
     await expect
       .poll(() => page.title())
-      .toBe(fill(settings.connection.documentTitle, { name: "Acme Two" }));
+      .toBe(fill(settings.pageDocumentTitle, { name: "Acme Two" }));
     seedConnection(db);
   });
 
   it("변경 기록이 끊기면 열린 Settings 가 30초마다 다시 읽는다(가짜 시계)", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: false, clock: true });
-    await open(page, "/settings");
+    await open(page, "/settings/general");
     const reads = () => serverCalls.filter((call) => call === "getSettings").length;
     const before = reads();
 
@@ -449,8 +446,8 @@ describe("Settings 의 Query(브라우저, 0128)", () => {
 
     await page.getByRole("button", { name: settings.projects.remove }).click();
     await page.getByRole("dialog").getByRole("button", { name: settings.projects.remove }).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
-    const projects = page.getByRole("region", { name: settings.sections.projects, exact: true });
+    await page.waitForURL((url) => url.pathname === "/settings/projects");
+    const projects = page.getByRole("main");
     await projects.getByRole("link", { name: /^Web/ }).waitFor();
     await settle(page);
 

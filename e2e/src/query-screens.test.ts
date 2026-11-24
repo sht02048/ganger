@@ -520,14 +520,11 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
 
   it("훅을 나눈 뒤에도 Settings 는 저장 뒤 Settings 를 다시 읽고, Workspace 이름은 셸에 바로 닿는다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: false });
-    await page.goto(`/settings?ws=${workspaceId}`);
+    await page.goto(`/settings/general?ws=${workspaceId}`);
     await page.getByRole("heading", { level: 1 }).waitFor();
-    await waitForRouterIdle(page, "/settings");
+    await waitForRouterIdle(page, "/settings/general");
     await settle(page);
-    const workspace = page.getByRole("region", {
-      name: settings.sections.workspace,
-      exact: true,
-    });
+    const workspace = page.getByRole("main");
     await workspace
       .getByRole("button", { name: `${settings.workspace.name} ${settings.change}` })
       .click();
