@@ -99,6 +99,10 @@
     "runnerEnrollment": {
       "title": "이 맥을 러너로 등록할까요?",
       "body": "{server}의 Ganger가 이 맥에서 에이전트를 돌리려고 해요. 눌러서 확인해요."
+    },
+    "test": {
+      "title": "시험 알림",
+      "body": "이 알림이 보이면 Ganger 알림을 받을 수 있어요."
     }
   },
   "settingsWindow": {

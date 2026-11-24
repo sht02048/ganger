@@ -1,5 +1,10 @@
 import { z } from "zod";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
+import { NOTIFICATION_PERMISSIONS } from "@ganger/app/notifications/desktop";
+import type {
+  DesktopNotificationSummary,
+  NotificationPermission,
+} from "@ganger/app/notifications/desktop";
 
 export const NOTIFICATION_GROUPS = [
   "question",
@@ -22,8 +27,8 @@ export const notificationPrefsSchema = z.object({
 });
 export type NotificationPrefs = z.infer<typeof notificationPrefsSchema>;
 
-export const NOTIFICATION_PERMISSIONS = ["allowed", "denied", "unknown"] as const;
-export type NotificationPermission = (typeof NOTIFICATION_PERMISSIONS)[number];
+export { NOTIFICATION_PERMISSIONS };
+export type { NotificationPermission };
 
 export const DEVICE_LINK_STATES = [
   "connected",
@@ -81,4 +86,16 @@ export function remindsKind(kind: NotificationKind): boolean {
 
 export function allows(prefs: NotificationPrefs, kind: NotificationKind): boolean {
   return prefs.enabled && prefs.groups[groupOf(kind)];
+}
+
+export function notificationSummary(
+  prefs: NotificationPrefs,
+  permission: NotificationPermission,
+): DesktopNotificationSummary {
+  return {
+    permission,
+    enabled: prefs.enabled,
+    groupsOn: NOTIFICATION_GROUPS.filter((group) => prefs.groups[group]).length,
+    groupsTotal: NOTIFICATION_GROUPS.length,
+  };
 }

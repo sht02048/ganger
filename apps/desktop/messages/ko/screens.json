@@ -99,10 +99,42 @@
   "notificationSettings": {
     "title": "알림",
     "summary": "이 Mac에서 받을 알림을 골라요. 방해 금지는 macOS 집중 모드를 따라요.",
+    "permission": {
+      "allowed": {
+        "title": "macOS에서 알림을 허용했어요",
+        "infoLabel": "알림이 안 보일 때 도움말",
+        "info": "배너가 안 보이면 시스템 설정에서 Ganger의 알림 스타일과 집중 모드를 확인해요."
+      },
+      "notAsked": {
+        "title": "아직 알림을 허용하지 않았어요",
+        "body": "허용하기 전에는 이 Mac에 알림이 오지 않아요.",
+        "action": "알림 허용하기",
+        "requesting": "macOS에 묻는 중이에요",
+        "notAllowed": "macOS에서 허용하지 않았어요. 시스템 설정에서 켤 수 있어요."
+      },
+      "unknown": {
+        "title": "macOS 알림 권한을 읽지 못했어요",
+        "body": "시험 알림을 보내 보면 이 Mac에 알림이 오는지 알 수 있어요."
+      },
+      "test": "시험 알림 보내기",
+      "testing": "보내는 중이에요",
+      "openSettings": "시스템 설정 열기"
+    },
     "permissionOff": {
       "title": "macOS에서 Ganger 알림이 꺼져 있어요",
-      "body": "시스템 설정의 알림에서 Ganger를 켜야 이 Mac에서 알림을 받아요.",
+      "body": "시스템 설정 › 알림 › Ganger에서 '알림 허용'을 켜요. 켜고 돌아오면 이 창이 바로 바뀌어요.",
       "action": "시스템 설정 열기"
+    },
+    "testResult": {
+      "sent": "시험 알림을 보냈어요.",
+      "checkTitle": "알림이 안 보였다면 이 순서로 확인해요.",
+      "checkStyle": "시스템 설정 › 알림 › Ganger에서 알림 스타일이 '배너'나 '알림'인지",
+      "checkFocus": "집중 모드나 방해 금지가 켜져 있지 않은지",
+      "focusLink": "집중 모드 설정 열기",
+      "checkSound": "소리를 듣고 싶다면 '알림 사운드 재생'이 켜져 있는지",
+      "unsigned": "이 빌드는 서명하지 않아 macOS가 알림을 막아요. 출시된 앱(dmg)을 쓰면 돼요.",
+      "denied": "macOS가 Ganger 알림을 막았어요. 시스템 설정에서 '알림 허용'을 켜요.",
+      "failed": "시험 알림을 보내지 못했어요. 잠시 뒤 다시 보내 보세요."
     },
     "deviceLink": {
       "title": "이 Mac의 연결이 끊겼어요",

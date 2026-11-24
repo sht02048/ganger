@@ -14,7 +14,9 @@ import { packager } from "@electron/packager";
 import { ELECTRON_LICENSES, findAppProblems, NOTICE_FILE } from "../../../scripts/bundle-check.ts";
 import { readManifests, renderNotices, THIRD_PARTY_DIR } from "../../../scripts/third-party.ts";
 import { appIconPaths } from "../src/core/app-icon.ts";
+import { NOTIFICATION_ADDON_FILE } from "../src/core/notification-addon.ts";
 import { UPDATE_CONFIG_FILE, updateConfigJson } from "../src/core/update-config.ts";
+import { buildNotificationAddon } from "./native-addon.ts";
 
 const DESKTOP = resolve(import.meta.dirname, "..");
 const REPO = resolve(DESKTOP, "..", "..");
@@ -105,11 +107,14 @@ writeFileSync(
   renderNotices(PRODUCT, readManifests([join(DESKTOP, "dist", THIRD_PARTY_DIR)])),
 );
 
+const arch = values.arch ?? process.arch;
+buildNotificationAddon(resources, arch);
+console.log(`notification addon: ${NOTIFICATION_ADDON_FILE} (${arch})`);
+
 const actool = spawnSync("actool", ["--version"], { encoding: "utf8" });
 const icon = appIconPaths(join(DESKTOP, "icons"), actool.status === 0 ? actool.stdout : null);
 console.log(`app icon: ${icon.map((path) => basename(path)).join(", ")}`);
 
-const arch = values.arch ?? process.arch;
 const signIdentity = values["sign-identity"];
 const osxSign =
   signIdentity === undefined
@@ -145,6 +150,7 @@ const [appDir] = await packager({
   extraResource: [
     join(resources, "server"),
     join(resources, NOTICE_FILE),
+    join(resources, NOTIFICATION_ADDON_FILE),
     ...(updateRepository === undefined ? [] : [join(resources, UPDATE_CONFIG_FILE)]),
   ],
   overwrite: true,

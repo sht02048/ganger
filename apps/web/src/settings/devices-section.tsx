@@ -23,6 +23,7 @@ import { space } from "@ganger/ui/tokens.stylex";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
+import { NotificationsRow } from "./notifications-row";
 import { WEB_ADDRESS_ROW_ID } from "./settings-page";
 
 export interface DeviceActions {
@@ -158,6 +159,7 @@ export function DevicesSection({ view, actions }: { view: DevicesView; actions: 
   return (
     <SettingsSection id="devices" title={tSettings("sections.devices")}>
       <SettingsGroup>
+        <NotificationsRow />
         {view.address !== null ? (
           <SettingsRow
             label={t("connect")}
