@@ -272,6 +272,7 @@ function ConnectionBox({
             { kind: "connection", connectionId: connection.id },
             {
               ...stylex.props(...buttonStyles("secondary")),
+              "data-variant": "secondary",
               "aria-label": t("connections.webhookSetupLabel", { name: connection.name }),
               children: t("connections.webhookSetup"),
             },

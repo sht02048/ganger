@@ -555,7 +555,9 @@ describe("연결 페이지(0214)", () => {
     text = textOf(html);
     expect(text).toContain("서명이 맞지 않아 받지 못해요 · 08:42부터");
     expect(html).toContain(`href="/settings/connections/${off}?ws=${workspace}"`);
-    expect(html).toContain('aria-label="Labs webhook 설정"');
+    expect(html).toMatch(
+      /aria-label="Labs webhook 설정"[^>]*data-variant="secondary"|data-variant="secondary"[^>]*aria-label="Labs webhook 설정"/,
+    );
   });
 
   it("API 키 줄은 키 값이나 넣어 둔 상태를 보이지 않고 키 바꾸기만 둔다", async () => {

@@ -56,6 +56,7 @@ export type SettingsLinkTarget =
 export type SettingsLinkProps = SettingsLinkRowRenderProps & {
   "aria-label"?: string;
   "aria-current"?: "page";
+  "data-variant"?: string;
 };
 
 export type RenderSettingsLink = (

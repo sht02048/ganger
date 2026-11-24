@@ -1,6 +1,6 @@
 import type { DesktopPage } from "@ganger/app/shell/nav-shortcuts";
 
-export const PAGE_LISTENER_WAIT_MS = 2_000;
+export const PAGE_LISTENER_WAIT_MS = 5_000;
 const PAGE_LISTENER_POLL_MS = 100;
 
 export interface PageDelivery {

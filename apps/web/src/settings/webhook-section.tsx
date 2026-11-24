@@ -217,6 +217,7 @@ function AddressLink({ renderLink, set }: { renderLink: RenderSettingsLink; set:
     { kind: "page", page: "connections", rowId: WEBHOOK_ADDRESS_ROW_ID },
     {
       ...stylex.props(...buttonStyles("secondary")),
+      "data-variant": "secondary",
       "aria-label": set ? t("changeOnConnections") : t("setOnConnections"),
       children: set ? t("change") : t("set"),
     },

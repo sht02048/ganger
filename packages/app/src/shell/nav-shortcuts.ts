@@ -38,8 +38,4 @@ export function isDesktopPage(value: unknown): value is DesktopPage {
   return typeof value === "string" && Object.hasOwn(desktopPages, value);
 }
 
-export function desktopPagePathKeepingWorkspace(page: DesktopPage, currentSearch: string): string {
-  return pathKeepingWorkspace(desktopPages[page], currentSearch);
-}
-
 export const DESKTOP_NAVIGATION_GLOBAL = "gangerDesktopNavigation";
