@@ -39,6 +39,7 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
+import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { runTicketHref } from "../run-ticket-href";
 import { RUN_ANSWER_HASH } from "../navigation/back-target";
 import type { BackOrigin } from "../navigation/back-target";
@@ -652,6 +653,7 @@ function PrSection({ run }: { run: RunDetail }) {
   const ci = useTranslations("run.ci");
   const laterPr = useTranslations("run.laterPr");
   const { ago, stamp } = useTime();
+  const diagnosisText = usePrReadDiagnosisText();
   const pr = run.pullRequest;
   const ended = run.status.state === "ended" ? run.status : null;
   const state = ended === null ? null : (ended.laterPrState?.state ?? ended.prState);
@@ -704,6 +706,11 @@ function PrSection({ run }: { run: RunDetail }) {
             {root(`prUnread.${ended.prReadError}`)}
           </Text>
         </p>
+      )}
+      {ended?.prReadDiagnosis == null ? null : (
+        <Text variant="ui" tone="muted" as="p">
+          {diagnosisText(ended.prReadDiagnosis, "run")}
+        </Text>
       )}
       {pr === null ? null : (
         <SignalList>

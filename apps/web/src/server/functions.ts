@@ -61,6 +61,7 @@ export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
 );
 
 async function serverGitHubForDiagnosis(db: Database): Promise<ServerGitHub | null> {
+  if (countUnreadPrRuns(db)["no-access"] === 0) return null;
   try {
     return await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()));
   } catch {
@@ -72,8 +73,7 @@ export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))
   .handler(async ({ data }) => {
     const db = getDatabase();
-    const serverGitHub =
-      countUnreadPrRuns(db)["no-access"] > 0 ? await serverGitHubForDiagnosis(db) : null;
+    const serverGitHub = await serverGitHubForDiagnosis(db);
     return loadHomePage(db, data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
       includeLoad: true,
       serverGitHub,
@@ -116,19 +116,24 @@ export const getRunsPage = createServerFn({ method: "GET" })
       failedOnly: z.boolean().optional(),
     }),
   )
-  .handler(({ data }) =>
-    loadRunsBoard(getDatabase(), data.ws, new Date(), {
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadRunsBoard(db, data.ws, new Date(), {
       ...(data.ended === undefined ? {} : { endedLimit: data.ended }),
       conditions: pickBoardConditions(data),
       ...(data.view === undefined ? {} : { view: data.view }),
       failedOnly: data.failedOnly === true,
       timeZone: parseTimeZone(getCookie(TIME_ZONE_COOKIE)),
-    }),
-  );
+      serverGitHub: await serverGitHubForDiagnosis(db),
+    });
+  });
 
 export const getRunsBoardRun = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional(), runId: z.string().min(1).max(200) }))
-  .handler(({ data }) => loadBoardRun(getDatabase(), data.ws, data.runId, new Date()));
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadBoardRun(db, data.ws, data.runId, new Date(), await serverGitHubForDiagnosis(db));
+  });
 
 export const getStatsPage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional(), days: statsPeriodDaysSchema }))
@@ -144,7 +149,10 @@ export const getStatsPage = createServerFn({ method: "GET" })
 
 export const getRunDetail = createServerFn({ method: "GET" })
   .validator(z.object({ runId: z.string() }))
-  .handler(({ data }) => loadRunDetail(getDatabase(), data.runId, new Date()));
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadRunDetail(db, data.runId, new Date(), await serverGitHubForDiagnosis(db));
+  });
 
 export const requestRunLog = createServerFn({ method: "POST" })
   .validator(z.object({ runId: z.string() }))

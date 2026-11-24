@@ -22,8 +22,8 @@ blocked_by: []
 
 - `packages/codehost-github`: gh 계정에 `expired`를 더했다. `gh auth status --json`의 `state: "error"`와 글 출력의 `Failed to log in to github.com account …`를 만료로 읽는다. 시간이 끝난 계정(`timeout`)은 지금처럼 목록에서 빼고, 그 뒤의 `Active account` 줄이 앞 계정에 붙지 않게 했다. 만료된 계정은 자동 고르기, 저장소 없는 호출의 활성 계정, 토큰 읽기, 볼 수 있는 곳 읽기에서 모두 빠진다.
 - `packages/runner-orca`·`packages/core`·`packages/db`: 러너 gh 계정에도 `expired`를 더했다. 저장한 JSON에 이 값이 없던 옛 행은 만료되지 않은 것으로 읽는다(열을 더하지 않아 마이그레이션은 없다).
-- `packages/app`: `pr-read-diagnosis.ts`가 러너의 사용 중 계정과 서버가 쓰는 계정을 견준다. Dashboard 로더(`loadHomePage`의 `serverGitHub`)는 끝난 런에 `prReadDiagnosis`를 싣고, Settings의 `loadGitHubAuthView`는 러너별 `prReadDiagnoses`를 싣는다. web 서버는 저장소를 볼 수 없어 PR을 못 읽은 런이 있을 때만 gh 상태를 읽는다.
-- web: 「PR」 탭 읽기 실패 안내 아래 진단 줄, Settings GitHub 패널의 "PR을 읽지 못한 러너" 목록, Settings·온보딩 계정 목록과 러너 상세 GitHub (gh) 구역의 만료 표시. 진단 문구는 두 화면이 함께 써서 `domain.json`에 둔다.
+- `packages/app`: `pr-read-diagnosis.ts`가 러너의 사용 중 계정과 서버가 쓰는 계정을 견준다. Dashboard·Runs·Run 상세 로더(`serverGitHub` 인자)는 끝난 런에 `prReadDiagnosis`를 싣고, Settings의 `loadGitHubAuthView`는 러너별 `prReadDiagnoses`를 싣는다. web 서버는 저장소를 볼 수 없어 PR을 못 읽은 런이 있을 때만 gh 상태를 읽는다.
+- web: Dashboard 시트 「PR」 탭, Runs 패널 PR 구역, Run 상세 PR 구역의 읽기 실패 안내 아래 진단 줄(코디네이터 확인 2026-11-24: 운영자 결정 1의 "PR을 읽지 못한 런"에 두 화면이 든다), Settings GitHub 패널의 "PR을 읽지 못한 러너" 목록, Settings·온보딩 계정 목록과 러너 상세 GitHub (gh) 구역의 만료 표시. 진단 문구는 두 화면이 함께 써서 `domain.json`에 둔다.
 
 ## 경계 사례
 
@@ -32,7 +32,8 @@ blocked_by: []
 - 러너 계정은 github.com의 사용 중이고 만료되지 않은 계정이다. 그런 계정이 없으면(읽지 않음, gh 없음, 로그인 안 됨, 사용 중 계정 만료) "러너 gh 계정을 아직 몰라요"로 말한다.
 - 서버 gh 계정 가운데 러너 계정과 이름이 같은(대소문자 무시) 계정이 있으면 계정이 같다고 보고 진단 문장을 뺀다.
 - 모든 gh 계정이 만료되면 Settings·온보딩은 "gh 계정의 로그인이 모두 만료됐어요"와 `gh auth login` 명령을 보이고, 출처는 토큰이나 없음으로 본다.
-- Run 상세 화면과 Runs 패널의 읽기 실패 안내는 이 티켓의 고칠 곳 밖이라 바꾸지 않았다.
+- 진단은 런을 돌린 때가 아니라 지금 저장된 러너 gh 계정으로 판정한다.
+- 러너 쪽은 시간이 끝난(`Timeout`) 계정을 지금처럼 정상 계정으로 읽는다(0205 동작). 서버 쪽은 목록에서 뺀다.
 
 ## 완료 조건
 

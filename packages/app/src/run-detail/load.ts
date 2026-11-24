@@ -8,7 +8,7 @@ import {
   summarizeRunOutcome,
   toRunId,
 } from "@ganger/core";
-import type { RunId, WorktreeDisposition } from "@ganger/core";
+import type { PrReadError, RunId, WorktreeDisposition } from "@ganger/core";
 import {
   getLogTailRequest,
   getRun,
@@ -42,6 +42,8 @@ import { pendingInput } from "../home/load.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { mcpActionView } from "../mcp/actions.js";
 import type { QueuedReason } from "../runs/model.js";
+import { diagnosePrRead } from "../pr-read-diagnosis.js";
+import type { PrReadDiagnosis, ServerGitHub } from "../pr-read-diagnosis.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import type {
   AgentMessageDelivery,
@@ -58,7 +60,12 @@ import type {
   TimelineEvent,
 } from "./model.js";
 
-export function loadRunDetail(db: Database, runId: string, now: Date): RunDetailPage {
+export function loadRunDetail(
+  db: Database,
+  runId: string,
+  now: Date,
+  serverGitHub: ServerGitHub | null = null,
+): RunDetailPage {
   const found = getRunWithRecords(db, toRunId(runId));
   if (found === null) return { kind: "not-found" };
   const { run, records } = found;
@@ -116,7 +123,15 @@ export function loadRunDetail(db: Database, runId: string, now: Date): RunDetail
     endedAt: endedAt?.toISOString() ?? null,
     waitMs: durations.waitMs ?? 0,
     executionMs: withoutPauses(durations.executionMs, records, now),
-    status: statusOf(db, run, records, now, continuedBy !== null),
+    status: statusOf(db, run, records, now, continuedBy !== null, (error) =>
+      diagnosePrRead(
+        error,
+        runner === undefined
+          ? null
+          : { name: runner.name, ghAccounts: runner.ghAccounts?.reading ?? null },
+        serverGitHub,
+      ),
+    ),
     pullRequest:
       pr === null || !isWebUrl(pr.url)
         ? null
@@ -232,6 +247,7 @@ function statusOf(
   records: RunRecords,
   now: Date,
   takenOver: boolean,
+  diagnose: (error: PrReadError | null) => PrReadDiagnosis | null,
 ): RunDetailStatus {
   switch (run.state) {
     case "queued":
@@ -264,6 +280,7 @@ function statusOf(
         agentResult: run.agentResult,
         prState: run.prState,
         prReadError: records.prReadError,
+        prReadDiagnosis: diagnose(records.prReadError),
         summary: outcome.outcome,
         keptWorktree: takenOver ? null : keptWorktreeOf(run, records, outcome.worktree),
         laterPrState:
