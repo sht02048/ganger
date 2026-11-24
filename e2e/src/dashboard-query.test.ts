@@ -71,7 +71,6 @@ const SEOUL = "Asia/Seoul";
 const QUERY_GC_TIME_MS = 5 * 60_000;
 const TIME_TEXT_TICK_MS = 15_000;
 const ROOT_READS = ["getTimeZone", "getTitleBarHidden"];
-const ROOT_AND_SHELL_READS = [...ROOT_READS, "getShell"];
 
 const runnerKind = toRunnerKind("fake");
 const runnerId = toRunnerId("runner-a");
@@ -153,7 +152,7 @@ describe("Dashboard·Stats query와 hydration(브라우저, 0126)", () => {
 });
 
 describe("Dashboard mutation(브라우저, 0126)", () => {
-  it("답하기는 Dashboard query만 다시 읽고 루트와 셸은 다시 읽지 않는다", async (context) => {
+  it("답하기는 Dashboard query와 처리할 일 수가 든 셸만 다시 읽고 루트는 다시 읽지 않는다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: "blocked" });
     await openDashboard(page);
     serverCalls.length = 0;
@@ -166,10 +165,11 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     await card(page, "ACME-1").getByText(home.card.answered).waitFor();
     await page.waitForTimeout(SETTLE_MS);
 
-    expect(serverCalls).toEqual(["answerQuestion", "getHomePage"]);
+    expect(serverCalls[0]).toBe("answerQuestion");
+    expect(serverCalls.slice(1).toSorted()).toEqual(["getHomePage", "getShell"]);
   });
 
-  it("거절은 Dashboard query만 다시 읽고 루트와 셸은 다시 읽지 않는다", async (context) => {
+  it("거절은 Dashboard query와 처리할 일 수가 든 셸만 다시 읽고 루트는 다시 읽지 않는다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: "blocked" });
     await openDashboard(page);
     serverCalls.length = 0;
@@ -181,10 +181,11 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     await panel.waitFor({ state: "hidden" });
     await page.waitForTimeout(SETTLE_MS);
 
-    expect(serverCalls).toEqual(["denyPermission", "getHomePage"]);
+    expect(serverCalls[0]).toBe("denyPermission");
+    expect(serverCalls.slice(1).toSorted()).toEqual(["getHomePage", "getShell"]);
   });
 
-  it("멈추기는 Dashboard query를 다시 읽고, 처리 중에는 2초마다 다시 읽다가 끝나면 멈춘다", async (context) => {
+  it("멈추기는 Dashboard query와 셸을 다시 읽고, 처리 중에는 Dashboard만 2초마다 다시 읽다가 끝나면 멈춘다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: "blocked" });
     await openDashboard(page);
     serverCalls.length = 0;
@@ -192,7 +193,8 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     await pauseFromCard(page, "ACME-3");
     await page.getByText(fill(home.control.pauseRequested, { key: "ACME-3" })).waitFor();
     await card(page, "ACME-3").getByText(home.card.pausing).first().waitFor();
-    expect(serverCalls.slice(0, 2)).toEqual(["controlRun", "getHomePage"]);
+    expect(serverCalls[0]).toBe("controlRun");
+    expect(serverCalls.slice(1, 3).toSorted()).toEqual(["getHomePage", "getShell"]);
 
     await expect
       .poll(() => countOf(serverCalls, "getHomePage"), {
@@ -219,10 +221,11 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     await page.waitForTimeout(CONTROL_POLL_MS * 2);
 
     expect(countOf(serverCalls, "getHomePage")).toBe(settled);
-    expect(serverCalls.filter((call) => ROOT_AND_SHELL_READS.includes(call))).toEqual([]);
+    expect(serverCalls.filter((call) => ROOT_READS.includes(call))).toEqual([]);
+    expect(countOf(serverCalls, "getShell")).toBe(1);
   });
 
-  it("멈추기가 '상태가 바뀜'을 돌려줘도 오류가 아니라 그 결과를 알리고 Dashboard query만 다시 읽는다", async (context) => {
+  it("멈추기가 '상태가 바뀜'을 돌려줘도 오류가 아니라 그 결과를 알리고 Dashboard query와 셸만 다시 읽는다", async (context) => {
     const { page, serverCalls } = await newPage(context, { stream: "blocked" });
     await openDashboard(page);
     ok(
@@ -239,7 +242,8 @@ describe("Dashboard mutation(브라우저, 0126)", () => {
     await expect.poll(() => card(page, "ACME-4").getByText("ACME-4").count()).toBe(1);
     await page.waitForTimeout(SETTLE_MS);
 
-    expect(serverCalls).toEqual(["controlRun", "getHomePage"]);
+    expect(serverCalls[0]).toBe("controlRun");
+    expect(serverCalls.slice(1).toSorted()).toEqual(["getHomePage", "getShell"]);
     expect(await page.getByText(fill(home.control.pauseRejected, { key: "ACME-4" })).count()).toBe(
       0,
     );

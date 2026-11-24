@@ -11,7 +11,7 @@
 완료 기준(C13):
 
 - hydration 직후 클라이언트가 같은 query를 다시 읽지 않는다.
-- mutation 하나는 그 mutation이 바꾼 query만 다시 읽는다. 루트와 셸은 다시 읽지 않는다.
+- mutation 하나는 그 mutation이 바꾼 query만 다시 읽는다. 루트와 셸은 다시 읽지 않는다(셸 내용을 바꾸는 쓰기는 예외. 티켓 0212부터 런을 바꾸는 쓰기와 할당은 처리할 일 수가 든 셸도 다시 읽는다).
 - worker가 바꾼 런 상태가 열린 화면(Dashboard, Runs, Run 상세)에 3초 안에 보인다.
 - SSE가 끊기면 열린 화면이 30초마다 다시 읽는다.
 - 0117의 화면 이동 브라우저 시험(`e2e/src/navigation.test.ts`)이 같은 뜻으로 통과한다(7절 5번).
@@ -201,7 +201,7 @@ web 안의 트래커 쓰기(라벨 만들기, 트래커 연결·프로젝트 저
 3. **0125·0126·0127 화면 옮기기.** 서로 다른 화면이라 함께 한다. 옮긴 화면은 그 route에서 `router.invalidate()`를 지우고 key 무효화로 바꾼다. 옮긴 화면과 남은 화면을 함께 바꾸는 쓰기는 옮기는 동안 둘 다 부른다. 라우터 쪽은 아직 옮기지 않은 route id만 고른 `router.invalidate({ filter })`로 불러, 루트와 셸을 다시 읽지 않게 한다.
 4. **0128 Settings.** 셸 query(0127)가 생긴 뒤 한다. Settings 저장이 셸의 Workspace 목록을 바꾸기 때문이다.
 5. **0129 정리.** `_app`에 남은 `router.invalidate()`와 라우터 캐시 설정을 지우고, 측정을 다시 돌린다. 결과:
-   - Run 상세·Dashboard의 쓰기(답하기·거절·취소·멈추기와 재개)가 함께 부르던 `router.invalidate({ filter })`를 지우고, 런을 보이는 key(그 런의 상세, Runs 목록, Dashboard, Stats, Tickets의 DB 부분, Runners, Settings)를 무효화한다(`apps/web/src/runs/queries.ts`의 `keysChangedByRunWrite`). 보이지 않는 key는 stale 표시만 되어 실제로 다시 읽는 것은 열린 화면뿐이다. 루트와 셸은 다시 읽지 않는다.
+   - Run 상세·Dashboard의 쓰기(답하기·거절·취소·멈추기와 재개)가 함께 부르던 `router.invalidate({ filter })`를 지우고, 런을 보이는 key(그 런의 상세, Runs 목록, Dashboard, Stats, Tickets의 DB 부분, Runners, Settings)를 무효화한다(`apps/web/src/runs/queries.ts`의 `keysChangedByRunWrite`). 보이지 않는 key는 stale 표시만 되어 실제로 다시 읽는 것은 열린 화면뿐이다. 루트는 다시 읽지 않는다. 셸은 티켓 0212부터 레일 Dashboard 배지의 처리할 일 수를 담아 함께 다시 읽는다(쓰기마다 `getShell` 요청 하나가 는다).
    - Runs·Stats가 `_app` 로더 데이터로 읽던 셸을 셸 query(`useShell`)로 바꿨다. 셸 query가 다시 읽혀도 두 화면의 Workspace 목록이 낡지 않는다.
    - 남은 `router.invalidate()`: 루트 `TimeZoneSync`(루트만), 온보딩 저장 뒤(`useSettingsReload`, 온보딩만 씀)와 그 안의 러너 설정 흐름. 운영자 결정(2026-11-20, 0129)으로 서버를 다시 읽지 않는 두 곳을 예외로 남긴다.
      - Settings 연결 상세·프로젝트 상세의 문서 제목 따라가기(`settings/route-title.ts`). 라우터 `head`는 로더가 돌 때만 다시 계산되어, 이름이 바뀌면 그 route 하나만 다시 읽어 `<title>`을 고친다. 로더는 query 캐시만 읽어(`staleTime: "static"`, 원인 `stay`라 뒤 읽기도 없음) 서버 왕복이 없다. 시험: `e2e/src/settings-query.test.ts` "연결 이름을 바꾸면 제목과 문서 제목이 함께 바뀐다".
@@ -213,7 +213,7 @@ web 안의 트래커 쓰기(라벨 만들기, 트래커 연결·프로젝트 저
 모든 Query 티켓이 자기 화면에 대해 아래 다섯을 지키고, 0129가 전체로 다시 확인한다.
 
 1. **hydration은 더 읽지 않는다.** 서버 렌더한 화면을 연 뒤 hydration이 끝날 때까지 서버 함수 호출이 0번이다(research 0015 7절의 공식 예제 검사와 같다).
-2. **mutation은 자기 query만 다시 읽는다.** 쓰기 하나 뒤 mutation이 다시 읽게 하는 서버 함수가 그 mutation이 바꾼 query뿐이다. 루트(`getTimeZone`, `getTitleBarHidden`)와 셸(`getShell`)은 다시 읽지 않는다(셸 내용, 곧 Workspace 목록이나 Runner Issue 배지를 바꾸는 쓰기는 예외. 러너 점검 끝, 러너 저장, Workspace 더하기·이름). 이 시험은 변경 기록 통로를 끈 채 돈다. 같은 탭의 쓰기가 남긴 줄이 1초 뒤 돌아와 그 query를 한 번 더 읽는 것은 8절의 위험으로 따로 본다.
+2. **mutation은 자기 query만 다시 읽는다.** 쓰기 하나 뒤 mutation이 다시 읽게 하는 서버 함수가 그 mutation이 바꾼 query뿐이다. 루트(`getTimeZone`, `getTitleBarHidden`)와 셸(`getShell`)은 다시 읽지 않는다(셸 내용, 곧 Workspace 목록이나 Runner Issue 배지를 바꾸는 쓰기는 예외. 러너 점검 끝, 러너 저장, Workspace 더하기·이름, 티켓 0212부터 처리할 일 수를 바꿀 수 있는 런 쓰기와 할당). 이 시험은 변경 기록 통로를 끈 채 돈다. 같은 탭의 쓰기가 남긴 줄이 1초 뒤 돌아와 그 query를 한 번 더 읽는 것은 8절의 위험으로 따로 본다.
 3. **worker 쪽 런 상태 바뀜이 3초 안에 보인다.** 화면을 연 채 DB에서 런 상태를 바꾸고(worker와 같은 함수), 3초 안에 화면이 바뀐다.
 4. **SSE가 끊기면 30초 폴링.** 통로를 막으면 보이는 query가 30초마다 다시 읽힌다(가짜 시계).
 5. **0117 브라우저 시험이 통과한다.** `e2e/src/navigation.test.ts` 세 시험이 같은 뜻으로 통과한다. 0127이 `getTicketsPage`를 나누면 시험이 기다리는 서버 함수 이름만 트래커를 읽는 새 함수로 바꾼다. 그 밖의 기대는 바꾸지 않는다.
