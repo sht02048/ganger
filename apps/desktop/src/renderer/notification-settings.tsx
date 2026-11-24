@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   documentStyles,
+  focusStyles,
   Checkbox,
   InfoTip,
   NumberedList,
@@ -16,7 +17,7 @@ import {
   textStyles,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IntlProvider, useTranslations } from "use-intl";
 import screens from "../../messages/ko/screens.json" with { type: "json" };
 import { NOTIFICATION_GROUPS } from "../core/notification-prefs";
@@ -157,6 +158,7 @@ export function PermissionCard({
 }) {
   const t = useTranslations("screens.notificationSettings");
   const headingRef = useRef<HTMLElement>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
   const key = permission === "not-asked" ? "notAsked" : permission;
   const [requesting, setRequesting] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -174,7 +176,8 @@ export function PermissionCard({
       .catch((): PermissionRequestResult => "not-allowed");
     setRequesting(false);
     setNotice(result === "allowed" ? null : result);
-    headingRef.current?.focus();
+    if (result === "allowed") headingRef.current?.focus();
+    else statusRef.current?.focus();
   };
   const sendTest = async () => {
     const api = window.desktopNotifications;
@@ -184,7 +187,7 @@ export function PermissionCard({
     const result = await api.sendTestNotification().catch((): TestNotificationResult => "failed");
     setTesting(false);
     setNotice(result);
-    if (result === "denied") headingRef.current?.focus();
+    if (result === "denied") statusRef.current?.focus();
   };
   const testButton = (
     <Button
@@ -200,23 +203,16 @@ export function PermissionCard({
   return (
     <div {...stylex.props(styles.permission)}>
       {permission === "denied" ? (
-        <ProblemCallout
-          title={
-            <PermissionHeading headingRef={headingRef} inCallout>
-              {t("permissionOff.title")}
-            </PermissionHeading>
-          }
-          actions={settingsButton}
-        >
+        <ProblemCallout title={t("permissionOff.title")} actions={settingsButton}>
           {t("permissionOff.body")}
         </ProblemCallout>
       ) : (
         <Card label={t(`permission.${key}.title`)}>
           <div {...stylex.props(styles.cardBody)}>
             <div {...stylex.props(styles.cardHead)}>
-              <PermissionHeading headingRef={headingRef} inCallout={false}>
+              <Text as="h2" variant="subheading" ref={headingRef} tabIndex={-1}>
                 {t(`permission.${key}.title`)}
-              </PermissionHeading>
+              </Text>
               {permission === "allowed" ? (
                 <InfoTip
                   label={t("permission.allowed.infoLabel")}
@@ -248,30 +244,15 @@ export function PermissionCard({
           </div>
         </Card>
       )}
-      <div role="status" {...stylex.props(styles.notice)}>
+      <div
+        ref={statusRef}
+        tabIndex={-1}
+        role="status"
+        {...stylex.props(focusStyles.target, styles.notice)}
+      >
         {notice === null ? null : <NoticeText notice={notice} />}
       </div>
     </div>
-  );
-}
-
-function PermissionHeading({
-  headingRef,
-  inCallout,
-  children,
-}: {
-  headingRef: RefObject<HTMLElement | null>;
-  inCallout: boolean;
-  children: string;
-}) {
-  return inCallout ? (
-    <Text as="span" variant="title" ref={headingRef} tabIndex={-1}>
-      {children}
-    </Text>
-  ) : (
-    <Text as="h2" variant="subheading" ref={headingRef} tabIndex={-1}>
-      {children}
-    </Text>
   );
 }
 
@@ -354,6 +335,6 @@ const styles = stylex.create({
   permission: { display: "flex", flexDirection: "column", gap: space.s3 },
   cardBody: { display: "flex", flexDirection: "column", gap: space.s3 },
   cardHead: { display: "flex", alignItems: "center", gap: space.s2 },
-  notice: { display: "contents" },
+  notice: { display: "flex", flexDirection: "column" },
   sent: { display: "flex", flexDirection: "column", gap: space.s2 },
 });

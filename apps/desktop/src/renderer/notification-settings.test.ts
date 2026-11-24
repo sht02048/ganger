@@ -252,6 +252,9 @@ describe("알림 설정 창(브라우저, 0103)", () => {
     await page.getByRole("region", { name: t.permissionOff.title }).waitFor();
     await page.getByRole("status").getByText(t.permission.notAsked.notAllowed).waitFor();
     expect(await calls()).toEqual(["request"]);
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.getAttribute("role") ?? ""))
+      .toBe("status");
   });
 
   it("권한을 읽지 못하면 그 사실과 시험 알림을 보인다", async () => {
