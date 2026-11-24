@@ -170,14 +170,12 @@ async function watchRun(
         })
       : { agentResult: pending.agentResult, report: pending.report, agent: "none" as const };
   if (ending === null) {
-    if (await followRunnerStop(context, run, { progress, resolution, runner, onRunner })) return;
     if (resolution.kind === "continue" && resolution.state !== run.state) {
-      reportFailure(
-        logger,
-        run.id,
-        changeRunState(db, run.id, { to: resolution.state }, context.now()),
-      );
+      recordDeliveredWithState(context, run, resolution.state);
+      return;
     }
+    recordDelivered(context, run);
+    await followRunnerStop(context, run, { progress, resolution, runner, onRunner });
     return;
   }
 
@@ -199,6 +197,7 @@ async function watchRun(
     lastLog,
   });
   if (recorded) context.pendingEndings.delete(run.id);
+  recordDelivered(context, run);
 }
 
 async function followRunnerStop(
@@ -526,10 +525,6 @@ async function sendAnswers(
       }
     }
     unwokenHumanChecks.delete(key);
-    const marked = tryWrite(context, run.id, () =>
-      markAnswerSent(db, { runId: run.id, questionId: answer.questionId }, context.now()),
-    );
-    if (marked !== undefined) unmarkedAnswers.delete(key);
   }
 }
 
@@ -580,11 +575,60 @@ async function sendDenials(
       }
       unmarkedDenials.add(key);
     }
-    const marked = tryWrite(context, run.id, () =>
-      markDenialSent(db, { runId: run.id, permissionId: denial.permissionId }, context.now()),
-    );
-    if (marked !== undefined) unmarkedDenials.delete(key);
   }
+}
+
+interface DeliveredKeys {
+  answers: string[];
+  denials: string[];
+}
+
+function markDelivered(context: TickContext, run: ActiveRun): DeliveredKeys {
+  const { db, unmarkedAnswers, unwokenHumanChecks, unmarkedDenials } = context;
+  const delivered: DeliveredKeys = { answers: [], denials: [] };
+  for (const answer of listUnsentAnswers(db)) {
+    const key = answerKey(run.id, answer.questionId);
+    if (answer.runId !== run.id || !unmarkedAnswers.has(key) || unwokenHumanChecks.has(key)) {
+      continue;
+    }
+    markAnswerSent(db, { runId: run.id, questionId: answer.questionId }, context.now());
+    delivered.answers.push(key);
+  }
+  for (const denial of listUnsentDenials(db)) {
+    const key = denialKey(run.id, denial.permissionId);
+    if (denial.runId !== run.id || !unmarkedDenials.has(key)) continue;
+    markDenialSent(db, { runId: run.id, permissionId: denial.permissionId }, context.now());
+    delivered.denials.push(key);
+  }
+  return delivered;
+}
+
+function forgetDelivered(context: TickContext, delivered: DeliveredKeys): void {
+  for (const key of delivered.answers) context.unmarkedAnswers.delete(key);
+  for (const key of delivered.denials) context.unmarkedDenials.delete(key);
+}
+
+function recordDelivered(context: TickContext, run: ActiveRun): void {
+  const delivered = tryWrite(context, run.id, () =>
+    inTransaction(context.db, () => markDelivered(context, run)),
+  );
+  if (delivered !== undefined) forgetDelivered(context, delivered);
+}
+
+function recordDeliveredWithState(
+  context: TickContext,
+  run: ActiveRun,
+  to: "running" | "waiting-for-input" | "paused",
+): void {
+  const written = tryWrite(context, run.id, () =>
+    inTransaction(context.db, () => ({
+      delivered: markDelivered(context, run),
+      result: changeRunState(context.db, run.id, { to }, context.now()),
+    })),
+  );
+  if (written === undefined) return;
+  forgetDelivered(context, written.delivered);
+  reportFailure(context.logger, run.id, written.result);
 }
 
 function deniedPermissions(context: TickContext, run: ActiveRun): Set<PermissionRequestId> {
