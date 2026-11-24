@@ -19,7 +19,9 @@ describe("/ds 서버 렌더", () => {
     expect(labeledTimesOf(renderPage())).toContainEqual(
       expect.objectContaining({ title: label, hidden: label, visible: messages.ds.signals.meta }),
     );
-    expect(renderPage()).not.toContain("ago 읽음");
+    const visible = labeledTimesOf(renderPage()).map((time) => time.visible);
+    expect(visible).toContain(messages.ds.usage.panelMeta);
+    expect(renderPage().replace(/<[^>]+>/g, "")).not.toMatch(/ago [가-힣]/);
   });
 
   it("오류 없이 모든 토큰·컴포넌트 구역을 그린다", () => {

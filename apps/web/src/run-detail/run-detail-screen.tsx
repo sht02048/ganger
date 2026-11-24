@@ -1462,8 +1462,12 @@ function LogTail({
   const [refresh, setRefresh] = useState<"idle" | "refreshing" | "failed">("idle");
   const refreshing = refresh === "refreshing";
   const { ago } = useTime();
-  const time = (at: string): string => ago(at, Date.parse(now) - Date.parse(at));
-  let note: string | undefined;
+  const time = (at: string, label: string): ReactNode => (
+    <LabeledTime dateTime={at} label={label}>
+      {ago(at, Date.parse(now) - Date.parse(at))}
+    </LabeledTime>
+  );
+  let note: ReactNode;
   let body: ReactNode;
   switch (log.kind) {
     case "none":
@@ -1477,7 +1481,7 @@ function LogTail({
       );
       break;
     case "failed":
-      note = time(log.at);
+      note = time(log.at, t("failedAtLabel"));
       body = <Text variant="body">{t("failed", { error: log.error })}</Text>;
       break;
     case "stored":
@@ -1485,7 +1489,10 @@ function LogTail({
       body = <LogLines lines={log.lines} />;
       break;
     case "done":
-      note = t("fetched", { time: time(log.at), count: log.lines.length });
+      note = t.rich("fetched", {
+        count: log.lines.length,
+        time: () => time(log.at, t("fetchedLabel")),
+      });
       body = <LogLines lines={log.lines} />;
       break;
   }

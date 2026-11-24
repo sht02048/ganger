@@ -14,7 +14,8 @@ blocked_by: []
 - Runs 패널: PR 구역의 읽은 시각(`runs.panel.prSection.readAt` "{time} 읽음"), 끝난 런의 끝난 시각(`runs.panel.endedAgo` "{ago} 끝남 · {duration} 걸림")
 - Settings 러너 확인: 확인 시각(`settings.runners.check.checkedAt` "{time} 확인")
 - Dashboard 런 시트 머리: 끝난 시각(`home.sheet.since.ended` "{ago} 끝났어요")
-- `/ds` 미리보기 PanelSection 예시: `ds.signals.meta` "5 min ago 읽음"
+- `/ds` 미리보기 PanelSection 예시: `ds.signals.meta` "5 min ago 읽음", `ds.usage.panelMeta` "3 min ago 읽었어요"(`packages/ui/DESIGN.md` 예시도 같음)
+- Run 상세 터미널 끝부분: `run.log.fetched` "{time} 가져온 {count}줄"
 
 Settings 서버의 업데이트 확인 줄은 낱말 없이 시간만 보였지만, 줄 이름이 "업데이트"라 무엇의 시간인지 화면이 말하지 않았다.
 
@@ -29,6 +30,7 @@ Settings 서버의 업데이트 확인 줄은 낱말 없이 시간만 보였지�
 - `apps/web/src/format/labeled-time.tsx`의 `LabeledTime`이 `<time dateTime title="뜻">`에 숨긴 글(`VisuallyHidden`) "뜻 "과 시간을 담는다. 화면에는 시간만 보이고, 마우스를 올리면 뜻이 툴팁으로, 스크린 리더는 "뜻 시간"으로 읽는다.
 - 위 문구를 시간만 보이게 바꾸고 뜻을 메시지 키로 옮겼다: `checkedLabel` "마지막으로 확인한 때", `readLabel` "마지막으로 읽은 때", `endedLabel` "끝난 때". Runs 패널 끝난 런 줄은 `endedLabel`, `took` "{duration} 걸림", `metaSeparator`로 나눴다.
 - Dashboard 런 시트 머리의 끝난 시각은 `home.sheet.since.endedLabel` "끝난 때", `/ds` 예시는 `ds.signals.metaLabel` "마지막으로 읽은 때"를 단 `LabeledTime`으로 바꿨다.
+- Run 상세 터미널 끝부분은 "가져온 {count}줄 · <시간>"으로 바꾸고 시간에 "가져온 때"(실패면 "가져오려 한 때")를 달았다. `/ds`의 사용량 예시와 DESIGN.md 예시도 시간만 남겼다.
 - Settings 서버 업데이트 확인 줄의 시간에 `checkedLabel` "마지막으로 확인한 때"를 달았다. 쓰이지 않던 `settings.updates.lastChecked`는 이 키로 바꿨다.
 - en 메시지 파일은 저장소에 없어(`apps/web/messages/ko`만 있음) 맞출 키가 없다. 데스크톱(`apps/desktop/messages`)과 `packages`에는 같은 모양의 문구가 없다. `apps/mobile`은 손대지 않았다.
 

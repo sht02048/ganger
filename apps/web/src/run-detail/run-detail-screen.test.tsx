@@ -1350,9 +1350,14 @@ describe("Run 상세 화면", () => {
       completedAt: minutes(101),
       lines: ["$ pnpm test", "Tests 42 passed"],
     });
-    const body = text(render(page(db, id)));
+    const html = render(page(db, id));
+    const body = text(html);
     expect(body).toContain("Tests 42 passed");
     expect(body).not.toContain(runJson.log.pending);
+    const fetched = labeledTimesOf(html).find((time) => time.title === runJson.log.fetchedLabel);
+    expect(fetched?.hidden).toBe(runJson.log.fetchedLabel);
+    expect(body).toContain(`가져온 2줄 · ${runJson.log.fetchedLabel} ${fetched?.visible ?? "?"}`);
+    expect(html.replace(/<[^>]+>/g, "")).not.toMatch(/(ago|Just now) [가-힣]/);
   });
 
   it("완료 보고 본문과 같은 티켓의 다른 런을 보인다", () => {

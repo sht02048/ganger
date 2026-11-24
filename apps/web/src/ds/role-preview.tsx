@@ -382,7 +382,17 @@ export function RoleSections() {
                   }}
                 />
               </PanelSection>
-              <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
+              <PanelSection
+                title={t("usage.panelTitle")}
+                meta={
+                  <LabeledTime
+                    dateTime="2026-11-24T00:00:00.000Z"
+                    label={t("usage.panelMetaLabel")}
+                  >
+                    {t("usage.panelMeta")}
+                  </LabeledTime>
+                }
+              >
                 <Text variant="ui">{t("usage.panelBody")}</Text>
                 <PanelRows>
                   <li>
