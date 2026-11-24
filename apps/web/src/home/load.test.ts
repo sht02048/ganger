@@ -40,6 +40,7 @@ import {
   seedDatabase,
 } from "../testing/seed";
 import { loadShell } from "@ganger/app/shell/load";
+import { resolveWorkspace, todoCountOf } from "@ganger/app/shell/model";
 import { loadHomePage, loadRunPrCommits } from "@ganger/app/home/load";
 import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { loadRunnersPage } from "@ganger/app/runners/load";
@@ -351,6 +352,35 @@ describe("loadHomePage", () => {
       expect(runnerIssues(loadHomePage(db, ws, now, "UTC").runners).map((r) => r.id)).toContain(
         "runner-a",
       );
+  });
+
+  it("셸의 처리할 일 수는 Dashboard 머리의 처리할 일 수와 같은 계산이다(티켓 0212)", () => {
+    const { db } = seedDatabase();
+    addLabsFailedRun(db);
+    addEndedRun(db, {
+      key: "ACME-31",
+      trackerProject: "tp-web",
+      agentResult: "timed-out",
+      endedAt: minutes(60),
+    });
+    addEndedRun(db, {
+      key: "ACME-31",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      endedAt: minutes(100),
+    });
+    const shell = loadShell(db);
+    for (const ws of ["ws-commerce", labs, "all", undefined]) {
+      const page = loadHomePage(db, ws, now, "UTC");
+      expect(todoCountOf(shell.todo, resolveWorkspace(shell.workspaces, ws))).toBe(
+        page.attention.length,
+      );
+    }
+    expect(attentionKeys(loadHomePage(db, "ws-commerce", now, "UTC").attention)).not.toContain(
+      "ACME-31",
+    );
+    expect(shell.todo.byWorkspace[labs]).toBe(1);
+    expect(shell.todo.all).toBe((shell.todo.byWorkspace["ws-commerce"] ?? 0) + 1);
   });
 
   it("전체에서는 모든 Workspace 의 To do·진행 중·오늘 끝난 런을 Workspace 와 함께 담는다(ADR 0006, 티켓 0069)", () => {

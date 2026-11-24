@@ -40,6 +40,7 @@ const KEYS_CHANGED_BY_RUN_WRITE: ReadonlyArray<QueryKey> = [
   ["runners", "list"],
   ["stats", "", 7, "UTC"],
   ["settings", ""],
+  ["shell"],
 ];
 
 function runningDetail(): RunDetail {
@@ -97,7 +98,7 @@ function mutate<TData, TVariables>(
 }
 
 describe("Run 상세 mutation(스펙 0003 4.4, C5)", () => {
-  it("답하기가 성공하면 런을 보이는 query만 무효화하고 셸과 다른 런의 상세는 그대로 둔다", async () => {
+  it("답하기가 성공하면 런을 보이는 query와 처리할 일 수가 든 셸만 무효화하고 다른 런의 상세는 그대로 둔다", async () => {
     const world = mutationWorld(okCalls());
     await mutate(world.queryClient, world.mutations.answer, { questionId: "q-1", answer: "네" });
 

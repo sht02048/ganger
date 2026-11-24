@@ -250,7 +250,11 @@ export function todoGroups(attention: ReadonlyArray<AttentionItem>): TodoGroup[]
   })).filter((group) => group.runs.length > 0);
 }
 
-export function needsAttention(run: HomeRun): boolean {
+export type TodoCandidate =
+  | { id: RunId; state: Exclude<HomeRun["state"], "ended"> }
+  | { id: RunId; state: "ended"; summary: SummaryOutcome };
+
+export function needsAttention(run: TodoCandidate): boolean {
   switch (run.state) {
     case "waiting-for-input":
     case "disconnected":
@@ -262,6 +266,22 @@ export function needsAttention(run: HomeRun): boolean {
     case "paused":
       return false;
   }
+}
+
+export function todoTicketOf(ticket: { connection: string; key: string }): string {
+  return `${ticket.connection}\u0000${ticket.key}`;
+}
+
+export function ticketTodos<T extends TodoCandidate>(
+  runs: ReadonlyArray<{ ticket: string; run: T }>,
+): Array<{ run: T; index: number }> {
+  const latestByTicket = new Map<string, RunId>();
+  for (const { ticket, run } of runs) latestByTicket.set(ticket, run.id);
+  return runs.flatMap(({ ticket, run }, index) =>
+    needsAttention(run) && (run.state !== "ended" || latestByTicket.get(ticket) === run.id)
+      ? [{ run, index }]
+      : [],
+  );
 }
 
 const noRunners: RunnersSummary = { list: [] };
@@ -286,15 +306,7 @@ export function partitionHome(input: {
       endedRecently: [],
     };
 
-  const latestByTicket = new Map<string, string>();
-  for (const { ticket, run } of input.runs) latestByTicket.set(ticket, run.id);
-
-  const attention = input.runs
-    .flatMap(({ ticket, run }, index) =>
-      needsAttention(run) && (run.state !== "ended" || latestByTicket.get(ticket) === run.id)
-        ? [{ run, index }]
-        : [],
-    )
+  const attention = ticketTodos(input.runs)
     .toSorted((a, b) => urgency(a.run) - urgency(b.run) || b.index - a.index)
     .map(({ run }): AttentionItem => ({ kind: "run", run }));
 

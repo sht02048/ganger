@@ -13,6 +13,7 @@ export const changeMessageSchema = z.object({
 export type ReceivedChange = z.infer<typeof changeMessageSchema>;
 
 const RUN_KEYS: ReadonlyArray<QueryKey> = [
+  ["shell"],
   ["runs", "detail"],
   ["runs", "list"],
   ["dashboard"],

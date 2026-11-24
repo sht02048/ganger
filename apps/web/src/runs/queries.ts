@@ -4,6 +4,7 @@ import type { RunId } from "@ganger/core";
 import type { EndedView, RunBoardConditions } from "@ganger/app/runs/board";
 import { RUNNERS_LIST_KEY } from "../runners/runners-query";
 import { getRunDetail, getRunsBoardRun, getRunsPage } from "../server/functions";
+import { SHELL_KEY } from "../shell/shell-query";
 import { TICKET_RUNS_KEY } from "../tickets/tickets-query";
 
 export const runsListKey = ["runs", "list"] as const;
@@ -14,6 +15,7 @@ export function runDetailKey(runId: string) {
 
 export function keysChangedByRunWrite(runId: RunId): ReadonlyArray<QueryKey> {
   return [
+    SHELL_KEY,
     runDetailKey(runId),
     runsListKey,
     ["dashboard"],

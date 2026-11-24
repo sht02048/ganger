@@ -94,20 +94,34 @@ export function railLinkStyles(current: boolean): ReadonlyArray<StyleArg> {
   return [styles.navLink, focusStyles.ringInset, current && styles.navLinkCurrent];
 }
 
+export type RailBadgeKind = "problem" | "todo";
+
+const RAIL_BADGE_MAX = 99;
+
+function railBadgeText(count: number): string {
+  return count > RAIL_BADGE_MAX ? `${RAIL_BADGE_MAX}+` : String(count);
+}
+
 export interface RailLinkContentProps {
   icon: ReactNode;
   name: ReactNode;
   issues: number;
+  badge?: RailBadgeKind;
 }
 
-export function RailLinkContent({ icon, name, issues }: RailLinkContentProps) {
+export function RailLinkContent({ icon, name, issues, badge = "problem" }: RailLinkContentProps) {
   return (
     <>
       <span {...stylex.props(styles.iconBox)}>
         {icon}
         {issues > 0 ? (
-          <span aria-hidden="true" data-issues={issues} {...stylex.props(styles.issueDot)}>
-            {issues}
+          <span
+            aria-hidden="true"
+            data-issues={issues}
+            data-badge={badge}
+            {...stylex.props(styles.issueDot, badge === "todo" && styles.todoDot)}
+          >
+            {railBadgeText(issues)}
           </span>
         ) : null}
       </span>
@@ -257,6 +271,10 @@ const styles = stylex.create({
     fontWeight: fontWeight.semibold,
     fontVariantNumeric: "tabular-nums",
     lineHeight: 1,
+  },
+  todoDot: {
+    backgroundColor: colors.accent,
+    color: colors.textOnAccent,
   },
   main: { minWidth: 0, minHeight: 0, overflow: "hidden" },
   mainWithPending: { position: "relative" },

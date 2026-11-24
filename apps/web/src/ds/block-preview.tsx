@@ -177,6 +177,16 @@ function ShellPreview({ titleBarHidden }: { titleBarHidden: boolean }) {
                         <RailLinkContent icon={<CloseIcon />} name={t("shell.issues")} issues={2} />
                       </a>
                     </li>
+                    <li>
+                      <a href="#shell" {...stylex.props(railLinkStyles(false))}>
+                        <RailLinkContent
+                          icon={<InfoIcon />}
+                          name={t("shell.todo")}
+                          issues={3}
+                          badge="todo"
+                        />
+                      </a>
+                    </li>
                   </RailNavList>
                 </RailNav>
                 <RailBrand>

@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionProjects, TrackerProjectChoice } from "@ganger/app/settings/model";
+import { NO_TODO } from "@ganger/app/shell/model";
 import type { ShellData } from "@ganger/app/shell/model";
 import { DEFAULT_TIME_ZONE } from "@ganger/app/time-zone";
 import { toWorkspaceId } from "@ganger/db";
@@ -598,6 +599,7 @@ describe("입구와 만든 뒤", () => {
     const shell: ShellData = {
       workspaces: [{ id: toWorkspaceId("ws-a"), name: "Acme" }],
       runnerIssues: 0,
+      todo: NO_TODO,
     };
     await settle(() =>
       root.render(

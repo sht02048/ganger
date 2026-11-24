@@ -21,6 +21,7 @@ export {
   railLinkStyles,
   type AppFramePending,
   type AppFrameProps,
+  type RailBadgeKind,
   type RailLinkContentProps,
 } from "./components/app-frame";
 export { Button, buttonStyles, type ButtonProps, type ButtonVariant } from "./components/button";

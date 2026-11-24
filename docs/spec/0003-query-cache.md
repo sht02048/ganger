@@ -11,7 +11,7 @@
 완료 기준(C13):
 
 - hydration 직후 클라이언트가 같은 query를 다시 읽지 않는다.
-- mutation 하나는 그 mutation이 바꾼 query만 다시 읽는다. 루트와 셸은 다시 읽지 않는다.
+- mutation 하나는 그 mutation이 바꾼 query만 다시 읽는다. 루트와 셸은 다시 읽지 않는다(셸 내용을 바꾸는 쓰기는 예외. 티켓 0212부터 런을 바꾸는 쓰기와 할당은 처리할 일 수가 든 셸도 다시 읽는다).
 - worker가 바꾼 런 상태가 열린 화면(Dashboard, Runs, Run 상세)에 3초 안에 보인다.
 - SSE가 끊기면 열린 화면이 30초마다 다시 읽는다.
 - 0117의 화면 이동 브라우저 시험(`e2e/src/navigation.test.ts`)이 같은 뜻으로 통과한다(7절 5번).
@@ -175,18 +175,18 @@ web 안의 트래커 쓰기(라벨 만들기, 트래커 연결·프로젝트 저
 
 웹 앱에 구독 모듈 하나를 둔다. 셸이 마운트될 때 연결하고, 받은 `change`를 아래 표대로 key 접두사 무효화로 바꾼다. 한 번 읽기(1초)에 온 줄은 한 번에 모아 무효화한다. 관찰자가 없는 query는 stale 표시만 되고 다음에 화면에 들어올 때 읽는다.
 
-| 대상         | 무효화하는 key                                                                                                                                         |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `run`        | `["runs", "detail"]`(접두사 전체), `["runs", "list"]`, `["dashboard"]`, `["tickets", "runs"]`(C12), `["runners", "list"]`, `["stats"]`, `["settings"]` |
-| `assignment` | `run`과 같다(새 런 id)                                                                                                                                 |
-| `runner`     | `["shell"]`, `["runners", "list"]`, `["dashboard"]`(C12), `["tickets", "runs"]`, `["settings"]`, `["runs"]`, `["stats"]`                               |
-| `workspace`  | `["shell"]`, `["settings"]`, `["dashboard"]`, `["tickets", "runs"]`, `["runners", "list"]`, `["runs"]`, `["stats"]`                                    |
-| `settings`   | `["settings"]`, `["dashboard"]`, `["tickets", "runs"]`, `["runs"]`, `["stats"]`                                                                        |
-| `tracker`    | `["tracker"]`(Tickets와 Settings의 Linear query, C12)                                                                                                  |
-| `reset`      | 모든 query                                                                                                                                             |
+| 대상         | 무효화하는 key                                                                                                                                                            |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `run`        | `["shell"]`(0212), `["runs", "detail"]`(접두사 전체), `["runs", "list"]`, `["dashboard"]`, `["tickets", "runs"]`(C12), `["runners", "list"]`, `["stats"]`, `["settings"]` |
+| `assignment` | `run`과 같다(새 런 id)                                                                                                                                                    |
+| `runner`     | `["shell"]`, `["runners", "list"]`, `["dashboard"]`(C12), `["tickets", "runs"]`, `["settings"]`, `["runs"]`, `["stats"]`                                                  |
+| `workspace`  | `["shell"]`, `["settings"]`, `["dashboard"]`, `["tickets", "runs"]`, `["runners", "list"]`, `["runs"]`, `["stats"]`                                                       |
+| `settings`   | `["settings"]`, `["dashboard"]`, `["tickets", "runs"]`, `["runs"]`, `["stats"]`                                                                                           |
+| `tracker`    | `["tracker"]`(Tickets와 Settings의 Linear query, C12)                                                                                                                     |
+| `reset`      | 모든 query                                                                                                                                                                |
 
 - `run`이 `["runs", "detail"]` 접두사 전체를 무효화하는 것은 Run 상세가 같은 티켓의 다른 런과 그 상태(`run-detail/load.ts:301-315`), 모든 Queued 런으로 계산한 Queued 사유(`:175-198`)를 보여서다. 실제로 다시 읽는 것은 열린 상세뿐이다. 로그 요청과 그 결과는 예외로 그 런의 상세만 무효화할지 0124가 정한다(8절).
-- C12의 화면 매핑에 더해, `run`은 Runners(러너마다 도는 런을 보인다)와 Stats(끝난 런 집계)도 무효화한다. 두 로더가 런을 읽기 때문이다(research 0016 2절). 셸(`["shell"]`)은 Workspace 목록과 Runner Issue 배지만 담아 `workspace`와 `runner`에만 무효화한다. `workspace`·`settings`가 Dashboard와 Tickets 런 표시를 무효화하는 것은 대기 사유와 할당할 수 있음이 Mapping·러너 설정에 달려서다. `runner`가 Tickets 런 표시와 Settings를 무효화하는 것은 Tickets가 러너의 Online·할당 막힘·사용량 한도로 할당할 수 있음을 정하고(`packages/app/src/tickets/load.ts:61-83`), Settings가 러너 목록과 점검을 읽어서다. `workspace`가 Runners를 무효화하는 것은 Runners가 Workspace 이름을 보여서다. `runner`·`workspace`가 Runs 목록·Run 상세·Stats를 무효화하는 것은 Queued 사유가 러너 상태(Online, capacity, 프로젝트)로 정해지고(`packages/app/src/runs/load.ts:47, 81-86`, `run-detail/load.ts:175-198`), Run 상세와 Stats가 러너·Workspace 이름을 보여서다(`run-detail/load.ts:52`, `stats/load.ts:29, 36`). `settings`가 Runs와 Stats를 무효화하는 것은 두 화면이 트래커 프로젝트 이름을 보여서다(`run-detail/load.ts:67`, `stats/load.ts`). `run`·`assignment`가 Settings를 무효화하는 것은 Settings가 트래커 프로젝트마다 Queued 런 수를 보여서다(`settings/load.ts:352`).
+- C12의 화면 매핑에 더해, `run`은 Runners(러너마다 도는 런을 보인다)와 Stats(끝난 런 집계)도 무효화한다. 두 로더가 런을 읽기 때문이다(research 0016 2절). 셸(`["shell"]`)은 Workspace 목록과 Runner Issue 배지를 담아 `workspace`와 `runner`에 무효화하고, 티켓 0212에서 레일 Dashboard 아이콘의 처리할 일 수를 더해 `run`·`assignment`에도 무효화한다. `workspace`·`settings`가 Dashboard와 Tickets 런 표시를 무효화하는 것은 대기 사유와 할당할 수 있음이 Mapping·러너 설정에 달려서다. `runner`가 Tickets 런 표시와 Settings를 무효화하는 것은 Tickets가 러너의 Online·할당 막힘·사용량 한도로 할당할 수 있음을 정하고(`packages/app/src/tickets/load.ts:61-83`), Settings가 러너 목록과 점검을 읽어서다. `workspace`가 Runners를 무효화하는 것은 Runners가 Workspace 이름을 보여서다. `runner`·`workspace`가 Runs 목록·Run 상세·Stats를 무효화하는 것은 Queued 사유가 러너 상태(Online, capacity, 프로젝트)로 정해지고(`packages/app/src/runs/load.ts:47, 81-86`, `run-detail/load.ts:175-198`), Run 상세와 Stats가 러너·Workspace 이름을 보여서다(`run-detail/load.ts:52`, `stats/load.ts:29, 36`). `settings`가 Runs와 Stats를 무효화하는 것은 두 화면이 트래커 프로젝트 이름을 보여서다(`run-detail/load.ts:67`, `stats/load.ts`). `run`·`assignment`가 Settings를 무효화하는 것은 Settings가 트래커 프로젝트마다 Queued 런 수를 보여서다(`settings/load.ts:352`).
 - `workspaceId`가 있으면 그 Workspace의 key만 무효화해도 되지만, 모든 Workspace를 함께 보이는 key(`ws=all`)가 있고 `ws` 없음과 `ws=<첫 Workspace id>`가 같은 데이터를 두 key에 담아(`packages/app/src/shell/model.ts:29-35`) 첫 구현은 접두사 전체를 무효화한다. 이것도 C4의 "해당 key"에 든다. 그 Workspace의 바뀜은 `ws=all` key의 결과도 바꾸고, 관찰자가 없는 key는 stale 표시만 되어 실제로 다시 읽는 것은 보이는 화면뿐이다.
 
 ### 5.5 끊겼을 때(C4, C11)
@@ -201,7 +201,7 @@ web 안의 트래커 쓰기(라벨 만들기, 트래커 연결·프로젝트 저
 3. **0125·0126·0127 화면 옮기기.** 서로 다른 화면이라 함께 한다. 옮긴 화면은 그 route에서 `router.invalidate()`를 지우고 key 무효화로 바꾼다. 옮긴 화면과 남은 화면을 함께 바꾸는 쓰기는 옮기는 동안 둘 다 부른다. 라우터 쪽은 아직 옮기지 않은 route id만 고른 `router.invalidate({ filter })`로 불러, 루트와 셸을 다시 읽지 않게 한다.
 4. **0128 Settings.** 셸 query(0127)가 생긴 뒤 한다. Settings 저장이 셸의 Workspace 목록을 바꾸기 때문이다.
 5. **0129 정리.** `_app`에 남은 `router.invalidate()`와 라우터 캐시 설정을 지우고, 측정을 다시 돌린다. 결과:
-   - Run 상세·Dashboard의 쓰기(답하기·거절·취소·멈추기와 재개)가 함께 부르던 `router.invalidate({ filter })`를 지우고, 런을 보이는 key(그 런의 상세, Runs 목록, Dashboard, Stats, Tickets의 DB 부분, Runners, Settings)를 무효화한다(`apps/web/src/runs/queries.ts`의 `keysChangedByRunWrite`). 보이지 않는 key는 stale 표시만 되어 실제로 다시 읽는 것은 열린 화면뿐이다. 루트와 셸은 다시 읽지 않는다.
+   - Run 상세·Dashboard의 쓰기(답하기·거절·취소·멈추기와 재개)가 함께 부르던 `router.invalidate({ filter })`를 지우고, 런을 보이는 key(그 런의 상세, Runs 목록, Dashboard, Stats, Tickets의 DB 부분, Runners, Settings)를 무효화한다(`apps/web/src/runs/queries.ts`의 `keysChangedByRunWrite`). 보이지 않는 key는 stale 표시만 되어 실제로 다시 읽는 것은 열린 화면뿐이다. 루트는 다시 읽지 않는다. 셸은 티켓 0212부터 레일 Dashboard 배지의 처리할 일 수를 담아 함께 다시 읽는다(쓰기마다 `getShell` 요청 하나가 는다).
    - Runs·Stats가 `_app` 로더 데이터로 읽던 셸을 셸 query(`useShell`)로 바꿨다. 셸 query가 다시 읽혀도 두 화면의 Workspace 목록이 낡지 않는다.
    - 남은 `router.invalidate()`: 루트 `TimeZoneSync`(루트만), 온보딩 저장 뒤(`useSettingsReload`, 온보딩만 씀)와 그 안의 러너 설정 흐름. 운영자 결정(2026-11-20, 0129)으로 서버를 다시 읽지 않는 두 곳을 예외로 남긴다.
      - Settings 연결 상세·프로젝트 상세의 문서 제목 따라가기(`settings/route-title.ts`). 라우터 `head`는 로더가 돌 때만 다시 계산되어, 이름이 바뀌면 그 route 하나만 다시 읽어 `<title>`을 고친다. 로더는 query 캐시만 읽어(`staleTime: "static"`, 원인 `stay`라 뒤 읽기도 없음) 서버 왕복이 없다. 시험: `e2e/src/settings-query.test.ts` "연결 이름을 바꾸면 제목과 문서 제목이 함께 바뀐다".
@@ -213,7 +213,7 @@ web 안의 트래커 쓰기(라벨 만들기, 트래커 연결·프로젝트 저
 모든 Query 티켓이 자기 화면에 대해 아래 다섯을 지키고, 0129가 전체로 다시 확인한다.
 
 1. **hydration은 더 읽지 않는다.** 서버 렌더한 화면을 연 뒤 hydration이 끝날 때까지 서버 함수 호출이 0번이다(research 0015 7절의 공식 예제 검사와 같다).
-2. **mutation은 자기 query만 다시 읽는다.** 쓰기 하나 뒤 mutation이 다시 읽게 하는 서버 함수가 그 mutation이 바꾼 query뿐이다. 루트(`getTimeZone`, `getTitleBarHidden`)와 셸(`getShell`)은 다시 읽지 않는다(셸 내용, 곧 Workspace 목록이나 Runner Issue 배지를 바꾸는 쓰기는 예외. 러너 점검 끝, 러너 저장, Workspace 더하기·이름). 이 시험은 변경 기록 통로를 끈 채 돈다. 같은 탭의 쓰기가 남긴 줄이 1초 뒤 돌아와 그 query를 한 번 더 읽는 것은 8절의 위험으로 따로 본다.
+2. **mutation은 자기 query만 다시 읽는다.** 쓰기 하나 뒤 mutation이 다시 읽게 하는 서버 함수가 그 mutation이 바꾼 query뿐이다. 루트(`getTimeZone`, `getTitleBarHidden`)와 셸(`getShell`)은 다시 읽지 않는다(셸 내용, 곧 Workspace 목록이나 Runner Issue 배지를 바꾸는 쓰기는 예외. 러너 점검 끝, 러너 저장, Workspace 더하기·이름, 티켓 0212부터 처리할 일 수를 바꿀 수 있는 런 쓰기와 할당). 이 시험은 변경 기록 통로를 끈 채 돈다. 같은 탭의 쓰기가 남긴 줄이 1초 뒤 돌아와 그 query를 한 번 더 읽는 것은 8절의 위험으로 따로 본다.
 3. **worker 쪽 런 상태 바뀜이 3초 안에 보인다.** 화면을 연 채 DB에서 런 상태를 바꾸고(worker와 같은 함수), 3초 안에 화면이 바뀐다.
 4. **SSE가 끊기면 30초 폴링.** 통로를 막으면 보이는 query가 30초마다 다시 읽힌다(가짜 시계).
 5. **0117 브라우저 시험이 통과한다.** `e2e/src/navigation.test.ts` 세 시험이 같은 뜻으로 통과한다. 0127이 `getTicketsPage`를 나누면 시험이 기다리는 서버 함수 이름만 트래커를 읽는 새 함수로 바꾼다. 그 밖의 기대는 바꾸지 않는다.
