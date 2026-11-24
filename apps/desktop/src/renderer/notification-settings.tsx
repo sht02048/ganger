@@ -1,23 +1,31 @@
 import * as stylex from "@stylexjs/stylex";
 import {
+  Actions,
   Button,
   Card,
   documentStyles,
   Checkbox,
+  InfoTip,
   ProblemCallout,
   Section,
   Text,
+  TextLink,
   WindowChrome,
   WindowDragFrame,
   textStyles,
 } from "@ganger/ui";
 import { size, space } from "@ganger/ui/tokens.stylex";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { IntlProvider, useTranslations } from "use-intl";
 import screens from "../../messages/ko/screens.json" with { type: "json" };
 import { NOTIFICATION_GROUPS } from "../core/notification-prefs";
 import type { NotificationGroup } from "../core/notification-prefs";
-import type { NotificationSettingsApi, NotificationSettingsView } from "../shared/view";
+import type {
+  NotificationSettingsApi,
+  NotificationSettingsView,
+  PermissionRequestResult,
+  TestNotificationResult,
+} from "../shared/view";
 
 declare global {
   interface Window {
@@ -100,20 +108,7 @@ export function NotificationSettings({
             {view.deviceLink === "failed" ? t("deviceLink.failed") : t("deviceLink.body")}
           </ProblemCallout>
         )}
-        {view.permission === "denied" ? (
-          <ProblemCallout
-            title={t("permissionOff.title")}
-            actions={
-              <Button
-                onClick={() => void window.desktopNotifications?.openSystemNotificationSettings()}
-              >
-                {t("permissionOff.action")}
-              </Button>
-            }
-          >
-            {t("permissionOff.body")}
-          </ProblemCallout>
-        ) : null}
+        <PermissionCard permission={view.permission} />
         <Card padding="compact">
           <Checkbox
             label={t("enabled.label")}
@@ -148,6 +143,195 @@ export function NotificationSettings({
   );
 }
 
+type PermissionNotice = PermissionRequestResult | TestNotificationResult | null;
+
+function openSystemSettings() {
+  void window.desktopNotifications?.openSystemNotificationSettings();
+}
+
+export function PermissionCard({
+  permission,
+}: {
+  permission: NotificationSettingsView["permission"];
+}) {
+  const t = useTranslations("screens.notificationSettings");
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const key = permission === "not-asked" ? "notAsked" : permission;
+  const [requesting, setRequesting] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [notice, setNotice] = useState<PermissionNotice>(null);
+  const request = async () => {
+    const api = window.desktopNotifications;
+    if (api === undefined) return;
+    setRequesting(true);
+    setNotice(null);
+    const result = await api
+      .requestPermission()
+      .catch((): PermissionRequestResult => "not-allowed");
+    setRequesting(false);
+    setNotice(result === "allowed" ? null : result);
+    headingRef.current?.focus();
+  };
+  const sendTest = async () => {
+    const api = window.desktopNotifications;
+    if (api === undefined) return;
+    setTesting(true);
+    setNotice(null);
+    const result = await api.sendTestNotification().catch((): TestNotificationResult => "failed");
+    setTesting(false);
+    setNotice(result);
+    if (result === "denied") headingRef.current?.focus();
+  };
+  const testButton = (
+    <Button
+      busy={{ active: testing, label: t("permission.testing") }}
+      onClick={() => void sendTest()}
+    >
+      {t("permission.test")}
+    </Button>
+  );
+  const settingsButton = (
+    <Button onClick={openSystemSettings}>{t("permission.openSettings")}</Button>
+  );
+  return (
+    <div {...stylex.props(styles.permission)}>
+      {permission === "denied" ? (
+        <ProblemCallout
+          title={
+            <PermissionHeading headingRef={headingRef} inCallout>
+              {t("permissionOff.title")}
+            </PermissionHeading>
+          }
+          actions={settingsButton}
+        >
+          {t("permissionOff.body")}
+        </ProblemCallout>
+      ) : (
+        <Card label={t(`permission.${key}.title`)}>
+          <div {...stylex.props(styles.cardBody)}>
+            <div {...stylex.props(styles.cardHead)}>
+              <PermissionHeading headingRef={headingRef} inCallout={false}>
+                {t(`permission.${key}.title`)}
+              </PermissionHeading>
+              {permission === "allowed" ? (
+                <InfoTip
+                  label={t("permission.allowed.infoLabel")}
+                  content={t("permission.allowed.info")}
+                />
+              ) : null}
+            </div>
+            {permission === "not-asked" ? (
+              <Text variant="body">{t("permission.notAsked.body")}</Text>
+            ) : permission === "unknown" ? (
+              <Text variant="body">{t("permission.unknown.body")}</Text>
+            ) : null}
+            <Actions>
+              {permission === "not-asked" ? (
+                <Button
+                  variant="primary"
+                  busy={{ active: requesting, label: t("permission.notAsked.requesting") }}
+                  onClick={() => void request()}
+                >
+                  {t("permission.notAsked.action")}
+                </Button>
+              ) : (
+                <>
+                  {testButton}
+                  {settingsButton}
+                </>
+              )}
+            </Actions>
+          </div>
+        </Card>
+      )}
+      <div role="status" {...stylex.props(styles.notice)}>
+        {notice === null ? null : <NoticeText notice={notice} />}
+      </div>
+    </div>
+  );
+}
+
+function PermissionHeading({
+  headingRef,
+  inCallout,
+  children,
+}: {
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  inCallout: boolean;
+  children: string;
+}) {
+  return inCallout ? (
+    <span ref={headingRef} tabIndex={-1} {...stylex.props(styles.headingTarget)}>
+      {children}
+    </span>
+  ) : (
+    <h2
+      ref={headingRef}
+      tabIndex={-1}
+      {...stylex.props(...textStyles("title"), styles.headingTarget)}
+    >
+      {children}
+    </h2>
+  );
+}
+
+function NoticeText({ notice }: { notice: Exclude<PermissionNotice, null> }) {
+  const t = useTranslations("screens.notificationSettings");
+  switch (notice) {
+    case "sent":
+      return (
+        <div {...stylex.props(styles.sent)}>
+          <Text variant="body">{t("testResult.sent")}</Text>
+          <Text variant="meta">{t("testResult.checkTitle")}</Text>
+          <ol {...stylex.props(styles.steps)}>
+            <li>
+              <Text variant="meta">{t("testResult.checkStyle")}</Text>
+            </li>
+            <li>
+              <Text variant="meta">
+                {t("testResult.checkFocus")}{" "}
+                <TextLink
+                  href="#focus-settings"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    void window.desktopNotifications?.openFocusSettings();
+                  }}
+                >
+                  {t("testResult.focusLink")}
+                </TextLink>
+              </Text>
+            </li>
+            <li>
+              <Text variant="meta">{t("testResult.checkSound")}</Text>
+            </li>
+          </ol>
+        </div>
+      );
+    case "unsigned":
+      return (
+        <Text variant="body" tone="problem">
+          {t("testResult.unsigned")}
+        </Text>
+      );
+    case "denied":
+      return (
+        <Text variant="body" tone="problem">
+          {t("testResult.denied")}
+        </Text>
+      );
+    case "failed":
+      return (
+        <Text variant="body" tone="problem">
+          {t("testResult.failed")}
+        </Text>
+      );
+    case "not-allowed":
+      return <Text variant="meta">{t("permission.notAsked.notAllowed")}</Text>;
+    case "allowed":
+      return null;
+  }
+}
+
 const styles = stylex.create({
   canvas: { minHeight: "100vh" },
   frame: {
@@ -171,4 +355,18 @@ const styles = stylex.create({
   title: { outline: "none" },
   status: { display: "contents" },
   groups: { display: "flex", flexDirection: "column", gap: space.s1 },
+  permission: { display: "flex", flexDirection: "column", gap: space.s3 },
+  cardBody: { display: "flex", flexDirection: "column", gap: space.s3 },
+  cardHead: { display: "flex", alignItems: "center", gap: space.s2 },
+  headingTarget: { outline: "none" },
+  notice: { display: "contents" },
+  sent: { display: "flex", flexDirection: "column", gap: space.s2 },
+  steps: {
+    display: "flex",
+    flexDirection: "column",
+    gap: space.s1,
+    margin: 0,
+    listStyleType: "decimal",
+    paddingInlineStart: space.s5,
+  },
 });

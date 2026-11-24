@@ -59,6 +59,27 @@ function installFakeNotifications(first: NotificationSettingsView) {
       calls.push("open-system");
       return Promise.resolve();
     },
+    openFocusSettings: () => {
+      calls.push("open-focus");
+      return Promise.resolve();
+    },
+    requestPermission: () => {
+      calls.push("request");
+      const granted = Reflect.get(window, "grantOnRequest") === true;
+      for (const listener of viewListeners)
+        listener({ ...first, permission: granted ? "allowed" : "denied" });
+      return Promise.resolve(granted ? "allowed" : "not-allowed");
+    },
+    sendTestNotification: () => {
+      calls.push("test");
+      const result: unknown = Reflect.get(window, "testResult");
+      if (result === "denied") {
+        for (const listener of viewListeners) listener({ ...first, permission: "denied" });
+      }
+      return Promise.resolve(
+        result === "unsigned" || result === "denied" || result === "failed" ? result : "sent",
+      );
+    },
   };
   window.desktopNotifications = api;
 }
@@ -149,7 +170,7 @@ describe("알림 설정 창(브라우저, 0103)", () => {
 
   it("다시 연결하지 않고 연결 상태가 되면 성공 문구를 보이지 않는다", async () => {
     await openSettings(allOn);
-    await page.getByRole("heading", { name: t.title }).waitFor();
+    await page.getByRole("heading", { level: 1, name: t.title }).waitFor();
     expect(await page.getByText(t.deviceLink.done).count()).toBe(0);
   });
 
@@ -186,6 +207,80 @@ describe("알림 설정 창(브라우저, 0103)", () => {
     expect(top).toEqual({ afterTitle: true, beforeControls: true });
     await callout.getByRole("button", { name: t.permissionOff.action }).click();
     await expect.poll(calls).toContain("open-system");
+  });
+
+  it("허용했으면 허용 문구와 도움말, 시험 알림·시스템 설정 버튼을 보인다(A)", async () => {
+    await openSettings(allOn);
+    const card = page.getByRole("region", { name: t.permission.allowed.title });
+    await card.waitFor();
+    await card.getByRole("button", { name: t.permission.allowed.infoLabel }).waitFor();
+    await card.getByRole("button", { name: t.permission.test }).waitFor();
+    await card.getByRole("button", { name: t.permission.openSettings }).click();
+    await expect.poll(calls).toEqual(["open-system"]);
+    expect(await page.getByRole("button", { name: t.permission.notAsked.action }).count()).toBe(0);
+  });
+
+  it("아직 묻지 않았으면 노란 허용하기 버튼만 보이고, 누르기 전에는 묻지 않는다(B)", async () => {
+    await openSettings({ ...allOn, permission: "not-asked" });
+    const card = page.getByRole("region", { name: t.permission.notAsked.title });
+    await card.getByText(t.permission.notAsked.body).waitFor();
+    const allow = card.getByRole("button", { name: t.permission.notAsked.action });
+    expect(await allow.getAttribute("data-variant")).toBe("primary");
+    expect(await card.getByRole("button", { name: t.permission.test }).count()).toBe(0);
+    expect(await calls()).toEqual([]);
+  });
+
+  it("허용하기를 누르면 macOS 에 묻고, 허용하면 A 로 바뀌며 포커스를 카드 제목에 둔다", async () => {
+    await openSettings({ ...allOn, permission: "not-asked" });
+    await page.evaluate(() => Reflect.set(window, "grantOnRequest", true));
+    await page.getByRole("button", { name: t.permission.notAsked.action }).click();
+    await page.getByRole("region", { name: t.permission.allowed.title }).waitFor();
+    expect(await calls()).toEqual(["request"]);
+    await expect
+      .poll(() => page.evaluate(() => document.activeElement?.textContent ?? ""))
+      .toBe(t.permission.allowed.title);
+  });
+
+  it("허용하기에서 허용하지 않으면 꺼짐 안내(C)로 바뀐다", async () => {
+    await openSettings({ ...allOn, permission: "not-asked" });
+    await page.getByRole("button", { name: t.permission.notAsked.action }).click();
+    await page.getByRole("region", { name: t.permissionOff.title }).waitFor();
+    await page.getByRole("status").getByText(t.permission.notAsked.notAllowed).waitFor();
+    expect(await calls()).toEqual(["request"]);
+  });
+
+  it("권한을 읽지 못하면 그 사실과 시험 알림을 보인다", async () => {
+    await openSettings({ ...allOn, permission: "unknown" });
+    const card = page.getByRole("region", { name: t.permission.unknown.title });
+    await card.getByRole("button", { name: t.permission.test }).waitFor();
+    expect(await card.getByRole("button", { name: t.permission.openSettings }).count()).toBe(1);
+  });
+
+  it("시험 알림을 보내면 보냈다는 문장과 확인 순서 셋, 집중 모드 설정 링크를 보인다(D)", async () => {
+    await openSettings(allOn);
+    await page.getByRole("button", { name: t.permission.test }).click();
+    const status = page.getByRole("status").filter({ hasText: t.testResult.sent });
+    await status.waitFor();
+    expect(await status.getByRole("listitem").count()).toBe(3);
+    await status.getByRole("link", { name: t.testResult.focusLink }).click();
+    await expect.poll(calls).toEqual(["test", "open-focus"]);
+  });
+
+  it("서명하지 않은 빌드에서 실패하면 서명 문제라고 알린다", async () => {
+    await openSettings(allOn);
+    await page.evaluate(() => Reflect.set(window, "testResult", "unsigned"));
+    await page.getByRole("button", { name: t.permission.test }).click();
+    await page.getByRole("status").getByText(t.testResult.unsigned).waitFor();
+    expect(await page.getByText(t.testResult.sent).count()).toBe(0);
+  });
+
+  it("권한 때문에 실패하면 권한 문제라고 알리고 꺼짐 안내로 바꾼다", async () => {
+    await openSettings({ ...allOn, permission: "unknown" });
+    await page.evaluate(() => Reflect.set(window, "testResult", "denied"));
+    await page.getByRole("button", { name: t.permission.test }).click();
+    await page.getByRole("status").getByText(t.testResult.denied).waitFor();
+    await page.getByRole("region", { name: t.permissionOff.title }).waitFor();
+    expect(await calls()).toEqual(["test"]);
   });
 
   it("종류 하나를 끄면 그 값만 저장하고, 전체를 끄면 종류는 고를 수 없다", async () => {

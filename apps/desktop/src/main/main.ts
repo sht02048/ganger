@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { PRODUCT_DISPLAY_NAME, resolveHome } from "@ganger/cli/home";
@@ -8,6 +9,7 @@ import { z } from "zod";
 import { bundlelessServer, devServerUrl } from "../core/dev-server.js";
 import type { TokenCipher } from "../core/device-link.js";
 import { LocalServer, fileRecordStore } from "../core/local-server.js";
+import { notificationAddonPath, notificationAddonPort } from "../core/notification-addon.js";
 import { SERVER_BUNDLE_ENV, loadServerBundle } from "../core/server-bundle.js";
 import { serviceInstalledFor } from "../core/service.js";
 import { fileSettingsStore } from "../core/settings.js";
@@ -94,6 +96,8 @@ if (!app.requestSingleInstanceLock()) {
       tokenCipher: devServer === undefined ? safeStorageCipher : null,
       logFile,
       ...appPaths(app.getAppPath()),
+      notificationPort: process.platform === "darwin" ? loadNotificationPort() : null,
+      packaged: app.isPackaged,
       openedAtLogin: app.getLoginItemSettings().wasOpenedAtLogin === true,
     });
     controller.start();
@@ -105,6 +109,15 @@ const safeStorageCipher: TokenCipher = {
   encrypt: (text) => safeStorage.encryptString(text).toString("base64"),
   decrypt: (sealed) => safeStorage.decryptString(Buffer.from(sealed, "base64")),
 };
+
+function loadNotificationPort() {
+  const path = notificationAddonPath({
+    packaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+  });
+  return notificationAddonPort((): unknown => createRequire(import.meta.url)(path));
+}
 
 function serverBundleRoot(): string {
   const override = process.env[SERVER_BUNDLE_ENV]?.trim();
