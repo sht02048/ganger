@@ -177,6 +177,16 @@ function ShellPreview({ titleBarHidden }: { titleBarHidden: boolean }) {
                         <RailLinkContent icon={<CloseIcon />} name={t("shell.issues")} issues={2} />
                       </a>
                     </li>
+                    <li>
+                      <a href="#shell" {...stylex.props(railLinkStyles(false))}>
+                        <RailLinkContent
+                          icon={<InfoIcon />}
+                          name={t("shell.todo")}
+                          issues={3}
+                          badge="todo"
+                        />
+                      </a>
+                    </li>
                   </RailNavList>
                 </RailNav>
                 <RailBrand>
@@ -523,6 +533,9 @@ export function BlockSections() {
                   <Text variant="body">{t("disclosure.body")}</Text>
                 </Disclosure>
               </Card>
+              <Disclosure defaultOpen summary={t("disclosure.openSummary")}>
+                <Text variant="body">{t("disclosure.openBody")}</Text>
+              </Disclosure>
             </div>
           </Demo>
         </Section>
@@ -580,10 +593,14 @@ export function BlockSections() {
                   <KanbanCard
                     tag={<StatusPill status="question">{t("kanban.tag")}</StatusPill>}
                     title={t("kanban.title")}
-                    detail={t("kanban.detail")}
                     meta={t("kanban.meta")}
                     time={t("kanban.time")}
-                    action={<Button>{t("kanban.action")}</Button>}
+                    actionFullWidth
+                    action={
+                      <Button variant="answer" block>
+                        {t("kanban.action")}
+                      </Button>
+                    }
                     onOpen={() => setSheetOpen(true)}
                   />
                 </li>

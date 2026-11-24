@@ -4,7 +4,7 @@ import type { ComponentProps, ReactNode, Ref } from "react";
 import { cx, type StyleArg } from "../cx";
 import { colors, fontSize, fontWeight, motion, radius, size, space } from "../tokens.stylex";
 
-export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "check";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "check" | "answer";
 
 type SdkButtonProps = ComponentProps<typeof SdkButton>;
 
@@ -98,6 +98,7 @@ export function buttonStyles(variant: ButtonVariant, disabled = false): Readonly
     variant === "danger" && styles.danger,
     variant === "ghost" && styles.ghost,
     variant === "check" && styles.check,
+    variant === "answer" && styles.answer,
     disabled && (variant === "ghost" ? styles.ghostDisabled : styles.disabled),
   ];
 }
@@ -176,6 +177,13 @@ const styles = stylex.create({
       ":hover": { default: null, "@media (hover: hover)": colors.checkSoftHover },
     },
     color: colors.check,
+  },
+  answer: {
+    backgroundColor: {
+      default: colors.answerSoft,
+      ":hover": { default: null, "@media (hover: hover)": colors.answerSoftHover },
+    },
+    color: colors.answer,
   },
   ghost: {
     backgroundColor: {

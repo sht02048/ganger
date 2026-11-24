@@ -410,9 +410,13 @@ describe("기기 연결과 v1 Dashboard", () => {
     }
   });
 
-  it("옛 알림 사건 경로는 v0.6.0 까지 토큰 없이 그대로 열려 있다", async () => {
-    for (const path of ["/api/notification-events", "/api/attention"]) {
-      expect((await fetch(new URL(path, baseUrl))).status).toBe(200);
+  it("옛 알림 사건 경로는 v0.6.0 에서 지워 더는 알림을 주지 않는다", async () => {
+    for (const path of [
+      "/api/notification-events",
+      "/api/notification-events/stream",
+      "/api/attention",
+    ]) {
+      expect((await fetch(new URL(path, baseUrl))).status).toBe(404);
     }
   });
 });

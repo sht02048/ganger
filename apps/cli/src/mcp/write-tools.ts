@@ -11,6 +11,8 @@ import {
   submitHumanCheckAnswer,
 } from "@ganger/app/home/actions";
 import { mobileContinueBlock } from "@ganger/app/devices/run-retry";
+import { mergeRunPullRequest } from "@ganger/app/home/merge-pr";
+import type { MergePrRejection } from "@ganger/app/home/merge-pr";
 import { pendingInput } from "@ganger/app/home/load";
 import { mcpClientName } from "@ganger/app/mcp/actions";
 import type { McpWriteTool } from "@ganger/app/mcp/actions";
@@ -38,7 +40,6 @@ import {
   labelInput,
   mappingInput,
   runnerCapacityInput,
-  checkGitHubToken,
   checkTrackerConnection,
   removeTrackerProject,
   requestRunnerCheckSetting,
@@ -51,10 +52,11 @@ import {
 } from "@ganger/app/settings/actions";
 import { loadTrackerProjectChoices } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
+import { checkGitHubConnection } from "@ganger/app/settings/github-auth";
 import { MAX_RUN_MINUTES } from "@ganger/app/settings/model";
 import { submitAssignment } from "@ganger/app/tickets/assign";
 import { loadTicketsPage } from "@ganger/app/tickets/load";
-import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
+import { CONTINUE_MESSAGE_MAX_LENGTH, MERGE_METHODS, toRunId } from "@ganger/core";
 import type { RunControl, RunId } from "@ganger/core";
 import {
   continueRunBlock,
@@ -162,6 +164,25 @@ const CONTINUE_ERRORS: Record<string, string> = {
   "previous-agent":
     "The previous agent may still be running. The operator can stop it on Run detail first.",
   [REQUEST_REUSED]: REUSED_ERROR,
+};
+
+const MERGE_ERRORS: Record<MergePrRejection, string> = {
+  "no-write-access":
+    "The GitHub login or token Ganger uses for this repository cannot merge there. The operator can give it Pull requests and Contents write access.",
+  blocked:
+    "The repository's rules block the merge (failing checks, conflicts, or branch protection).",
+  "head-changed": "New commits arrived on the pull request. Check it again before merging.",
+  "method-not-allowed": "The repository does not allow this merge method.",
+  "not-open": "The pull request is already merged or closed.",
+  "not-found": "The pull request or the repository was not found.",
+  "no-pull-request": "The run has no pull request.",
+  "no-code-host": "No GitHub login or token can reach the run's repository.",
+  unauthorized:
+    "GitHub refused the gh login or token. The operator can run gh auth login on the server machine or enter a new token in Ganger Settings.",
+  "rate-limited": "GitHub is rate limiting requests. Try again later.",
+  network: "Ganger could not reach GitHub.",
+  superseded: "A later run took over this run's worktree. Merge from the later run.",
+  "request-reused": REUSED_ERROR,
 };
 
 export interface WriteTools {
@@ -575,6 +596,53 @@ export function registerWriteTools(
         return rejected({ ...base, reason: REQUEST_REUSED, error: REUSED_ERROR });
       }
       return outcome;
+    },
+  );
+
+  register(
+    "merge_pr",
+    {
+      title: "Merge a run's pull request",
+      description:
+        "Merges the pull request of a run on GitHub, the same as the merge button in the Dashboard run panel. A merge is hard to undo, so confirm with the operator first. Leave method out to use the repository's default merge method. When the run is waiting on a Human Check, Ganger answers it as confirmed and says the operator merged the PR.",
+      annotations: { ...DESTRUCTIVE, openWorldHint: true },
+    },
+    {
+      runId: runIdArg,
+      method: z
+        .enum(MERGE_METHODS)
+        .optional()
+        .describe("squash, merge (merge commit), or rebase. Only methods the repository allows."),
+      requestId: requestIdArg,
+    },
+    async ({ runId, method, requestId }) => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      const base = { target: run.ticket.key, runId: run.id };
+      const result = await mergeRunPullRequest(
+        { db: context.db, secretBox: context.secretBox, registry: context.registry },
+        {
+          runId: run.id,
+          method: method ?? null,
+          expectedHead: null,
+          requestId: requestId ?? randomUUID(),
+        },
+        () => context.now(),
+      );
+      if (!result.ok) {
+        return rejected({
+          ...base,
+          reason: result.reason,
+          error: `Could not merge: ${MERGE_ERRORS[result.reason]}`,
+          ...(result.message === null ? {} : { extra: { external: { detail: result.message } } }),
+        });
+      }
+      return done({
+        ...base,
+        serverHandles: false,
+        replayed: result.replayed,
+        result: { merged: true },
+      });
     },
   );
 
@@ -1095,20 +1163,23 @@ export function registerWriteTools(
   register(
     "check_github_token",
     {
-      title: "Check the GitHub token",
+      title: "Check GitHub access",
       description:
-        "Checks that the stored GitHub token still works, the same as Check again in Settings. It never returns the token.",
+        "Checks that Ganger can reach GitHub, the same as Check again in Settings. Ganger uses the GitHub CLI (gh) login of the user running the server first and the token stored in Settings when gh is missing, logged out, or cannot see a repository. When gh is logged in and no GitHub connection is saved yet, it saves one. It never returns a token.",
       annotations: CHECK_REMOTE,
     },
     {},
     async () => {
-      const checked = await checkGitHubToken(settings());
+      const checked = await checkGitHubConnection(settings(), context.now());
       if (!checked.ok) {
         return rejected({
           target: null,
           runId: null,
           reason: checked.reason,
-          error: `The GitHub token check failed: ${checked.reason}.`,
+          error:
+            checked.reason === "no-credentials"
+              ? "Neither a gh login nor a stored GitHub token is available on the server machine. The operator can run gh auth login there or enter a token in Ganger Settings."
+              : `The GitHub check failed: ${checked.reason}.`,
         });
       }
       return done({ target: null, runId: null, serverHandles: false });

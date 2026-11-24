@@ -16,6 +16,7 @@ import {
   StatusDot,
   CodeBlock,
   QrCode,
+  RailLinkContent,
   ScrollRegion,
   DataTable,
   DataTableBody,
@@ -374,6 +375,49 @@ describe("DataTable·차트·단계(티켓 0074)", () => {
     expect(busy).toMatch(/<\/main><span role="status"/);
     expect(busy).toMatch(/role="status"[^>]*>화면을 여는 중이에요</);
     expect(busy).toContain("data-pending-bar");
+  });
+});
+
+describe("RailLinkContent 배지(티켓 0212)", () => {
+  const badgeOf = (html: string) =>
+    /<span aria-hidden="true" data-issues="(\d+)" data-badge="(\w+)" class="([^"]+)">([^<]+)<\/span>/.exec(
+      html,
+    );
+
+  it("수가 0이면 배지를 그리지 않는다", () => {
+    for (const badge of ["problem", "todo"] as const) {
+      const html = renderToString(
+        <RailLinkContent icon="i" name="Dashboard" issues={0} badge={badge} />,
+      );
+      expect(html).not.toContain("data-issues");
+    }
+  });
+
+  it("배지 숫자는 aria-hidden 이고, 99 를 넘으면 99+ 로 보인다", () => {
+    expect(
+      badgeOf(
+        renderToString(<RailLinkContent icon="i" name="Dashboard" issues={99} badge="todo" />),
+      )?.[4],
+    ).toBe("99");
+    const over = badgeOf(
+      renderToString(<RailLinkContent icon="i" name="Dashboard" issues={120} badge="todo" />),
+    );
+    expect(over?.[1]).toBe("120");
+    expect(over?.[4]).toBe("99+");
+  });
+
+  it("badge 를 주지 않으면 문제 배지이고, todo 는 문제 배지와 다른 색 클래스를 쓴다", () => {
+    const plain = badgeOf(renderToString(<RailLinkContent icon="i" name="Runners" issues={2} />));
+    const problem = badgeOf(
+      renderToString(<RailLinkContent icon="i" name="Runners" issues={2} badge="problem" />),
+    );
+    const todo = badgeOf(
+      renderToString(<RailLinkContent icon="i" name="Dashboard" issues={2} badge="todo" />),
+    );
+    expect(plain?.[2]).toBe("problem");
+    expect(plain?.[3]).toBe(problem?.[3]);
+    expect(todo?.[2]).toBe("todo");
+    expect(todo?.[3]).not.toBe(problem?.[3]);
   });
 });
 

@@ -8,6 +8,12 @@ import {
 import type { NavScreen } from "@ganger/app/shell/nav-shortcuts";
 import { addDragHandleIfMissing } from "./drag-handle.js";
 import { notificationSettingsViewSchema } from "../core/notification-prefs.js";
+import {
+  PERMISSION_REQUEST_RESULTS,
+  TEST_NOTIFICATION_RESULTS,
+} from "../core/notification-access.js";
+import { DESKTOP_NOTIFICATIONS_GLOBAL } from "@ganger/app/notifications/desktop";
+import { z } from "zod";
 import { DESKTOP_UPDATES_GLOBAL } from "@ganger/app/updates/view";
 import { DESKTOP_LOGS_GLOBAL } from "@ganger/app/diagnostics/model";
 import type { DesktopApi, NotificationSettingsApi, ViewState } from "../shared/view.js";
@@ -17,6 +23,9 @@ import {
   LOGS_OPEN,
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
+  NOTIFICATION_SETTINGS_OPEN,
+  NOTIFICATION_SUMMARY_CHANNEL,
+  NOTIFICATION_SUMMARY_GET,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
@@ -72,6 +81,15 @@ if (window.location.protocol === "file:") {
     },
     setNotificationSettings: (settings) => invoke("set-notification-settings", settings),
     openSystemNotificationSettings: () => invoke("open-system-notification-settings"),
+    openFocusSettings: () => invoke("open-focus-settings"),
+    requestPermission: () =>
+      ipcRenderer
+        .invoke(`${IPC_PREFIX}request-notification-permission`)
+        .then((value: unknown) => z.enum(PERMISSION_REQUEST_RESULTS).parse(value)),
+    sendTestNotification: () =>
+      ipcRenderer
+        .invoke(`${IPC_PREFIX}send-test-notification`)
+        .then((value: unknown) => z.enum(TEST_NOTIFICATION_RESULTS).parse(value)),
     reconnectDevice: () => invoke("reconnect-device"),
   };
   contextBridge.exposeInMainWorld("desktopNotifications", notifications);
@@ -105,6 +123,18 @@ if (window.location.protocol === "http:" || window.location.protocol === "https:
   contextBridge.exposeInMainWorld(DESKTOP_LOGS_GLOBAL, {
     canOpenFolder: (): Promise<unknown> => ipcRenderer.invoke(LOGS_CAN_OPEN),
     openFolder: (): Promise<unknown> => ipcRenderer.invoke(LOGS_OPEN),
+  });
+  contextBridge.exposeInMainWorld(DESKTOP_NOTIFICATIONS_GLOBAL, {
+    getSummary: (): Promise<unknown> => ipcRenderer.invoke(NOTIFICATION_SUMMARY_GET),
+    onSummary: (listener: (summary: unknown) => void) => {
+      const handler = (_event: IpcRendererEvent, summary: unknown) => listener(summary);
+      ipcRenderer.on(NOTIFICATION_SUMMARY_CHANNEL, handler);
+      return () => {
+        ipcRenderer.off(NOTIFICATION_SUMMARY_CHANNEL, handler);
+      };
+    },
+    openSettings: (): Promise<void> =>
+      ipcRenderer.invoke(NOTIFICATION_SETTINGS_OPEN).then(() => undefined),
   });
   contextBridge.exposeInMainWorld(DESKTOP_NAVIGATION_GLOBAL, {
     onNavigate: (listener: (screen: NavScreen) => void) => {

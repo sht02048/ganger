@@ -5,6 +5,7 @@ import {
   toPullRequestId,
   toQuestionId,
   toRunnerId,
+  toRunId,
   toRunnerProjectId,
   toTicketKey,
   toTrackerProjectId,
@@ -19,6 +20,7 @@ import {
   recordPermissionWaits,
   recordRunQuestions,
   resolvePermissionWaits,
+  recordGhAccounts,
   recordProviderUsage,
   recordRunnerCheck,
   recordRunnerLoad,
@@ -38,7 +40,9 @@ import {
   seedDatabase,
 } from "../testing/seed";
 import { loadShell } from "@ganger/app/shell/load";
-import { loadHomePage } from "@ganger/app/home/load";
+import { resolveWorkspace, todoCountOf } from "@ganger/app/shell/model";
+import { loadHomePage, loadRunPrCommits } from "@ganger/app/home/load";
+import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import type { AttentionItem, HomeRun } from "@ganger/app/home/model";
 import { dashboardBoard, runnerIssues } from "@ganger/app/home/model";
@@ -54,7 +58,7 @@ function addEndedRun(
     key: string;
     trackerProject: string;
     agentResult: "timed-out" | "canceled" | "reported-success";
-    prState?: "open" | "unknown";
+    prState?: "open" | "merged" | "unknown";
     prReadError?: "no-access";
     endedAt?: Date;
   },
@@ -86,7 +90,7 @@ function addEndedRun(
             prState: "unknown",
             prReadError: input.prReadError ?? "other",
           }
-        : { to: "ended", agentResult: input.agentResult, prState: "open" },
+        : { to: "ended", agentResult: input.agentResult, prState: input.prState ?? "open" },
       endedAt,
     ),
   ]) {
@@ -350,6 +354,35 @@ describe("loadHomePage", () => {
       );
   });
 
+  it("셸의 처리할 일 수는 Dashboard 머리의 처리할 일 수와 같은 계산이다(티켓 0212)", () => {
+    const { db } = seedDatabase();
+    addLabsFailedRun(db);
+    addEndedRun(db, {
+      key: "ACME-31",
+      trackerProject: "tp-web",
+      agentResult: "timed-out",
+      endedAt: minutes(60),
+    });
+    addEndedRun(db, {
+      key: "ACME-31",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      endedAt: minutes(100),
+    });
+    const shell = loadShell(db);
+    for (const ws of ["ws-commerce", labs, "all", undefined]) {
+      const page = loadHomePage(db, ws, now, "UTC");
+      expect(todoCountOf(shell.todo, resolveWorkspace(shell.workspaces, ws))).toBe(
+        page.attention.length,
+      );
+    }
+    expect(attentionKeys(loadHomePage(db, "ws-commerce", now, "UTC").attention)).not.toContain(
+      "ACME-31",
+    );
+    expect(shell.todo.byWorkspace[labs]).toBe(1);
+    expect(shell.todo.all).toBe((shell.todo.byWorkspace["ws-commerce"] ?? 0) + 1);
+  });
+
   it("전체에서는 모든 Workspace 의 To do·진행 중·오늘 끝난 런을 Workspace 와 함께 담는다(ADR 0006, 티켓 0069)", () => {
     const { db } = seedDatabase();
     addLabsFailedRun(db);
@@ -578,6 +611,155 @@ describe("loadHomePage PR 신호(0167)", () => {
     expect(endedView(db, "ACME-41").pullRequest?.signals).toBeNull();
   });
 
+  it("런 패널 「PR」 탭에 쓸 CI·PR 상태·머지 시각·브랜치를 담는다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-43",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    recordOpenPr(db, id);
+    const open = endedView(db, "ACME-43").pullRequest;
+    expect(open).toMatchObject({
+      ci: "failure",
+      state: "open",
+      settledAt: null,
+      settledAgoMs: null,
+    });
+    expect(open?.branch).toBe("acme/ACME-43");
+
+    updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
+    expect(endedView(db, "ACME-43").pullRequest).toMatchObject({
+      state: "merged",
+      settledAt: minutes(96).toISOString(),
+      settledAgoMs: now.getTime() - minutes(96).getTime(),
+    });
+
+    updateRunRecords(db, id, { laterPrState: { state: "closed", at: minutes(97) } });
+    expect(endedView(db, "ACME-43").pullRequest?.state).toBe("closed");
+  });
+
+  it("「PR」 탭에 쓸 PR 제목·base 와 커밋 수·마지막 커밋 시각만 담고, 커밋 목록은 런 하나로 따로 읽는다(티켓 0200, 0206)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-46",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    expect(endedView(db, "ACME-46").pullRequest).toBeNull();
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-46").pullRequest).toMatchObject({
+      title: null,
+      baseBranch: null,
+      commitSummary: null,
+    });
+    expect(loadRunPrCommits(db, id, now)).toEqual([]);
+
+    const commit = {
+      oid: "0123456789abcdef",
+      url: "https://code.example.com/acme/web/commit/0123456789abcdef",
+      headline: "Add retry",
+      author: "kim",
+      committedAt: minutes(90).toISOString(),
+    };
+    updateRunRecords(db, id, {
+      pullRequest: {
+        id: toPullRequestId("pr-41"),
+        displayId: "#41",
+        url: "https://code.example.com/acme/web/pull/41",
+        ci: "success",
+        checkedAt: minutes(95),
+        signals: {
+          open: true,
+          headCommit: "abc",
+          ciFailed: false,
+          checkTotal: 4,
+          failedCount: 0,
+          failedChecks: [],
+          checksTruncated: false,
+          conflict: false,
+          behindBy: 0,
+          title: "Retry failed payments",
+          baseBranch: "develop",
+          commits: [commit, { ...commit, oid: "fedcba9876", url: "javascript:alert(1)" }],
+        },
+      },
+    });
+    const view = endedView(db, "ACME-46").pullRequest;
+    expect(view).toMatchObject({
+      title: "Retry failed payments",
+      baseBranch: "develop",
+      commitSummary: {
+        count: 2,
+        latestAt: commit.committedAt,
+        latestAgoMs: now.getTime() - minutes(90).getTime(),
+      },
+    });
+    expect(view).not.toHaveProperty("commits");
+    expect(JSON.stringify(loadHomePage(db, "ws-commerce", now, "UTC"))).not.toContain(
+      commit.headline,
+    );
+    expect(loadRunPrCommits(db, id, now)).toEqual([
+      {
+        oid: "0123456789abcdef",
+        shortSha: "0123456",
+        url: commit.url,
+        headline: "Add retry",
+        author: "kim",
+        committedAt: commit.committedAt,
+        agoMs: now.getTime() - minutes(90).getTime(),
+      },
+      expect.objectContaining({ shortSha: "fedcba9", url: null }),
+    ]);
+
+    updateRunRecords(db, id, { laterPrState: { state: "merged", at: minutes(96) } });
+    expect(endedView(db, "ACME-46").pullRequest?.commitSummary?.count).toBe(2);
+    expect(loadRunPrCommits(db, id, now)).toHaveLength(2);
+  });
+
+  it("PR 이 없거나 없는 런의 커밋 목록은 null 이다(티켓 0206)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-47",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    expect(loadRunPrCommits(db, id, now)).toBeNull();
+    expect(loadRunPrCommits(db, toRunId("run-missing"), now)).toBeNull();
+  });
+
+  it("더 읽지 않는 PR 의 저장된 CI 는 알 수 없음으로 내린다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-45",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "open",
+    });
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-45").pullRequest?.ci).toBe("failure");
+    updateRunRecords(db, id, { worktreeRemovedAt: minutes(96) });
+    expect(endedView(db, "ACME-45").pullRequest).toMatchObject({ ci: "unknown", signals: null });
+  });
+
+  it("끝날 때 이미 머지된 PR 은 머지 시각 없이 머지됨이다(티켓 0199)", () => {
+    const { db } = seedDatabase();
+    const id = addEndedRun(db, {
+      key: "ACME-44",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "merged",
+    });
+    recordOpenPr(db, id);
+    expect(endedView(db, "ACME-44").pullRequest).toMatchObject({
+      state: "merged",
+      settledAt: null,
+    });
+  });
+
   it("PR을 못 읽은 런은 읽기 오류를 담고 신호는 비운다", () => {
     const { db } = seedDatabase();
     const id = addEndedRun(db, {
@@ -591,6 +773,44 @@ describe("loadHomePage PR 신호(0167)", () => {
     const run = endedView(db, "ACME-42");
     expect(run.prReadError).toBe("no-access");
     expect(run.pullRequest?.signals).toBeNull();
+  });
+
+  it("저장소를 볼 수 없어 PR을 못 읽은 런은 러너와 서버의 gh 계정 진단을 담고, 토큰은 담지 않는다(0207)", () => {
+    const { db } = seedDatabase();
+    addEndedRun(db, {
+      key: "ACME-42",
+      trackerProject: "tp-web",
+      agentResult: "reported-success",
+      prState: "unknown",
+      prReadError: "no-access",
+    });
+    recordGhAccounts(db, {
+      runnerId: toRunnerId("runner-a"),
+      readAt: now,
+      reading: {
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: false }],
+      },
+    });
+    const view = (serverGitHub: ServerGitHub | null) => {
+      const run = loadHomePage(db, "ws-commerce", now, "UTC", { serverGitHub }).endedRecently.find(
+        (candidate) => candidate.ticketKey === "ACME-42",
+      );
+      if (run?.state !== "ended") throw new Error("no ended ACME-42");
+      return run.prReadDiagnosis;
+    };
+    const server = { ghLogins: ["my-personal"], tokenSaved: true, tokenOnly: false };
+    expect(view(server)).toEqual({
+      kind: "different",
+      runner: "runner-a",
+      runnerLogin: "acme-dev",
+      server: { kind: "gh", logins: ["my-personal"] },
+    });
+    expect(view({ ...server, ghLogins: ["Acme-Dev", "my-personal"] })).toBeNull();
+    expect(view(null)).toBeNull();
+    expect(
+      JSON.stringify(loadHomePage(db, "ws-commerce", now, "UTC", { serverGitHub: server })),
+    ).not.toMatch(/gho_|github_pat_/);
   });
 });
 

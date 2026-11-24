@@ -1,0 +1,13 @@
+import { loadRunTicketPageLink, runTicketResponse } from "@ganger/app/run-ticket-link";
+import type { RunId } from "@ganger/core";
+import ticketLink from "../../messages/ko/ticketLink.json" with { type: "json" };
+import { getAdapterRegistry, getSecretBox } from "./adapters";
+import { getDatabase } from "./database";
+
+export async function serveRunTicket(request: Request, runId: RunId): Promise<Response> {
+  const link = await loadRunTicketPageLink(
+    { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() },
+    runId,
+  );
+  return runTicketResponse(request, link, ticketLink);
+}

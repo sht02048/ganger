@@ -25,19 +25,26 @@ import {
   recordRunQuestions,
   saveMcpWriteAllowed,
   getRun,
+  updateRunRecords,
 } from "@ganger/db";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 import {
+  AdapterRegistry,
+  pullRequestRecord,
   toAgentRef,
+  toCodeHostKind,
+  toPullRequestId,
   toQuestionId,
+  toRepoRef,
   toRunId,
   toTrackerConnectionId,
   toTrackerProjectId,
   toWorktreeRef,
 } from "@ganger/core";
-import type { RunId } from "@ganger/core";
+import type { PullRequestSnapshot, RunId } from "@ganger/core";
+import { FakeCodeHost } from "@ganger/core/testing";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { createMcpServer } from "./server.js";
@@ -271,7 +278,7 @@ describe("MCP 쓰기 도구", () => {
       .filter((t) => t.annotations?.destructiveHint === true)
       .map((t) => t.name)
       .toSorted();
-    expect(destructive).toEqual(["cancel_run", "remove_tracker_project"]);
+    expect(destructive).toEqual(["cancel_run", "merge_pr", "remove_tracker_project"]);
     for (const tool of tools.filter((t) => MCP_WRITE_TOOLS.some((name) => name === t.name))) {
       expect(tool.annotations?.readOnlyHint).toBe(false);
     }
@@ -686,6 +693,134 @@ describe("MCP Human Check 답하기(0190)", () => {
     expect(mcpLog(seeded.waiting)).toEqual([
       ["answer_human_check", "done", null],
       ["answer_human_check", "rejected", "request-reused"],
+    ]);
+  });
+});
+
+const MERGE_REPO = toRepoRef("acme/web");
+const MERGE_PR = toPullRequestId("42");
+
+function mergeRegistry(): { registry: AdapterRegistry; codeHost: FakeCodeHost } {
+  const codeHost = new FakeCodeHost(toCodeHostKind("fake-host"), "github:");
+  const snapshot: PullRequestSnapshot = {
+    id: MERGE_PR,
+    displayId: "#42",
+    url: "https://code.example.com/acme/web/pull/42",
+    title: "EXTERNAL-pr-title",
+    body: "ACME-1",
+    state: "open",
+    createdAt: at(10),
+    mergedAt: null,
+    headBranch: "acme/ACME-1",
+    sourceRepo: MERGE_REPO,
+    headCommit: "head-sha",
+    baseBranch: "develop",
+    ci: "success",
+    signals: {
+      open: true,
+      headCommit: "head-sha",
+      ciFailed: false,
+      checkTotal: 1,
+      failedCount: 0,
+      failedChecks: [],
+      checksTruncated: false,
+      conflict: false,
+      behindBy: 0,
+      merge: {
+        methods: ["squash", "merge"],
+        defaultMethod: "squash",
+        blocked: null,
+        canWrite: true,
+      },
+    },
+  };
+  codeHost.putPullRequest(MERGE_REPO, snapshot);
+  updateRunRecords(seeded.db, seeded.waiting, { pullRequest: pullRequestRecord(snapshot, at(20)) });
+  const registry = new AdapterRegistry().registerCodeHost({
+    kind: codeHost.kind,
+    create: () => codeHost,
+  });
+  return { registry, codeHost };
+}
+
+describe("MCP PR 머지(0201)", () => {
+  beforeEach(() => allowWrites());
+
+  it("허용이 꺼져 있으면 보이지 않고 머지하지 않는다", async () => {
+    allowWrites(false);
+    const { registry, codeHost } = mergeRegistry();
+    await connect("hermes", true, registry);
+    expect(await toolNames()).not.toContain("merge_pr");
+    const off = await call("merge_pr", { runId: seeded.waiting });
+    expect(off.isError).toBe(true);
+    expect(codeHost.merges).toEqual([]);
+    expect(mcpLog(seeded.waiting)).toEqual([]);
+  });
+
+  it("도구 설명이 되돌리기 어려우니 운영자에게 먼저 확인받으라고 알리고, 방식은 고르지 않아도 된다", async () => {
+    await connect();
+    const tool = (await client.listTools()).tools.find((t) => t.name === "merge_pr");
+    expect(tool?.description).toContain("hard to undo");
+    expect(tool?.description).toContain("confirm with the operator first");
+    expect(tool?.annotations).toMatchObject({ destructiveHint: true, openWorldHint: true });
+    expect(tool?.inputSchema.required).toEqual(["runId"]);
+  });
+
+  it("화면과 같은 핵심 함수로 레포 기본 방식으로 머지하고, Human Check 에 답하고, Run 상세에 MCP로 남긴다", async () => {
+    const checkId = askHumanCheck();
+    const { registry, codeHost } = mergeRegistry();
+    await connect("hermes", true, registry);
+    const merged = await call("merge_pr", { runId: seeded.waiting });
+    expect(merged.isError).toBe(false);
+    expect(merged.json).toMatchObject({ outcome: "done", merged: true });
+    expect(merged.json).not.toHaveProperty("pending");
+    expect(codeHost.merges).toEqual([
+      { repo: MERGE_REPO, id: MERGE_PR, method: "squash", expectedHead: "head-sha" },
+    ]);
+    expect(humanCheckAnswer(checkId)).toBe("확인했어요\n\n운영자가 PR을 머지했어요");
+    expect(mcpLog(seeded.waiting)).toEqual([["merge_pr", "done", null]]);
+  });
+
+  it("허용하지 않은 방식은 거절하고 기록한다", async () => {
+    const { registry, codeHost } = mergeRegistry();
+    await connect("hermes", true, registry);
+    const refused = await call("merge_pr", { runId: seeded.waiting, method: "rebase" });
+    expect(refused.isError).toBe(true);
+    expect(refused.json["reason"]).toBe("method-not-allowed");
+    expect(codeHost.merges).toEqual([]);
+    expect(mcpLog(seeded.waiting)).toEqual([["merge_pr", "rejected", "method-not-allowed"]]);
+  });
+
+  it("GitHub 이 거절하면 이유 값과 GitHub 의 말을 external 칸에 담아 돌려준다", async () => {
+    const { registry, codeHost } = mergeRegistry();
+    codeHost.mergeOutcome = {
+      ok: false,
+      reason: "no-write-access",
+      message: "EXTERNAL-Resource not accessible by personal access token",
+    };
+    await connect("hermes", true, registry);
+    const refused = await call("merge_pr", { runId: seeded.waiting, method: "merge" });
+    expect(refused.json).toMatchObject({
+      reason: "no-write-access",
+      external: { detail: "EXTERNAL-Resource not accessible by personal access token" },
+    });
+    expect(String(refused.json["error"])).not.toContain("EXTERNAL");
+    expect(mcpLog(seeded.waiting)).toEqual([["merge_pr", "rejected", "no-write-access"]]);
+  });
+
+  it("같은 requestId 는 한 번만 머지하고 한 번만 기록하며, 다른 방식이면 request-reused 로 거절한다", async () => {
+    const { registry, codeHost } = mergeRegistry();
+    await connect("hermes", true, registry);
+    const args = { runId: seeded.waiting, method: "squash", requestId: "mcp-merge-pr-0201" };
+    const first = await call("merge_pr", args);
+    const second = await call("merge_pr", args);
+    const changed = await call("merge_pr", { ...args, method: "merge" });
+    expect(second.json).toEqual(first.json);
+    expect(changed.json["reason"]).toBe("request-reused");
+    expect(codeHost.merges).toHaveLength(1);
+    expect(mcpLog(seeded.waiting)).toEqual([
+      ["merge_pr", "done", null],
+      ["merge_pr", "rejected", "request-reused"],
     ]);
   });
 });

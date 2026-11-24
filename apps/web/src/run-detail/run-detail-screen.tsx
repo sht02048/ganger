@@ -12,6 +12,7 @@ import {
   Dialog,
   DialogClose,
   Disclosure,
+  ExternalIconLink,
   Field,
   Input,
   MotionList,
@@ -38,6 +39,8 @@ import { useEffect, useRef, useState } from "react";
 import type { MouseEvent, ReactNode, RefObject } from "react";
 import { useTranslations } from "use-intl";
 import { useTime } from "../format/time";
+import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
+import { runTicketHref } from "../run-ticket-href";
 import { RUN_ANSWER_HASH } from "../navigation/back-target";
 import type { BackOrigin } from "../navigation/back-target";
 import { isPlainLinkClick } from "../navigation/in-app-links";
@@ -58,7 +61,7 @@ import type { RunNextStep } from "@ganger/app/run-next-step";
 import { useRunNextStepText } from "../run-next-step";
 import { availableRunControl } from "@ganger/app/run-control-view";
 import type { RunControlOutcome, RunControlView } from "@ganger/app/run-control-view";
-import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
+import { CONTINUE_MESSAGE_MAX_LENGTH, toRunId } from "@ganger/core";
 import type { RunControl, RunnerId } from "@ganger/core";
 import type { HumanCheckDecision } from "@ganger/app/home/actions";
 import type {
@@ -199,6 +202,12 @@ function Main(props: RunDetailScreenProps & { run: RunDetail }) {
             ...(run.runner === null ? [] : [run.runner.name]),
             ...(run.branch === null ? [] : [run.branch]),
           ].join(t("metaSeparator"))}
+          actions={
+            <ExternalIconLink
+              href={runTicketHref(toRunId(run.id))}
+              label={`${t("openInTracker")} (${t("newTab")})`}
+            />
+          }
         />
       }
     >
@@ -644,6 +653,7 @@ function PrSection({ run }: { run: RunDetail }) {
   const ci = useTranslations("run.ci");
   const laterPr = useTranslations("run.laterPr");
   const { ago, stamp } = useTime();
+  const diagnosisText = usePrReadDiagnosisText();
   const pr = run.pullRequest;
   const ended = run.status.state === "ended" ? run.status : null;
   const state = ended === null ? null : (ended.laterPrState?.state ?? ended.prState);
@@ -696,6 +706,11 @@ function PrSection({ run }: { run: RunDetail }) {
             {root(`prUnread.${ended.prReadError}`)}
           </Text>
         </p>
+      )}
+      {ended?.prReadDiagnosis == null ? null : (
+        <Text variant="ui" tone="muted" as="p">
+          {diagnosisText(ended.prReadDiagnosis, "run")}
+        </Text>
       )}
       {pr === null ? null : (
         <SignalList>

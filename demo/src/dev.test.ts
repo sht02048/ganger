@@ -151,8 +151,8 @@ describe("pnpm dev:web", () => {
       await page.getByRole("button", { name: settings.credentials.keyCheck }).click();
       await main.getByText(onboarding.tracker.checked).waitFor();
       await openStep(onboarding.steps.github.title);
-      await fill.click();
-      await page.getByRole("button", { name: settings.github.save }).click();
+      await main.getByText(settings.githubAuth.connectedTitle, { exact: true }).waitFor();
+      await page.getByRole("button", { name: settings.githubAuth.connect }).click();
       await enabled(next);
       await openStep(onboarding.steps.runner.title);
       await page.getByRole("link", { name: runnerSetup.choose.directLink }).click();

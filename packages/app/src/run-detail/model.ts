@@ -15,6 +15,7 @@ import type { InputWait } from "../home/model.js";
 import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { QueuedReason } from "../runs/model.js";
+import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
 
 export type CiView = "success" | "failure" | "pending" | "none" | "unavailable" | "unknown";
 
@@ -80,6 +81,7 @@ export type RunDetailStatus =
       agentResult: AgentResult;
       prState: PrState;
       prReadError: PrReadError | null;
+      prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
       keptWorktree: KeptWorktree | null;
       laterPrState: { state: "merged" | "closed"; at: string } | null;

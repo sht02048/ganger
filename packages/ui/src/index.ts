@@ -21,6 +21,7 @@ export {
   railLinkStyles,
   type AppFramePending,
   type AppFrameProps,
+  type RailBadgeKind,
   type RailLinkContentProps,
 } from "./components/app-frame";
 export { Button, buttonStyles, type ButtonProps, type ButtonVariant } from "./components/button";
@@ -48,8 +49,15 @@ export {
   type SurfaceRole,
 } from "./components/card";
 export { Checkbox, type CheckboxProps } from "./components/checkbox";
+export { CheckboxDisclosure, type CheckboxDisclosureProps } from "./components/checkbox-disclosure";
 export { Chip, RemovableChip, type ChipProps, type RemovableChipProps } from "./components/chip";
 export { CodeBlock, type CodeBlockProps } from "./components/code-block";
+export {
+  CommitHistory,
+  type CommitHistoryItem,
+  type CommitHistoryLoad,
+  type CommitHistoryProps,
+} from "./components/commit-history";
 export { QrCode, type QrCodeProps } from "./components/qr-code";
 export { ScrollRegion, type ScrollRegionProps } from "./components/scroll-region";
 export { Spinner } from "./components/spinner";
@@ -165,6 +173,11 @@ export {
   type TextLinkProps,
 } from "./components/link";
 export {
+  SplitButton,
+  type SplitButtonOption,
+  type SplitButtonProps,
+} from "./components/split-button";
+export {
   Menu,
   MenuItem,
   MenuRadio,
@@ -245,7 +258,12 @@ export {
   type IssueRowSurface,
   type IssueStateKind,
 } from "./components/issue-list";
-export { StatusDot, statusDotStyles, type StatusDotProps } from "./components/status-dot";
+export {
+  StatusDot,
+  statusDotStyles,
+  toneDotStyles,
+  type StatusDotProps,
+} from "./components/status-dot";
 export {
   PILL_STATUSES,
   StatusPill,
@@ -307,7 +325,18 @@ export {
   type StepNavProps,
   type StepState,
 } from "./components/steps";
-export { Tab, TabPanel, Tabs, type TabProps, type TabsProps } from "./components/tabs";
+export {
+  Tab,
+  TabPanel,
+  Tabs,
+  prDotTone,
+  type PrDotState,
+  type TabDot,
+  type TabPanelProps,
+  type TabProps,
+  type TabsProps,
+} from "./components/tabs";
+export { FactCell, FactCells, type FactCellProps } from "./components/fact-cells";
 export {
   TEXT_TONES,
   TEXT_VARIANTS,

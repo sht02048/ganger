@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { fileURLToPath } from "node:url";
 import type { Plugin } from "vite";
 import { devPage } from "./dev-page.ts";
+import { nextDemoGhState } from "./gh-state.ts";
 import { DEMO_OTHER_MAC } from "./other-mac.ts";
 import { demoThisMac } from "./this-mac.ts";
 
@@ -98,6 +99,11 @@ function handle(req: IncomingMessage, res: ServerResponse, path: string): void {
   if (req.method === "POST" && path === "/__dev/remote-login") {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify({ remoteLogin: demoThisMac().toggleRemoteLogin() }));
+    return;
+  }
+  if (req.method === "POST" && path === "/__dev/gh") {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ gh: nextDemoGhState() }));
     return;
   }
   if (req.method === "POST" && path === "/__dev/expire-enrollment") {

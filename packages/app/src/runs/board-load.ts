@@ -28,6 +28,7 @@ import type {
   RunsBoardPage,
 } from "./board.js";
 import { pickConditions, startOfCalendarDay, toRunsFilter } from "./conditions.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { ACTIVE_STATES, describeConditions, runViewBuilder } from "./load.js";
 import { ENDED_RUNS_PAGE_SIZE } from "./model.js";
 import type { RunView } from "./model.js";
@@ -38,6 +39,7 @@ export interface RunsBoardOptions {
   view?: EndedView;
   failedOnly?: boolean;
   timeZone?: string;
+  serverGitHub?: ServerGitHub | null;
 }
 
 const OCCUPYING_STATES = ["running", "waiting-for-input", "paused", "disconnected"] as const;
@@ -54,6 +56,7 @@ export function loadRunsBoard(
     view,
     failedOnly = false,
     timeZone = DEFAULT_TIME_ZONE,
+    serverGitHub = null,
   } = options;
   const workspace = resolveWorkspace(
     listWorkspaces(db).map((w) => ({ id: w.id, name: w.name })),
@@ -74,7 +77,7 @@ export function loadRunsBoard(
       conditions: [],
     };
 
-  const { runners, toView } = runViewBuilder(db, now);
+  const { runners, toView } = runViewBuilder(db, now, serverGitHub);
   const scope = {
     workspaceId: toWorkspaceId(workspace.workspace.id),
     ...toRunsFilter(
@@ -130,6 +133,7 @@ export function loadBoardRun(
   ws: string | undefined,
   runId: string,
   now: Date,
+  serverGitHub: ServerGitHub | null = null,
 ): BoardRun | null {
   const workspace = resolveWorkspace(
     listWorkspaces(db).map((w) => ({ id: w.id, name: w.name })),
@@ -142,7 +146,7 @@ export function loadBoardRun(
     db,
     boardRun(
       db,
-      runViewBuilder(db, now).toView(entry, false),
+      runViewBuilder(db, now, serverGitHub).toView(entry, false),
       entry,
       nextStepReader(db, listRuns(db, { ticket: entry.run.ticket })),
     ),

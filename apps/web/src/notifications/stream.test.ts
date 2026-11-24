@@ -124,7 +124,7 @@ describe("알림 사건 SSE", () => {
     const response = notificationStreamResponse(new ReadableStream());
     expect(response.headers.get("content-type")).toBe("text/event-stream; charset=utf-8");
     expect(response.headers.get("cache-control")).toContain("no-transform");
-    const request = new Request("http://127.0.0.1/api/notification-events/stream?after=3", {
+    const request = new Request("http://127.0.0.1/api/v1/notification-events/stream?after=3", {
       headers: { "last-event-id": "7" },
     });
     expect(lastEventId(request)).toBe("7");

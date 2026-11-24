@@ -18,7 +18,7 @@ import { ENDED_RUNS_PAGE_SIZE, MAX_ENDED_RUNS } from "@ganger/app/runs/model";
 import { RunsScreen } from "../../runs/runs-screen";
 import type { ClearableCondition } from "../../runs/runs-screen";
 import { useFirstDrawKey } from "../../query/first-draw";
-import { requestTimeZone, useRequestTimeZone } from "../../query/request-time-zone";
+import { loadInRequestTimeZone } from "../../query/request-time-zone";
 import { loadRouteQuery } from "../../query/route-query";
 import { runsBoardRunQuery, runsListQuery } from "../../runs/queries";
 import { useShell } from "../../shell/shell-query";
@@ -44,11 +44,10 @@ export const Route = createFileRoute("/_app/runs")({
     ...pickBoardConditions(search),
   }),
   loader: (load) =>
-    loadRouteQuery(
-      load,
-      runsListQuery(
-        { ...load.deps, ended: load.deps.ended ?? ENDED_RUNS_PAGE_SIZE },
-        requestTimeZone(),
+    loadInRequestTimeZone((timeZone) =>
+      loadRouteQuery(
+        load,
+        runsListQuery({ ...load.deps, ended: load.deps.ended ?? ENDED_RUNS_PAGE_SIZE }, timeZone),
       ),
     ),
   head: () => ({ meta: [{ title: t("documentTitle") }] }),
@@ -57,7 +56,7 @@ export const Route = createFileRoute("/_app/runs")({
 
 function RunsRoute() {
   const deps = Route.useLoaderDeps();
-  const timeZone = useDeferredValue(useRequestTimeZone());
+  const timeZone = useDeferredValue(Route.useLoaderData({ select: (data) => data.timeZone }));
   const { data: page, isFetching } = useSuspenseQuery(
     runsListQuery({ ...deps, ended: deps.ended ?? ENDED_RUNS_PAGE_SIZE }, timeZone),
   );

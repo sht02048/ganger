@@ -121,6 +121,8 @@ export const runners = sqliteTable(
     providerUsageReadAt: timeMs("provider_usage_read_at"),
     load: text("load"),
     loadReadAt: timeMs("load_read_at"),
+    ghAccounts: text("gh_accounts"),
+    ghAccountsReadAt: timeMs("gh_accounts_read_at"),
     createdAt: timeMs("created_at").notNull(),
   },
   (t) => [

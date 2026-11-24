@@ -1,10 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
-import { markAllTrackersChanged } from "@ganger/db";
+import { countUnreadPrRuns, listCodeHostConnections, markAllTrackersChanged } from "@ganger/db";
+import type { Database } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
-import { loadHomePage } from "@ganger/app/home/load";
+import { loadHomePage, loadRunPrCommits, runPrCommitsInput } from "@ganger/app/home/load";
+import { loadServerGitHub } from "@ganger/app/pr-read-diagnosis";
+import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
+import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
   answerOnceInput,
@@ -38,7 +42,7 @@ import {
 } from "@ganger/app/tickets/assign";
 import { loadTicketBlockers, loadTicketRuns, loadTrackerTickets } from "@ganger/app/tickets/load";
 import { TIME_ZONE_COOKIE, parseTimeZone } from "@ganger/app/time-zone";
-import { getAdapterRegistry, getSecretBox } from "./adapters";
+import { getAdapterRegistry, getGitHubAuth, getSecretBox } from "./adapters";
 import { getDatabase } from "./database";
 import { getTrackerReads } from "./tracker-reads";
 
@@ -53,16 +57,32 @@ export const getTitleBarHidden = createServerFn({ method: "GET" }).handler(() =>
 export const getShell = createServerFn({ method: "GET" }).handler(() => loadShell(getDatabase()));
 
 export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
-  loadRunnersPage(getDatabase(), new Date(), { includeLoad: true }),
+  loadRunnersPage(getDatabase(), new Date(), { includeLoad: true, includeGhAccounts: true }),
 );
+
+async function serverGitHubForDiagnosis(db: Database): Promise<ServerGitHub | null> {
+  if (countUnreadPrRuns(db)["no-access"] === 0) return null;
+  try {
+    return await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()));
+  } catch {
+    return null;
+  }
+}
 
 export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))
-  .handler(({ data }) =>
-    loadHomePage(getDatabase(), data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    const serverGitHub = await serverGitHubForDiagnosis(db);
+    return loadHomePage(db, data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
       includeLoad: true,
-    }),
-  );
+      serverGitHub,
+    });
+  });
+
+export const getRunPrCommits = createServerFn({ method: "GET" })
+  .validator(runPrCommitsInput)
+  .handler(({ data }) => loadRunPrCommits(getDatabase(), data.runId, new Date()));
 
 export const answerQuestion = createServerFn({ method: "POST" })
   .validator(answerOnceInput)
@@ -71,6 +91,16 @@ export const answerQuestion = createServerFn({ method: "POST" })
 export const answerHumanCheck = createServerFn({ method: "POST" })
   .validator(humanCheckOnceInput)
   .handler(({ data }) => submitHumanCheckOnce(getDatabase(), data, new Date()));
+
+export const mergePullRequest = createServerFn({ method: "POST" })
+  .validator(mergePrInput)
+  .handler(({ data }) =>
+    mergeRunPullRequest(
+      { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() },
+      data,
+      () => new Date(),
+    ),
+  );
 
 export const denyPermission = createServerFn({ method: "POST" })
   .validator(denyInput)
@@ -86,19 +116,24 @@ export const getRunsPage = createServerFn({ method: "GET" })
       failedOnly: z.boolean().optional(),
     }),
   )
-  .handler(({ data }) =>
-    loadRunsBoard(getDatabase(), data.ws, new Date(), {
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadRunsBoard(db, data.ws, new Date(), {
       ...(data.ended === undefined ? {} : { endedLimit: data.ended }),
       conditions: pickBoardConditions(data),
       ...(data.view === undefined ? {} : { view: data.view }),
       failedOnly: data.failedOnly === true,
       timeZone: parseTimeZone(getCookie(TIME_ZONE_COOKIE)),
-    }),
-  );
+      serverGitHub: await serverGitHubForDiagnosis(db),
+    });
+  });
 
 export const getRunsBoardRun = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional(), runId: z.string().min(1).max(200) }))
-  .handler(({ data }) => loadBoardRun(getDatabase(), data.ws, data.runId, new Date()));
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadBoardRun(db, data.ws, data.runId, new Date(), await serverGitHubForDiagnosis(db));
+  });
 
 export const getStatsPage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional(), days: statsPeriodDaysSchema }))
@@ -114,7 +149,10 @@ export const getStatsPage = createServerFn({ method: "GET" })
 
 export const getRunDetail = createServerFn({ method: "GET" })
   .validator(z.object({ runId: z.string() }))
-  .handler(({ data }) => loadRunDetail(getDatabase(), data.runId, new Date()));
+  .handler(async ({ data }) => {
+    const db = getDatabase();
+    return loadRunDetail(db, data.runId, new Date(), await serverGitHubForDiagnosis(db));
+  });
 
 export const requestRunLog = createServerFn({ method: "POST" })
   .validator(z.object({ runId: z.string() }))

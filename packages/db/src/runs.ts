@@ -1002,7 +1002,8 @@ export function updateRunRecords(
     set.prCiState = pr?.ci ?? null;
     set.prCheckedAt = pr?.checkedAt ?? null;
     if (pr === null || (pr.signals ?? null) !== null) {
-      set.prSignals = pr?.signals ?? null;
+      set.prSignals =
+        pr?.signals == null ? null : withStoredCommits(getRunRow(db, runId), pr, pr.signals);
       set.prSignalsReadAt = pr === null ? null : pr.checkedAt;
     } else if (!sameCommitAsStored(getRunRow(db, runId), pr)) {
       set.prSignals = null;
@@ -1118,6 +1119,61 @@ export function countUnreadPrRuns(db: Database): Record<PrReadError, number> {
     if (row.error !== null) counts[row.error] += row.runs;
   }
   return counts;
+}
+
+function withStoredCommits(
+  row: RunRow | undefined,
+  pr: { id: PullRequestId },
+  signals: PullRequestSignals,
+): PullRequestSignals {
+  if (row?.prId !== pr.id) return signals;
+  const kept = withStoredMergeDenial(row.prSignals, signals);
+  if (kept.commits !== undefined) return kept;
+  const storedSignals = row.prSignals;
+  const sameHead = storedSignals?.headCommit === kept.headCommit;
+  const stored = kept.open && !sameHead ? undefined : storedSignals?.commits;
+  return stored === undefined ? kept : { ...kept, commits: stored };
+}
+
+function withStoredMergeDenial(
+  stored: PullRequestSignals | null,
+  signals: PullRequestSignals,
+): PullRequestSignals {
+  const deniedAt = stored?.mergeDeniedAt;
+  if (signals.mergeDeniedAt !== undefined || deniedAt === undefined) return signals;
+  return { ...signals, mergeDeniedAt: deniedAt };
+}
+
+export function recordMergeDenied(db: Database, runId: RunId, at: Date): boolean {
+  return inTransaction(db, () => {
+    const signals = getRunRow(db, runId)?.prSignals;
+    if (signals == null) return false;
+    const updated =
+      db
+        .update(runs)
+        .set({ prSignals: { ...signals, mergeDeniedAt: at.toISOString() } })
+        .where(eq(runs.id, runId))
+        .run().changes > 0;
+    if (updated) recordRunChange(db, runId);
+    return updated;
+  });
+}
+
+export function clearMergeDenials(db: Database): number {
+  return inTransaction(db, () => {
+    const denied = db
+      .select({ id: runs.id, prSignals: runs.prSignals })
+      .from(runs)
+      .where(sql`json_extract(${runs.prSignals}, '$.mergeDeniedAt') IS NOT NULL`)
+      .all();
+    for (const row of denied) {
+      if (row.prSignals == null) continue;
+      const { mergeDeniedAt: _cleared, ...signals } = row.prSignals;
+      db.update(runs).set({ prSignals: signals }).where(eq(runs.id, row.id)).run();
+      recordRunChange(db, row.id);
+    }
+    return denied.length;
+  });
 }
 
 function sameCommitAsStored(

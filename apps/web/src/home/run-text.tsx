@@ -84,7 +84,6 @@ export function useRunText() {
     agentName,
     statusName,
     agentResult: (run: HomeRun & { state: "ended" }) => tDomain(`agentResult.${run.agentResult}`),
-    prState: (run: HomeRun & { state: "ended" }) => tDomain(`prState.${run.prState}`),
   };
 }
 

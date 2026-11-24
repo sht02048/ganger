@@ -64,7 +64,7 @@ The [self-hosting guide](docs/guide/self-hosting.md) covers each step and upgrad
 ## First run
 
 1. In the desktop app, run the server on this machine or connect to another server. With a server bundle, open `http://127.0.0.1:3000`.
-2. Follow onboarding to connect your tracker and GitHub token, add a runner, and set up a workspace and its mapping.
+2. Follow onboarding to connect your tracker and GitHub (the server machine's `gh auth login`, or a pasted token), add a runner, and set up a workspace and its mapping.
 3. Assign a ticket from Tickets, or add the Auto-assign Label to one in your tracker.
 
 A webhook is optional. Without one, Ganger checks the tracker about once a minute. To get assignments within seconds, [turn on the webhook](docs/guide/networking.md#turn-on-the-webhook).

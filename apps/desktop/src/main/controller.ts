@@ -19,7 +19,7 @@ import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
 import { ActivityReporter } from "../core/activity-report.js";
 import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
-import type { TokenCipher } from "../core/device-link.js";
+import type { RegisterResult, TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
 import {
   notificationId,
@@ -28,7 +28,24 @@ import {
   staleNotificationIds,
 } from "../core/notification-ids.js";
 import type { FeedBatch } from "../core/notification-feed.js";
-import { DEFAULT_NOTIFICATION_PREFS, notificationPrefsSchema } from "../core/notification-prefs.js";
+import {
+  DEFAULT_NOTIFICATION_PREFS,
+  notificationPrefsSchema,
+  notificationSummary,
+} from "../core/notification-prefs.js";
+import {
+  FOCUS_SETTINGS_URL,
+  NotificationAccess,
+  SYSTEM_NOTIFICATION_SETTINGS_URL,
+  buildSigned,
+  notificationCenterReady,
+  shouldRequestOnEnable,
+} from "../core/notification-access.js";
+import type {
+  PermissionRequestResult,
+  TestNotificationResult,
+} from "../core/notification-access.js";
+import type { NotificationPermissionPort } from "../core/notification-addon.js";
 import type { DeviceLinkState, NotificationPrefs } from "../core/notification-prefs.js";
 import { notificationText } from "../core/notification-text.js";
 import { Notifier } from "../core/notifier.js";
@@ -65,19 +82,17 @@ import type { ServerVersion, Updater } from "../core/updater.js";
 import { isUpdateAction } from "@ganger/app/updates/view";
 import type { UpdateAction, UpdateView } from "@ganger/app/updates/view";
 import type { WatchState } from "../core/watch.js";
-import type {
-  FindResult,
-  NotificationPermission,
-  NotificationSettingsView,
-  ViewState,
-} from "../shared/view.js";
+import type { FindResult, NotificationSettingsView, ViewState } from "../shared/view.js";
 import {
   IPC_PREFIX,
   LOGS_CAN_OPEN,
   LOGS_OPEN,
   NAVIGATE_CHANNEL,
   NOTIFICATION_SETTINGS_CHANNEL,
+  NOTIFICATION_SETTINGS_OPEN,
   NOTIFICATION_SETTINGS_WINDOW,
+  NOTIFICATION_SUMMARY_CHANNEL,
+  NOTIFICATION_SUMMARY_GET,
   UPDATE_ACT,
   UPDATE_CHANNEL,
   UPDATE_GET,
@@ -107,8 +122,6 @@ const t = createTranslator({ locale: "ko", messages: { system }, namespace: "sys
 const REMINDER_TICK_MS = 30_000;
 const REMOTE_RETRY_MS = 5_000;
 const UPDATE_TICK_MS = 10 * 60_000;
-const SYSTEM_NOTIFICATION_SETTINGS =
-  "x-apple.systempreferences:com.apple.Notifications-Settings.extension";
 
 export interface ControllerOptions {
   settings: SettingsStore;
@@ -122,6 +135,8 @@ export interface ControllerOptions {
   updater: Updater;
   devServerUrl: string | undefined;
   tokenCipher: TokenCipher | null;
+  notificationPort: NotificationPermissionPort | null;
+  packaged: boolean;
 }
 
 type Mode = "choosing" | "local" | "remote";
@@ -140,7 +155,7 @@ export class Controller {
   private catchUp = true;
   private readonly delivered = new Map<string, Notification>();
   private reminderTimer: NodeJS.Timeout | undefined;
-  private notificationPermission: NotificationPermission = "unknown";
+  private readonly access: NotificationAccess;
   private diagnosticsListener:
     | ((event: Electron.Event, item: Electron.DownloadItem) => void)
     | undefined;
@@ -156,10 +171,16 @@ export class Controller {
   private readonly deviceLink: DeviceLink;
   private deviceLinkState: DeviceLinkState = "connected";
   private deviceRejectedNotice: Notification | undefined;
+  private testNotification: Notification | undefined;
   quitting = false;
 
   constructor(options: ControllerOptions) {
     this.options = options;
+    this.access = new NotificationAccess({
+      port: options.notificationPort,
+      signed: buildSigned(options.notificationPort, options.packaged),
+      onChange: () => this.sendNotificationSettings(),
+    });
     this.deviceLink = new DeviceLink({
       store: deviceTokenStore(options.settings, options.tokenCipher),
       identify: async (origin) => {
@@ -184,6 +205,7 @@ export class Controller {
 
   start(): void {
     this.registerIpc();
+    void this.access.refresh();
     this.tray = new Tray(nativeImage.createFromPath(this.options.trayIcon));
     this.tray.setToolTip(t("tray.tooltip"));
     this.reminderTimer = setInterval(() => this.tickReminders(), REMINDER_TICK_MS);
@@ -585,6 +607,7 @@ export class Controller {
       mainWindowOptions(PRODUCT_DISPLAY_NAME, this.options.preloadFile),
     );
     window.once("ready-to-show", () => window.show());
+    window.on("focus", () => void this.access.refresh());
     window.on("close", (event) => {
       if (this.quitting) return;
       event.preventDefault();
@@ -665,15 +688,32 @@ export class Controller {
     });
     handle("choose-mode", () => this.chooseMode());
     handle("open-log", () => this.openLog());
-    ipcMain.handle(`${IPC_PREFIX}get-notification-settings`, (event) =>
-      fromAppScreen(event) ? this.notificationSettingsView() : undefined,
+    ipcMain.handle(`${IPC_PREFIX}get-notification-settings`, async (event) => {
+      if (!fromAppScreen(event)) return undefined;
+      await this.access.refresh();
+      return this.notificationSettingsView();
+    });
+    ipcMain.handle(
+      `${IPC_PREFIX}request-notification-permission`,
+      (event): Promise<PermissionRequestResult> | undefined =>
+        fromAppScreen(event) ? this.access.request() : undefined,
+    );
+    ipcMain.handle(
+      `${IPC_PREFIX}send-test-notification`,
+      (event): Promise<TestNotificationResult> | undefined =>
+        fromAppScreen(event) ? this.sendTestNotification() : undefined,
     );
     handle("set-notification-settings", (value) => {
       const parsed = notificationPrefsSchema.safeParse(value);
       if (parsed.success) this.saveNotificationPrefs(parsed.data);
     });
     handle("open-system-notification-settings", () =>
-      process.platform === "darwin" ? shell.openExternal(SYSTEM_NOTIFICATION_SETTINGS) : undefined,
+      process.platform === "darwin"
+        ? shell.openExternal(SYSTEM_NOTIFICATION_SETTINGS_URL)
+        : undefined,
+    );
+    handle("open-focus-settings", () =>
+      process.platform === "darwin" ? shell.openExternal(FOCUS_SETTINGS_URL) : undefined,
     );
     handle("reconnect-device", () => this.reconnectDevice());
     handle("enrollment-accept", () => {
@@ -689,6 +729,14 @@ export class Controller {
     ipcMain.handle(LOGS_OPEN, (event) =>
       this.fromServerPage(event) && logFolderOpenable(this.mode) ? this.openLogFolder() : false,
     );
+    ipcMain.handle(NOTIFICATION_SUMMARY_GET, async (event) => {
+      if (!this.fromServerPage(event)) return null;
+      await this.access.refresh();
+      return this.notificationSummaryView();
+    });
+    ipcMain.handle(NOTIFICATION_SETTINGS_OPEN, (event) => {
+      if (this.fromServerPage(event)) this.showNotificationSettings();
+    });
     ipcMain.handle(UPDATE_GET, (event) => (this.fromServerPage(event) ? this.updateView() : null));
     ipcMain.handle(UPDATE_ACT, (event, action: unknown) => {
       if (this.fromServerPage(event) && isUpdateAction(action)) this.runUpdateAction(action);
@@ -732,8 +780,12 @@ export class Controller {
     if (!focused) this.notifyEnrollment(state.server);
   }
 
+  private notificationCenterReady(): boolean {
+    return notificationCenterReady(this.access, () => Notification.isSupported());
+  }
+
   private notifyEnrollment(server: string): void {
-    if (!Notification.isSupported()) return;
+    if (!this.notificationCenterReady()) return;
     const notification = new Notification({
       title: t("notifications.runnerEnrollment.title"),
       body: t("notifications.runnerEnrollment.body", { server }),
@@ -801,6 +853,7 @@ export class Controller {
       onBatch: (batch) => this.receiveNotifications(url, batch),
       connection: () => this.deviceLink.connection(url),
       onRejected: () => this.onDeviceRejected(url),
+      onUnsupported: () => this.onDeviceUnsupported(url),
       onTransport: (transport) => {
         if (transport !== "down") void activity.report();
       },
@@ -819,11 +872,22 @@ export class Controller {
     if (firstNotice) this.notifyDeviceRejected();
   }
 
+  private onDeviceUnsupported(url: string): void {
+    if (this.feed?.url !== url || this.deviceLinkState === "reconnecting") return;
+    const firstNotice = this.deviceLinkState !== "unsupported";
+    this.setDeviceLinkState("unsupported");
+    if (firstNotice) this.notifyDeviceLinkProblem("deviceUnsupported");
+  }
+
   private notifyDeviceRejected(): void {
-    if (!Notification.isSupported() || !this.notificationPrefs().enabled) return;
+    this.notifyDeviceLinkProblem("deviceRejected");
+  }
+
+  private notifyDeviceLinkProblem(notice: "deviceRejected" | "deviceUnsupported"): void {
+    if (!this.notificationPrefs().enabled || !this.notificationCenterReady()) return;
     const notification = new Notification({
-      title: t("notifications.deviceRejected.title"),
-      body: t("notifications.deviceRejected.body"),
+      title: t(`notifications.${notice}.title`),
+      body: t(`notifications.${notice}.body`),
     });
     notification.on("click", () => {
       this.deviceRejectedNotice = undefined;
@@ -837,10 +901,12 @@ export class Controller {
     const current = this.feed;
     if (current === undefined || this.deviceLinkState === "reconnecting") return;
     this.setDeviceLinkState("reconnecting");
-    const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
+    const result = await this.deviceLink
+      .reconnect(current.url)
+      .catch((): RegisterResult["kind"] => "failed");
     if (this.feed !== current) return;
-    this.setDeviceLinkState(connected ? "reconnected" : "failed");
-    if (connected) current.feed.reconnect();
+    this.setDeviceLinkState(reconnectedState(result));
+    if (result === "registered") current.feed.reconnect();
   }
 
   private setDeviceLinkState(state: DeviceLinkState): void {
@@ -900,7 +966,7 @@ export class Controller {
   }
 
   private showNotification(url: string, effect: Extract<NotifierEffect, { type: "show" }>): void {
-    if (!Notification.isSupported()) return;
+    if (!this.notificationCenterReady()) return;
     const id = notificationId(url, effect.id);
     const { title, body } = notificationText(effect.content);
     this.delivered.get(id)?.close();
@@ -916,8 +982,8 @@ export class Controller {
       if (this.view.screen === "runner-enrollment") return;
       if (this.serverUrl === url || this.feed?.url === url) this.openServer(url, effect.path);
     });
-    notification.on("show", () => this.setNotificationPermission("allowed"));
-    notification.on("failed", () => this.setNotificationPermission("denied"));
+    notification.on("show", () => this.access.observe("shown"));
+    notification.on("failed", () => this.access.observe("failed"));
     this.delivered.set(id, notification);
     notification.show();
   }
@@ -927,11 +993,12 @@ export class Controller {
       this.delivered.get(id)?.close();
       this.delivered.delete(id);
     }
-    if (process.platform === "darwin" && ids.length > 0) Notification.remove([...ids]);
+    if (process.platform === "darwin" && ids.length > 0 && this.access.mayUseNotificationCenter())
+      Notification.remove([...ids]);
   }
 
   private async removeStaleNotifications(url: string, open: ReadonlyArray<number>): Promise<void> {
-    if (process.platform !== "darwin") return;
+    if (process.platform !== "darwin" || !this.notificationCenterReady()) return;
     const history = await Notification.getHistory().catch(() => []);
     const stale = staleNotificationIds(
       url,
@@ -956,27 +1023,50 @@ export class Controller {
     }
   }
 
-  private setNotificationPermission(permission: NotificationPermission): void {
-    if (this.notificationPermission === permission) return;
-    this.notificationPermission = permission;
-    this.sendNotificationSettings();
+  private sendTestNotification(): Promise<TestNotificationResult> {
+    return this.access.sendTest(({ onShow, onFailed }) => {
+      if (!this.notificationCenterReady()) {
+        onFailed();
+        return;
+      }
+      const notification = new Notification({
+        title: t("notifications.test.title"),
+        body: t("notifications.test.body"),
+      });
+      notification.on("click", () => this.showNotificationSettings());
+      this.testNotification?.close();
+      this.testNotification = notification;
+      notification.once("show", onShow);
+      notification.once("failed", onFailed);
+      notification.show();
+    });
   }
 
   private notificationSettingsView(): NotificationSettingsView {
     return {
       ...this.notificationPrefs(),
-      permission: this.notificationPermission,
+      permission: this.access.permission,
       deviceLink: this.deviceLinkState,
     };
   }
 
+  private notificationSummaryView() {
+    return notificationSummary(this.notificationPrefs(), this.access.permission);
+  }
+
   private sendNotificationSettings(): void {
+    const main = this.window;
+    if (main !== undefined && !main.isDestroyed())
+      main.webContents.send(NOTIFICATION_SUMMARY_CHANNEL, this.notificationSummaryView());
     const window = this.settingsWindow;
     if (window === undefined || window.isDestroyed()) return;
     window.webContents.send(NOTIFICATION_SETTINGS_CHANNEL, this.notificationSettingsView());
   }
 
   private saveNotificationPrefs(prefs: NotificationPrefs): void {
+    const wasEnabled = this.notificationPrefs().enabled;
+    if (shouldRequestOnEnable(wasEnabled, prefs.enabled, this.access.permission))
+      void this.access.request();
     this.options.settings.write({ ...this.options.settings.read(), notifications: prefs });
     const current = this.feed;
     if (current !== undefined) this.applyNotifications(current.url, current.notifier.refresh());
@@ -994,6 +1084,7 @@ export class Controller {
       settingsWindowOptions(t("settingsWindow.title"), this.options.preloadFile),
     );
     window.once("ready-to-show", () => window.show());
+    window.on("focus", () => void this.access.refresh());
     window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     window.webContents.on("will-navigate", (event) => event.preventDefault());
     window.on("closed", () => {
@@ -1006,7 +1097,7 @@ export class Controller {
   }
 
   private notifyVersion(server: string): void {
-    if (this.notifiedVersion || !Notification.isSupported()) return;
+    if (this.notifiedVersion || !this.notificationCenterReady()) return;
     this.notifiedVersion = true;
     new Notification({
       title: t("notifications.versionDiffers.title"),
@@ -1097,7 +1188,11 @@ export class Controller {
         click: () => this.showNotificationSettings(),
       },
     );
-    if (this.deviceLinkState === "rejected" || this.deviceLinkState === "failed") {
+    if (
+      this.deviceLinkState === "rejected" ||
+      this.deviceLinkState === "unsupported" ||
+      this.deviceLinkState === "failed"
+    ) {
       items.push({
         id: "reconnect-device",
         label: t("menu.reconnectDevice"),
@@ -1215,4 +1310,15 @@ export function appPaths(base: string): {
     preloadFile: join(base, "dist", "preload", "preload.cjs"),
     trayIcon: join(base, "assets", "trayTemplate.png"),
   };
+}
+
+function reconnectedState(result: RegisterResult["kind"]): DeviceLinkState {
+  switch (result) {
+    case "registered":
+      return "reconnected";
+    case "unsupported":
+      return "unsupported";
+    case "failed":
+      return "failed";
+  }
 }

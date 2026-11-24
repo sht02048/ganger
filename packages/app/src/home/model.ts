@@ -8,8 +8,10 @@ import type {
   SummaryOutcome,
   TicketKey,
 } from "@ganger/core";
-import type { PrSignalsView } from "../pr-signals-view.js";
+import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
+import type { MergeView, PrCommitView, PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
+import type { CiView } from "../run-detail/model.js";
 import type { RunnerLoadHigh } from "../runners/model.js";
 import type { QueuedReason } from "../runs/model.js";
 import type { RunnerIssueCause, WorkspaceChoice, WorkspaceSummary } from "../shell/model.js";
@@ -35,6 +37,35 @@ export type InputWait =
       answered: boolean;
     };
 
+export type HomePrState = "open" | "merged" | "closed";
+
+export interface HomeCommitSummary {
+  count: number;
+  latestAt: string;
+  latestAgoMs: number;
+}
+
+export function commitSummaryOf(commits: ReadonlyArray<PrCommitView>): HomeCommitSummary | null {
+  const latest = commits[0];
+  if (latest === undefined) return null;
+  return { count: commits.length, latestAt: latest.committedAt, latestAgoMs: latest.agoMs };
+}
+
+export interface HomePullRequest {
+  displayId: string;
+  url: string;
+  signals: PrSignalsView | null;
+  ci: CiView;
+  state: HomePrState;
+  settledAt: string | null;
+  settledAgoMs: number | null;
+  branch: string | null;
+  title: string | null;
+  baseBranch: string | null;
+  commitSummary: HomeCommitSummary | null;
+  merge: MergeView | null;
+}
+
 interface HomeRunBase {
   id: RunId;
   ticketId: string;
@@ -46,7 +77,7 @@ interface HomeRunBase {
   agent: string;
   waitMs: number;
   executionMs: number | null;
-  pullRequest: { displayId: string; url: string; signals: PrSignalsView | null } | null;
+  pullRequest: HomePullRequest | null;
   cancelling: boolean;
   control: RunControlView | null;
 }
@@ -69,6 +100,7 @@ export type HomeRun =
       agentResult: AgentResult;
       prState: PrState;
       prReadError: PrReadError | null;
+      prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
       endedAt: string;
       endedAgoMs: number;
@@ -218,7 +250,11 @@ export function todoGroups(attention: ReadonlyArray<AttentionItem>): TodoGroup[]
   })).filter((group) => group.runs.length > 0);
 }
 
-export function needsAttention(run: HomeRun): boolean {
+export type TodoCandidate =
+  | { id: RunId; state: Exclude<HomeRun["state"], "ended"> }
+  | { id: RunId; state: "ended"; summary: SummaryOutcome };
+
+export function needsAttention(run: TodoCandidate): boolean {
   switch (run.state) {
     case "waiting-for-input":
     case "disconnected":
@@ -230,6 +266,22 @@ export function needsAttention(run: HomeRun): boolean {
     case "paused":
       return false;
   }
+}
+
+export function todoTicketOf(ticket: { connection: string; key: string }): string {
+  return `${ticket.connection}\u0000${ticket.key}`;
+}
+
+export function ticketTodos<T extends TodoCandidate>(
+  runs: ReadonlyArray<{ ticket: string; run: T }>,
+): Array<{ run: T; index: number }> {
+  const latestByTicket = new Map<string, RunId>();
+  for (const { ticket, run } of runs) latestByTicket.set(ticket, run.id);
+  return runs.flatMap(({ ticket, run }, index) =>
+    needsAttention(run) && (run.state !== "ended" || latestByTicket.get(ticket) === run.id)
+      ? [{ run, index }]
+      : [],
+  );
 }
 
 const noRunners: RunnersSummary = { list: [] };
@@ -254,15 +306,7 @@ export function partitionHome(input: {
       endedRecently: [],
     };
 
-  const latestByTicket = new Map<string, string>();
-  for (const { ticket, run } of input.runs) latestByTicket.set(ticket, run.id);
-
-  const attention = input.runs
-    .flatMap(({ ticket, run }, index) =>
-      needsAttention(run) && (run.state !== "ended" || latestByTicket.get(ticket) === run.id)
-        ? [{ run, index }]
-        : [],
-    )
+  const attention = ticketTodos(input.runs)
     .toSorted((a, b) => urgency(a.run) - urgency(b.run) || b.index - a.index)
     .map(({ run }): AttentionItem => ({ kind: "run", run }));
 

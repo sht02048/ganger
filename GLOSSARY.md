@@ -75,6 +75,9 @@ _Avoid_: 쿼터, rate limit
 러너 컴퓨터가 지금 얼마나 바쁜지를 보이는 CPU(1분 평균 부하 ÷ 코어 수), 메모리(쓴 양과 macOS 메모리 압박), GPU(사용률) 세 값. worker가 공급자 사용량을 읽는 ssh 연결에서 함께 읽어 러너별로 지금 값만 저장하고 기록을 쌓지 않는다. 러너에 프로그램을 설치하지 않으며 못 읽은 값은 "없음"이다. **부하가 높음**은 CPU 90% 이상이 5분 넘게 이어지거나, 메모리 압박이 높음(압박을 읽지 못하는 러너는 사용 90% 이상)인 때다. GPU는 높음으로 알리지 않는다. 부하가 높아도 할당 규칙과 대기 이유는 바뀌지 않고(할당은 Capacity만 본다), Runner Issue나 알림 사건이 아니다(티켓 0191).
 _Avoid_: 리소스, 사용량(공급자 사용량과 헷갈린다), 메트릭
 
+**러너의 gh 계정**:
+러너에서 gh CLI에 로그인한 GitHub 계정. 에이전트는 이 계정으로 push하고 PR을 연다. worker가 공급자 사용량·부하를 읽는 ssh 연결에서 `gh auth status`로 함께 읽어 호스트, 계정 이름, 사용 중 여부만 저장하고 토큰은 읽지도 저장하지도 않는다. gh가 없으면 "gh 없음", 로그인이 없으면 "로그인 안 됨"이다. 러너 상세에 정보로만 보이고 Runner Issue나 할당 조건이 아니다(티켓 0205). 서버가 PR을 읽는 GitHub 인증과는 다르다.
+
 **Project**:
 러너 안에 등록된 코드 저장소 하나. 한 러너는 여러 프로젝트를 가진다. 트래커 쪽 프로젝트는 Tracker Project로 따로 부른다.
 _Avoid_: Repo
@@ -248,7 +251,7 @@ Waiting for Input 런 중 에이전트가 권한 프롬프트에서 허용을 �
 _Avoid_: 권한 대기(종류 이름으로), 권한 요청
 
 **Human Check**:
-Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. Ganger는 머지하지 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
+Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. 운영자가 Dashboard 런 패널 「PR」 탭이나 MCP `merge_pr`로 그 런의 PR을 머지하면 Ganger가 "확인했어요"와 "운영자가 PR을 머지했어요"로 대신 답한다(ADR [0024](docs/adr/0024-operator-merges-pr-from-ganger.md)). Ganger가 스스로 머지를 정하지는 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
 _Avoid_: 승인 요청, 리뷰 요청, 결정 게이트(Orca 이름 `decision_gate` 밖에서), Human Check를 요약 결과로
 
 **Runner Issue**:

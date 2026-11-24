@@ -64,7 +64,7 @@ import { assignableChildCount } from "@ganger/app/tickets/bulk-assign";
 import { ticketId } from "@ganger/app/tickets/merge";
 import { AssignDialog } from "./assign-dialog";
 import { BulkAssignDialog } from "./bulk-assign-dialog";
-import { TICKET_FILTERS, countByFilter, lastRun } from "@ganger/app/tickets/model";
+import { TICKET_FILTERS, lastRun } from "@ganger/app/tickets/model";
 import type {
   TicketBlockersResult,
   TicketFilter,
@@ -87,6 +87,7 @@ import {
 } from "@ganger/app/tickets/groups";
 import type { TicketGroup, TicketListView } from "@ganger/app/tickets/groups";
 import {
+  filterCounts,
   isSelectableRow,
   issueStateKind,
   listBlocks,
@@ -317,7 +318,10 @@ function TicketsList({
     () => rows.filter((row) => isSelectableRow(row) && movingChildren.get(row.id) !== "closing"),
     [rows, movingChildren],
   );
-  const counts = useMemo(() => countByFilter(page.tickets), [page.tickets]);
+  const counts = useMemo(
+    () => filterCounts(view, page.tickets, grouping),
+    [view, page.tickets, grouping],
+  );
   const selectionExists =
     selectedId !== undefined &&
     (page.tickets.some((ticket) => ticket.id === selectedId) || issueGroups.has(selectedId));

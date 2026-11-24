@@ -219,6 +219,17 @@ function matchesFilterInGroup(child: TicketView, filter: TicketFilter): boolean 
   return matchesFilter(child, filter);
 }
 
+export function groupedFilterCount(grouping: TicketGrouping, filter: TicketFilter): number {
+  const visible = visibleGrouping(grouping, filter, "");
+  return visible.groups.reduce(
+    (count, { group, children }) =>
+      count +
+      children.length +
+      (group.rootTicket !== null && matchesFilterInGroup(group.rootTicket, filter) ? 1 : 0),
+    visible.loose.length,
+  );
+}
+
 export function visibleGrouping(
   grouping: TicketGrouping,
   filter: TicketFilter,

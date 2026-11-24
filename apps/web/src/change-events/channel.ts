@@ -7,6 +7,7 @@ export const CHANGE_BATCH_MS = 100;
 export const CHANGE_SILENCE_MS = 40_000;
 export const CHANGE_REOPEN_MS = 5_000;
 export const DISCONNECTED_POLL_MS = 30_000;
+export const SHOWN_REFRESH_AFTER_MS = 60_000;
 
 export interface ChangeEventSource {
   readonly readyState: number;
@@ -61,6 +62,7 @@ export class ChangeChannel {
   #poll: ReturnType<typeof setInterval> | undefined;
   #closed = false;
   #hidden = false;
+  #heardAt = Date.now();
 
   constructor(options: ChangeChannelOptions) {
     this.#options = options;
@@ -93,9 +95,20 @@ export class ChangeChannel {
   }
 
   show(): void {
-    if (this.#closed || !this.#hidden) return;
-    this.#hidden = false;
-    this.#connect();
+    if (this.#closed) return;
+    const unheard = Date.now() - this.#heardAt > SHOWN_REFRESH_AFTER_MS;
+    if (this.#hidden) {
+      this.#hidden = false;
+      this.#connect();
+    } else if (unheard) {
+      clearTimeout(this.#batch);
+      this.#flush();
+      this.#stop();
+      this.#connect();
+    }
+    if (!unheard) return;
+    this.#heardAt = Date.now();
+    this.#options.target.refetchVisible();
   }
 
   get #idle(): boolean {
@@ -159,6 +172,7 @@ export class ChangeChannel {
   }
 
   #alive(): void {
+    this.#heardAt = Date.now();
     this.#watchSilence();
     if (this.#poll === undefined) return;
     clearInterval(this.#poll);

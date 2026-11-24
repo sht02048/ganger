@@ -4,12 +4,14 @@ import {
   reachedUsageLimits,
   runDurations,
   summarizeRunOutcome,
+  toRunId,
 } from "@ganger/core";
 import type { RunId } from "@ganger/core";
 import {
   listPendingCancelRequests,
   listRunPermissionWaits,
   listRunQuestions,
+  getRunWithRecords,
   getWorkspaceTrackerProject,
   listRunPlacements,
   listRunners,
@@ -19,7 +21,18 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database, RunRecords, StoredRun, StoredRunner } from "@ganger/db";
-import { prSignalsViewOf } from "../pr-signals-view.js";
+import { z } from "zod";
+import {
+  isStillReread,
+  mergeViewOf,
+  prDetailsOf,
+  prSignalsViewOf,
+  settledPrStateOf,
+  toCiView,
+} from "../pr-signals-view.js";
+import { diagnosePrRead } from "../pr-read-diagnosis.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
+import type { PrCommitView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
@@ -29,15 +42,69 @@ import { resolveWorkspace, runnerIssueCause } from "../shell/model.js";
 import { calendarDay, DAY_MS } from "../time-zone.js";
 import { ticketId } from "../tickets/load.js";
 import type { QueuedReason } from "../runs/model.js";
-import type { DashboardRunner, DoneRun, HomePage, HomeRun, InputWait } from "./model.js";
-import { DONE_COLUMN_DAYS, partitionHome } from "./model.js";
+import type {
+  DashboardRunner,
+  DoneRun,
+  HomePage,
+  HomePrState,
+  HomePullRequest,
+  HomeRun,
+  InputWait,
+} from "./model.js";
+import { DONE_COLUMN_DAYS, commitSummaryOf, partitionHome, todoTicketOf } from "./model.js";
+
+function homePrStateOf(
+  run: StoredRun,
+  records: RunRecords,
+  now: Date,
+): Pick<HomePullRequest, "state" | "settledAt" | "settledAgoMs"> {
+  const later = records.laterPrState;
+  if (later !== null)
+    return {
+      state: later.state,
+      settledAt: later.at.toISOString(),
+      settledAgoMs: Math.max(0, now.getTime() - later.at.getTime()),
+    };
+  const state: HomePrState =
+    run.state === "ended" && (run.prState === "merged" || run.prState === "closed")
+      ? run.prState
+      : "open";
+  const settled = state === "open" ? settledPrStateOf(records) : null;
+  if (settled !== null) {
+    return {
+      state: settled.state,
+      settledAt: settled.at?.toISOString() ?? null,
+      settledAgoMs: settled.at === null ? null : Math.max(0, now.getTime() - settled.at.getTime()),
+    };
+  }
+  return { state, settledAt: null, settledAgoMs: null };
+}
+
+function prSummaryOf(
+  records: RunRecords,
+  now: Date,
+): Pick<HomePullRequest, "title" | "baseBranch" | "commitSummary"> {
+  const { title, baseBranch, commits } = prDetailsOf(records, now);
+  return { title, baseBranch, commitSummary: commitSummaryOf(commits) };
+}
+
+export const runPrCommitsInput = z.object({ runId: z.string().min(1).max(200).transform(toRunId) });
+
+export function loadRunPrCommits(db: Database, runId: RunId, now: Date): PrCommitView[] | null {
+  const found = getRunWithRecords(db, runId);
+  if (found === null || found.records.pullRequest === null) return null;
+  return prDetailsOf(found.records, now).commits;
+}
 
 export function loadHomePage(
   db: Database,
   ws: string | undefined,
   now: Date,
   timeZone: string,
-  { includeLoad = false }: { includeLoad?: boolean } = {},
+  {
+    includeLoad = false,
+    serverGitHub = null,
+  }: { includeLoad?: boolean; serverGitHub?: ServerGitHub | null } = {},
 ): HomePage {
   const workspaces = listWorkspaces(db).map((w) => ({ id: w.id, name: w.name }));
   const workspace = resolveWorkspace(workspaces, ws);
@@ -113,6 +180,12 @@ export function loadHomePage(
               displayId: pr.displayId,
               url: pr.url,
               signals: takenOver.has(run.id) ? null : prSignalsViewOf(run, records),
+              ci:
+                takenOver.has(run.id) || !isStillReread(run, records) ? "unknown" : toCiView(pr.ci),
+              ...homePrStateOf(run, records, now),
+              branch: run.state === "queued" ? null : run.branch,
+              ...prSummaryOf(records, now),
+              merge: takenOver.has(run.id) ? null : mergeViewOf(run, records),
             },
       cancelling: cancelling.has(run.id),
       control:
@@ -156,6 +229,13 @@ export function loadHomePage(
           agentResult: run.agentResult,
           prState: run.prState,
           prReadError: records.prReadError,
+          prReadDiagnosis: diagnosePrRead(
+            records.prReadError,
+            runner === undefined
+              ? null
+              : { name: runner.name, ghAccounts: runner.ghAccounts?.reading ?? null },
+            serverGitHub,
+          ),
           summary: summarizeRunOutcome(run).outcome,
           endedAt: run.endedAt.toISOString(),
           endedAgoMs: Math.max(0, now.getTime() - run.endedAt.getTime()),
@@ -195,7 +275,7 @@ export function loadHomePage(
     return day >= firstDoneDay && day <= today;
   };
   const views = runsWithRecords.map(({ run, records }) => ({
-    ticket: `${run.ticket.connection}\u0000${run.ticket.key}`,
+    ticket: todoTicketOf(run.ticket),
     run: toView(run, records),
     endedRecently: endedRecently(run),
   }));

@@ -43,6 +43,7 @@ import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fix
 import { serverFnName, waitForRouterIdle } from "./navigation-timing.js";
 import { startWebServer } from "./web-server.js";
 
+const fakeGhModule = fileURLToPath(new URL("./browser/fake-gh.ts", import.meta.url));
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
 const adaptersModule = join(webRoot, "src/server/adapters.ts");
 const resultsDir = fileURLToPath(new URL("../test-results", import.meta.url));
@@ -104,6 +105,7 @@ const fakeAdapters: Plugin = {
     return [
       `export function getAdapterRegistry() { return globalThis[${JSON.stringify(registryKey)}]; }`,
       `export function getSecretBox() { return globalThis[${JSON.stringify(secretBoxKey)}]; }`,
+      `export { getGitHubAuth } from ${JSON.stringify(fakeGhModule)};`,
     ].join("\n");
   },
 };

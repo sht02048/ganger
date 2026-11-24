@@ -57,12 +57,7 @@ const LOG_POLL_MS = 2_000;
 const LOG_POLL_LIMIT = 15;
 const SERVER_TIME_ZONE = "UTC";
 const BROWSER_TIME_ZONE = "Asia/Seoul";
-const ROOT_AND_SHELL_FNS = [
-  "getTimeZone",
-  "getTitleBarHidden",
-  "getShell",
-  "getOnboardingComplete",
-];
+const ROOT_FNS = ["getTimeZone", "getTitleBarHidden", "getOnboardingComplete"];
 
 const runsListQueryKey = ["runs", "list"];
 
@@ -142,7 +137,7 @@ describe("Runs·Run 상세를 Query로(브라우저, 0125)", () => {
     expect(new Set(detailPage.serverCalls)).toEqual(new Set(["requestRunLog"]));
   });
 
-  it("취소 하나 뒤에는 그 런의 상세만 다시 읽고 루트와 셸은 다시 읽지 않는다", async (context) => {
+  it("취소 하나 뒤에는 그 런의 상세와 처리할 일 수가 든 셸만 다시 읽고 루트는 다시 읽지 않는다", async (context) => {
     const detail = await newPage(context, { stream: "blocked" });
     await open(detail, `/runs/${cancelRun}`, runDetailQueryKey(cancelRun));
     detail.serverCalls.length = 0;
@@ -156,8 +151,9 @@ describe("Runs·Run 상세를 Query로(브라우저, 0125)", () => {
     await (await reread).finished();
     await detail.page.waitForTimeout(SETTLE_MS);
 
-    expect(detail.serverCalls).toEqual(["cancelRun", "getRunDetail"]);
-    for (const name of ROOT_AND_SHELL_FNS) expect(detail.serverCalls).not.toContain(name);
+    expect(detail.serverCalls[0]).toBe("cancelRun");
+    expect(detail.serverCalls.slice(1).toSorted()).toEqual(["getRunDetail", "getShell"]);
+    for (const name of ROOT_FNS) expect(detail.serverCalls).not.toContain(name);
   });
 
   it("로그 다시 받기 뒤에는 그 런의 상세만 다시 읽는다", async (context) => {

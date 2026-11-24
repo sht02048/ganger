@@ -25,7 +25,7 @@ An administrator can still push a `v*` tag by hand to release a commit on `main`
 
 ## Removals due in a release
 
-- **v0.6.0:** remove the old `/api/notification-events`, `/api/notification-events/stream`, and `/api/attention` routes, and the desktop app's fallback to them (`legacy` in `apps/desktop/src/core/device-link.ts`). Clients use `/api/v1/notification-events` with a device token since ticket 0108.
+None due. Done in v0.6.0: the old `/api/notification-events`, `/api/notification-events/stream`, and `/api/attention` routes and the desktop app's fallback to them are gone (ticket 0213). Clients use `/api/v1/notification-events` with a device token since ticket 0108.
 
 ## Automatic releases
 

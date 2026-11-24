@@ -10,6 +10,8 @@ import {
 import {
   changeRunState,
   completeAgentMessage,
+  getRun,
+  recordGhAccounts,
   recordAgentMessageFollowUp,
   completeRunControlRequest,
   requestAgentMessage,
@@ -145,6 +147,19 @@ describe("Run 상세의 돌아가기 (0181)", () => {
       expect(backName({ origin, go: () => {} })).toBe(runJson.backTo[origin]);
     },
   );
+});
+
+describe("Run 상세의 티켓 링크 (0197)", () => {
+  it("머리에 런의 트래커 경로를 새 탭으로 여는 이름 있는 링크가 있다", () => {
+    const { db, ids } = seedDatabase();
+    const id = ids.get("ACME-10");
+    const html = render({ kind: "found", run: found(db, id) });
+    const anchor = html
+      .match(/<a [^>]*>/g)
+      ?.find((tag) => tag.includes(`href="/runs/${encodeURIComponent(id ?? "")}/ticket"`));
+    expect(anchor).toContain('target="_blank"');
+    expect(anchor).toContain(`aria-label="${runJson.openInTracker} (${runJson.newTab})"`);
+  });
 });
 
 describe("Run 상세의 먼저 끝나야 하는 티켓 (0160)", () => {
@@ -720,6 +735,37 @@ describe("Run 상세 화면", () => {
       expect(pillsOf(html).map((pill) => pill.label)).toEqual([domain.summary.succeeded]);
     },
   );
+
+  it("저장소를 볼 수 없어 PR 을 못 읽은 런은 러너와 서버의 gh 계정 진단을 함께 보인다 (0207)", () => {
+    const { db } = seedDatabase();
+    const id = assign(db, "ACME-40", 400);
+    walk(db, id, 400, [
+      startedOn("ACME-40"),
+      {
+        to: "ended",
+        agentResult: "reported-success",
+        prState: "unknown",
+        prReadError: "no-access",
+      },
+    ]);
+    const runnerId = getRun(db, toRunId(id))?.runnerId;
+    if (runnerId === null || runnerId === undefined) throw new Error("runner");
+    recordGhAccounts(db, {
+      runnerId,
+      readAt: now,
+      reading: {
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: false }],
+      },
+    });
+    const server = { ghLogins: ["my-personal"], tokenSaved: true, tokenOnly: false };
+    const body = text(render(loadRunDetail(db, id, now, server)));
+    expect(body).toContain(`${runJson.prUnread.title} ${runJson.prUnread["no-access"]}`);
+    expect(body).toContain(
+      "는 acme-dev, 서버는 my-personal 계정으로 읽어요. 서버 계정이 이 저장소를 볼 수 없어요.",
+    );
+    expect(text(render(loadRunDetail(db, id, now)))).not.toContain("서버는");
+  });
 
   it("열린 PR 의 검사·충돌·뒤처짐을 PR 구역에 줄로 보이고 요약 결과는 그대로다 (0150)", () => {
     const { db } = seedDatabase();

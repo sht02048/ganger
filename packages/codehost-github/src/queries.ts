@@ -46,11 +46,43 @@ export const PULL_REQUEST_BY_NUMBER = `query PullRequestByNumber($owner: String!
     pullRequest(number: $number) {${PULL_REQUEST_FIELDS}}
   }${RATE_LIMIT}}`;
 
+const COMMIT_HISTORY_PAGE = `
+  totalCount
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
+  nodes {
+    commit {
+      oid
+      url
+      message
+      committedDate
+      author {
+        name
+        user {
+          login
+        }
+      }
+    }
+  }
+`;
+
 export const PULL_REQUEST_SIGNALS = `query PullRequestSignals($owner: String!, $repo: String!, $number: Int!, $head: String!) {
   repository(owner: $owner, name: $repo) {
+    mergeCommitAllowed
+    squashMergeAllowed
+    rebaseMergeAllowed
+    viewerDefaultMergeMethod
+    viewerPermission
     pullRequest(number: $number) {
       state
       mergeable
+      mergeStateStatus
+      isDraft
+      title
+      baseRefName
+      history: commits(first: 100) {${COMMIT_HISTORY_PAGE}}
       baseRef {
         compare(headRef: $head) {
           behindBy
@@ -83,6 +115,13 @@ export const PULL_REQUEST_SIGNALS = `query PullRequestSignals($owner: String!, $
           }
         }
       }
+    }
+  }${RATE_LIMIT}}`;
+
+export const PULL_REQUEST_COMMITS_PAGE = `query PullRequestCommitsPage($owner: String!, $repo: String!, $number: Int!, $after: String!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      history: commits(first: 100, after: $after) {${COMMIT_HISTORY_PAGE}}
     }
   }${RATE_LIMIT}}`;
 

@@ -8,6 +8,7 @@ import {
   DependencyGraph,
   Spinner,
   Checkbox,
+  CheckboxDisclosure,
   DefinitionItem,
   DefinitionList,
   DetailPanel,
@@ -32,6 +33,7 @@ import {
   MenuRadio,
   MenuRadioOption,
   MenuSeparator,
+  SplitButton,
   PlusIcon,
   PanelBlock,
   PanelFooter,
@@ -148,12 +150,20 @@ function Demo({ children }: { children: ReactNode }) {
 export function ComponentSections() {
   const t = useTranslations("ds");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [sheetTab, setSheetTab] = useState<"run" | "pr">("pr");
   const [selected, setSelected] = useState<RunId>("r1051");
   const [workspace, setWorkspace] = useState("commerce");
+  const [mergeMethod, setMergeMethod] = useState<"squash" | "merge">("squash");
   const [agent, setAgent] = useState<string | null>(null);
   const [graphFirst, setGraphFirst] = useState(true);
   const [web, setWeb] = useState(true);
   const [api, setApi] = useState(false);
+  const [checkGroupOpen, setCheckGroupOpen] = useState(true);
+  const checkGroupPicked = Number(web) + Number(api);
+  const checkGroupSummary =
+    checkGroupPicked === 2
+      ? t("form.checkGroupAll")
+      : t("form.checkGroupSome", { picked: checkGroupPicked });
 
   const statusName = useStatusName();
   const current = runs.find((r) => r.id === selected) ?? runs[0];
@@ -169,6 +179,7 @@ export function ComponentSections() {
               <Button variant="danger">{t("buttons.danger")}</Button>
               <Button variant="ghost">{t("buttons.ghost")}</Button>
               <Button variant="check">{t("buttons.check")}</Button>
+              <Button variant="answer">{t("buttons.answer")}</Button>
               <Button compact outlined>
                 {t("buttons.outlined")}
               </Button>
@@ -307,6 +318,16 @@ export function ComponentSections() {
             </Tab>
             <Tab value="queued" count={0}>
               {t("tabs.queued")}
+            </Tab>
+          </Tabs>
+          <Tabs<"run" | "pr">
+            value={sheetTab}
+            onValueChange={setSheetTab}
+            label={t("tabs.sheetLabel")}
+          >
+            <Tab value="run">{t("tabs.sheetRun")}</Tab>
+            <Tab value="pr" dot={{ state: "problem", label: t("tabs.sheetDot") }}>
+              {t("tabs.sheetPrWithId")}
             </Tab>
           </Tabs>
         </Section>
@@ -475,6 +496,20 @@ export function ComponentSections() {
                 </MenuItem>
               </Menu>
             </div>
+            <div {...stylex.props(styles.narrow)}>
+              <SplitButton<"squash" | "merge">
+                value={mergeMethod}
+                options={[
+                  { value: "squash", label: t("menu.splitSquash") },
+                  { value: "merge", label: t("menu.splitMerge") },
+                ]}
+                onValueChange={setMergeMethod}
+                menuLabel={t("menu.splitMenu")}
+                onClick={() => showToast(t("menu.splitDone"))}
+              >
+                {t(mergeMethod === "squash" ? "menu.splitSquash" : "menu.splitMergeButton")}
+              </SplitButton>
+            </div>
           </Demo>
         </Section>
       </div>
@@ -520,6 +555,22 @@ export function ComponentSections() {
                   onCheckedChange={() => {}}
                 />
               </div>
+              <CheckboxDisclosure
+                label={t("form.checkGroup")}
+                summary={checkGroupSummary}
+                toggleLabel={t("form.checkGroupToggle", { summary: checkGroupSummary })}
+                checked={checkGroupPicked === 2}
+                indeterminate={checkGroupPicked === 1}
+                onCheckedChange={(on) => {
+                  setWeb(on);
+                  setApi(on);
+                }}
+                expanded={checkGroupOpen}
+                onExpandedChange={setCheckGroupOpen}
+              >
+                <Checkbox label={t("form.checkWeb")} checked={web} onCheckedChange={setWeb} />
+                <Checkbox label={t("form.checkApi")} checked={api} onCheckedChange={setApi} />
+              </CheckboxDisclosure>
             </div>
           </Demo>
         </Section>

@@ -32,9 +32,12 @@ import {
   CapacityCells,
   CapacityTrack,
   CheckResultRow,
+  CommitHistory,
   ExpandableRow,
   Card,
   Checkbox,
+  CheckboxDisclosure,
+  Disclosure,
   DefinitionItem,
   DefinitionList,
   Dialog,
@@ -43,6 +46,7 @@ import {
   GroupHeader,
   Input,
   Menu,
+  SplitButton,
   RadioGroup,
   RadioOption,
   MenuItem,
@@ -71,6 +75,10 @@ import {
   StatusDot,
   StatusPill,
   Tab,
+  TabPanel,
+  prDotTone,
+  FactCell,
+  FactCells,
   Table,
   TableCell,
   TableHead,
@@ -377,6 +385,76 @@ describe("서버 렌더", () => {
     expect(chips?.[1] ?? chips?.[2]).not.toBe(under?.[1] ?? under?.[2]);
   });
 
+  it("Tab 은 흐린 덧말과 화면 읽기 이름이 있는 상태 점을 달 수 있다(티켓 0199)", () => {
+    const html = renderToString(
+      <Tabs value="run" onValueChange={noop} label="런 패널 보기">
+        <Tab value="run" note="없음">
+          PR
+        </Tab>
+        <Tab value="pr" dot={{ state: "problem", label: "CI 실패나 충돌이 있어요" }}>
+          PR #571
+        </Tab>
+      </Tabs>,
+    );
+    expect(html).toMatch(/role="tab"[^>]*>PR<span[^>]*> 없음<\/span>/);
+    expect(html).toContain('data-tab-dot="problem"');
+    expect(html).toMatch(
+      /<span aria-hidden="true"[^>]*><\/span><span[^>]*> CI 실패나 충돌이 있어요<\/span>/,
+    );
+    const plain = renderToString(
+      <Tabs value="run" onValueChange={noop} label="런 패널 보기">
+        <Tab value="run">런</Tab>
+      </Tabs>,
+    );
+    expect(plain).not.toContain("data-tab-dot");
+    expect(
+      (["problem", "clear", "waiting", "merged", "closed"] as const).map((state) =>
+        prDotTone(state),
+      ),
+    ).toEqual(["problem", "progress", "idle", "merged", "idle"]);
+  });
+
+  it("TabPanel keepMounted 는 고르지 않은 패널도 그려 둔다(티켓 0199)", () => {
+    const html = (keepMounted: boolean) =>
+      renderToString(
+        <Tabs
+          value="pr"
+          onValueChange={noop}
+          label="런 패널 보기"
+          panels={
+            <>
+              <TabPanel value="run" keepMounted={keepMounted}>
+                런 내용
+              </TabPanel>
+              <TabPanel value="pr">PR 내용</TabPanel>
+            </>
+          }
+        >
+          <Tab value="run">런</Tab>
+          <Tab value="pr">PR</Tab>
+        </Tabs>,
+      );
+    expect(html(true)).toContain("런 내용");
+    expect(html(false)).not.toContain("런 내용");
+  });
+
+  it("FactCells 는 이름·값 칸을 dt·dd 로 나란히 두고 빈 값은 흐리게 한다(티켓 0199)", () => {
+    const html = renderToString(
+      <FactCells>
+        <FactCell label="러너">runner-1</FactCell>
+        <FactCell label="일한 시간" empty>
+          시작 전
+        </FactCell>
+      </FactCells>,
+    );
+    expect(html).toMatch(/^<dl /);
+    expect(html.match(/<dt[^>]*>/g)).toHaveLength(2);
+    expect(html).toMatch(/<dt[^>]*>러너<\/dt><dd[^>]*>runner-1<\/dd>/);
+    const classOf = (value: string) =>
+      new RegExp(`<dd class="([^"]+)"[^>]*>${value}`).exec(html)?.[1];
+    expect(classOf("시작 전")).not.toBe(classOf("runner-1"));
+  });
+
   it("Tabs 는 값이 null 이면 아무 탭도 고르지 않는다(티켓 0091)", () => {
     for (const html of [
       renderToString(
@@ -510,6 +588,52 @@ describe("서버 렌더", () => {
     expect(busy).toContain('aria-disabled="true"');
     expect(idle).not.toContain("aria-busy");
     expect(idle).not.toContain("aria-disabled");
+  });
+
+  it("SplitButton 은 노란 주 버튼과 방식 메뉴 단추를 붙여 그리고, 끄면 둘 다 끈다(0201)", () => {
+    const options = [
+      { value: "squash", label: "Squash" },
+      { value: "merge", label: "Merge commit" },
+    ] as const;
+    const on = renderToString(
+      <SplitButton
+        value="squash"
+        options={options}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(on).toContain('data-variant="primary"');
+    expect(on).toContain('aria-label="방식"');
+    expect(on).toContain("Squash 머지");
+    const off = renderToString(
+      <SplitButton
+        value="squash"
+        options={options}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+        disabled
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(off.match(/ disabled=""/g)).toHaveLength(2);
+    const single = renderToString(
+      <SplitButton
+        value="squash"
+        options={[options[0]]}
+        onValueChange={() => {}}
+        menuLabel="방식"
+        onClick={() => {}}
+      >
+        Squash 머지
+      </SplitButton>,
+    );
+    expect(single).not.toContain('aria-label="방식"');
   });
 
   it("레일 Menu 는 펼침 화살표 없이 트리거 내용만 그린다", () => {
@@ -787,6 +911,16 @@ describe("서버 렌더", () => {
     expect(classOf(block)).not.toBe(classOf(plain));
   });
 
+  it("Button answer 는 고른 버튼에만 보라 모양을 더한다(티켓 0198)", () => {
+    const classOf = (html: string) => /class="([^"]*)"/.exec(html)?.[1];
+    const plain = renderToString(<Button>답하기</Button>);
+    const check = renderToString(<Button variant="check">답하기</Button>);
+    const answer = renderToString(<Button variant="answer">답하기</Button>);
+    expect(answer).toContain('data-variant="answer"');
+    expect(classOf(answer)).not.toBe(classOf(plain));
+    expect(classOf(answer)).not.toBe(classOf(check));
+  });
+
   it("KanbanCard prChips 는 선행 칩 뒤, 바닥 줄 위에 두고 설명에 들어간다(티켓 0167)", () => {
     const html = renderToString(
       <KanbanCard
@@ -891,6 +1025,78 @@ describe("서버 렌더", () => {
     expect(html).toContain(`id="${describedBy}"`);
     expect(html).toMatch(new RegExp(`id="${describedBy}"[^>]*>다른 Workspace에 있어요<`));
     expect(labels[0]).not.toContain("aria-describedby");
+  });
+
+  it("Disclosure 는 처음에 접혀 있고, defaultOpen 이면 펼친 채로 그린다(티켓 0204)", () => {
+    const closed = renderToString(<Disclosure summary="요약">본문</Disclosure>);
+    const open = renderToString(
+      <Disclosure defaultOpen summary="요약">
+        본문
+      </Disclosure>,
+    );
+    expect(closed).toMatch(/<details(?![^>]*\sopen)[^>]*>/);
+    expect(open).toMatch(/<details[^>]*\sopen=""[^>]*>/);
+  });
+
+  it("CheckboxDisclosure 는 일부 상태와 펼치기를 따로 알리고, 접히면 내용을 그리지 않는다", () => {
+    const html = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="1개 고름 · 2개 넣을 수 있어요"
+        toggleLabel="Linear 프로젝트 목록"
+        checked={false}
+        indeterminate
+        onCheckedChange={noop}
+        expanded={false}
+        onExpandedChange={noop}
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(html).toContain('aria-checked="mixed"');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('aria-label="Linear 프로젝트 목록"');
+    expect(html).not.toContain("내용");
+  });
+
+  it("CheckboxDisclosure 는 펼치면 내용을 묶음으로 잇고, disabled 면 펼치기를 없앤다", () => {
+    const open = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="요약"
+        toggleLabel="목록"
+        checked
+        onCheckedChange={noop}
+        expanded
+        onExpandedChange={noop}
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(open).toContain('aria-expanded="true"');
+    expect(open).toContain('role="group"');
+    expect(open).toContain("내용");
+
+    const blocked = renderToString(
+      <CheckboxDisclosure
+        label="Linear"
+        summary="넣을 수 있는 프로젝트가 없어요"
+        toggleLabel="목록"
+        checked={false}
+        onCheckedChange={noop}
+        expanded
+        onExpandedChange={noop}
+        disabled
+      >
+        내용
+      </CheckboxDisclosure>,
+    );
+    expect(blocked).not.toContain("aria-expanded");
+    expect(blocked).not.toContain("내용");
+    expect(blocked).toContain('disabled=""');
+    const describedBy = /aria-describedby="([^"]+)"/.exec(blocked)?.[1];
+    expect(blocked).toContain(`id="${describedBy}"`);
+    expect(blocked).toMatch(new RegExp(`id="${describedBy}"[^>]*>넣을 수 있는 프로젝트가 없어요<`));
   });
 
   it("Select 는 aria-label 을 트리거에 붙인다", () => {
@@ -1209,6 +1415,53 @@ describe("새 컴포넌트(티켓 0073)", () => {
       return /<path[^>]* d="([^"]+)"/.exec(html)?.[1] ?? /d="([^"]+)"/.exec(html)?.[1];
     });
     expect(new Set(paths).size).toBe(tones.length);
+  });
+
+  it("CommitHistory 는 접힌 한 줄만 그리고 커밋 목록은 펼치기 전까지 두지 않는다(티켓 0200)", () => {
+    const html = renderToString(
+      <CommitHistory
+        summary="커밋 2개 · 마지막 5 min ago"
+        newTabLabel="새 탭"
+        commits={[
+          {
+            id: "b",
+            headline: "Fix",
+            sha: "bbbbbbb",
+            author: "kim",
+            time: "5 min ago",
+            href: "https://example.com/b",
+          },
+          { id: "a", headline: "Add", sha: "aaaaaaa", author: null, time: "1 hr ago", href: null },
+        ]}
+      />,
+    );
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain("커밋 2개 · 마지막 5 min ago");
+    expect(html).not.toContain("<ol");
+    expect(html).not.toContain("bbbbbbb");
+  });
+
+  it("SignalRow 는 tone 이 없으면 아이콘 없이 같은 자리에 값을 둔다(티켓 0199)", () => {
+    const html = renderToString(
+      <SignalList>
+        <SignalRow label="PR">#571</SignalRow>
+      </SignalList>,
+    );
+    expect(html).toContain('data-signal-tone="none"');
+    expect(html).not.toContain("<svg");
+    expect(html).toContain("#571");
+  });
+
+  it("SignalRow detail 은 값 아래 줄에 흐린 글로 둔다(티켓 0199)", () => {
+    const html = renderToString(
+      <SignalList>
+        <SignalRow label="CI" tone="problem" detail="lint, e2e">
+          4개 중 2개 실패
+        </SignalRow>
+      </SignalList>,
+    );
+    expect(html.indexOf("4개 중 2개 실패")).toBeLessThan(html.indexOf("lint, e2e"));
+    expect(html).toMatch(/<dd[^>]*>.*lint, e2e.*<\/dd>/);
   });
 
   it("CapacityTrack 은 칸마다 하나를 그리고 자리가 0이거나 너무 많으면 그리지 않는다", () => {

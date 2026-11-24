@@ -27,6 +27,8 @@ import { ENDED_RUNS_PAGE_SIZE } from "./model.js";
 import type { RunBoardDays } from "./board.js";
 import type { QueuedReason, RunCondition, RunView, RunsPage } from "./model.js";
 import { withoutPauses } from "../run-control.js";
+import { diagnosePrRead } from "../pr-read-diagnosis.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { describeQueuedReason, loadQueueReasons } from "./queue-reasons.js";
 
 export function loadRunsPage(
@@ -100,7 +102,7 @@ export function loadRunsPage(
   };
 }
 
-export function runViewBuilder(db: Database, now: Date) {
+export function runViewBuilder(db: Database, now: Date, serverGitHub: ServerGitHub | null = null) {
   const runners = new Map(listRunners(db).map((r) => [r.id, r]));
   const cancelling = new Set<RunId>(listPendingCancelRequests(db).map((r) => r.runId));
   const takenOver = listTakenOverRunIds(db);
@@ -215,6 +217,13 @@ export function runViewBuilder(db: Database, now: Date) {
           prState: run.prState,
           laterPrState: records.laterPrState?.state ?? null,
           prReadError: records.prReadError,
+          prReadDiagnosis: diagnosePrRead(
+            records.prReadError,
+            runner === undefined
+              ? null
+              : { name: runner.name, ghAccounts: runner.ghAccounts?.reading ?? null },
+            serverGitHub,
+          ),
           summary,
           attention: endedAttention,
         };

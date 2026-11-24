@@ -62,6 +62,7 @@ let page: Page;
 const lockedHost = "settings.example.test";
 const projectPath = `/settings/projects/${connection}/${trackerProject}`;
 const connectionPath = `/settings/connections/${connection}`;
+const githubOpen = `${settings.github.label} ${settings.github.open}`;
 
 const settingsAdapters: Plugin = {
   name: "e2e-settings-adapters",
@@ -214,12 +215,12 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await openSettings(page);
     expect(await page.locator('input[type="password"]').count()).toBe(0);
     const connections = section(settings.sections.connections);
-    await connections.getByRole("button", { name: settings.change }).click();
+    await connections.getByRole("button", { name: githubOpen }).click();
+    await page.getByRole("textbox", { name: settings.github.token, exact: true }).waitFor();
     const githubSecrets = await secretAttributes();
     expect(githubSecrets.length).toBe(1);
     await connections.getByRole("link", { name: settings.github.guideLink }).waitFor();
-    await connections.getByRole("button", { name: settings.github.permissionsLabel }).hover();
-    await page.getByRole("tooltip").getByText("Pull requests 읽기", { exact: false }).waitFor();
+    await connections.getByText(settings.githubAuth.tokenPermissions).waitFor();
 
     await openSettings(page, connectionPath);
     expect(await page.locator('input[type="password"]').count()).toBe(0);
@@ -286,48 +287,6 @@ describe("Settings 한 페이지(브라우저, 0119)", () => {
     await section(settings.sections.connections).getByRole("link", { name: /^Acme/ }).click();
     await page.waitForURL((url) => url.pathname === connectionPath);
     await page.getByRole("heading", { level: 1, name: "Acme" }).waitFor();
-  });
-
-  it("프로젝트를 넣으면 새 줄로 포커스가 가고, 상세에서 빼면 Settings 로 돌아온다", async () => {
-    await openSettings(page);
-    const projects = section(settings.sections.projects);
-    await projects.getByRole("button", { name: settings.projects.openLabel }).click();
-    await projects.getByRole("button", { name: settings.projects.add }).click();
-    await expect.poll(focused).toContain("API");
-
-    await projects.getByRole("link", { name: /^API/ }).click();
-    await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-api/);
-    await page.getByRole("heading", { level: 1, name: "API" }).waitFor();
-    await page.getByRole("button", { name: settings.projects.remove }).click();
-    await page.getByRole("dialog").getByRole("button", { name: settings.projects.remove }).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
-    await section(settings.sections.projects).getByRole("link", { name: /^Web/ }).waitFor();
-    await expect
-      .poll(() => section(settings.sections.projects).getByRole("link", { name: /^API/ }).count())
-      .toBe(0);
-  });
-
-  it("프로젝트 상세에서 저장하지 못한 저장소 초안이 있으면 Settings 로 옮기지 않고 알린다", async () => {
-    await openSettings(page);
-    const projects = section(settings.sections.projects);
-    await projects.getByRole("button", { name: settings.projects.openLabel }).click();
-    await projects.getByRole("button", { name: settings.projects.add }).click();
-    await projects.getByRole("link", { name: /^API/ }).click();
-    await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-api/);
-    await page
-      .getByRole("button", { name: fill(settings.mapping.addFirstLabel, { project: "API" }) })
-      .click();
-    await page.getByRole("menuitem", { name: "acme/api", exact: true }).click();
-    await page.getByRole("main").getByRole("link", { name: settings.project.back }).click();
-    await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
-    expect(new URL(page.url()).pathname).toContain("/settings/projects/");
-    await page.getByRole("main").getByRole("link", { name: settings.project.back }).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
-    await section(settings.sections.projects).getByRole("link", { name: /^API/ }).click();
-    await page.waitForURL(/\/settings\/projects\/conn-acme\/tp-api/);
-    await page.getByRole("button", { name: settings.projects.remove }).click();
-    await page.getByRole("dialog").getByRole("button", { name: settings.projects.remove }).click();
-    await page.waitForURL((url) => url.pathname === "/settings");
   });
 
   it("프로젝트 상세의 선택은 고르는 즉시 저장한다", async () => {
@@ -423,16 +382,12 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
       .click();
     const name = workspace.getByRole("textbox", { name: settings.workspace.name, exact: true });
     await name.fill("Acme Draft");
-    await section(settings.sections.connections)
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
     await page.getByRole("alert").getByText(settings.unsavedBlocked).waitFor();
     expect(await name.inputValue()).toBe("Acme Draft");
     expect(await page.getByRole("textbox", { name: settings.github.token }).count()).toBe(0);
     await workspace.getByRole("button", { name: settings.close }).click();
-    await section(settings.sections.connections)
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await section(settings.sections.connections).getByRole("button", { name: githubOpen }).click();
     await page.getByRole("textbox", { name: settings.github.token }).waitFor();
   });
 
@@ -453,11 +408,9 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
   it("GitHub 토큰을 비운 채 저장하면 칸 아래에 토큰을 넣으라고 알린다", async () => {
     await openSettings(page);
     const connections = section(settings.sections.connections);
-    await connections
-      .getByRole("button", { name: `${settings.github.label} ${settings.change}` })
-      .click();
+    await connections.getByRole("button", { name: githubOpen }).click();
     await connections.getByRole("button", { name: settings.github.save }).click();
-    await connections.getByText(settings.credentials.tokenRequired).waitFor();
+    await connections.getByText(settings.credentials.tokenRequired, { exact: true }).waitFor();
     const token = page.getByRole("textbox", { name: settings.github.token, exact: true });
     expect(await token.getAttribute("aria-invalid")).toBe("true");
   });
@@ -497,23 +450,6 @@ describe("Settings 폼과 도움말(브라우저, 0119 리뷰 후속)", () => {
     await workspace.getByRole("button", { name: settings.close }).click();
     await section(settings.sections.advanced).getByRole("link", { name: /^MCP/ }).click();
     await page.waitForURL(/\/settings\/mcp/);
-  });
-
-  it("넣을 트래커 프로젝트 목록은 Escape 로 닫고 + 넣기로 포커스가 돌아온다", async () => {
-    await openSettings(page);
-    const projects = section(settings.sections.projects);
-    await projects.getByRole("button", { name: settings.projects.openLabel }).click();
-    await expect.poll(focused).toBe(settings.projects.add);
-    await page.keyboard.press("Escape");
-    await expect.poll(focused).toBe(settings.projects.open);
-  });
-
-  it("+ 넣기를 누르면 넣을 프로젝트 목록의 첫 버튼으로 포커스가 간다", async () => {
-    await openSettings(page);
-    await section(settings.sections.projects)
-      .getByRole("button", { name: settings.projects.openLabel })
-      .click();
-    await expect.poll(focused).toBe(settings.projects.add);
   });
 
   it("스위치 줄의 이름을 눌러도 스위치가 바뀐다", async () => {

@@ -96,7 +96,9 @@ pnpm --filter @ganger/desktop run package
 
 This writes `apps/desktop/dist/app/Ganger-darwin-<arch>/Ganger.app` and a `.zip` of it. The app carries the server bundle unchanged in `Contents/Resources/server/` and runs it with its own Node (Electron's), so the machine does not need Node. `pnpm --filter @ganger/desktop start` runs the app from the repository with the bundle in `dist/`. To work on the app with the dev server instead, run `pnpm dev` (see [Development](#development)).
 
-A build you package yourself is not signed, so macOS asks you to confirm before it opens the first time (Control-click the app, then **Open**).
+A build you package yourself is not signed, so macOS asks you to confirm before it opens the first time (Control-click the app, then **Open**). macOS also does not deliver notifications from an unsigned build; the notification window says so when a test notification fails.
+
+Packaging compiles a small native addon, `apps/desktop/native/notification-permission.mm`, with `xcrun clang++` (Xcode Command Line Tools) and the headers of the Node that runs the script. The app uses it to read and request the macOS notification permission. `pnpm dev` and `pnpm --filter @ganger/desktop start` work without it and show the permission as unknown; run `pnpm --filter @ganger/desktop build:native` once to build it into `apps/desktop/dist/native/`.
 
 ### Build a release dmg
 

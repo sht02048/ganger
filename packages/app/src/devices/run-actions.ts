@@ -17,10 +17,8 @@ import type {
   V1RunRefusal,
 } from "@ganger/api";
 import { toRunId } from "@ganger/core";
-import type { AdapterRegistry } from "@ganger/core";
-import { getRun, getTrackerConnection } from "@ganger/db";
-import type { Database, SecretBox } from "@ganger/db";
-import { isWebUrl } from "../format/url.js";
+import { getRun } from "@ganger/db";
+import type { Database } from "@ganger/db";
 import { AnswerRejectedError } from "../home/actions.js";
 import { prProblemsOf } from "../home/model.js";
 import { readQuestion } from "../question.js";
@@ -39,6 +37,8 @@ import type { RunActionResult } from "../run-detail/actions.js";
 import { loadRunDetail } from "../run-detail/load.js";
 import type { PendingInput, RunDetail } from "../run-detail/model.js";
 import { nextStepInputOfDetail, runNextStep } from "../run-next-step.js";
+import { loadRunTicketLink } from "../run-ticket-link.js";
+import type { RunTicketLink } from "../run-ticket-link.js";
 import { mobileContinueBlock, retryOfferOf, retryRunOnce } from "./run-retry.js";
 
 export type V1RunActionReply =
@@ -197,28 +197,6 @@ export function loadV1RunDetail(db: Database, runId: string, now: Date): V1RunDe
   return toV1RunDetail(page.run, stored === null ? "not-offered" : retryOfferOf(db, stored, now));
 }
 
-export type V1TicketLinkReply =
-  | { status: 200; url: string }
-  | { status: 404; reason: "not-found" }
-  | { status: 503; reason: "tracker-unavailable" };
+export type V1TicketLinkReply = RunTicketLink;
 
-export async function loadV1TicketLink(
-  context: { db: Database; secretBox: SecretBox; registry: AdapterRegistry },
-  runId: string,
-): Promise<V1TicketLinkReply> {
-  const run = getRun(context.db, toRunId(runId));
-  if (run === null) return { status: 404, reason: "not-found" };
-  const stored = getTrackerConnection(context.db, context.secretBox, run.ticket.connection);
-  if (stored === null) return { status: 503, reason: "tracker-unavailable" };
-  try {
-    const tracker = context.registry.createTracker(stored.kind, {
-      config: stored.config,
-      secrets: stored.secrets,
-    });
-    const ticket = await tracker.getTicket(run.ticket.key);
-    if (ticket === null || !isWebUrl(ticket.url)) return { status: 404, reason: "not-found" };
-    return { status: 200, url: ticket.url };
-  } catch {
-    return { status: 503, reason: "tracker-unavailable" };
-  }
-}
+export const loadV1TicketLink = loadRunTicketLink;

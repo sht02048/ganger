@@ -133,6 +133,7 @@
     "danger": "런 취소",
     "ghost": "연결 확인",
     "check": "확인하기",
+    "answer": "답하기",
     "outlined": "하위 2개 할당",
     "disabled": "할당하기",
     "busy": "Linear에서 다시 읽기",
@@ -177,7 +178,13 @@
     "panelAll": "모든 런을 최근 순서로 보여 줘요.",
     "panelTodo": "Failed만 보여 줘요.",
     "panelRunning": "지금 러너에서 도는 런이에요.",
-    "panelQueued": "capacity를 기다리는 런이 없어요."
+    "panelQueued": "capacity를 기다리는 런이 없어요.",
+    "sheetLabel": "런 패널 보기",
+    "sheetPr": "PR",
+    "sheetNone": "없음",
+    "sheetPrWithId": "PR #571",
+    "sheetDot": "CI 실패나 충돌이 있어요",
+    "sheetRun": "런"
   },
   "table": {
     "note": "행을 누르거나 위아래 화살표로 고르면 오른쪽 패널이 바뀌어요. 표가 좁아지면 에이전트, 러너 순으로 열을 접어 제목 아래 줄로 옮겨요.",
@@ -231,7 +238,7 @@
     "ciRunning": "도는 중"
   },
   "menu": {
-    "note": "위는 Workspace 전환기처럼 하나를 고르는 메뉴, 아래는 행동 메뉴예요.",
+    "note": "위는 Workspace 전환기처럼 하나를 고르는 메뉴, 가운데는 행동 메뉴, 아래는 주 행동과 방식 메뉴를 붙인 split 버튼(「PR」 탭의 머지)이에요.",
     "label": "Workspace",
     "commerce": "Acme Commerce",
     "labs": "Acme Labs",
@@ -241,7 +248,12 @@
     "retry": "새 런 시작",
     "cancel": "런 멈추기",
     "openLog": "로그 보기",
-    "picked": "{action} 메뉴를 골랐어요"
+    "picked": "{action} 메뉴를 골랐어요",
+    "splitSquash": "Squash 머지",
+    "splitMerge": "Merge commit",
+    "splitMergeButton": "Merge commit 머지",
+    "splitMenu": "머지 방식",
+    "splitDone": "머지 버튼을 눌렀어요"
   },
   "form": {
     "note": "라벨은 위, 도움말은 아래예요. 오류는 입력 아래 빨간 글로 보여요.",
@@ -258,7 +270,11 @@
     "checkWeb": "Web",
     "checkApi": "API",
     "checkMobile": "Mobile",
-    "checkMobileHint": "Acme Labs에 있어 고를 수 없어요"
+    "checkMobileHint": "Acme Labs에 있어 고를 수 없어요",
+    "checkGroup": "Linear",
+    "checkGroupSome": "{picked}개 고름 · 2개 넣을 수 있어요",
+    "checkGroupAll": "2개 모두 고름",
+    "checkGroupToggle": "Linear 프로젝트 목록, {summary}"
   },
   "issueList": {
     "note": "상위 이슈와 하위 티켓을 같은 다섯 칸으로 보여요. 고르기·펼치기·할 일은 서로 안에 들어가지 않은 단추예요. 상태 아이콘은 트래커 상태 분류를 모양으로만 보이고 색은 중립색이에요. 런 상태는 런 칸에 둬요.",
@@ -385,7 +401,26 @@
     "base": "base",
     "baseValue": "3커밋 뒤",
     "unknown": "상태",
-    "unknownValue": "모름"
+    "unknownValue": "모름",
+    "link": "PR",
+    "linkValue": "#12",
+    "factRunner": "러너",
+    "factRunnerValue": "runner-1",
+    "factAgent": "에이전트",
+    "factAgentValue": "Claude Code",
+    "factWorked": "일한 시간",
+    "factWorkedValue": "시작 전",
+    "commits": "커밋 3개 · 마지막 5 min ago",
+    "commitNewTab": "새 탭에서 열려요",
+    "commitFix": "Fix lint",
+    "commitLong": "Rename the client option to keep it consistent with the rest of the checkout module",
+    "commitAdd": "Add retry",
+    "commitTimeRecent": "5 min ago",
+    "commitTimeMiddle": "30 min ago",
+    "commitTimeOld": "1 hr ago",
+    "commitsFailedSummary": "커밋 12개 · 마지막 2 hr ago",
+    "commitsFailed": "커밋을 불러오지 못했어요",
+    "commitsRetry": "다시 시도"
   },
   "usage": {
     "note": "공급자 사용량 창의 쓴 비율이에요. 90% 이상이면 빨간 막대예요.",
@@ -474,6 +509,7 @@
       "navLabel": "미리보기 메뉴",
       "current": "지금",
       "issues": "문제",
+      "todo": "처리할 일",
       "pageTitle": "Runs",
       "notice": "Workspace를 고르면 목록을 보여 줘요."
     },
@@ -572,9 +608,11 @@
       "checklist": "러너 확인"
     },
     "disclosure": {
-      "note": "읽을거리를 접어 두는 카드예요.",
+      "note": "읽을거리를 접어 두는 카드예요. defaultOpen 이면 처음부터 펼쳐 둬요.",
       "summary": "웹훅이 왜 필요한가요?",
-      "body": "웹훅이 있으면 트래커에서 바뀐 일을 바로 받아요."
+      "body": "웹훅이 있으면 트래커에서 바뀐 일을 바로 받아요.",
+      "openSummary": "대신 토큰 붙여 넣기",
+      "openBody": "처음부터 펼쳐 둔 내용이에요."
     },
     "dividedList": {
       "note": "선으로 나눈 설정 목록이에요. 작은 항목은 tight예요.",

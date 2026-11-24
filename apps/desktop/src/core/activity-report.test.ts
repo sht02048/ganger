@@ -51,7 +51,7 @@ describe("데스크톱의 마지막 사용 보고(M32)", () => {
   });
 
   it("기기 토큰이 없으면 보고하지 않는다", async () => {
-    for (const kind of ["legacy", "rejected", "unavailable"] as const) {
+    for (const kind of ["unsupported", "rejected", "unavailable"] as const) {
       const { instance, calls } = reporter({ kind });
       await instance.report();
       expect(calls).toHaveLength(0);

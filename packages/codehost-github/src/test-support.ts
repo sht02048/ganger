@@ -24,6 +24,7 @@ export interface SentRequest {
   method: string;
   headers: Record<string, string>;
   graphql: { query: string; variables: Record<string, unknown> } | null;
+  json: unknown;
 }
 
 const graphqlBody = z.object({ query: z.string(), variables: z.record(z.string(), z.unknown()) });
@@ -35,12 +36,14 @@ export function fakeFetch(handler: (req: SentRequest) => Recorded | Error): {
   const sent: SentRequest[] = [];
   const fn = (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const headers = z.record(z.string(), z.string()).parse(init?.headers ?? {});
-    const body = typeof init?.body === "string" ? graphqlBody.parse(JSON.parse(init.body)) : null;
+    const url = input instanceof Request ? input.url : String(input);
+    const json: unknown = typeof init?.body === "string" ? JSON.parse(init.body) : null;
     const req: SentRequest = {
-      url: input instanceof Request ? input.url : String(input),
+      url,
       method: init?.method ?? "GET",
       headers,
-      graphql: body,
+      graphql: url.endsWith("/graphql") ? graphqlBody.parse(json) : null,
+      json,
     };
     sent.push(req);
     const answer = handler(req);

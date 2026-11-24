@@ -24,6 +24,7 @@ const SCREEN_KEYS: ReadonlyArray<QueryKey> = [
 
 const EXPECTED: Record<ChangeKind, ReadonlyArray<string>> = {
   run: [
+    "shell",
     "dashboard",
     "runs.list",
     "runs.detail.run-1",
@@ -34,6 +35,7 @@ const EXPECTED: Record<ChangeKind, ReadonlyArray<string>> = {
     "settings",
   ],
   assignment: [
+    "shell",
     "dashboard",
     "runs.list",
     "runs.detail.run-1",
@@ -137,6 +139,7 @@ describe("변경 기록 → query key 무효화(스펙 0003 5.4)", () => {
 
   it("한 번에 온 줄은 key를 모으고, 접두사에 덮이는 key는 빼서 한 번씩만 무효화한다", () => {
     expect(invalidatedKeysOf([change("run"), change("run"), change("run", "log")])).toEqual([
+      ["shell"],
       ["runs", "detail"],
       ["runs", "list"],
       ["dashboard"],
@@ -146,12 +149,12 @@ describe("변경 기록 → query key 무효화(스펙 0003 5.4)", () => {
       ["settings"],
     ]);
     expect(invalidatedKeysOf([change("run"), change("runner")])).toEqual([
+      ["shell"],
       ["dashboard"],
       ["tickets", "runs"],
       ["runners", "list"],
       ["stats"],
       ["settings"],
-      ["shell"],
       ["runs"],
     ]);
   });

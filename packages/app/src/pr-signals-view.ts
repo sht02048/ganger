@@ -1,6 +1,7 @@
 import { summarizeRunOutcome } from "@ganger/core";
-import type { CiState } from "@ganger/core";
+import type { CiState, MergeBlock, MergeMethod } from "@ganger/core";
 import type { RunRecords, StoredRun } from "@ganger/db";
+import { isWebUrl } from "./format/url.js";
 import type { CiView } from "./run-detail/model.js";
 
 export function toCiView(ci: CiState): CiView {
@@ -19,7 +20,7 @@ export interface PrSignalsView {
   checkedAt: string;
 }
 
-function isStillReread(run: StoredRun, records: RunRecords): boolean {
+export function isStillReread(run: StoredRun, records: RunRecords): boolean {
   if (run.state !== "ended") return true;
   return (
     run.prState === "open" &&
@@ -54,4 +55,69 @@ export function prSignalsViewOf(run: StoredRun, records: RunRecords): PrSignalsV
     behindBy: signals?.behindBy ?? null,
     checkedAt: (pr.signalsReadAt ?? pr.checkedAt).toISOString(),
   };
+}
+
+const SHORT_SHA_LENGTH = 7;
+
+export interface PrCommitView {
+  oid: string;
+  shortSha: string;
+  url: string | null;
+  headline: string;
+  author: string | null;
+  committedAt: string;
+  agoMs: number;
+}
+
+export function prDetailsOf(
+  records: RunRecords,
+  now: Date,
+): { title: string | null; baseBranch: string | null; commits: PrCommitView[] } {
+  const signals = records.pullRequest?.signals ?? null;
+  return {
+    title: signals?.title ?? null,
+    baseBranch: signals?.baseBranch ?? null,
+    commits: (signals?.commits ?? []).map((commit) => ({
+      oid: commit.oid,
+      shortSha: commit.oid.slice(0, SHORT_SHA_LENGTH),
+      url: isWebUrl(commit.url) ? commit.url : null,
+      headline: commit.headline,
+      author: commit.author,
+      committedAt: commit.committedAt,
+      agoMs: Math.max(0, now.getTime() - new Date(commit.committedAt).getTime()),
+    })),
+  };
+}
+
+export interface MergeView {
+  methods: MergeMethod[];
+  defaultMethod: MergeMethod;
+  blocked: MergeBlock | null;
+  noPermission: boolean;
+  headCommit: string;
+}
+
+export function mergeViewOf(run: StoredRun, records: RunRecords): MergeView | null {
+  const signals = records.pullRequest?.signals ?? null;
+  if (signals === null || !signals.open || !isStillReread(run, records)) return null;
+  const merge = signals.merge;
+  if (merge === undefined || merge.defaultMethod === null || merge.methods.length === 0) {
+    return null;
+  }
+  return {
+    methods: [...merge.methods],
+    defaultMethod: merge.defaultMethod,
+    blocked: merge.blocked,
+    noPermission: merge.canWrite === false || signals.mergeDeniedAt !== undefined,
+    headCommit: signals.headCommit,
+  };
+}
+
+export function settledPrStateOf(
+  records: RunRecords,
+): { state: "merged" | "closed"; at: Date | null } | null {
+  const signals = records.pullRequest?.signals ?? null;
+  const settled = signals?.settled;
+  if (signals === null || signals.open || settled === undefined) return null;
+  return { state: settled.state, at: settled.at === null ? null : new Date(settled.at) };
 }

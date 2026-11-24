@@ -20,8 +20,9 @@ import {
 import { Link } from "@tanstack/react-router";
 import { useRef } from "react";
 import type { ReactNode } from "react";
+import type { RailBadgeKind } from "@ganger/ui";
 import { useTranslations } from "use-intl";
-import { ALL_WORKSPACES } from "@ganger/app/shell/model";
+import { ALL_WORKSPACES, todoCountOf } from "@ganger/app/shell/model";
 import type { ShellData, WorkspaceChoice } from "@ganger/app/shell/model";
 import { navShortcuts } from "@ganger/app/shell/nav-shortcuts";
 import type { NavScreen, NavShortcut } from "@ganger/app/shell/nav-shortcuts";
@@ -54,6 +55,11 @@ export function AppShell({
   const { inDesktopApp } = useDesktopNavigation((screen) => railLinks.current.get(screen)?.focus());
   const navigationPending = useNavigationPending();
   const openCreateWorkspace = useOpenCreateWorkspace();
+  const badgeOf = (screen: NavScreen): RailBadge | null => {
+    if (screen === "runners") return { kind: "problem", count: shell.runnerIssues };
+    if (screen === "dashboard") return { kind: "todo", count: todoCountOf(shell.todo, workspace) };
+    return null;
+  };
   const isCurrent = (to: string) =>
     to === "/" ? pathname === "/" : pathname === to || pathname.startsWith(`${to}/`);
   return (
@@ -75,7 +81,7 @@ export function AppShell({
                     <RailLink
                       item={item}
                       current={isCurrent(item.path)}
-                      issues={item.screen === "runners" ? shell.runnerIssues : 0}
+                      badge={badgeOf(item.screen)}
                       showShortcut={inDesktopApp}
                       linkRef={(element) => {
                         if (element === null) railLinks.current.delete(item.screen);
@@ -98,27 +104,37 @@ export function AppShell({
   );
 }
 
+interface RailBadge {
+  kind: RailBadgeKind;
+  count: number;
+}
+
 function RailLink({
   item,
   current,
-  issues,
+  badge,
   showShortcut,
   linkRef,
 }: {
   item: NavShortcut;
   current: boolean;
-  issues: number;
+  badge: RailBadge | null;
   showShortcut: boolean;
   linkRef: (element: HTMLAnchorElement | null) => void;
 }) {
   const t = useTranslations("shell");
   const name = t(`nav.${item.screen}`);
+  const count = badge?.count ?? 0;
+  const label =
+    badge === null || count === 0
+      ? name
+      : t(badge.kind === "todo" ? "nav.withTodo" : "nav.withIssues", { name, count });
   return (
     <Tooltip
-      content={issues > 0 ? t("nav.withIssues", { name, count: issues }) : name}
+      content={label}
       labelsTrigger
       side="right"
-      disabled={!showShortcut && issues === 0}
+      disabled={!showShortcut && count === 0}
       {...(showShortcut ? { shortcut: item.shortcut } : {})}
       render={
         <Link
@@ -129,7 +145,12 @@ function RailLink({
         />
       }
     >
-      <RailLinkContent icon={navIcons[item.screen]} name={name} issues={issues} />
+      <RailLinkContent
+        icon={navIcons[item.screen]}
+        name={name}
+        issues={count}
+        {...(badge === null ? {} : { badge: badge.kind })}
+      />
     </Tooltip>
   );
 }

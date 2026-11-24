@@ -3,7 +3,7 @@ import domain from "../../messages/ko/domain.json" with { type: "json" };
 import runnersJson from "../../messages/ko/runners.json" with { type: "json" };
 import { pillsOf } from "../testing/pills";
 import { renderWithMessages } from "../testing/render";
-import { recordProviderUsage, recordRunnerCheck } from "@ganger/db";
+import { recordGhAccounts, recordProviderUsage, recordRunnerCheck } from "@ganger/db";
 import { toRunnerId } from "@ganger/core";
 import {
   addUnreachedCanceledRun,
@@ -15,7 +15,12 @@ import {
 import { loadRunnersPage } from "@ganger/app/runners/load";
 import { runnersMessages } from "./messages";
 import { failedChecksFirst, problemRunnersFirst } from "@ganger/app/runners/model";
-import type { OccupyingRun, RunnerView, RunnersPage } from "@ganger/app/runners/model";
+import type {
+  OccupyingRun,
+  RunnerGhAccountsView,
+  RunnerView,
+  RunnersPage,
+} from "@ganger/app/runners/model";
 import { runnerRunsHref } from "../runs/hrefs";
 import { addRunnerHref, RunnersScreen } from "./runners-screen";
 import type { RunnerActions } from "./runners-screen";
@@ -89,6 +94,7 @@ function runner(overrides: Partial<RunnerView> & { id: string }): RunnerView {
     orcaPath: null,
     usage: null,
     load: null,
+    ghAccounts: null,
     ...overrides,
   };
 }
@@ -926,5 +932,135 @@ describe("Runners 다시 그리기(0092)", () => {
       render(withUsage([{ kind: "session", usedPercent: 100, resetsAt: future }]), "runner-a"),
     );
     expect(textOf(b)).toContain(panel.usage.atLimit);
+  });
+});
+
+describe("러너의 gh 계정(0205)", () => {
+  const readGh = { readAt: "2026-11-23T00:00:00.000Z", agoMs: 3 * 60_000 };
+  const ghText = (ghAccounts: RunnerGhAccountsView | null, online = true) =>
+    textOf(panelHtml(render({ runners: [runner({ id: "r-a", online, ghAccounts })] })));
+
+  it("상세에 GitHub (gh) 구역을 사용량 뒤에 두고 계정마다 한 줄, 사용 중 계정과 읽은 때를 보인다", () => {
+    const text = ghText({
+      ...readGh,
+      kind: "logged-in",
+      accounts: [
+        { host: "github.com", login: "acme-bot", active: true, expired: false },
+        { host: "ghe.acme.example", login: "acme-ci", active: false, expired: false },
+      ],
+    });
+    expect(text).toContain("GitHub (gh)");
+    expect(text).toContain("acme-bot · github.com · 사용 중");
+    expect(text).toContain("acme-ci · ghe.acme.example");
+    expect(text).not.toContain("acme-ci · ghe.acme.example · 사용 중");
+    expect(text).toContain("3 min ago 읽음");
+    expect(text.indexOf(panel.usage.title)).toBeLessThan(text.indexOf("GitHub (gh)"));
+  });
+
+  it("로그인이 만료된 계정은 흐리게 로그인이 만료됐다고 보이고 사용 중 계정 뒤에 둔다(0207)", () => {
+    const html = panelHtml(
+      render({
+        runners: [
+          runner({
+            id: "r-a",
+            ghAccounts: {
+              ...readGh,
+              kind: "logged-in",
+              accounts: [
+                { host: "github.com", login: "acme-old", active: false, expired: true },
+                { host: "github.com", login: "acme-bot", active: true, expired: false },
+              ],
+            },
+          }),
+        ],
+      }),
+    );
+    const text = textOf(html);
+    expect(text).toContain("acme-bot · github.com · 사용 중");
+    expect(text).toContain("acme-old · github.com · 로그인이 만료됐어요");
+    expect(html).toMatch(/<p[^>]*>acme-old · github.com · 로그인이 만료됐어요<\/p>/);
+    expect(html).not.toMatch(callout);
+  });
+
+  it("저장한 계정은 만료된 계정을 뒤에 두고, 만료 표시가 없던 옛 값은 만료되지 않은 것으로 읽는다(0207)", () => {
+    const { db } = seedDatabase();
+    db.$client
+      .prepare("UPDATE runners SET gh_accounts = ?, gh_accounts_read_at = ? WHERE id = ?")
+      .run(
+        JSON.stringify({
+          kind: "logged-in",
+          accounts: [
+            { host: "github.com", login: "old", active: true, expired: true },
+            { host: "github.com", login: "legacy", active: false },
+          ],
+        }),
+        now.getTime(),
+        "runner-a",
+      );
+    const gh = loadRunnersPage(db, now, { includeGhAccounts: true }).runners.find(
+      (r) => r.id === "runner-a",
+    )?.ghAccounts;
+    expect(gh).toMatchObject({
+      kind: "logged-in",
+      accounts: [
+        { login: "legacy", expired: false },
+        { login: "old", expired: true },
+      ],
+    });
+  });
+
+  it("gh 가 없거나 로그인하지 않았거나 읽지 못했으면 그대로 말한다", () => {
+    expect(ghText({ ...readGh, kind: "not-installed" })).toContain("gh 없음");
+    expect(ghText({ ...readGh, kind: "logged-out" })).toContain("로그인 안 됨");
+    expect(ghText({ ...readGh, kind: "unreadable" })).toContain(panel.ghAccounts.unreadable);
+    expect(ghText(null)).toContain(panel.ghAccounts.notRead);
+  });
+
+  it("정보만 보이고 문제 색이나 고칠 일 카드를 더하지 않는다", () => {
+    const html = panelHtml(
+      render({ runners: [runner({ id: "r-a", ghAccounts: { ...readGh, kind: "logged-out" } })] }),
+    );
+    expect(html).not.toMatch(callout);
+    expect(html).not.toContain('role="alert"');
+  });
+
+  it("Offline 러너에도 마지막으로 읽은 계정을 읽은 때와 함께 보인다", () => {
+    const text = ghText(
+      {
+        ...readGh,
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: false }],
+      },
+      false,
+    );
+    expect(text).toContain("acme-bot · github.com · 사용 중");
+    expect(text).toContain("3 min ago 읽음");
+  });
+
+  it("저장한 값에서 사용 중 계정을 먼저 두고 토큰 같은 다른 값은 화면까지 오지 않는다", () => {
+    const { db } = seedDatabase();
+    recordGhAccounts(db, {
+      runnerId: toRunnerId("runner-a"),
+      readAt: now,
+      reading: Object.assign(
+        { token: "gho_FAKE" },
+        {
+          kind: "logged-in" as const,
+          accounts: [
+            Object.assign(
+              { token: "gho_FAKE" },
+              { host: "github.com", login: "b", active: false, expired: false },
+            ),
+            { host: "github.com", login: "a", active: true, expired: false },
+          ],
+        },
+      ),
+    });
+    const page = loadRunnersPage(db, now, { includeGhAccounts: true });
+    const gh = page.runners.find((r) => r.id === "runner-a")?.ghAccounts;
+    expect(gh).toMatchObject({ kind: "logged-in", accounts: [{ login: "a" }, { login: "b" }] });
+    expect(JSON.stringify(page)).not.toContain("gho_");
+    expect(render(page, "runner-a")).not.toContain("gho_");
+    expect(loadRunnersPage(db, now).runners[0]).not.toHaveProperty("ghAccounts");
   });
 });

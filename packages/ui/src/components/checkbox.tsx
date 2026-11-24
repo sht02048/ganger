@@ -3,7 +3,7 @@ import { Checkbox as SdkCheckbox, CheckboxIndicator } from "@ui-sdk/react/checkb
 import { useId, type ReactNode } from "react";
 import { cx } from "../cx";
 import { colors, fontSize, motion, radius, size, space } from "../tokens.stylex";
-import { CheckIcon } from "./icons";
+import { CheckIcon, MinusIcon } from "./icons";
 
 export interface CheckboxProps {
   label: ReactNode;
@@ -17,6 +17,7 @@ export interface CheckboxProps {
 
 export interface CheckboxControlProps {
   checked: boolean;
+  indeterminate?: boolean | undefined;
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean | undefined;
   name?: string | undefined;
@@ -26,6 +27,7 @@ export interface CheckboxControlProps {
 
 export function CheckboxControl({
   checked,
+  indeterminate = false,
   onCheckedChange,
   disabled,
   name,
@@ -34,16 +36,22 @@ export function CheckboxControl({
 }: CheckboxControlProps) {
   return (
     <SdkCheckbox
-      checked={checked}
+      checked={indeterminate ? "indeterminate" : checked}
       {...(describedBy === undefined ? {} : { "aria-describedby": describedBy })}
       onCheckedChange={(next) => onCheckedChange(next === true)}
       {...(disabled === undefined ? {} : { disabled })}
       {...(name === undefined ? {} : { name })}
       {...(value === undefined ? {} : { value })}
-      className={(s) => cx(styles.box, s.checked && styles.checked, s.disabled && styles.disabled)}
+      className={(s) =>
+        cx(
+          styles.box,
+          (s.checked || s.indeterminate) && styles.checked,
+          s.disabled && styles.disabled,
+        )
+      }
     >
       <CheckboxIndicator className={cx(styles.indicator)}>
-        <CheckIcon />
+        {indeterminate ? <MinusIcon /> : <CheckIcon />}
       </CheckboxIndicator>
     </SdkCheckbox>
   );

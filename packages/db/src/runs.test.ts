@@ -892,6 +892,78 @@ describe("updateRunRecords", () => {
     });
   });
 
+  it("커밋을 새로 읽지 않았으면 같은 PR 의 지난 커밋을 두되, 열린 PR 은 head 가 같을 때만 둔다 (0200)", () => {
+    const db = seededDatabase();
+    addRunner(db, { id: "r", capacity: 1, online: true, projects: [repoA] });
+    const id = assignOk(db, "ENG-1");
+    moveTo(db, id, "ended");
+    const pullRequest = {
+      id: toPullRequestId("PR_1"),
+      displayId: "#7",
+      url: "https://example.com/pr/7",
+      ci: "success",
+      checkedAt: new Date("2026-11-21T01:00:00Z"),
+      headCommit: "abc",
+    };
+    const commits = [
+      {
+        oid: "abc",
+        url: "https://example.com/commit/abc",
+        headline: "Add login",
+        author: "kim",
+        committedAt: "2026-11-21T00:30:00.000Z",
+      },
+    ];
+    const base = {
+      headCommit: "abc",
+      ciFailed: false,
+      checkTotal: null,
+      failedCount: 0,
+      failedChecks: [],
+      checksTruncated: false,
+      conflict: null,
+      behindBy: null,
+      title: "Add login",
+      baseBranch: "develop",
+    };
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: true, commits } },
+    });
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: false } },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals).toEqual({
+      ...base,
+      open: false,
+      commits,
+    });
+
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: true } },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals?.commits).toEqual(commits);
+    updateRunRecords(db, id, {
+      pullRequest: {
+        ...pullRequest,
+        headCommit: "def",
+        signals: { ...base, open: true, headCommit: "def" },
+      },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals?.commits).toBeUndefined();
+    updateRunRecords(db, id, {
+      pullRequest: { ...pullRequest, signals: { ...base, open: true, commits } },
+    });
+
+    updateRunRecords(db, id, {
+      pullRequest: {
+        ...pullRequest,
+        id: toPullRequestId("PR_2"),
+        signals: { ...base, open: false },
+      },
+    });
+    expect(getRunWithRecords(db, id)?.records.pullRequest?.signals?.commits).toBeUndefined();
+  });
+
   it("이후 PR 상태는 Ended 런에만 적는다", () => {
     const db = seededDatabase();
     const id = assignOk(db, "ENG-1");

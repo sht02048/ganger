@@ -7,6 +7,7 @@ import type { Root } from "react-dom/client";
 import { IntlProvider } from "use-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConnectionProjects, TrackerProjectChoice } from "@ganger/app/settings/model";
+import { NO_TODO } from "@ganger/app/shell/model";
 import type { ShellData } from "@ganger/app/shell/model";
 import { DEFAULT_TIME_ZONE } from "@ganger/app/time-zone";
 import { toWorkspaceId } from "@ganger/db";
@@ -219,8 +220,9 @@ describe("새 Workspace 대화상자", () => {
     );
 
     expect(isDisabled(buttonNamed(copy.submit))).toBe(true);
-    expect(isDisabled(checkbox("Web"))).toBe(true);
-    expect(document.body.textContent).toContain("Acme에 있어요");
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("Web");
+    expect(document.body.textContent).not.toContain("Acme에 있어요");
+    expect(document.body.textContent).toContain("다른 Workspace에 있는 1개는 숨겼어요.");
 
     await settle(() => typeName("  Labs  "));
     expect(isDisabled(buttonNamed(copy.submit))).toBe(true);
@@ -232,6 +234,131 @@ describe("새 Workspace 대화상자", () => {
       name: "Labs",
       projects: [{ connectionId: "conn", projectId: "Free", name: "Free" }],
     });
+  });
+
+  function connectionGroup(
+    id: string,
+    projects: TrackerProjectChoice[],
+    error: ConnectionProjects["error"] = null,
+  ): ConnectionProjects {
+    return { connection: { id, name: id }, error, projects };
+  }
+
+  const free = (id: string) => project(id, { kind: "free" });
+
+  async function renderGroups(groups: ConnectionProjects[]): Promise<void> {
+    await settle(() =>
+      root.render(
+        wrapped(<CreateWorkspaceDialog {...dialogProps({ choices: { kind: "ready", groups } })} />),
+      ),
+    );
+  }
+
+  function toggleOf(connection: string): HTMLElement {
+    const found = document.querySelector<HTMLElement>(
+      `[aria-expanded][aria-label^="${connection} "]`,
+    );
+    if (found === null) throw new Error(`no toggle ${connection}`);
+    return found;
+  }
+
+  it("연결이 하나면 펼쳐 열고, 여럿이면 모두 접어 열며 따로 펼칠 수 있다", async () => {
+    await renderGroups([connectionGroup("Solo", [free("One")])]);
+    expect(toggleOf("Solo").getAttribute("aria-expanded")).toBe("true");
+    expect(checkbox("One")).toBeDefined();
+
+    await settle(() => root.render(wrapped(<div />)));
+    await renderGroups([
+      connectionGroup("Linear A", [free("One")]),
+      connectionGroup("Linear B", [free("Two")]),
+    ]);
+    expect(toggleOf("Linear A").getAttribute("aria-expanded")).toBe("false");
+    expect(toggleOf("Linear B").getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector('[role="dialog"]')?.textContent).not.toContain("One");
+
+    await settle(() => toggleOf("Linear B").click());
+    expect(toggleOf("Linear A").getAttribute("aria-expanded")).toBe("false");
+    expect(toggleOf("Linear B").getAttribute("aria-expanded")).toBe("true");
+    expect(checkbox("Two")).toBeDefined();
+  });
+
+  it("머리 체크박스가 전체를 고르고 풀며, 일부만 고르면 일부 상태를 보인다", async () => {
+    await renderGroups([
+      connectionGroup("Solo", [free("One"), free("Two"), project("Web", taken)]),
+    ]);
+    const head = () => checkbox("Solo");
+    const dialogText = () => document.querySelector('[role="dialog"]')?.textContent;
+    expect(head().getAttribute("aria-checked")).toBe("false");
+    expect(dialogText()).toContain("0개 고름 · 2개 넣을 수 있어요");
+
+    await settle(() => checkbox("One").click());
+    expect(head().getAttribute("aria-checked")).toBe("mixed");
+    expect(dialogText()).toContain("1개 고름 · 2개 넣을 수 있어요");
+
+    await settle(() => head().click());
+    expect(head().getAttribute("aria-checked")).toBe("true");
+    expect(checkbox("Two").getAttribute("aria-checked")).toBe("true");
+    expect(dialogText()).toContain("2개 모두 고름");
+
+    await settle(() => head().click());
+    expect(head().getAttribute("aria-checked")).toBe("false");
+    expect(checkbox("One").getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("접힌 묶음을 머리로 고르면 만들기가 열리고 그 프로젝트를 보낸다", async () => {
+    const onCreate = vi.fn<(input: CreateWorkspaceInput) => Promise<CreateWorkspaceResult>>(() =>
+      Promise.resolve({ ok: true, id: "ws-new", name: "Labs" }),
+    );
+    const groups = [
+      connectionGroup("Linear A", [free("One")]),
+      connectionGroup("Linear B", [free("Two")]),
+    ];
+    await settle(() =>
+      root.render(
+        wrapped(
+          <CreateWorkspaceDialog
+            {...dialogProps({ onCreate, choices: { kind: "ready", groups } })}
+          />,
+        ),
+      ),
+    );
+    await settle(() => typeName("Labs"));
+    expect(isDisabled(buttonNamed(copy.submit))).toBe(true);
+    await settle(() => checkbox("Linear B").click());
+    expect(isDisabled(buttonNamed(copy.submit))).toBe(false);
+    await settle(() => buttonNamed(copy.submit).click());
+    expect(onCreate).toHaveBeenCalledWith({
+      name: "Labs",
+      projects: [{ connectionId: "Linear B", projectId: "Two", name: "Two" }],
+    });
+  });
+
+  it("넣을 수 없는 연결은 머리를 막고 펼치기를 없앤다", async () => {
+    await renderGroups([
+      connectionGroup("Linear A", [project("Web", taken)]),
+      connectionGroup("Linear B", [free("Two")]),
+    ]);
+    expect(isDisabled(checkbox("Linear A"))).toBe(true);
+    expect(document.querySelector('[aria-expanded][aria-label^="Linear A "]')).toBeNull();
+    expect(document.body.textContent).toContain(copy.groupNone);
+    expect(document.body.textContent).toContain("다른 Workspace에 있는 1개는 숨겼어요.");
+    expect(document.body.textContent).not.toContain(ALL_TAKEN);
+  });
+
+  it("읽지 못한 연결은 없다고 단정하지 않고 읽지 못했다고 보인다", async () => {
+    await renderGroups([
+      connectionGroup("Linear A", [], "network"),
+      connectionGroup("Linear B", [free("Two")]),
+    ]);
+    expect(isDisabled(checkbox("Linear A"))).toBe(true);
+    expect(document.body.textContent).toContain(copy.groupFailed);
+    expect(document.body.textContent).not.toContain(copy.groupNone);
+  });
+
+  it("모두 다른 Workspace 에 있으면 숨긴 개수 대신 Settings 안내만 보인다", async () => {
+    await renderGroups([connectionGroup("Linear A", [project("Web", taken)])]);
+    expect(document.body.textContent).toContain(ALL_TAKEN);
+    expect(document.body.textContent).not.toContain("숨겼어요");
   });
 
   it("고를 것이 없으면 Settings 링크가 있는 안내를 보이고 만들기를 막는다", async () => {
@@ -472,6 +599,7 @@ describe("입구와 만든 뒤", () => {
     const shell: ShellData = {
       workspaces: [{ id: toWorkspaceId("ws-a"), name: "Acme" }],
       runnerIssues: 0,
+      todo: NO_TODO,
     };
     await settle(() =>
       root.render(

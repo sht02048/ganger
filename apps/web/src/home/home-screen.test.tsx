@@ -30,6 +30,8 @@ function render(page: HomePage) {
       onHumanCheck={reject}
       onDeny={reject}
       onControl={reject}
+      onMerge={reject}
+      onLoadCommits={reject}
     />,
     homeMessages,
   );
@@ -44,6 +46,8 @@ function renderView(page: HomePage, view: DashboardView) {
       onHumanCheck={reject}
       onDeny={reject}
       onControl={reject}
+      onMerge={reject}
+      onLoadCommits={reject}
     />,
     homeMessages,
   );
@@ -78,12 +82,18 @@ function section(html: string, name: string): string {
   return start < 0 ? "" : balanced(html, start, "section");
 }
 
-function checkActionClasses(html: string): { slot: string; button: string } {
-  const match = /<span class="([^"]*)"><button\b([^>]*data-variant="check"[^>]*)>/.exec(html);
+function actionClasses(html: string, variant: string): { slot: string; button: string } {
+  const match = new RegExp(
+    `<span class="([^"]*)"><button\\b([^>]*data-variant="${variant}"[^>]*)>`,
+  ).exec(html);
   return {
     slot: match?.[1] ?? "",
     button: /class="([^"]*)"/.exec(match?.[2] ?? "")?.[1] ?? "",
   };
+}
+
+function checkActionClasses(html: string): { slot: string; button: string } {
+  return actionClasses(html, "check");
 }
 
 function actionsOf(html: string) {
@@ -232,13 +242,35 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(text(row(running, "ACME-10"))).toContain("runner-a · Claude Code");
   });
 
-  it("Question 카드는 질문 한 줄·기다린 경과·답하기를 보이고 선택지는 패널 전까지 그리지 않는다", () => {
+  it("Question 카드는 질문 문구 없이 기다린 경과와 answer 색 답하기를 보이고 선택지는 패널 전까지 그리지 않는다(0198)", () => {
     const running = section(render(withInput(seededPage(), question)), "Running");
     const card = row(running, "ACME-11");
-    expect(text(card)).toContain(question.body);
+    expect(text(card)).not.toContain(question.body);
     expect(text(card)).toContain("25 min");
-    expect(actionsOf(card)).toEqual([{ variant: "secondary", label: homeJson.card.answer }]);
+    expect(actionsOf(card)).toEqual([{ variant: "answer", label: homeJson.card.answer }]);
     expect(card).not.toContain('type="radio"');
+  });
+
+  it("Question 카드의 답하기는 Human Check 와 같은 폭 전체 자리와 block 모양이다(0198)", () => {
+    const card = row(render(withInput(seededPage(), question)), "ACME-11");
+    const fullWidthCard = renderToString(
+      <KanbanCard
+        ticketKey="ACME-11"
+        title="제목"
+        actionFullWidth
+        action={
+          <Button variant="answer" block>
+            {homeJson.card.answer}
+          </Button>
+        }
+        onOpen={() => undefined}
+      />,
+    );
+    expect(actionClasses(card, "answer")).toEqual(actionClasses(fullWidthCard, "answer"));
+    expect(actionClasses(card, "answer").slot).not.toBe("");
+    expect(/<button[^>]*data-variant="answer"[^>]*>/.exec(card)?.[0]).toContain(
+      "aria-describedby=",
+    );
   });
 
   it("Permission 카드는 명령을 보이고 카드에 거절 버튼을 두지 않는다", () => {
@@ -465,13 +497,13 @@ describe("Dashboard 칸반(티켓 0100)", () => {
       expect(text(card)).toContain(homeJson.card.answered);
       expect(card).not.toContain('data-variant="check"');
     });
+  });
 
-    it("Question 카드의 답하기는 secondary 그대로이고 질문 문구를 보인다", () => {
-      const card = row(render(withInput(seededPage(), question)), "ACME-11");
-      expect(text(card)).toContain(question.body);
-      expect(card).toMatch(/data-variant="secondary"[^>]*>답하기</);
-      expect(card).not.toContain('data-variant="check"');
-    });
+  it("답한 Question 카드는 질문 문구와 답했어요를 그대로 보이고 버튼이 없다(0198)", () => {
+    const card = row(render(withInput(seededPage(), { ...question, answered: true })), "ACME-11");
+    expect(text(card)).toContain(question.body);
+    expect(text(card)).toContain(homeJson.card.answered);
+    expect(card).not.toContain('data-variant="answer"');
   });
 
   it("답을 보낸 질문과 거절을 보낸 권한 대기는 카드에 결과를 보이고 답하기를 두지 않는다", () => {
@@ -752,8 +784,11 @@ describe("질문 레이어: 선택지 없이 온 질문(0116)", () => {
     expect(text(html)).toContain(questionJson.shortcut);
   });
 
-  it("카드는 선택지를 뺀 질문만 두 줄 요약으로 보인다", () => {
-    const card = row(section(render(withInput(seededPage(), inline)), "Running"), "ACME-11");
+  it("답한 카드는 선택지를 뺀 질문만 두 줄 요약으로 보인다", () => {
+    const card = row(
+      section(render(withInput(seededPage(), { ...inline, answered: true })), "Running"),
+      "ACME-11",
+    );
     expect(text(card)).toContain("어떻게 할까요?");
     expect(text(card)).not.toContain("머지될 때까지");
   });
@@ -1129,6 +1164,15 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
               displayId: "#42",
               url: "https://code.example.com/acme/web/pull/420",
               signals,
+              ci: signals.ciFailed ? "failure" : "success",
+              state: "open",
+              settledAt: null,
+              settledAgoMs: null,
+              branch: null,
+              title: null,
+              baseBranch: null,
+              commitSummary: null,
+              merge: null,
             },
           }
         : run;
@@ -1209,14 +1253,15 @@ describe("Dashboard 카드의 PR 칩(0167)", () => {
     expect(card.indexOf("data-blocker-state")).toBeLessThan(card.indexOf("data-pr-chip"));
   });
 
-  it("Question 카드에서 칩은 질문 문장 아래, 바닥 줄 위에 있다", () => {
+  it("답하지 않은 Question 카드에서 칩은 바닥 줄 위, 답하기는 바닥 줄 아래에 있다(0198)", () => {
     const page = withSignals(questionPage(), "ACME-11", openPr({ ciFailed: true }));
     const card = row(render(page), "ACME-11");
     const chip = card.indexOf("data-pr-chip");
-    expect(card.indexOf(question.body)).toBeLessThan(chip);
+    expect(chip).toBeGreaterThan(-1);
     const runnerName = runOf(page, "ACME-11").runner?.name;
     if (runnerName === undefined) throw new Error("no runner");
     expect(chip).toBeLessThan(card.indexOf(runnerName));
+    expect(card.indexOf(runnerName)).toBeLessThan(card.indexOf('data-variant="answer"'));
   });
 
   it("칩 글은 카드 버튼의 설명에 들어가고, +N 은 묶인 문제를 읽어 준다", () => {
@@ -1279,6 +1324,21 @@ describe("Dashboard 멈추기·재개(0118)", () => {
     expect(pillsOf(paused)).toEqual([{ status: "paused", label: domain.runState.paused }]);
     expect(buttonsOf(paused).map((button) => button.label)).toContain(homeJson.card.resume);
     expect(paused).toMatch(/data-variant="secondary"[^>]*>재개하기</);
+    const fullWidthCard = renderToString(
+      <KanbanCard
+        ticketKey="ACME-10"
+        title="제목"
+        actionFullWidth
+        action={
+          <Button variant="secondary" block>
+            {homeJson.card.resume}
+          </Button>
+        }
+        onOpen={() => undefined}
+      />,
+    );
+    expect(actionClasses(paused, "secondary")).toEqual(actionClasses(fullWidthCard, "secondary"));
+    expect(actionClasses(paused, "secondary").slot).not.toBe("");
     expect(paused).not.toContain('data-variant="check"');
     expect(paused).not.toContain(homeJson.card.menu.replace("{key}", "ACME-10"));
     expect(text(paused)).toContain("20 min");

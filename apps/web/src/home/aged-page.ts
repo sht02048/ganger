@@ -19,6 +19,23 @@ function ageQueuedReason(reason: QueuedReason, by: number): QueuedReason {
 }
 
 function ageRun(run: HomeRun, by: number): HomeRun {
+  const aged = ageRunState(run, by);
+  const pr = aged.pullRequest;
+  if (pr === null) return aged;
+  return {
+    ...aged,
+    pullRequest: {
+      ...pr,
+      settledAgoMs: later(pr.settledAgoMs, by),
+      commitSummary:
+        pr.commitSummary === null
+          ? null
+          : { ...pr.commitSummary, latestAgoMs: pr.commitSummary.latestAgoMs + by },
+    },
+  };
+}
+
+function ageRunState(run: HomeRun, by: number): HomeRun {
   switch (run.state) {
     case "queued":
       return {

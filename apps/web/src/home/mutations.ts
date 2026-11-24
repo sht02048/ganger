@@ -2,12 +2,20 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
 import type { RunControlOutcome } from "@ganger/app/run-control-view";
 import { toRunId } from "@ganger/core";
-import type { RunId } from "@ganger/core";
+import type { MergeMethod, RunId } from "@ganger/core";
 import { ANSWER_REJECT_REASONS, DENY_REJECT_REASONS, rejectedAs } from "../query/mutation-error";
 import { withRunActionRequestId } from "../query/run-action-request-ids";
 import { keysChangedByRunWrite } from "../runs/queries";
-import { answerHumanCheck, answerQuestion, controlRun, denyPermission } from "../server/functions";
+import {
+  answerHumanCheck,
+  answerQuestion,
+  controlRun,
+  denyPermission,
+  getRunPrCommits,
+  mergePullRequest,
+} from "../server/functions";
 import type { AnswerInput, ControlInput, DenyInput, HumanCheckInput } from "./home-screen";
+import type { CommitsLoader, MergeHandler } from "./sheet-pr-tab";
 
 async function invalidateRunWrite(queryClient: QueryClient, runId: RunId): Promise<void> {
   await Promise.all(
@@ -20,6 +28,8 @@ export interface DashboardActions {
   onHumanCheck: (input: HumanCheckInput) => Promise<void>;
   onDeny: (input: DenyInput) => Promise<void>;
   onControl: (input: ControlInput) => Promise<RunControlOutcome>;
+  onMerge: MergeHandler;
+  onLoadCommits: CommitsLoader;
 }
 
 export function useDashboardActions(): DashboardActions {
@@ -74,6 +84,17 @@ export function useDashboardActions(): DashboardActions {
       ),
     onSuccess: (_outcome, input) => afterWrite(toRunId(input.runId)),
   });
+  const merge = useMutation({
+    mutationFn: (input: { runId: RunId; method: MergeMethod; expectedHead: string }) =>
+      withRunActionRequestId(
+        queryClient,
+        input.runId,
+        "merge-pr",
+        `${input.method}:${input.expectedHead}`,
+        (requestId) => mergePullRequest({ data: { ...input, requestId } }),
+      ),
+    onSettled: (_result, _error, input) => afterWrite(toRunId(input.runId)),
+  });
   return {
     onAnswer: async (input) => {
       await answer.mutateAsync(input);
@@ -85,5 +106,7 @@ export function useDashboardActions(): DashboardActions {
       await deny.mutateAsync(input);
     },
     onControl: (input) => control.mutateAsync(input),
+    onMerge: (runId, method, expectedHead) => merge.mutateAsync({ runId, method, expectedHead }),
+    onLoadCommits: (runId) => getRunPrCommits({ data: { runId } }),
   };
 }

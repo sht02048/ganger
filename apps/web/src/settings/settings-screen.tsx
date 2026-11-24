@@ -84,7 +84,7 @@ export interface SettingsActions {
   }) => Promise<ActionResult>;
   checkConnection: (input: { id: string }) => Promise<ActionResult>;
   saveGitHubToken: (input: { token: string }) => Promise<ActionResult>;
-  checkGitHubToken: () => Promise<ActionResult>;
+  checkGitHub: () => Promise<ActionResult>;
   saveRunner: (input: {
     id?: string;
     name: string;

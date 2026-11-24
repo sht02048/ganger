@@ -1,6 +1,7 @@
 import { AdapterError } from "../adapters.js";
 import { NO_TICKET_RELATIONS } from "../blockers.js";
 import type { TicketRelations } from "../blockers.js";
+import type { GhAccountsReading } from "../gh-accounts.js";
 import type { ProviderUsageReading } from "../provider-usage.js";
 import type { RunnerLoadReading } from "../runner-load.js";
 import type {
@@ -13,6 +14,8 @@ import type {
   CompletionReport,
   ConnectionCheck,
   ContinuationPlace,
+  MergeOutcome,
+  MergePullRequestInput,
   Page,
   Paged,
   PermissionWait,
@@ -36,6 +39,7 @@ import type {
   TrackerConnectionCheck,
   TrackerEvent,
   TrackerLabel,
+  UsageAndLoad,
   TrackerProject,
   TrackerState,
   UnreportedStop,
@@ -265,6 +269,7 @@ export class FakeRunner implements Runner {
   projects: RunnerProject[] = [];
   providerUsage: ProviderUsageReading = { kind: "read", providers: [] };
   load: RunnerLoadReading = { kind: "unreadable" };
+  ghAccounts: GhAccountsReading = { kind: "unreadable" };
   failNextStart: RunnerErrorDetail | null = null;
   failNextControl: RunnerErrorDetail | null = null;
   nextSendStartsFollowUp: FollowUpRef | null = null;
@@ -390,9 +395,9 @@ export class FakeRunner implements Runner {
     return this.reach(() => this.providerUsage);
   }
 
-  async readUsageAndLoad(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }> {
+  async readUsageAndLoad(): Promise<UsageAndLoad> {
     const usage = await this.readProviderUsage();
-    return { usage, load: this.load };
+    return { usage, load: this.load, ghAccounts: this.ghAccounts };
   }
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef> {
@@ -742,6 +747,8 @@ export class FakeCodeHost implements CodeHost {
   readonly kind: CodeHostKind;
   connection: ConnectionCheck<CodeHostErrorDetail> = { ok: true };
   rateLimitValue: { limit: number; remaining: number; resetAt: Date } | null = null;
+  mergeOutcome: MergeOutcome = { ok: true };
+  readonly merges: Array<{ repo: RepoRef; id: PullRequestId } & MergePullRequestInput> = [];
   private readonly prs = new Map<RepoRef, PullRequestSnapshot[]>();
   private readonly projectPrefix: string;
 
@@ -789,6 +796,22 @@ export class FakeCodeHost implements CodeHost {
 
   getPullRequest(repo: RepoRef, id: PullRequestId): Promise<PullRequestSnapshot | null> {
     return Promise.resolve(this.list(repo).find((pr) => pr.id === id) ?? null);
+  }
+
+  mergePullRequest(
+    repo: RepoRef,
+    id: PullRequestId,
+    input: MergePullRequestInput,
+  ): Promise<MergeOutcome> {
+    this.merges.push({ repo, id, ...input });
+    const outcome = this.mergeOutcome;
+    if (outcome.ok) {
+      const pr = this.list(repo).find((p) => p.id === id);
+      if (pr !== undefined) {
+        this.putPullRequest(repo, { ...pr, state: "merged", mergedAt: new Date(), signals: null });
+      }
+    }
+    return Promise.resolve(outcome);
   }
 
   rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date } | null> {

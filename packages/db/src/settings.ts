@@ -1,6 +1,7 @@
 import type {
   AgentId,
   CodeHostKind,
+  GhAccountsReading,
   LabelId,
   MappingReposProblem,
   MailboxRef,
@@ -216,7 +217,13 @@ export interface StoredRunner {
   offlineSince: Date | null;
   providerUsage: StoredProviderUsage | null;
   load: StoredRunnerLoad | null;
+  ghAccounts: StoredGhAccounts | null;
   projects: RunnerProject[];
+}
+
+export interface StoredGhAccounts {
+  readAt: Date;
+  reading: GhAccountsReading;
 }
 
 export interface StoredProviderUsage {
@@ -539,6 +546,58 @@ export function recordRunnerLoad(
   });
 }
 
+const storedGhAccounts = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("logged-in"),
+    accounts: z.array(
+      z.object({
+        host: z.string(),
+        login: z.string(),
+        active: z.boolean(),
+        expired: z.boolean().default(false),
+      }),
+    ),
+  }),
+  z.object({ kind: z.literal("logged-out") }),
+  z.object({ kind: z.literal("not-installed") }),
+  z.object({ kind: z.literal("unreadable") }),
+]);
+
+function readGhAccounts(text: string | null, readAt: Date | null): StoredGhAccounts | null {
+  if (readAt === null) return null;
+  const unreadable: StoredGhAccounts = { readAt, reading: { kind: "unreadable" } };
+  if (text === null) return unreadable;
+  let json: unknown;
+  try {
+    json = parseJson(text);
+  } catch {
+    return unreadable;
+  }
+  const parsed = storedGhAccounts.safeParse(json);
+  return parsed.success ? { readAt, reading: parsed.data } : unreadable;
+}
+
+export function recordGhAccounts(
+  db: Database,
+  input: { runnerId: RunnerId; readAt: Date; reading: GhAccountsReading },
+): void {
+  const ghAccounts = toJson(storedGhAccounts.parse(input.reading), "runner gh accounts");
+  inTransaction(db, () => {
+    const before = db
+      .select({ ghAccounts: runners.ghAccounts, readAt: runners.ghAccountsReadAt })
+      .from(runners)
+      .where(eq(runners.id, input.runnerId))
+      .get();
+    if (before === undefined) return;
+    db.update(runners)
+      .set({ ghAccounts, ghAccountsReadAt: input.readAt })
+      .where(eq(runners.id, input.runnerId))
+      .run();
+    if (before.readAt === null || before.ghAccounts !== ghAccounts)
+      recordRunnerChange(db, input.runnerId, input.readAt);
+  });
+}
+
 export function listRunners(db: Database): StoredRunner[] {
   const projects = db
     .select()
@@ -565,6 +624,7 @@ export function listRunners(db: Database): StoredRunner[] {
       offlineSince: row.offlineSince,
       providerUsage: readProviderUsage(row.providerUsage, row.providerUsageReadAt),
       load: readRunnerLoad(row.load, row.loadReadAt),
+      ghAccounts: readGhAccounts(row.ghAccounts, row.ghAccountsReadAt),
       projects: projects
         .filter((p) => p.runnerId === row.id)
         .map((p) => ({ id: p.projectId, displayName: p.displayName, setupState: p.setupState })),

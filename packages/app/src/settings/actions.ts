@@ -15,7 +15,9 @@ import {
   workspaceBriefLength,
 } from "@ganger/core";
 import type { RunnerId, RunnerKind, TrackerConnectionId } from "@ganger/core";
+import { TOKEN_ONLY } from "@ganger/codehost-github";
 import {
+  clearMergeDenials,
   forgetWebhookReceipt,
   inTransaction,
   getAutoAssignLabel,
@@ -528,7 +530,9 @@ export async function saveGitHubToken(
   const config = existing?.config ?? {};
   const secrets = { token: input.token };
   const check = await checkWith(() =>
-    context.registry.createCodeHost(kind, { config, secrets }).checkConnection(),
+    context.registry
+      .createCodeHost(kind, { config: { ...config, credentials: TOKEN_ONLY }, secrets })
+      .checkConnection(),
   );
   if (!check.ok) return check;
   saveCodeHostConnection(
@@ -543,19 +547,8 @@ export async function saveGitHubToken(
     },
     now,
   );
+  clearMergeDenials(context.db);
   return { ok: true };
-}
-
-export async function checkGitHubToken(
-  context: SettingsContext,
-): Promise<SaveResult<RemoteError | "not-found">> {
-  const connection = listCodeHostConnections(context.db, context.secretBox)[0];
-  if (connection === undefined) return { ok: false, reason: "not-found" };
-  return checkWith(() =>
-    context.registry
-      .createCodeHost(connection.kind, { config: connection.config, secrets: connection.secrets })
-      .checkConnection(),
-  );
 }
 
 async function checkWith<C extends { ok: true }>(

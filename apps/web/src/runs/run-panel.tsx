@@ -23,6 +23,7 @@ import type { BoardRun } from "@ganger/app/runs/board";
 import { currentPrState } from "@ganger/app/runs/model";
 import type { RunView } from "@ganger/app/runs/model";
 import { useTime } from "../format/time";
+import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { useAgentName, useQueuedReasonText } from "../labels";
 import { nextStepAction, useRunNextStepText } from "../run-next-step";
 import { runStatus, useStatusName } from "../status";
@@ -245,6 +246,7 @@ function PrSection({ run }: { run: RunView }) {
   const t = useTranslations("runs.panel");
   const s = useTranslations("runs.panel.prSection");
   const { ago } = useTime();
+  const diagnosisText = usePrReadDiagnosisText();
   const pr = run.pullRequest;
   const state = panelPrState(run);
   const unreadText =
@@ -261,9 +263,16 @@ function PrSection({ run }: { run: RunView }) {
       {...(pr === null ? {} : { meta: s("readAt", { time: ago(pr.checkedAt, pr.checkedAgoMs) }) })}
     >
       {unreadText !== null ? (
-        <Text variant="ui" as="p">
-          {unreadText}
-        </Text>
+        <>
+          <Text variant="ui" as="p">
+            {unreadText}
+          </Text>
+          {run.state === "ended" && run.prReadDiagnosis != null ? (
+            <Text variant="ui" tone="muted" as="p">
+              {diagnosisText(run.prReadDiagnosis, "run")}
+            </Text>
+          ) : null}
+        </>
       ) : pr === null ? (
         <Text variant="meta" as="p">
           {s("none")}

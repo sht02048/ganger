@@ -31,6 +31,9 @@ import {
   SegmentedTabs,
   SignalList,
   SignalRow,
+  CommitHistory,
+  FactCell,
+  FactCells,
   StatTile,
   StatusDot,
   StatusPill,
@@ -321,7 +324,58 @@ export function RoleSections() {
                   <SignalRow label={t("signals.unknown")} tone="neutral">
                     {t("signals.unknownValue")}
                   </SignalRow>
+                  <SignalRow label={t("signals.link")}>{t("signals.linkValue")}</SignalRow>
                 </SignalList>
+                <FactCells>
+                  <FactCell label={t("signals.factRunner")}>
+                    {t("signals.factRunnerValue")}
+                  </FactCell>
+                  <FactCell label={t("signals.factAgent")}>{t("signals.factAgentValue")}</FactCell>
+                  <FactCell label={t("signals.factWorked")} empty>
+                    {t("signals.factWorkedValue")}
+                  </FactCell>
+                </FactCells>
+                <CommitHistory
+                  summary={t("signals.commits")}
+                  newTabLabel={t("signals.commitNewTab")}
+                  commits={[
+                    {
+                      id: "c3",
+                      headline: t("signals.commitFix"),
+                      sha: "c3a91f2",
+                      author: "kim",
+                      time: t("signals.commitTimeRecent"),
+                      href: "https://example.com/acme/web/commit/c3a91f2",
+                    },
+                    {
+                      id: "c2",
+                      headline: t("signals.commitLong"),
+                      sha: "b81d0e4",
+                      author: "ganger-agent",
+                      time: t("signals.commitTimeMiddle"),
+                      href: "https://example.com/acme/web/commit/b81d0e4",
+                    },
+                    {
+                      id: "c1",
+                      headline: t("signals.commitAdd"),
+                      sha: "a07c5d9",
+                      author: null,
+                      time: t("signals.commitTimeOld"),
+                      href: null,
+                    },
+                  ]}
+                />
+                <CommitHistory
+                  summary={t("signals.commitsFailedSummary")}
+                  newTabLabel={t("signals.commitNewTab")}
+                  commits={[]}
+                  load={{
+                    kind: "failed",
+                    message: t("signals.commitsFailed"),
+                    retryLabel: t("signals.commitsRetry"),
+                    onRetry: () => {},
+                  }}
+                />
               </PanelSection>
               <PanelSection title={t("usage.panelTitle")} meta={t("usage.panelMeta")}>
                 <Text variant="ui">{t("usage.panelBody")}</Text>

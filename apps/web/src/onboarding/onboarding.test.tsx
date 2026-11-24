@@ -38,7 +38,15 @@ import {
 } from "@ganger/app/settings/actions";
 import { loadSettingsPage, loadTrackerProjectChoices } from "@ganger/app/settings/load";
 import type { SettingsContext } from "@ganger/app/settings/load";
-import type { ConnectionProjects, SettingsPage } from "@ganger/app/settings/model";
+import type {
+  ConnectionProjects,
+  GhCliView,
+  GitHubAuthView,
+  SettingsPage,
+} from "@ganger/app/settings/model";
+import { checkGitHubConnection, loadGitHubAuthView } from "@ganger/app/settings/github-auth";
+import { GitHubAuth } from "@ganger/codehost-github";
+import type { GhRunner } from "@ganger/codehost-github";
 import { settingsMessages } from "../settings/messages";
 import { SettingsScreen } from "../settings/settings-page";
 import { buttonsOf } from "../testing/buttons";
@@ -77,6 +85,7 @@ interface Fixture {
   context: SettingsContext;
   tracker: FakeTracker;
   codeHost: FakeCodeHost;
+  gh: { scene: GhScene; runner: GhRunner };
 }
 
 function fixture(): Fixture {
@@ -93,12 +102,57 @@ function fixture(): Fixture {
   const registry = new AdapterRegistry()
     .registerTracker({ kind: tracker.kind, create: () => tracker })
     .registerCodeHost({ kind: codeHost.kind, create: () => codeHost });
+  const gh = fakeGh();
   return {
-    context: { db, secretBox: new SecretBox(new Uint8Array(32).fill(7)), registry },
+    context: {
+      db,
+      secretBox: new SecretBox(new Uint8Array(32).fill(7)),
+      registry,
+      githubAuth: new GitHubAuth({ gh: gh.runner, fetch: ghOwnersFetch }),
+    },
     tracker,
     codeHost,
+    gh,
   };
 }
+
+type GhScene = "connected" | "logged-out" | "missing";
+
+function fakeGh(): { scene: GhScene; runner: GhRunner } {
+  const state: { scene: GhScene; runner: GhRunner } = {
+    scene: "missing",
+    runner: {
+      run: (args) => {
+        if (state.scene === "missing") return Promise.resolve(null);
+        if (args[0] === "--version") {
+          return Promise.resolve({ code: 0, stdout: "gh version 2.60.0", stderr: "" });
+        }
+        const accounts =
+          state.scene === "connected"
+            ? [{ state: "success", active: true, login: "acme-bot" }]
+            : [];
+        if (args[1] === "status") {
+          const hosts = { "github.com": accounts };
+          return Promise.resolve({ code: 0, stdout: JSON.stringify({ hosts }), stderr: "" });
+        }
+        if (args[1] === "token" && accounts.length > 0) {
+          return Promise.resolve({ code: 0, stdout: GH_TOKEN, stderr: "" });
+        }
+        return Promise.resolve({ code: 1, stdout: "", stderr: "" });
+      },
+    },
+  };
+  return state;
+}
+
+const GH_TOKEN = "gho_onboardingSECRET9";
+
+const ghOwnersFetch: typeof fetch = (input) => {
+  const path = new URL(input instanceof Request ? input.url : String(input)).pathname;
+  const body =
+    path === "/user" ? { login: "acme-bot" } : path === "/user/orgs" ? [{ login: "acme" }] : {};
+  return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+};
 
 const page = (f: Fixture): Promise<SettingsPage> => loadSettingsPage(f.context, undefined, now);
 
@@ -114,7 +168,7 @@ const noopActions: OnboardingActions = {
   saveConnection: reject,
   checkConnection: reject,
   saveGitHubToken: reject,
-  checkGitHubToken: reject,
+  checkGitHub: reject,
   saveRunner: reject,
   recheckRunner: reject,
   saveAddresses: reject,
@@ -135,15 +189,27 @@ const noopActions: OnboardingActions = {
   setUpWorkspace: reject,
 };
 
+const GH_MISSING: GhCliView = { kind: "missing" };
+
+function githubView(settings: SettingsPage, cli: GhCliView = GH_MISSING): GitHubAuthView {
+  return {
+    cli,
+    tokenSaved: settings.install.githubToken,
+    source: cli.kind === "logged-in" ? "gh" : settings.install.githubToken ? "token" : "none",
+  };
+}
+
 function render(
   settings: SettingsPage,
   step: OnboardingStep,
   trackerProjects: ConnectionProjects[] = [],
+  github: GitHubAuthView = githubView(settings),
 ): string {
   return renderWithMessages(
     <OnboardingScreen
       page={settings}
       trackerProjects={trackerProjects}
+      github={github}
       index={ONBOARDING_STEPS.indexOf(step)}
       onStep={() => {}}
       onFinish={() => {}}
@@ -779,12 +845,24 @@ describe("다섯 단계를 마치기", () => {
     expect(isDisabled(nextButton(html, "다음"))).toBe(false);
   });
 
-  it("GitHub 토큰을 넣기 전에는 만드는 법을, 저장한 뒤에는 요약과 토큰 바꾸기를 보인다", async () => {
+  it("GitHub 단계: gh가 없으면 토큰 칸과 만드는 법을 펼쳐 두고 머지 권한까지 알린다 (0204)", async () => {
     const f = fixture();
     await connectTracker(f);
-    const before = render(await page(f), "github");
+    const settings = await page(f);
+    const github = await loadGitHubAuthView(f.context);
+    expect(github).toEqual({
+      cli: { kind: "missing" },
+      tokenSaved: false,
+      source: "none",
+      prReadDiagnoses: [],
+    });
+    const before = render(settings, "github", [], github);
     const shown = text(before);
-    expect(shown).toContain("토큰 만드는 법");
+    expect(shown).toContain("GitHub에 연결해요");
+    expect(shown).toContain("이 서버 기계의 gh 로그인을 먼저 써요");
+    expect(shown).toContain("이 서버 기계에 gh가 없어요");
+    expect(before).toMatch(/<details[^>]*\sopen=""/);
+    expect(shown).toContain("대신 토큰 붙여 넣기");
     expect(before).toContain('href="https://github.com/settings/personal-access-tokens/new"');
     for (const word of [
       "Fine-grained token",
@@ -793,20 +871,99 @@ describe("다섯 단계를 마치기", () => {
       "Pull requests",
       "Metadata는 자동으로 들어가요",
       "Actions",
+      "Contents",
+      "Pull requests와 Contents 쓰기 권한",
       "조직 관리자가 토큰을 승인",
     ]) {
       expect({ word, shown: shown.includes(word) }).toEqual({ word, shown: true });
     }
     expect(before).toContain('name="token"');
+    expect(buttonsOf(before).find((b) => b.label === "확인하고 저장")?.variant).toBe("primary");
+    expect(buttonsOf(before).find((b) => b.label === "다시 확인")?.variant).toBe("secondary");
 
     expect(await saveGitHubToken(f.context, { token: "github_pat_example" }, now)).toEqual({
       ok: true,
     });
-    const after = render(await page(f), "github");
-    expect(text(after)).toContain("GitHub 토큰을 저장했어요");
-    expect(after).not.toContain('name="token"');
-    expect(after).not.toContain("토큰 만드는 법");
-    expect(buttonsOf(after).find((b) => b.label === "토큰 바꾸기")?.variant).toBe("secondary");
+    const after = await page(f);
+    const saved = render(after, "github", [], await loadGitHubAuthView(f.context));
+    expect(text(saved)).toContain("붙여 넣은 토큰도 저장해 뒀어요");
+    expect(buttonsOf(saved).find((b) => b.label === "확인하고 저장")?.variant).toBe("secondary");
+    expect(isDisabled(nextButton(saved, "다음"))).toBe(false);
+  });
+
+  it("GitHub 단계: gh에 로그인돼 있지 않으면 gh auth login 복사 칸과 다시 확인을 보이고 토큰 칸은 접어 둔다 (0204)", async () => {
+    const f = fixture();
+    await connectTracker(f);
+    f.gh.scene = "logged-out";
+    const github = await loadGitHubAuthView(f.context);
+    expect(github.cli).toEqual({ kind: "logged-out", multiAccount: true });
+    const html = render(await page(f), "github", [], github);
+    const shown = text(html);
+    expect(shown).toContain("gh에 로그인돼 있지 않아요");
+    expect(html).toMatch(/<pre[^>]*aria-label="gh 로그인 명령"[^>]*>gh auth login<\/pre>/);
+    expect(buttonsOf(html).map((b) => b.label)).toEqual(
+      expect.arrayContaining(["복사", "다시 확인"]),
+    );
+    expect(html).not.toMatch(/<details[^>]*\sopen=""/);
+    expect(shown).toContain("대신 토큰 붙여 넣기");
+    expect(await checkGitHubConnection(f.context, now)).toEqual({
+      ok: false,
+      reason: "no-credentials",
+    });
+    expect(stepPassed(await page(f), "github")).toBe(false);
+  });
+
+  it("GitHub 단계: gh로 연결되면 계정과 볼 수 있는 곳을 보이고, 연결하면 토큰 없이 단계를 마친다 (0204)", async () => {
+    const f = fixture();
+    await connectTracker(f);
+    f.gh.scene = "connected";
+    const github = await loadGitHubAuthView(f.context);
+    expect(github).toEqual({
+      cli: {
+        kind: "logged-in",
+        multiAccount: true,
+        accounts: [
+          { login: "acme-bot", active: true, expired: false, owners: ["acme-bot", "acme"] },
+        ],
+      },
+      tokenSaved: false,
+      source: "gh",
+      prReadDiagnoses: [],
+    });
+    const html = render(await page(f), "github", [], github);
+    const shown = text(html);
+    expect(shown).toContain("gh로 연결했어요");
+    expect(shown).toContain("acme-bot 활성");
+    expect(shown).toContain("볼 수 있는 곳 · acme-bot, acme");
+    expect(html).not.toContain(GH_TOKEN);
+    expect(buttonsOf(html).find((b) => b.label === "이 로그인으로 연결")?.variant).toBe("primary");
+    expect(isDisabled(nextButton(html, "다음"))).toBe(true);
+
+    expect(await checkGitHubConnection(f.context, now)).toEqual({ ok: true });
+    const after = await page(f);
+    expect(after.install.githubConnected).toBe(true);
+    expect(after.install.githubToken).toBe(false);
+    expect(stepPassed(after, "github")).toBe(true);
+    const connected = render(after, "github", [], github);
+    expect(buttonsOf(connected).find((b) => b.label === "다시 확인")?.variant).toBe("secondary");
+    expect(isDisabled(nextButton(connected, "다음"))).toBe(false);
+  });
+
+  it("GitHub 단계는 낮은 gh 버전이면 활성 계정 하나만 쓴다고 알린다 (0204)", async () => {
+    const f = fixture();
+    await connectTracker(f);
+    const html = render(
+      await page(f),
+      "github",
+      [],
+      githubView(await page(f), {
+        kind: "logged-in",
+        multiAccount: false,
+        accounts: [{ login: "acme-bot", active: true, owners: null }],
+      }),
+    );
+    expect(text(html)).toContain("gh 버전이 낮아 활성 계정 하나만 써요");
+    expect(text(html)).toContain("볼 수 있는 곳을 읽지 못했어요");
   });
 
   it("Workspace 단계는 이름과 연결별 트래커 프로젝트 체크 목록을 한 폼으로 보이고, 다른 Workspace의 것은 고를 수 없다", async () => {

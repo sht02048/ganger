@@ -20,6 +20,7 @@ import type {
   WorktreeRef,
 } from "./ids.js";
 import type { TicketPriority, TicketRelations } from "./blockers.js";
+import type { GhAccountsReading } from "./gh-accounts.js";
 import type { ProviderUsageReading } from "./provider-usage.js";
 import type { RunnerLoadReading } from "./runner-load.js";
 
@@ -333,6 +334,12 @@ export type AgentSendResult =
   | { kind: "delivered" }
   | { kind: "follow-up"; followUpRef: FollowUpRef };
 
+export interface UsageAndLoad {
+  usage: ProviderUsageReading;
+  load: RunnerLoadReading;
+  ghAccounts: GhAccountsReading;
+}
+
 export interface Runner {
   readonly kind: RunnerKind;
   readonly agentProtocol: string;
@@ -340,7 +347,7 @@ export interface Runner {
   checkHealth(): Promise<RunnerHealth>;
   listProjects(): Promise<ReadonlyArray<RunnerProject>>;
   readProviderUsage?(): Promise<ProviderUsageReading>;
-  readUsageAndLoad?(): Promise<{ usage: ProviderUsageReading; load: RunnerLoadReading }>;
+  readUsageAndLoad?(): Promise<UsageAndLoad>;
 
   ensureMailbox(current: MailboxRef | null): Promise<MailboxRef>;
 
@@ -392,6 +399,56 @@ export interface PullRequestSignals {
   checksTruncated: boolean;
   conflict: boolean | null;
   behindBy: number | null;
+  title?: string;
+  baseBranch?: string;
+  commits?: ReadonlyArray<PullRequestCommit>;
+  merge?: PullRequestMergeInfo;
+  settled?: { state: "merged" | "closed"; at: string | null };
+  mergeDeniedAt?: string;
+  operatorMergedAt?: string;
+}
+
+export const MERGE_METHODS = ["squash", "merge", "rebase"] as const;
+
+export type MergeMethod = (typeof MERGE_METHODS)[number];
+
+export const MERGE_BLOCKS = ["conflict", "behind", "rules", "draft"] as const;
+
+export type MergeBlock = (typeof MERGE_BLOCKS)[number];
+
+export interface PullRequestMergeInfo {
+  methods: ReadonlyArray<MergeMethod>;
+  defaultMethod: MergeMethod | null;
+  blocked: MergeBlock | null;
+  canWrite: boolean | null;
+}
+
+export const MERGE_REJECTIONS = [
+  "no-write-access",
+  "blocked",
+  "head-changed",
+  "method-not-allowed",
+  "not-open",
+  "not-found",
+] as const;
+
+export type MergeRejection = (typeof MERGE_REJECTIONS)[number];
+
+export type MergeOutcome =
+  | { ok: true }
+  | { ok: false; reason: MergeRejection; message: string | null };
+
+export interface MergePullRequestInput {
+  method: MergeMethod | null;
+  expectedHead: string | null;
+}
+
+export interface PullRequestCommit {
+  oid: string;
+  url: string;
+  headline: string;
+  author: string | null;
+  committedAt: string;
 }
 
 export interface PullRequestSnapshot {
@@ -433,5 +490,10 @@ export interface CodeHost {
     opts: { createdSince: Date },
   ): Promise<ReadonlyArray<PullRequestSnapshot>>;
   getPullRequest(repo: RepoRef, id: PullRequestId): Promise<PullRequestSnapshot | null>;
+  mergePullRequest(
+    repo: RepoRef,
+    id: PullRequestId,
+    input: MergePullRequestInput,
+  ): Promise<MergeOutcome>;
   rateLimit(): Promise<{ limit: number; remaining: number; resetAt: Date } | null>;
 }

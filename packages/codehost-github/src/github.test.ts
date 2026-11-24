@@ -11,11 +11,14 @@ import { describe, expect, it } from "vitest";
 import { summarizeRuns } from "./ci.js";
 import { GitHubCodeHost, searchQuery } from "./github.js";
 import { GitHubError } from "./http.js";
+import { GitHubAuth } from "./auth.js";
+import type { GhRunner } from "./gh-cli.js";
 import { createGitHubCodeHostFactory } from "./index.js";
 import { fakeFetch, fixture, researchFixture, route } from "./test-support.js";
 import type { Recorded, SentRequest } from "./test-support.js";
 
 const repo = toRepoRef("acme/app");
+const NO_GH: GhRunner = { run: () => Promise.resolve(null) };
 const NOW = new Date("2026-11-17T16:00:00Z");
 
 function host(handler: (req: SentRequest) => Recorded | Error) {
@@ -535,7 +538,9 @@ describe("저장소와 factory", () => {
 
   it("레지스트리에 github 종류로 등록하고 저장한 토큰으로 만든다", async () => {
     const { fetch, sent } = fakeFetch(route({ graphql: fixture("by-branch-none") }));
-    const registry = new AdapterRegistry().registerCodeHost(createGitHubCodeHostFactory({ fetch }));
+    const registry = new AdapterRegistry().registerCodeHost(
+      createGitHubCodeHostFactory({ fetch, auth: new GitHubAuth({ gh: NO_GH, fetch }) }),
+    );
 
     const codeHost = registry.createCodeHost(toCodeHostKind("github"), {
       config: {},
@@ -547,9 +552,65 @@ describe("저장소와 factory", () => {
     expect(sent[0]?.headers["authorization"]).toBe("bearer stored-token");
   });
 
-  it("토큰이 없는 설정은 거부한다", () => {
-    expect(() => createGitHubCodeHostFactory().create({ config: {}, secrets: {} })).toThrow(
+  it("토큰만 쓰는 확인에서 토큰이 없으면 거부하고, 토큰 없는 저장 연결은 gh 로그인으로 만든다 (0204)", () => {
+    const factory = createGitHubCodeHostFactory({ auth: new GitHubAuth({ gh: NO_GH }) });
+    expect(() => factory.create({ config: { credentials: "token" }, secrets: {} })).toThrow(
       /token/,
     );
+    expect(factory.create({ config: {}, secrets: {} }).kind).toBe("github");
+  });
+});
+
+describe("PR 머지하기 (0201)", () => {
+  const id = toPullRequestId("42");
+  const answer = (status: number, body: unknown, headers: Record<string, string> = {}) =>
+    route({
+      graphql: new Error("no graphql"),
+      actions: { status, headers: { "content-type": "application/json", ...headers }, body },
+    });
+
+  it("고른 방식과 본 head 로 REST 머지를 부른다", async () => {
+    const { codeHost, sent } = host(answer(200, { merged: true, sha: "m1" }));
+    expect(
+      await codeHost.mergePullRequest(repo, id, { method: "squash", expectedHead: "abc" }),
+    ).toEqual({ ok: true });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.method).toBe("PUT");
+    expect(sent[0]?.url).toBe("https://api.github.com/repos/acme/app/pulls/42/merge");
+    expect(sent[0]?.json).toEqual({ merge_method: "squash", sha: "abc" });
+    expect(sent[0]?.headers["authorization"]).toBe("bearer test-token");
+  });
+
+  it("방식을 주지 않으면 GitHub 이 레포 기본으로 머지하게 방식을 보내지 않는다", async () => {
+    const { codeHost, sent } = host(answer(200, { merged: true }));
+    await codeHost.mergePullRequest(repo, id, { method: null, expectedHead: null });
+    expect(sent[0]?.json).toEqual({});
+  });
+
+  it.each([
+    [403, { message: "Resource not accessible by personal access token" }, "no-write-access"],
+    [404, { message: "Not Found" }, "not-found"],
+    [405, { message: 'Required status check "build" is expected.' }, "blocked"],
+    [405, { message: "Merge commits are not allowed on this repository." }, "method-not-allowed"],
+    [409, { message: "Head branch was modified. Review and try the merge again." }, "head-changed"],
+    [422, { message: "Pull Request is not mergeable" }, "blocked"],
+  ] as const)("HTTP %i 는 이유 값으로 돌려준다", async (status, body, reason) => {
+    const { codeHost } = host(answer(status, body));
+    expect(
+      await codeHost.mergePullRequest(repo, id, { method: "merge", expectedHead: "abc" }),
+    ).toEqual({ ok: false, reason, message: body.message });
+  });
+
+  it("rate limit 과 토큰 무효는 머지 거절이 아니라 오류로 던진다", async () => {
+    const limited = host(
+      answer(403, { message: "API rate limit exceeded" }, { "x-ratelimit-remaining": "0" }),
+    );
+    await expect(
+      limited.codeHost.mergePullRequest(repo, id, { method: "merge", expectedHead: null }),
+    ).rejects.toMatchObject({ detail: { kind: "rate-limited" } });
+    const invalid = host(answer(401, { message: "Bad credentials" }));
+    await expect(
+      invalid.codeHost.mergePullRequest(repo, id, { method: "merge", expectedHead: null }),
+    ).rejects.toBeInstanceOf(GitHubError);
   });
 });
