@@ -35,12 +35,12 @@ import {
 import type { Database } from "@ganger/db";
 import { chromium } from "playwright-core";
 import type { Browser, Locator, Page } from "playwright-core";
-import { createServer } from "vite";
 import type { Plugin, ViteDevServer } from "vite";
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
 import home from "../../apps/web/messages/ko/home.json" with { type: "json" };
 import { connection, fakeKind, trackerProject, workspaceId } from "./browser/fixtures.js";
 import { waitForRouterIdle } from "./navigation-timing.js";
+import { startWebServer } from "./web-server.js";
 
 const webRoot = fileURLToPath(new URL("../../apps/web", import.meta.url));
 const adaptersModule = join(webRoot, "src/server/adapters.ts");
@@ -68,27 +68,14 @@ const fakeAdapters: Plugin = {
   },
 };
 
-async function startWeb(fixedPort: number): Promise<ViteDevServer> {
-  const server = await createServer({
-    root: webRoot,
-    configFile: join(webRoot, "vite.config.ts"),
-    cacheDir: join(dir, "vite-cache"),
-    logLevel: "warn",
+async function startWeb(fixedPort?: number): Promise<ViteDevServer> {
+  const started = await startWebServer({
     plugins: [fakeAdapters],
-    server: {
-      host: "127.0.0.1",
-      port: fixedPort,
-      strictPort: fixedPort !== 0,
-      hmr: false,
-      watch: null,
-    },
+    cacheDir: join(dir, "vite-cache"),
+    ...(fixedPort === undefined ? {} : { port: fixedPort }),
   });
-  await server.listen();
-  const address = server.httpServer?.address();
-  if (address === null || address === undefined || typeof address === "string")
-    throw new Error("no address");
-  port = address.port;
-  return server;
+  port = Number(new URL(started.baseUrl).port);
+  return started.server;
 }
 
 beforeAll(async () => {
@@ -99,7 +86,7 @@ beforeAll(async () => {
   seed(db);
   process.env["DATABASE_PATH"] = dbPath;
   process.env["ENCRYPTION_KEY"] = Buffer.from(encryptionKey).toString("base64");
-  web = await startWeb(0);
+  web = await startWeb();
   browser = await chromium.launch({ channel: "chrome" });
   const warm = await browser.newPage({ baseURL: `http://127.0.0.1:${port}`, locale: "ko-KR" });
   warm.setDefaultTimeout(110_000);

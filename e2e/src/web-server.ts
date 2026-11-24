@@ -14,6 +14,7 @@ export async function startWebServer(options: {
   plugins: Plugin[];
   cacheDir: string;
   hmr?: boolean;
+  port?: number;
 }): Promise<WebServer> {
   const server = await createServer({
     root: webRoot,
@@ -23,8 +24,8 @@ export async function startWebServer(options: {
     plugins: options.plugins,
     server: {
       host: "127.0.0.1",
-      port: 0,
-      strictPort: false,
+      port: options.port ?? 0,
+      strictPort: options.port !== undefined,
       hmr: options.hmr ?? false,
       watch: null,
     },
