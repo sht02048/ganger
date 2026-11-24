@@ -9,9 +9,6 @@ export {
 } from "@ganger/api";
 export type { NotificationFeed, NotificationReady, NotificationRecord } from "@ganger/api";
 
-export const NOTIFICATION_FEED_PATH = "/api/notification-events";
-export const NOTIFICATION_STREAM_PATH = "/api/notification-events/stream";
-
 export function toNotificationRecord(event: StoredNotificationEvent): NotificationRecord {
   return {
     id: event.id,
