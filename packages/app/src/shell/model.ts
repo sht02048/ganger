@@ -3,10 +3,18 @@ export interface WorkspaceSummary {
   name: string;
 }
 
+export interface TodoCounts {
+  all: number;
+  byWorkspace: Record<string, number>;
+}
+
 export interface ShellData {
   workspaces: WorkspaceSummary[];
   runnerIssues: number;
+  todo: TodoCounts;
 }
+
+export const NO_TODO: TodoCounts = { all: 0, byWorkspace: {} };
 
 export type RunnerIssueCause = "offline" | "auth";
 
@@ -33,4 +41,15 @@ export function resolveWorkspace(
   if (ws === ALL_WORKSPACES && workspaces.length > 0) return { kind: "all" };
   const found = workspaces.find((w) => w.id === ws) ?? workspaces[0];
   return found === undefined ? { kind: "none" } : { kind: "one", workspace: found };
+}
+
+export function todoCountOf(todo: TodoCounts, workspace: WorkspaceChoice): number {
+  switch (workspace.kind) {
+    case "none":
+      return 0;
+    case "all":
+      return todo.all;
+    case "one":
+      return todo.byWorkspace[workspace.workspace.id] ?? 0;
+  }
 }

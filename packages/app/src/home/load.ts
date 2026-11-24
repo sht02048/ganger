@@ -51,7 +51,7 @@ import type {
   HomeRun,
   InputWait,
 } from "./model.js";
-import { DONE_COLUMN_DAYS, commitSummaryOf, partitionHome } from "./model.js";
+import { DONE_COLUMN_DAYS, commitSummaryOf, partitionHome, todoTicketOf } from "./model.js";
 
 function homePrStateOf(
   run: StoredRun,
@@ -275,7 +275,7 @@ export function loadHomePage(
     return day >= firstDoneDay && day <= today;
   };
   const views = runsWithRecords.map(({ run, records }) => ({
-    ticket: `${run.ticket.connection}\u0000${run.ticket.key}`,
+    ticket: todoTicketOf(run.ticket),
     run: toView(run, records),
     endedRecently: endedRecently(run),
   }));

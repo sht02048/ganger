@@ -509,6 +509,7 @@
       "navLabel": "미리보기 메뉴",
       "current": "지금",
       "issues": "문제",
+      "todo": "처리할 일",
       "pageTitle": "Runs",
       "notice": "Workspace를 고르면 목록을 보여 줘요."
     },

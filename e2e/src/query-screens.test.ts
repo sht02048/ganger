@@ -26,6 +26,7 @@ import { FakeTracker } from "@ganger/core/testing";
 import {
   SecretBox,
   assignRun,
+  changeRunState,
   completeRunnerCheckRequest,
   listPendingRunnerCheckRequests,
   markTrackerChanged,
@@ -44,6 +45,7 @@ import {
   toWorkspaceId,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
+import { loadShell } from "@ganger/app/shell/load";
 import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import type { Plugin, ViteDevServer } from "vite";
@@ -386,6 +388,40 @@ describe("셸·Runners·Tickets 의 Query(브라우저, 0127)", () => {
       .getByRole("region", { name: runners.panel.fix.offline.title })
       .waitFor({ timeout: VISIBLE_WITHIN_MS });
     expect(Date.now() - changedAt).toBeLessThan(VISIBLE_WITHIN_MS + 500);
+  });
+
+  it("런이 처리할 일이 되면 셸의 Dashboard 배지가 3초 안에 바뀐다(티켓 0212)", async (context) => {
+    const { page } = await newPage(context, { stream: true });
+    await open(page, "/runners", "runners");
+    const before = loadShell(db).todo.byWorkspace[workspaceId] ?? 0;
+    const dashboardLink = (count: number) =>
+      page.getByRole("navigation", { name: shell.nav.label }).getByRole("link", {
+        name: count === 0 ? shell.nav.dashboard : `${shell.nav.dashboard}, 처리할 일 ${count}개`,
+        exact: true,
+      });
+    await dashboardLink(before).waitFor();
+
+    const ticket = addTicket("Could not start");
+    const assigned = assignRun(db, {
+      ticket: { connection, key: ticket.key },
+      trackerProject,
+      runnerProject,
+      agent,
+      now: new Date(),
+    });
+    if (!assigned.ok) throw new Error(assigned.reason);
+    const ended = changeRunState(db, assigned.run.id, {
+      to: "ended",
+      agentResult: "could-not-start",
+      prState: "none",
+    });
+    if (!ended.ok) throw new Error(JSON.stringify(ended.error));
+
+    const link = dashboardLink(before + 1);
+    await link.waitFor({ timeout: VISIBLE_WITHIN_MS });
+    const badge = link.locator('[data-badge="todo"]');
+    expect(await badge.textContent()).toBe(String(before + 1));
+    expect(await badge.getAttribute("aria-hidden")).toBe("true");
   });
 
   it("Workspace 를 더하면 셸의 Workspace 목록이 바뀐다", async (context) => {

@@ -66,7 +66,7 @@ describe("메시지 파일 낱말(ADR 0010 1·3번)", () => {
   });
 
   it("메뉴와 화면 제목은 영어 화면 이름이다", () => {
-    const { label: _label, withIssues: _withIssues, ...nav } = shell.nav;
+    const { label: _label, withIssues: _withIssues, withTodo: _withTodo, ...nav } = shell.nav;
     expect(Object.values(nav)).toEqual(SCREENS);
     expect([home, tickets, runs, runners, stats, settings].map((m) => m.title)).toEqual(SCREENS);
   });

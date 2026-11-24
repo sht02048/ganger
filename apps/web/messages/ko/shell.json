@@ -53,6 +53,7 @@
   "nav": {
     "label": "화면",
     "withIssues": "{name}, Runner Issue {count}개",
+    "withTodo": "{name}, 처리할 일 {count}개",
     "dashboard": "Dashboard",
     "tickets": "Tickets",
     "runs": "Runs",
