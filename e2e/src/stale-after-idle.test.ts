@@ -199,8 +199,12 @@ async function newPage(): Promise<Page> {
 }
 
 async function openDashboard(page: Page): Promise<void> {
+  const streamOpened = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === "/api/change-events/stream",
+  );
   await page.goto(dashboardPath);
   await waitForRouterIdle(page, "/");
+  await streamOpened;
 }
 
 function card(page: Page, key: string): Locator {
