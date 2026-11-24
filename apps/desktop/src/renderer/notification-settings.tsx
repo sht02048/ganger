@@ -6,6 +6,7 @@ import {
   documentStyles,
   Checkbox,
   InfoTip,
+  NumberedList,
   ProblemCallout,
   Section,
   Text,
@@ -283,11 +284,9 @@ function NoticeText({ notice }: { notice: Exclude<PermissionNotice, null> }) {
         <div {...stylex.props(styles.sent)}>
           <Text variant="body">{t("testResult.sent")}</Text>
           <Text variant="meta">{t("testResult.checkTitle")}</Text>
-          <ol {...stylex.props(styles.steps)}>
-            <li>
-              <Text variant="meta">{t("testResult.checkStyle")}</Text>
-            </li>
-            <li>
+          <NumberedList
+            items={[
+              <Text variant="meta">{t("testResult.checkStyle")}</Text>,
               <Text variant="meta">
                 {t("testResult.checkFocus")}{" "}
                 <TextLink
@@ -299,12 +298,10 @@ function NoticeText({ notice }: { notice: Exclude<PermissionNotice, null> }) {
                 >
                   {t("testResult.focusLink")}
                 </TextLink>
-              </Text>
-            </li>
-            <li>
-              <Text variant="meta">{t("testResult.checkSound")}</Text>
-            </li>
-          </ol>
+              </Text>,
+              <Text variant="meta">{t("testResult.checkSound")}</Text>,
+            ]}
+          />
         </div>
       );
     case "unsigned":
@@ -361,12 +358,4 @@ const styles = stylex.create({
   headingTarget: { outline: "none" },
   notice: { display: "contents" },
   sent: { display: "flex", flexDirection: "column", gap: space.s2 },
-  steps: {
-    display: "flex",
-    flexDirection: "column",
-    gap: space.s1,
-    margin: 0,
-    listStyleType: "decimal",
-    paddingInlineStart: space.s5,
-  },
 });
