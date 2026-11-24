@@ -2,10 +2,12 @@ import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
 import { countUnreadPrRuns, listCodeHostConnections, markAllTrackersChanged } from "@ganger/db";
+import type { Database } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
 import { loadHomePage, loadRunPrCommits, runPrCommitsInput } from "@ganger/app/home/load";
 import { loadServerGitHub } from "@ganger/app/pr-read-diagnosis";
+import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
@@ -58,14 +60,20 @@ export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
   loadRunnersPage(getDatabase(), new Date(), { includeLoad: true, includeGhAccounts: true }),
 );
 
+async function serverGitHubForDiagnosis(db: Database): Promise<ServerGitHub | null> {
+  try {
+    return await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()));
+  } catch {
+    return null;
+  }
+}
+
 export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))
   .handler(async ({ data }) => {
     const db = getDatabase();
     const serverGitHub =
-      countUnreadPrRuns(db)["no-access"] > 0
-        ? await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()))
-        : null;
+      countUnreadPrRuns(db)["no-access"] > 0 ? await serverGitHubForDiagnosis(db) : null;
     return loadHomePage(db, data.ws, new Date(), parseTimeZone(getCookie(TIME_ZONE_COOKIE)), {
       includeLoad: true,
       serverGitHub,

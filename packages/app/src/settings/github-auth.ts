@@ -8,6 +8,7 @@ import {
   saveCodeHostConnection,
 } from "@ganger/db";
 import type { Database } from "@ganger/db";
+import type { RunnerId } from "@ganger/core";
 import { diagnosePrRead, serverGitHubOf } from "../pr-read-diagnosis.js";
 import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { toCodeHostConnectionId } from "@ganger/db";
@@ -49,7 +50,7 @@ export async function loadGitHubAuthView(context: SettingsContext): Promise<GitH
 }
 
 export function runnerPrReadDiagnoses(db: Database, server: ServerGitHub): RunnerPrReadDiagnosis[] {
-  const unread = new Map<string, number>();
+  const unread = new Map<RunnerId, number>();
   for (const { run, records } of listRunsWithRecords(db, { states: ["ended"] })) {
     if (records.prReadError !== "no-access" || run.runnerId === null) continue;
     unread.set(run.runnerId, (unread.get(run.runnerId) ?? 0) + 1);
