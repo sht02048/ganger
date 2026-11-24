@@ -119,11 +119,11 @@ export class DeviceLink {
     return toConnection(await this.registerOnce(origin, instanceId));
   }
 
-  async reconnect(origin: string): Promise<boolean> {
+  async reconnect(origin: string): Promise<RegisterResult["kind"]> {
     const instanceId = await this.options.identify(origin);
-    if (instanceId === null) return false;
+    if (instanceId === null) return "failed";
     const result = await this.registerOnce(origin, instanceId);
-    return result.kind === "registered";
+    return result.kind;
   }
 
   private registerOnce(origin: string, instanceId: string): Promise<RegisterResult> {

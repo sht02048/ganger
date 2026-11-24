@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { NotificationRecord } from "@ganger/app/notifications/feed";
+import { V1_NOTIFICATION_PATHS } from "@ganger/api";
 import { afterEach, describe, expect, it } from "vitest";
 import type { FeedConnection } from "./device-link.js";
 import { NotificationFeed, SseParser } from "./notification-feed.js";
@@ -85,9 +86,8 @@ class FakeServer {
 
   private handle(request: IncomingMessage, response: ServerResponse): void {
     const url = new URL(request.url ?? "/", this.origin);
-    const v1 = url.pathname.startsWith("/api/v1/");
-    const pathname = v1 ? url.pathname.replace("/api/v1/", "/api/") : url.pathname;
-    if (v1) {
+    const pathname = url.pathname;
+    if (pathname.startsWith("/api/v1/")) {
       this.v1Requests.push(request.headers.authorization ?? null);
       if (this.proxyRefuses) {
         response.writeHead(401, { "content-type": "text/plain" }).end("proxy login required");
@@ -103,7 +103,7 @@ class FakeServer {
       response.writeHead(404).end();
       return;
     }
-    if (pathname === "/api/notification-events/stream") {
+    if (pathname === V1_NOTIFICATION_PATHS.stream) {
       const header = request.headers["last-event-id"];
       const lastId = typeof header === "string" ? header : null;
       this.streamRequests.push(lastId);
@@ -120,12 +120,12 @@ class FakeServer {
       request.on("close", () => this.clients.delete(response));
       return;
     }
-    if (pathname === "/api/notification-events") {
+    if (pathname === V1_NOTIFICATION_PATHS.feed) {
       const after = url.searchParams.get("after");
       this.pollRequests.push(after);
       response.writeHead(200, { "content-type": "application/json" });
       const feed = { events: this.after(after), cursor: this.cursor(), open: this.open() };
-      response.end(JSON.stringify(v1 ? { meta: V1_META, data: feed } : feed));
+      response.end(JSON.stringify({ meta: V1_META, data: feed }));
       return;
     }
     response.writeHead(404).end();

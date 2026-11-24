@@ -19,7 +19,7 @@ import { createTranslator } from "use-intl";
 import system from "../../messages/ko/system.json" with { type: "json" };
 import { ActivityReporter } from "../core/activity-report.js";
 import { DeviceLink, deviceTokenStore, registerDesktop } from "../core/device-link.js";
-import type { TokenCipher } from "../core/device-link.js";
+import type { RegisterResult, TokenCipher } from "../core/device-link.js";
 import { NotificationFeed } from "../core/notification-feed.js";
 import {
   notificationId,
@@ -901,10 +901,12 @@ export class Controller {
     const current = this.feed;
     if (current === undefined || this.deviceLinkState === "reconnecting") return;
     this.setDeviceLinkState("reconnecting");
-    const connected = await this.deviceLink.reconnect(current.url).catch(() => false);
+    const result = await this.deviceLink
+      .reconnect(current.url)
+      .catch((): RegisterResult["kind"] => "failed");
     if (this.feed !== current) return;
-    this.setDeviceLinkState(connected ? "reconnected" : "failed");
-    if (connected) current.feed.reconnect();
+    this.setDeviceLinkState(reconnectedState(result));
+    if (result === "registered") current.feed.reconnect();
   }
 
   private setDeviceLinkState(state: DeviceLinkState): void {
@@ -1308,4 +1310,15 @@ export function appPaths(base: string): {
     preloadFile: join(base, "dist", "preload", "preload.cjs"),
     trayIcon: join(base, "assets", "trayTemplate.png"),
   };
+}
+
+function reconnectedState(result: RegisterResult["kind"]): DeviceLinkState {
+  switch (result) {
+    case "registered":
+      return "reconnected";
+    case "unsupported":
+      return "unsupported";
+    case "failed":
+      return "failed";
+  }
 }
