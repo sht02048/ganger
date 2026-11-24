@@ -142,6 +142,16 @@ describe("Settings 페이지(브라우저, 0214)", () => {
     expect(await nav.getByRole("link", { name: settings.pages.notifications }).count()).toBe(0);
   });
 
+  it("없어진 /settings/brief 주소는 Workspace 를 이어 일반으로 보낸다", async () => {
+    await page.goto(`/settings/brief?ws=${workspaceId}`);
+    await page.waitForURL((url) => url.pathname === "/settings/general");
+    expect(new URL(page.url()).searchParams.get("ws")).toBe(workspaceId);
+    await page
+      .getByRole("main")
+      .getByRole("button", { name: `${settings.brief.title} ${settings.change}` })
+      .waitFor();
+  });
+
   it("예전 /settings#구역 주소는 그 설정이 옮겨 간 페이지로 보낸다", async () => {
     await page.goto(`/settings?ws=${workspaceId}#connections`);
     await page.waitForURL((url) => url.pathname === "/settings/connections");
@@ -874,7 +884,7 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
   });
 
   it("두 칸에 쓰면 미리 보기가 바로 바뀌고, 저장하면 다시 열어도 같은 값이 보인다", async () => {
-    await openSettings(page, "/settings/brief");
+    await openSettings(page, "/settings/general");
     await page.getByRole("main").getByText(settings.brief.summaryEmpty).waitFor();
     await briefRow().click();
     const before = field(settings.brief.before.label);
@@ -901,7 +911,7 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
   });
 
   it("8,000자를 넘기면 저장하지 않고 그 칸에 이유를 보이며 포커스를 옮긴다", async () => {
-    await openSettings(page, "/settings/brief");
+    await openSettings(page, "/settings/general");
     await briefRow().click();
     const after = field(settings.brief.after.label);
     await after.fill("a".repeat(8_001));
@@ -915,7 +925,7 @@ describe("Workspace 앞뒤 지시(브라우저, 0146)", () => {
 
   it("400px 에서도 두 칸과 미리 보기가 가로로 넘치지 않는다", async () => {
     await page.setViewportSize({ width: 400, height: 900 });
-    await openSettings(page, "/settings/brief");
+    await openSettings(page, "/settings/general");
     await briefRow().click();
     await field(settings.brief.after.label).fill("Push the branch and open a pull request.");
     await preview().getByText(settings.brief.preview.protocol).waitFor();

@@ -84,7 +84,7 @@ import {
   settingsTargetOf,
   type SettingsPageId,
 } from "./settings-page";
-import { BriefScreen, GeneralScreen } from "./workspace-pages";
+import { GeneralScreen } from "./workspace-pages";
 import { RunnerCheck, RunnerForm, nameFromSshTarget, sshCheckCommand } from "./settings-screen";
 import type { ProjectDetailActions } from "./settings-screen";
 
@@ -198,7 +198,7 @@ const TOKEN_ONLY_VIEW: GitHubAuthView = {
   source: "token",
 };
 
-type PageKind = "general" | "brief" | "projects" | "connections" | "devices" | "server";
+type PageKind = "general" | "projects" | "connections" | "devices" | "server";
 
 function renderPage(kind: PageKind, page: SettingsPage, github?: GitHubAuthView): string {
   const ws = page.workspace?.general.id;
@@ -207,7 +207,6 @@ function renderPage(kind: PageKind, page: SettingsPage, github?: GitHubAuthView)
   const workspace = { ...common, workspaceView: view, onCreateWorkspace: () => {} } as const;
   const screens: Record<PageKind, () => ReactNode> = {
     general: () => <GeneralScreen {...workspace} />,
-    brief: () => <BriefScreen {...workspace} />,
     projects: () => <ProjectsScreen {...workspace} renderLink={plainSettingsLink(ws)} />,
     connections: () => (
       <ConnectionsScreen
@@ -1367,7 +1366,6 @@ describe("Settings 화면", () => {
     expect(textOf(html)).not.toContain("이 Mac");
     expect([...html.matchAll(/href="([^"?]+)\?ws=ws-commerce"/g)].map((m) => m[1])).toEqual([
       "/settings/general",
-      "/settings/brief",
       "/settings/projects",
       "/settings/connections",
       "/settings/devices",
@@ -1484,14 +1482,7 @@ describe("Settings 화면", () => {
   it("페이지 머리는 제목 하나이고 설명 줄을 두지 않는다", async () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, commerce, now);
-    for (const kind of [
-      "general",
-      "brief",
-      "projects",
-      "connections",
-      "devices",
-      "server",
-    ] as const) {
+    for (const kind of ["general", "projects", "connections", "devices", "server"] as const) {
       const html = renderPage(kind, page);
       expect(html.match(/<h1/g)).toHaveLength(1);
       expect(html).not.toMatch(/<h1[^>]*>[^<]*<\/h1><p/);
@@ -1519,12 +1510,11 @@ describe("Settings 화면", () => {
     expect(html).not.toContain('aria-invalid="true"');
   });
 
-  it("일반에는 이름과 최대 실행 시간만 두고 프로젝트·지시 요약을 두지 않는다", async () => {
+  it("일반에는 이름, 최대 실행 시간 아래에 에이전트 지시를 두고 프로젝트 요약은 두지 않는다", async () => {
     const f = fixture();
     const text = textOf(renderPage("general", await loadSettingsPage(f.context, commerce, now)));
-    expect(text).toContain("이름");
-    expect(text).toContain("최대 실행 시간");
-    expect(text).not.toContain(settingsJson.brief.title);
+    expect(text.indexOf("이름")).toBeLessThan(text.indexOf("최대 실행 시간"));
+    expect(text.indexOf("최대 실행 시간")).toBeLessThan(text.indexOf(settingsJson.brief.title));
     expect(text).not.toContain(settingsJson.pages.projects);
   });
 
@@ -1565,7 +1555,6 @@ describe("Settings 화면", () => {
     const nav = renderNav(page, "general");
     expect(textOf(nav)).toContain("Workspace 일반 설치 전체");
     expect(nav).not.toContain("/settings/projects");
-    expect(nav).not.toContain("/settings/brief");
   });
 
   it("없는 프로젝트 상세는 프로젝트 페이지로 가는 링크를 보인다", async () => {
@@ -1863,13 +1852,13 @@ describe("Workspace 앞뒤 지시 (0146)", () => {
     });
   });
 
-  it("에이전트 지시 페이지에 지시 줄을 두고, 비어 있으면 덧붙이는 지시가 없다고 보인다", async () => {
+  it("일반 페이지에 지시 줄을 두고, 비어 있으면 덧붙이는 지시가 없다고 보인다", async () => {
     const f = fixture();
-    const empty = renderPage("brief", await loadSettingsPage(f.context, commerce, now));
+    const empty = renderPage("general", await loadSettingsPage(f.context, commerce, now));
     expect(textOf(empty)).toContain(settingsJson.brief.title);
     expect(textOf(empty)).toContain(settingsJson.brief.summaryEmpty);
     saveBrief(f.context, { ws: commerce, before: "", after: "Push.\nOpen a PR.\nRun checks." });
-    const filled = renderPage("brief", await loadSettingsPage(f.context, commerce, now));
+    const filled = renderPage("general", await loadSettingsPage(f.context, commerce, now));
     expect(textOf(filled)).toContain("티켓 앞 없음 · 티켓 뒤 3줄");
   });
 

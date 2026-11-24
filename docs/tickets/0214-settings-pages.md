@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 blocked_by: []
 ---
 
@@ -14,20 +14,20 @@ Settings(`apps/web/src/settings/settings-page.tsx`)는 Workspace·프로젝트·
 ## 운영자 결정(2026-11-24)
 
 1. Settings 메뉴와 페이지마다 자기 주소.
-   - `Workspace · <이름>`: 일반(`/settings/general`) / 에이전트 지시(`/settings/brief`) / 프로젝트(`/settings/projects`, 상세 `/settings/projects/$connectionId/$projectId`)
+   - `Workspace · <이름>`: 일반(`/settings/general`) / 프로젝트(`/settings/projects`, 상세 `/settings/projects/$connectionId/$projectId`)
    - `설치 전체`: 연결(`/settings/connections`, 상세 `/settings/connections/$connectionId`) / 다른 기기(`/settings/devices`) / 서버(`/settings/server`) / MCP(`/settings/mcp`)
    - `이 Mac`: 알림(`/settings/notifications`, 데스크톱 앱 안에서만 메뉴에 보임)
    - 확인할 것이 있는 페이지는 메뉴 옆 빨간 점. `?ws=`는 그대로 잇는다.
    - `/settings`는 첫 페이지(일반, Workspace가 없거나 전체 보기면 연결)로, 예전 `/settings#<구역>` 링크는 맞는 페이지로 보낸다.
    - 화면 머리는 페이지 제목 하나. 보조 설명은 ⓘ 툴팁.
-2. 일반: 이름, 최대 실행 시간만. Workspace 없음/전체 보기 안내도 여기.
+2. 일반: 이름, 최대 실행 시간, 그 아래 에이전트 지시(운영자 확인 뒤 합침). Workspace 없음/전체 보기 안내도 여기.
 3. 연결: Linear 머리에 "+ Linear 연결 더하기", 맨 위 "webhook 받을 주소" 한 줄(모든 Linear 연결이 같이 씀), 연결마다 상자(이름 + 다시 확인, API 키 + 키 바꾸기(값·상태 글 없음), webhook + 상태 문장 + 설정). 상태 알약과 러너 줄은 없앤다. GitHub: gh 계정 줄 + 계정 보기, 토큰 줄(ⓘ) + 토큰 넣기/바꾸기.
 4. 프로젝트: 머리 "+ 트래커 프로젝트 넣기", 트래커 연결별 묶음("<연결> 연결"), 묶음 맨 위 바로 할당 라벨(프로젝트 상세에서 옮김), 그 아래 프로젝트 줄 → 상세.
 5. 프로젝트 상세: 이동 경로 "프로젝트 › <연결> 연결", 저장소, Linear 티켓 상태, 이 Workspace에서 빼기.
 6. 다른 기기: 맨 위 열 주소(자동 허용 tailnet 주소 포함), 그 아래 연결한 기기와 QR.
 7. 서버: 버전과 업데이트, 잠들지 않게, 로그와 진단.
 8. MCP: Settings 메뉴 안 페이지.
-9. 에이전트 지시: 지시 편집기·미리 보기를 페이지로.
+9. 에이전트 지시: 처음에는 따로 페이지(`/settings/brief`)로 두었다가, 운영자 확인(2026-11-24) 뒤 일반 페이지의 이름·최대 실행 시간 아래로 합쳤다. 메뉴 항목은 없애고 `/settings/brief`는 `/settings/general`로 보낸다.
 10. 알림: 데스크톱 별도 창을 없애고 웹 Settings 안 페이지로. 권한 상태 카드, 알림 받기 스위치와 들여 쓴 종류 5개. 트레이 "알림 설정…"은 메인 창을 열고 `/settings/notifications`로 보낸다. 권한 묻는 시점(앱 켤 때 묻지 않음)은 0211 그대로.
 11. 시안에 없는 새 기능은 넣지 않는다.
 12. (범위 추가, 운영자 승인 2026-11-24) 연결 상세의 "Linear에서 webhook 만들기" 단계에 Linear 폼 칸별 값(Label, URL, Data change events, 팀)을 짧게 보이고 긴 설명은 ⓘ로. "signing secret 넣고 켜기" 단계는 Linear가 webhook을 만든 뒤 보여 준 signing secret(lin_wh_…)이고 API 키와 다른 값이라고 드러낸다.
@@ -41,7 +41,7 @@ Settings(`apps/web/src/settings/settings-page.tsx`)는 Workspace·프로젝트·
 ## 할 일
 
 - [x] 메뉴와 페이지 라우트, `/settings` 기본 이동과 예전 해시 링크 이동
-- [x] 일반·에이전트 지시·프로젝트·프로젝트 상세·연결·연결 상세·다른 기기·서버·MCP·알림 페이지
+- [x] 일반(에이전트 지시 포함)·프로젝트·프로젝트 상세·연결·연결 상세·다른 기기·서버·MCP·알림 페이지
 - [x] webhook 받을 주소를 연결 페이지 한 줄로, 연결 상세 webhook 단계는 주소를 보여 주고 그 줄로 안내
 - [x] 바로 할당 라벨을 프로젝트 묶음으로 옮기고 상세에서 빼기
 - [x] 알림 창 없애고 웹 페이지로, 트레이가 메인 창의 알림 페이지를 엶

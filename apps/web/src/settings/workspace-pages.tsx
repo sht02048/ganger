@@ -32,21 +32,6 @@ function GeneralPage({ page, workspaceView, actions, onCreateWorkspace, nav }: W
         <SettingsGroup>
           <WorkspaceNameRow workspace={workspace} actions={actions} />
           <MaxRunRow workspace={workspace} actions={actions} />
-        </SettingsGroup>
-      )}
-    </SettingsFrame>
-  );
-}
-
-function BriefPage({ page, workspaceView, actions, onCreateWorkspace, nav }: WorkspacePageProps) {
-  const t = useTranslations("settings");
-  const workspace = page.workspace;
-  return (
-    <SettingsFrame title={t("pages.brief")} nav={nav}>
-      {workspace === null ? (
-        <NoWorkspace view={workspaceView} onCreate={onCreateWorkspace} />
-      ) : (
-        <SettingsGroup>
           <WorkspaceBriefRow
             workspace={workspace}
             actions={actions}
@@ -190,7 +175,6 @@ function MaxRunRow({
 }
 
 export const GeneralScreen = withSettingsEditors(GeneralPage);
-export const BriefScreen = withSettingsEditors(BriefPage);
 
 const styles = stylex.create({
   number: { display: "flex", alignItems: "center", gap: space.s2 },

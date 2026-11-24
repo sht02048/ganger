@@ -18,7 +18,6 @@ import { SubmitError, useReportUnsaved, useSubmit } from "./settings-screen";
 
 export const SETTINGS_PAGES = [
   "general",
-  "brief",
   "projects",
   "connections",
   "devices",
@@ -29,7 +28,7 @@ export const SETTINGS_PAGES = [
 export type SettingsPageId = (typeof SETTINGS_PAGES)[number];
 
 export const SETTINGS_NAV_GROUPS = {
-  workspace: ["general", "brief", "projects"],
+  workspace: ["general", "projects"],
   install: ["connections", "devices", "server", "mcp"],
   mac: ["notifications"],
 } as const satisfies Record<string, ReadonlyArray<SettingsPageId>>;
@@ -37,7 +36,6 @@ export type SettingsNavGroupId = keyof typeof SETTINGS_NAV_GROUPS;
 
 export const SETTINGS_PAGE_PATHS = {
   general: "/settings/general",
-  brief: "/settings/brief",
   projects: "/settings/projects",
   connections: "/settings/connections",
   devices: "/settings/devices",
