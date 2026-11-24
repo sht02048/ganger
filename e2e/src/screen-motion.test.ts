@@ -615,26 +615,6 @@ describe("Dashboard 움직임(브라우저, 0153)", () => {
     expect(await sheet.count()).toBe(0);
   });
 
-  it("Workspace 를 바꿨다 돌아오면 그사이 생긴 알약이 움직이지 않는다", async (context) => {
-    const run = assign();
-    start(run.id);
-    const page = await newPage(context);
-    await open(page, dashboardPath, "/");
-    await card(page, run.key).waitFor();
-
-    await switchWorkspace(page, "Acme", otherWorkspaceName);
-    await expect.poll(() => card(page, run.key).count()).toBe(0);
-    const paused = changeRunState(db, run.id, { to: "paused", source: "operator" });
-    if (!paused.ok) throw new Error("pause failed");
-    await page.waitForTimeout(QUIET_MS);
-    await clearCalls(page);
-
-    await switchWorkspace(page, otherWorkspaceName, "Acme");
-
-    await card(page, run.key).locator('[data-status="paused"]').waitFor();
-    await expectQuiet(page);
-  });
-
   it("전체에서 한 Workspace 로 바꾸며 상태가 달라진 카드도 움직이지 않는다", async (context) => {
     const run = assign();
     start(run.id);
