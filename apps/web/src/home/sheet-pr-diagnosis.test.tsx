@@ -36,7 +36,10 @@ function unread(prReadDiagnosis: PrReadDiagnosis | null): HomeRun {
 }
 
 function text(run: HomeRun): string {
-  return renderWithMessages(<PrTabContent run={run} onMerge={unusedMerge} />, homeMessages)
+  return renderWithMessages(
+    <PrTabContent run={run} onMerge={unusedMerge} onLoadCommits={unusedMerge} />,
+    homeMessages,
+  )
     .replace(/<[^>]+>/g, " ")
     .replace(/\s+/g, " ");
 }
