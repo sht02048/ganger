@@ -66,16 +66,20 @@ export function useDesktopNavigation(onNavigated: (screen: NavScreen) => void): 
     const bridge = desktopNavigation();
     if (bridge === null) return;
     setInDesktopApp(true);
-    const offNavigate = bridge.onNavigate((screen) => {
+    return bridge.onNavigate((screen) => {
       void navigate({ to: navShortcutOf(screen).path }).then(() => navigated(screen));
     });
-    const offOpenPage = bridge.onOpenPage((page) => {
-      void navigate({ to: desktopPages[page] });
-    });
-    return () => {
-      offNavigate();
-      offOpenPage();
-    };
   }, [navigate]);
   return { inDesktopApp };
+}
+
+export function useDesktopPageOpening(): void {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const bridge = desktopNavigation();
+    if (bridge === null) return;
+    return bridge.onOpenPage((page) => {
+      void navigate({ to: desktopPages[page] });
+    });
+  }, [navigate]);
 }

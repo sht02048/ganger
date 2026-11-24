@@ -837,6 +837,8 @@ describe("Settings 페이지 주소(0214)", () => {
       rowId: "project-c1-p1",
     });
     expect(settingsTargetOf("#toString", "one")).toEqual({ kind: "page", page: "general" });
+    expect(settingsTargetOf("#%E0%A4%A", "one")).toEqual({ kind: "page", page: "general" });
+    expect(settingsTargetOf("#%E0%A4%A", "all")).toEqual({ kind: "page", page: "connections" });
   });
 });
 

@@ -105,8 +105,17 @@ const LEGACY_TARGETS = new Map<string, LegacySettingsTarget>([
   ["web-address-row", { kind: "page", page: "devices", rowId: WEB_ADDRESS_ROW_ID }],
 ]);
 
+function decodedHash(hash: string): string {
+  const raw = hash.replace(/^#/u, "");
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return "";
+  }
+}
+
 export function settingsTargetOf(hash: string, workspaceView: WorkspaceView): LegacySettingsTarget {
-  const id = decodeURIComponent(hash.replace(/^#/u, ""));
+  const id = decodedHash(hash);
   const known = LEGACY_TARGETS.get(id);
   if (known !== undefined) return known;
   if (id.startsWith("connection-")) {

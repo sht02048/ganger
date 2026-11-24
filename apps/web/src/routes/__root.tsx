@@ -24,6 +24,7 @@ import { QueryDevtools } from "../query/devtools";
 import { RenderedChangeSeqProvider } from "../change-events/subscription";
 import { NotFoundScreen } from "../not-found/not-found-screen";
 import { useBrowserErrorWatch, useReportCaughtError } from "../shell/browser-error-watch";
+import { useDesktopPageOpening } from "../shell/desktop-navigation";
 import { useDesktopUpdates } from "../shell/desktop-updates";
 import { useErrorScreenShown } from "../shell/screen-error";
 import {
@@ -137,6 +138,7 @@ function RootLayout() {
   const { timeZone, titleBarHidden, onboardingComplete, changeSeq } = Route.useLoaderData();
   const { queryClient } = Route.useRouteContext();
   useBrowserErrorWatch();
+  useDesktopPageOpening();
   useServerBuildWatch(queryClient);
   useEffect(() => {
     rememberOnboardingComplete(onboardingComplete);

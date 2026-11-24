@@ -38,7 +38,7 @@ export type DeviceLinkState = (typeof DEVICE_LINK_STATES)[number];
 
 export const notificationSettingsViewSchema = notificationPrefsSchema.extend({
   permission: z.enum(NOTIFICATION_PERMISSIONS).catch("unknown"),
-  deviceLink: z.enum(DEVICE_LINK_STATES),
+  deviceLink: z.enum(DEVICE_LINK_STATES).catch("connected"),
 });
 export type NotificationSettingsView = z.infer<typeof notificationSettingsViewSchema>;
 
