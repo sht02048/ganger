@@ -251,8 +251,8 @@ export function todoGroups(attention: ReadonlyArray<AttentionItem>): TodoGroup[]
 }
 
 export type TodoCandidate =
-  | { id: string; state: Exclude<HomeRun["state"], "ended"> }
-  | { id: string; state: "ended"; summary: SummaryOutcome };
+  | { id: RunId; state: Exclude<HomeRun["state"], "ended"> }
+  | { id: RunId; state: "ended"; summary: SummaryOutcome };
 
 export function needsAttention(run: TodoCandidate): boolean {
   switch (run.state) {
@@ -275,7 +275,7 @@ export function todoTicketOf(ticket: { connection: string; key: string }): strin
 export function ticketTodos<T extends TodoCandidate>(
   runs: ReadonlyArray<{ ticket: string; run: T }>,
 ): Array<{ run: T; index: number }> {
-  const latestByTicket = new Map<string, string>();
+  const latestByTicket = new Map<string, RunId>();
   for (const { ticket, run } of runs) latestByTicket.set(ticket, run.id);
   return runs.flatMap(({ ticket, run }, index) =>
     needsAttention(run) && (run.state !== "ended" || latestByTicket.get(ticket) === run.id)

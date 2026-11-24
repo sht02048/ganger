@@ -23,17 +23,18 @@ function countTodos(
   workspaceIds: ReadonlyArray<string>,
 ): TodoCounts {
   const candidates = runs.map((run) => ({
-    workspaceId: run.workspaceId,
     ticket: todoTicketOf(run.ticket),
     run: todoCandidateOf(run),
   }));
+  const byWorkspace = new Map<string, typeof candidates>(workspaceIds.map((id) => [id, []]));
+  runs.forEach((run, index) => {
+    const candidate = candidates[index];
+    if (candidate !== undefined) byWorkspace.get(run.workspaceId)?.push(candidate);
+  });
   return {
     all: ticketTodos(candidates).length,
     byWorkspace: Object.fromEntries(
-      workspaceIds.map((id) => [
-        id,
-        ticketTodos(candidates.filter((candidate) => candidate.workspaceId === id)).length,
-      ]),
+      [...byWorkspace].map(([id, workspaceRuns]) => [id, ticketTodos(workspaceRuns).length]),
     ),
   };
 }
