@@ -100,14 +100,16 @@ describe("EAS 빌드 프로필(0227, 0233)", () => {
       cli: z.object({ version: z.string(), appVersionSource: z.literal("remote") }),
       build: z.record(
         z.string(),
-        z.object({
-          developmentClient: z.boolean().optional(),
-          distribution: z.string().optional(),
-          environment: z.string().optional(),
-          node: z.string().optional(),
-          pnpm: z.string().optional(),
-          env: z.record(z.string(), z.string()).optional(),
-        }),
+        z
+          .object({
+            developmentClient: z.boolean().optional(),
+            distribution: z.string().optional(),
+            environment: z.string().optional(),
+            node: z.string().optional(),
+            pnpm: z.string().optional(),
+            env: z.record(z.string(), z.string()).optional(),
+          })
+          .strict(),
       ),
     })
     .parse(JSON.parse(readFileSync(join(import.meta.dirname, "eas.json"), "utf8")));

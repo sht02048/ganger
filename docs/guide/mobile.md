@@ -90,7 +90,7 @@ Always write `.env` first and copy it to EAS, so the two never disagree:
    GANGER_MOBILE_BUILD=development npx expo config --type public --json
    ```
 
-   The first two commands must each list the three variables with the values in `.env`. The second must show `ios.bundleIdentifier` (for example `com.example.ganger`), `extra.eas.projectId`, `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`, and the `expo-notifications` plugin with `"mode": "development"`. Keep `--json`: without it the output is not JSON and is hard to search. Keep `GANGER_MOBILE_BUILD=development` too: the development build profile sets it on EAS (see below), and without it the command shows the release settings (`"mode": "production"`).
+   The first two commands must each list the three variables with the values in `.env`. The third must show `ios.bundleIdentifier` (for example `com.example.ganger`), `extra.eas.projectId`, `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`, and the `expo-notifications` plugin with `"mode": "development"`. Keep `--json`: without it the output is not JSON and is hard to search. Keep `GANGER_MOBILE_BUILD=development` too: the development build profile sets it on EAS (see below), and without it the command shows the release settings (`"mode": "production"`).
 
 To change a value later, edit `.env` and run steps 2 to 4 again.
 
@@ -157,8 +157,11 @@ Do steps 1 to 5 first. Step 3 copies the three values to the EAS `preview` envir
 
 ```sh
 set -a; source .env; set +a
+npx expo config --type public --json
 eas build --profile preview --platform ios
 ```
+
+Without `GANGER_MOBILE_BUILD`, `npx expo config` shows the settings a preview build gets. Check that it shows the `expo-notifications` plugin with `"mode": "production"`, `ios.infoPlist.NSAppTransportSecurity` with `"NSAllowsArbitraryLoads": false` and no `NSAllowsLocalNetworking`, and `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`.
 
 The first preview build asks to create an ad hoc provisioning profile for the app and its NSE. It lists the devices you registered with `eas device:create`; only those can install the build. If you register another iPhone later, build again.
 
