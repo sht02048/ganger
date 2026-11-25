@@ -287,6 +287,7 @@ describe("v1 할당 범위", () => {
       "retry",
       "continue",
       "merge",
+      "clear-todo",
     ]);
   });
 
