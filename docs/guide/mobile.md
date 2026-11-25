@@ -7,7 +7,7 @@ You need:
 - An [Apple Developer Program](https://developer.apple.com/programs/) membership. Its Team ID is on the Membership page of your Apple Developer account.
 - An [Expo account](https://expo.dev/signup).
 - An iPhone, and a Mac with this repository and Node 24 (see [CONTRIBUTING](../../CONTRIBUTING.md)).
-- A Ganger server that your iPhone can open over HTTPS, for example through Tailscale Serve (see [Open it from other devices](networking.md#open-it-from-other-devices)).
+- A Ganger server that your iPhone can open over HTTPS. Settings > **모바일** (mobile) sets this up with Tailscale Serve (see [Open it from your phone](networking.md#open-it-from-your-phone)).
 
 Run every `eas` command from `apps/mobile`. EAS reads `apps/mobile/eas.json` there and installs the whole pnpm workspace from the lockfile at the repository root.
 
@@ -129,8 +129,10 @@ Open **Ganger** on the iPhone and choose the Mac's dev server in the list, or sc
 
 The app connects only to an HTTPS address.
 
-1. On the server, set **열 주소** (web address) in Settings > **다른 기기** (other devices) to its HTTPS address, for example the Tailscale Serve address `https://server.example.ts.net`.
-2. In the same section, choose **다른 기기 연결** (connect another device), then **QR 띄우기** (show QR).
-3. Scan the QR code with the app.
+1. Install Tailscale on the phone and sign in to the same account as the server Mac.
+2. On the server, open Settings > **모바일** (mobile) and select **켜기** (turn on) on **휴대폰에서 이 Mac 열기** (open this Mac from your phone). It serves the app at the Mac's Tailscale HTTPS address, for example `https://server.example.ts.net`, only inside your tailnet (see [Open it from your phone](networking.md#open-it-from-your-phone)).
+3. The page shows a QR code right away. Scan it with the app. If it expired, choose **새 QR 만들기** (new QR code).
+
+The phones you connected are listed under the QR code. **연결 끊기** (disconnect) removes a phone's device token.
 
 If you connected a development build before you set the three values, disconnect it in the app (**이 기기 연결 끊기**, disconnect this device) and connect again: the NSE reads the device token from the shared keychain, and the app saves it there only when it connects.
