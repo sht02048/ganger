@@ -21,6 +21,7 @@ import { getRun } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { AnswerRejectedError } from "../home/actions.js";
 import { prProblemsOf } from "../home/model.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { readQuestion } from "../question.js";
 import {
   answerOnceInput,
@@ -153,6 +154,24 @@ function toRunInput(input: PendingInput): V1RunInput | null {
   }
 }
 
+type V1PullRequest = NonNullable<V1RunDetail["pullRequest"]>;
+
+function pullRequestStateOf(run: RunDetail): Pick<V1PullRequest, "state" | "stateSince"> {
+  if (run.status.state !== "ended") return { state: "open", stateSince: null };
+  const later = run.status.laterPrState;
+  if (later !== null) {
+    return {
+      state: later.state,
+      stateSince: {
+        at: later.at,
+        agoMs: Math.max(0, Date.parse(run.now) - Date.parse(later.at)),
+      },
+    };
+  }
+  const state = run.status.prState;
+  return { state: state === "none" ? "open" : state, stateSince: null };
+}
+
 function summaryOf(run: RunDetail): V1RunDetail["summary"] {
   const ended = run.status.state === "ended" ? run.status : null;
   return {
@@ -184,14 +203,22 @@ export function toV1RunDetail(run: RunDetail, retry: V1RetryOffer = "not-offered
             url: run.pullRequest.url,
             ci: run.pullRequest.ci,
             problems: prProblemsOf(run.pullRequest.signals),
+            ...pullRequestStateOf(run),
           },
+    prReadError: run.status.state === "ended" ? run.status.prReadError : null,
+    prReadDiagnosis: run.status.state === "ended" ? (run.status.prReadDiagnosis ?? null) : null,
     input: run.status.state === "waiting-for-input" ? toRunInput(run.status.input) : null,
     nextActions: { retry, continue: continueOfferOf(run) },
   });
 }
 
-export function loadV1RunDetail(db: Database, runId: string, now: Date): V1RunDetail | null {
-  const page = loadRunDetail(db, runId, now);
+export function loadV1RunDetail(
+  db: Database,
+  runId: string,
+  now: Date,
+  serverGitHub: ServerGitHub | null = null,
+): V1RunDetail | null {
+  const page = loadRunDetail(db, runId, now, serverGitHub);
   if (page.kind !== "found") return null;
   const stored = getRun(db, toRunId(runId));
   return toV1RunDetail(page.run, stored === null ? "not-offered" : retryOfferOf(db, stored, now));

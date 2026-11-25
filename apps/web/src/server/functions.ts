@@ -1,13 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { CONTINUE_MESSAGE_MAX_LENGTH } from "@ganger/core";
-import { countUnreadPrRuns, listCodeHostConnections, markAllTrackersChanged } from "@ganger/db";
-import type { Database } from "@ganger/db";
+import { markAllTrackersChanged } from "@ganger/db";
 import { z } from "zod";
 import { denyInput, submitDenial } from "@ganger/app/home/actions";
 import { loadHomePage, loadRunPrCommits, runPrCommitsInput } from "@ganger/app/home/load";
-import { loadServerGitHub } from "@ganger/app/pr-read-diagnosis";
-import type { ServerGitHub } from "@ganger/app/pr-read-diagnosis";
 import { mergePrInput, mergeRunPullRequest } from "@ganger/app/home/merge-pr";
 import {
   agentMessageInput,
@@ -42,8 +39,9 @@ import {
 } from "@ganger/app/tickets/assign";
 import { loadTicketBlockers, loadTicketRuns, loadTrackerTickets } from "@ganger/app/tickets/load";
 import { TIME_ZONE_COOKIE, parseTimeZone } from "@ganger/app/time-zone";
-import { getAdapterRegistry, getGitHubAuth, getSecretBox } from "./adapters";
+import { getAdapterRegistry, getSecretBox } from "./adapters";
 import { getDatabase } from "./database";
+import { serverGitHubForDiagnosis } from "./server-github";
 import { getTrackerReads } from "./tracker-reads";
 
 export const getTimeZone = createServerFn({ method: "GET" }).handler(() =>
@@ -59,15 +57,6 @@ export const getShell = createServerFn({ method: "GET" }).handler(() => loadShel
 export const getRunnersPage = createServerFn({ method: "GET" }).handler(() =>
   loadRunnersPage(getDatabase(), new Date(), { includeLoad: true, includeGhAccounts: true }),
 );
-
-async function serverGitHubForDiagnosis(db: Database): Promise<ServerGitHub | null> {
-  if (countUnreadPrRuns(db)["no-access"] === 0) return null;
-  try {
-    return await loadServerGitHub(getGitHubAuth(), listCodeHostConnections(db, getSecretBox()));
-  } catch {
-    return null;
-  }
-}
 
 export const getHomePage = createServerFn({ method: "GET" })
   .validator(z.object({ ws: z.string().optional() }))

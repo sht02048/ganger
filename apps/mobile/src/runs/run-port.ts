@@ -254,7 +254,11 @@ export function demoRunDetail(run: DashboardRun): AppRunDetail {
               ? "failure"
               : "success",
             problems: run.pullRequest.problems,
+            state: null,
+            stateSince: null,
           },
+    prReadError: null,
+    prReadDiagnosis: null,
     input: demoInput(run),
     nextActions:
       run.todoTag === "failed"

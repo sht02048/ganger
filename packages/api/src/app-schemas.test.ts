@@ -8,6 +8,7 @@ import {
   appRunnerSchema,
 } from "./app-schemas.js";
 import { dashboardRunSchema } from "./dashboard.js";
+import { runnerSchema } from "./runners.js";
 import { runDetailSchema } from "./runs.js";
 
 const base = {
@@ -40,8 +41,31 @@ const detail = {
   pausedSince: null,
   summary: { outcome: null, agentResult: null, report: null, startError: null },
   pullRequest: null,
+  prReadError: null,
+  prReadDiagnosis: null,
   input: null,
   nextActions: { retry: "not-offered", continue: "not-offered" },
+};
+
+const runner = {
+  id: "r",
+  name: "runner",
+  cause: null,
+  offlineMs: null,
+  used: 0,
+  capacity: 1,
+  usage: null,
+  limits: [],
+  ghAccounts: null,
+};
+
+const mergedPr = {
+  displayId: "#7",
+  url: "https://example.com/acme/pay/pull/7",
+  ci: "success",
+  problems: [],
+  state: "merged",
+  stateSince: { at: "2026-11-25T00:00:00.000Z", agoMs: 60_000 },
 };
 
 describe("앱의 응답 검사", () => {
@@ -108,12 +132,8 @@ describe("앱의 응답 검사", () => {
 
   it("러너의 모르는 원인·사용량 종류를 unknown으로 읽는다", () => {
     const parsed = appRunnerSchema.parse({
-      id: "r",
-      name: "runner",
+      ...runner,
       cause: "future-cause",
-      offlineMs: null,
-      used: 0,
-      capacity: 1,
       usage: { kind: "future-usage" },
       limits: [{ provider: "claude", window: "future-window", resetsInMs: null }],
     });
@@ -122,6 +142,74 @@ describe("앱의 응답 검사", () => {
       usage: { kind: "unknown" },
       limits: [{ window: "unknown" }],
     });
+  });
+
+  it("PR 상태·읽기 실패·진단과 러너 gh 계정을 서버 스키마와 같게 읽는다", () => {
+    const withPr = {
+      ...detail,
+      state: "ended",
+      pullRequest: mergedPr,
+      prReadError: "no-access",
+      prReadDiagnosis: {
+        kind: "different",
+        runner: "acme-runner",
+        runnerLogin: "acme-dev",
+        server: { kind: "gh", logins: ["acme-bot"] },
+      },
+    };
+    expect(appRunDetailSchema.parse(withPr)).toEqual(runDetailSchema.parse(withPr));
+    const withGh = {
+      ...runner,
+      ghAccounts: {
+        kind: "logged-in",
+        readAt: "2026-11-25T00:00:00.000Z",
+        agoMs: 0,
+        accounts: [{ host: "github.com", login: "acme-dev", active: true, expired: true }],
+      },
+    };
+    expect(appRunnerSchema.parse(withGh)).toEqual(runnerSchema.parse(withGh));
+  });
+
+  it("계약 1 서버의 응답은 새 필드 없이 읽고 비어 있다고 본다", () => {
+    const { prReadError: _error, prReadDiagnosis: _diagnosis, ...contractOne } = detail;
+    const { state: _state, stateSince: _since, ...contractOnePr } = mergedPr;
+    const parsed = appRunDetailSchema.parse({ ...contractOne, pullRequest: contractOnePr });
+    expect(parsed).toMatchObject({
+      prReadError: null,
+      prReadDiagnosis: null,
+      pullRequest: { state: null, stateSince: null },
+    });
+    const { ghAccounts: _gh, ...contractOneRunner } = runner;
+    expect(appRunnerSchema.parse(contractOneRunner).ghAccounts).toBeUndefined();
+    expect(runDetailSchema.safeParse(contractOne).success).toBe(false);
+  });
+
+  it("PR 상태·진단·gh 계정의 모르는 값을 unknown으로 읽는다", () => {
+    const parsed = appRunDetailSchema.parse({
+      ...detail,
+      pullRequest: { ...mergedPr, state: "future-state" },
+      prReadError: "future-error",
+      prReadDiagnosis: { kind: "future-diagnosis" },
+    });
+    expect(parsed).toMatchObject({
+      pullRequest: { state: "unknown" },
+      prReadError: "unknown",
+      prReadDiagnosis: { kind: "unknown" },
+    });
+    const diagnosed = appRunDetailSchema.parse({
+      ...detail,
+      prReadDiagnosis: { kind: "runner-unknown", runner: "r", server: { kind: "future-reader" } },
+    });
+    expect(diagnosed.prReadDiagnosis).toEqual({
+      kind: "runner-unknown",
+      runner: "r",
+      server: { kind: "unknown" },
+    });
+    expect(appRunnerSchema.parse({ ...runner, ghAccounts: { kind: "future" } }).ghAccounts).toEqual(
+      {
+        kind: "unknown",
+      },
+    );
   });
 
   it("모르는 알림 대상과 거절 이유를 unknown으로 읽는다", () => {
