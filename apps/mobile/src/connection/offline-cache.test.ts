@@ -327,6 +327,16 @@ describe("지연 파싱(티켓 0226)", () => {
     expect(runParses).not.toHaveBeenCalled();
   });
 
+  it("보는 Workspace 대시보드가 캐시에 없으면 다른 대시보드를 모두 돌려준다", async () => {
+    const memory = memoryFiles();
+    const writer = new OfflineCache(memory.files, SERVER, () => NOW);
+    writer.saveDashboard("ws-payments", dashboard, NOW, workspaces);
+    await writer.flush();
+    const content = await new OfflineCache(memory.files, SERVER, () => NOW).load("all");
+    expect([...content.dashboards.keys()]).toEqual(["ws-payments"]);
+    expect(content.workspaces).toEqual(workspaces);
+  });
+
   it("다른 Workspace 대시보드는 그 Workspace를 볼 때 한 번만 파싱한다", async () => {
     const { files } = await fileWithTwoWorkspaces();
     const cache = new OfflineCache(files, SERVER, () => NOW);

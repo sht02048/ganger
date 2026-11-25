@@ -125,7 +125,17 @@ export class OfflineCache {
 
   async load(workspaceId: string): Promise<CachedContent> {
     await this.#read();
-    return this.contentFor(workspaceId);
+    const first = this.contentFor(workspaceId);
+    return first.dashboards.size > 0 ? first : this.#everyDashboard();
+  }
+
+  #everyDashboard(): CachedContent {
+    const dashboards = new Map<string, CachedEntry<AppDashboard>>();
+    for (const workspaceId of this.#boards.keys()) {
+      const dashboard = this.#closed ? null : this.#dashboardOf(workspaceId);
+      if (dashboard !== null) dashboards.set(workspaceId, dashboard);
+    }
+    return { dashboards, workspaces: this.#workspaceList?.data ?? [] };
   }
 
   contentFor(workspaceId: string): CachedContent {
