@@ -400,7 +400,7 @@ function RunAction({
   if (run.state === "running" || run.state === "paused")
     return <ControlBlock run={run} onControl={onControl} />;
   if (run.state === "ended" && tagged && run.summary === "failed")
-    return <FailedActions run={run} onClearTodo={onClearTodo} onSent={onSent} />;
+    return <FailedActions key={run.id} run={run} onClearTodo={onClearTodo} onSent={onSent} />;
   return null;
 }
 

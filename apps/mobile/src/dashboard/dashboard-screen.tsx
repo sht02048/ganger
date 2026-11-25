@@ -298,6 +298,9 @@ export function DashboardScreen({
       case "clear-todo":
         await clearTodo(run);
         return;
+      case "retry":
+        setSheet({ kind: "retry", run });
+        return;
       case "open-pr": {
         const url = run.pullRequest?.url;
         if (url === undefined) return;

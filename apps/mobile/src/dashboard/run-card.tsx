@@ -109,14 +109,19 @@ function noteOf(run: DashboardRun): string | null {
   return null;
 }
 
-export type RunMenuAction = "open-ticket" | "open-pr" | "cancel" | "clear-todo";
+export type RunMenuAction = "open-ticket" | "open-pr" | "cancel" | "clear-todo" | "retry";
 
 export function canClearTodo(run: DashboardRun): boolean {
   return run.state === "ended" && run.todoTag === "failed" && run.todoCleared !== undefined;
 }
 
+function isClearedFailed(run: DashboardRun): boolean {
+  return run.state === "ended" && run.summary === "failed" && run.todoTag === null;
+}
+
 function runActionsOf(run: DashboardRun): RunMenuAction[] {
   if (canClearTodo(run)) return ["clear-todo"];
+  if (isClearedFailed(run)) return ["retry"];
   return run.state === "ended" || run.cancelling ? [] : ["cancel"];
 }
 
@@ -142,6 +147,8 @@ function menuItemOf(run: DashboardRun, action: RunMenuAction, onSelect: () => vo
     }
     case "clear-todo":
       return { key: action, label: t("actions.menu.clearTodo"), icon: "check", onSelect };
+    case "retry":
+      return { key: action, label: t("card.retry"), icon: "retry", onSelect };
     case "cancel":
       return {
         key: action,

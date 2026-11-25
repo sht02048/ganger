@@ -183,10 +183,12 @@ describe("Failed 카드 … 메뉴의 확인했어요(0235)", () => {
     expect(document.body.textContent).toContain("데모 모드에서는 보내지 않아요");
   });
 
-  it("PR 이 병합돼 To do에서 빠진 Failed 줄은 PR 병합됨을 보이고 확인했어요가 없다", async () => {
+  it("PR 이 병합돼 To do에서 빠진 Failed 줄은 PR 병합됨을 보이고, 메뉴에 확인했어요 대신 다시 맡기기를 둔다", async () => {
     await showDashboard("done", demoRunPort);
     expect(document.body.textContent).toContain("PR #199 병합됨");
     await openMenu("ACME-115");
     expect(document.body.querySelector('[role="menuitem"][aria-label="확인했어요"]')).toBeNull();
+    await choose("다시 맡기기");
+    expect(document.body.textContent).toContain("다시 맡길까요?");
   });
 });

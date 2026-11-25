@@ -901,7 +901,7 @@ export function registerWriteTools(
           error: `Could not clear from To do: ${result.reason}.`,
         });
       }
-      return done({ ...base, serverHandles: true, replayed });
+      return done({ ...base, serverHandles: false, replayed });
     },
   );
 

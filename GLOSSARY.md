@@ -243,7 +243,7 @@ _Avoid_: Aborted, Stopped, 취소(상태 이름으로. 취소 버튼과 "취소 
 _Avoid_: 손댈 일(티켓 0059 전의 이름이다), Attention, Inbox, 할 일
 
 **To do에서 치움**:
-Failed 런을 결과는 그대로 둔 채 To do에서 빼는 일(티켓 0235). 둘이다. 그 런의 PR이 병합되면 저절로 치우고(PR 병합으로 치움), 운영자가 Dashboard 런 패널·모바일 카드 "…" 메뉴의 "확인했어요"나 MCP `clear_todo`로 치운다(확인했어요로 치움). 결과는 Failed로 남고([ADR 0022](docs/adr/0022-run-outcome-from-agent-report.md)) Done 칸의 처리할 일 없이 끝난 묶음에 보이며, PR 병합으로 치운 런은 "PR #n 병합됨"을 함께 보인다. Dashboard·레일·모바일 배지, 알림 수, Tickets 처리할 일, 런 단위 처리할 일에서 함께 빠지고, 열린 Failed 알림 사건은 해결된다. 다시 맡기기와 이어서 맡기기는 그대로 할 수 있다. Disconnected와 Waiting for Input은 런이 아직 러너 자리를 잡고 있어 치우지 않는다.
+Failed 런을 결과는 그대로 둔 채 To do에서 빼는 일(티켓 0235). 둘이다. 그 런의 PR이 병합되면 저절로 치우고(PR 병합으로 치움), 운영자가 Dashboard 런 패널·모바일 카드 "…" 메뉴의 "확인했어요"나 MCP `clear_todo`로 치운다(확인했어요로 치움). 결과는 Failed로 남고([ADR 0022](docs/adr/0022-run-outcome-from-agent-report.md)) Done 칸의 처리할 일 없이 끝난 묶음에 보이며, PR 병합으로 치운 런은 "PR #n 병합됨"을 함께 보인다. Dashboard·레일·모바일 배지, 알림 수, Tickets 처리할 일, 런 단위 처리할 일에서 함께 빠지고, 열린 Failed 알림 사건은 해결된다. 다시 맡기기와 이어서 맡기기는 그대로 할 수 있다(웹은 Tickets와 Run 상세, 모바일은 Done 줄 "…" 메뉴의 다시 맡기기). Disconnected와 Waiting for Input은 런이 아직 러너 자리를 잡고 있어 치우지 않는다.
 _Avoid_: 무시, 숨기기, 보관(런이 사라진 것처럼 들린다)
 
 **Question**:

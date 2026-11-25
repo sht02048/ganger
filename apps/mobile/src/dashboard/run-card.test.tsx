@@ -462,7 +462,7 @@ describe("카드 … 메뉴", () => {
     expect(runMenuGroups(withPr(settled, "javascript:alert(1)"))).toEqual([["open-ticket"]]);
   });
 
-  it("To do 의 Failed 런은 런 취소 자리에 확인했어요를 두고, 옛 서버가 치운 까닭 칸을 보내지 않으면 두지 않는다(0235)", () => {
+  it("To do 의 Failed 런은 런 취소 자리에 확인했어요를, 치운 Failed 런은 다시 맡기기를 두고, 옛 서버가 치운 까닭 칸을 보내지 않으면 확인했어요를 두지 않는다(0235)", () => {
     const failed: EndedRun = {
       ...settled,
       summary: "failed",
@@ -475,6 +475,7 @@ describe("카드 … 메뉴", () => {
     expect(runMenuGroups(fromOldServer)).toEqual([["open-ticket"]]);
     expect(runMenuGroups({ ...failed, todoTag: null, todoCleared: "operator" })).toEqual([
       ["open-ticket"],
+      ["retry"],
     ]);
   });
 
