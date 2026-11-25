@@ -92,23 +92,93 @@ describe("RunCard", () => {
     expect(buttons(mount(<RunCard run={cancelling} onAction={noAction} />))).toBe(0);
   });
 
-  it("긴 질문은 첫 줄만 보인다", () => {
+  it("답하지 않은 Question은 요약 없이 answer 색 답하기를 둔다", () => {
+    const actions: string[] = [];
     const run: DashboardRun = {
       ...base,
       state: "waiting-for-input",
       waitingMs: null,
+      todoTag: "question",
       input: {
         kind: "question",
         questionId: "q",
-        body: "첫 줄\n둘째 줄",
-        summary: "첫 줄\n둘째 줄",
+        body: "어느 쪽으로 고칠까요?\n둘째 줄",
+        summary: "어느 쪽으로 고칠까요?\n둘째 줄",
         choices: [],
         answered: false,
       },
     };
+    const host = mount(<RunCard run={run} onAction={(action) => actions.push(action)} />);
+    expect(host.textContent).not.toContain("어느 쪽으로 고칠까요?");
+    const answer = host.querySelector('[aria-label="답하기"]');
+    expect(answer?.getAttribute("data-testid")).toBe("button-answer");
+    act(() => {
+      answer?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(actions).toEqual(["answer"]);
+  });
+
+  it("답하지 않은 Human Check는 내용 없이 check 색 확인하기를 둔다", () => {
+    const actions: string[] = [];
+    const run: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "human-check",
+      input: {
+        kind: "human-check",
+        questionId: "q",
+        body: "PR을 확인해 주세요\n둘째 줄",
+        answered: false,
+      },
+    };
+    const host = mount(<RunCard run={run} onAction={(action) => actions.push(action)} />);
+    expect(host.textContent).not.toContain("PR을 확인해 주세요");
+    const check = host.querySelector('[aria-label="확인하기"]');
+    expect(check?.getAttribute("data-testid")).toBe("button-check");
+    act(() => {
+      check?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(actions).toEqual(["human-check"]);
+  });
+
+  it("이미 답한 Human Check는 버튼 없이 보낸 사실을 말한다", () => {
+    const run: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "human-check",
+      input: { kind: "human-check", questionId: "q", body: "PR을 확인해 주세요", answered: true },
+    };
     const host = mount(<RunCard run={run} onAction={noAction} />);
-    expect(host.textContent).toContain("첫 줄");
-    expect(host.textContent).not.toContain("둘째 줄");
+    expect(buttons(host)).toBe(0);
+    expect(host.textContent).toContain("답을 보냈어요");
+  });
+
+  it("Paused 재개하기와 Permission 거절은 색을 바꾸지 않는다", () => {
+    const paused: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+    };
+    const pausedHost = mount(<RunCard run={paused} onAction={noAction} />);
+    expect(pausedHost.textContent).toContain("Ganger에서 멈춤");
+    expect(pausedHost.querySelector('[aria-label="재개하기"]')?.getAttribute("data-testid")).toBe(
+      "button-secondary",
+    );
+    const permission: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "permission",
+      input: { kind: "permission", promptId: "p", detail: "pnpm test", denied: false },
+    };
+    const permissionHost = mount(<RunCard run={permission} onAction={noAction} />);
+    expect(permissionHost.textContent).toContain("pnpm test");
+    expect(permissionHost.querySelector('[aria-label="거절"]')?.getAttribute("data-testid")).toBe(
+      "button-danger",
+    );
   });
 
   it("모든 Workspace를 볼 때만 Workspace 이름을 붙인다", () => {

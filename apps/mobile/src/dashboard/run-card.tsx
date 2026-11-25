@@ -1,7 +1,7 @@
 import { StyleSheet, View } from "react-native";
 
 import { Button, Card, Chip, StatusPill } from "../design/components";
-import type { PillStatus } from "../design/components";
+import type { ButtonVariant, PillStatus } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { agentName, formatAgo, formatDuration, queuedLine } from "../format";
@@ -67,10 +67,6 @@ function pillOf(run: DashboardRun): PillStatus | null {
   return run.state === "paused" ? "paused" : null;
 }
 
-function firstLineOf(body: string): string {
-  return body.split("\n", 1)[0] ?? "";
-}
-
 function inputHandled(run: DashboardRun): boolean {
   if (run.state !== "waiting-for-input" || run.input === null) return false;
   if (run.input.kind === "unknown") return false;
@@ -85,15 +81,7 @@ function detailOf(run: DashboardRun): string | null {
       if (inputHandled(run)) {
         return run.input.kind === "permission" ? t("card.denied") : t("card.answered");
       }
-      switch (run.input.kind) {
-        case "permission":
-          return run.input.detail;
-        case "question":
-          return firstLineOf(run.input.summary);
-        case "human-check":
-          return firstLineOf(run.input.body);
-      }
-      break;
+      return run.input.kind === "permission" ? run.input.detail : null;
     case "disconnected": {
       const runner = run.runner?.name ?? t("card.noRunner");
       return run.unreachableMs === null
@@ -124,26 +112,28 @@ export type RunCardAction = "answer" | "human-check" | "deny" | "resume" | "deta
 
 function actionOf(
   run: DashboardRun,
-): { action: RunCardAction; key: MessageKey; danger: boolean } | null {
+): { action: RunCardAction; key: MessageKey; variant: ButtonVariant } | null {
   if (inputHandled(run)) return null;
   switch (run.todoTag) {
     case "question":
-      return { action: "answer", key: "card.answer", danger: false };
+      return { action: "answer", key: "card.answer", variant: "answer" };
     case "human-check":
-      return { action: "human-check", key: "card.check", danger: false };
+      return { action: "human-check", key: "card.check", variant: "check" };
     case "permission":
-      return { action: "deny", key: "card.deny", danger: true };
+      return { action: "deny", key: "card.deny", variant: "danger" };
     case "failed":
     case "disconnected":
     case "unknown":
-      return { action: "detail", key: "card.detail", danger: false };
+      return { action: "detail", key: "card.detail", variant: "secondary" };
     case "waiting-for-input":
     case null:
-      if (run.state === "unknown") return { action: "detail", key: "card.detail", danger: false };
+      if (run.state === "unknown") {
+        return { action: "detail", key: "card.detail", variant: "secondary" };
+      }
       return run.state === "paused" &&
         !run.cancelling &&
         (run.control === null || run.control.status === "failed")
-        ? { action: "resume", key: "card.resume", danger: false }
+        ? { action: "resume", key: "card.resume", variant: "secondary" }
         : null;
   }
 }
@@ -242,7 +232,7 @@ export function RunCard({
       {action === null ? null : (
         <Button
           label={confirming && action.action === "resume" ? t("actions.confirming") : t(action.key)}
-          variant={action.danger ? "danger" : "secondary"}
+          variant={action.variant}
           disabled={action.action !== "detail" && actionsDisabled}
           onPress={() => onAction(action.action)}
         />
