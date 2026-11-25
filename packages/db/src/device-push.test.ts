@@ -49,7 +49,7 @@ function database() {
 describe("기기 푸시 설정과 보낸 기록", () => {
   it("주소 없이는 알림을 켜지 못하고 응답에는 주소 대신 있는지만 싣는다", () => {
     const db = database();
-    const { id } = addDevice(db, { name: "폰", tokenHash: "h" }, at);
+    const { id } = addDevice(db, { name: "폰", kind: "phone", tokenHash: "h" }, at);
     expect(saveDevicePushSettings(db, id, { enabled: true, groups: GROUPS })).toBe(
       "no-push-address",
     );
@@ -63,8 +63,8 @@ describe("기기 푸시 설정과 보낸 기록", () => {
 
   it("같은 주소를 다른 기기가 넘기면 앞 기기에서 주소를 뗀다", () => {
     const db = database();
-    const first = addDevice(db, { name: "앞", tokenHash: "h1" }, at);
-    const second = addDevice(db, { name: "뒤", tokenHash: "h2" }, at);
+    const first = addDevice(db, { name: "앞", kind: "phone", tokenHash: "h1" }, at);
+    const second = addDevice(db, { name: "뒤", kind: "phone", tokenHash: "h2" }, at);
     saveDevicePushSettings(db, first.id, { enabled: true, groups: GROUPS, expoPushToken: TOKEN });
     saveDevicePushSettings(db, second.id, { enabled: true, groups: GROUPS, expoPushToken: TOKEN });
     expect(listPushDevices(db).map((device) => device.id)).toEqual([second.id]);
@@ -72,7 +72,7 @@ describe("기기 푸시 설정과 보낸 기록", () => {
 
   it("무효 주소를 지우면 알림을 끄고 기기 연결은 남긴다", () => {
     const db = database();
-    const { id } = addDevice(db, { name: "폰", tokenHash: "h" }, at);
+    const { id } = addDevice(db, { name: "폰", kind: "phone", tokenHash: "h" }, at);
     saveDevicePushSettings(db, id, { enabled: true, groups: GROUPS, expoPushToken: TOKEN });
     expect(forgetInvalidPushAddress(db, id, "ExponentPushToken[other]")).toBe(false);
     expect(forgetInvalidPushAddress(db, id, TOKEN)).toBe(true);
@@ -83,14 +83,14 @@ describe("기기 푸시 설정과 보낸 기록", () => {
   it("켜는 순간 열려 있던 사건은 보내지 않음으로 적는다", () => {
     const db = database();
     syncNotificationEvents(db, [cause], at);
-    const { id } = addDevice(db, { name: "폰", tokenHash: "h" }, at);
+    const { id } = addDevice(db, { name: "폰", kind: "phone", tokenHash: "h" }, at);
     saveDevicePushSettings(db, id, { enabled: true, groups: GROUPS, expoPushToken: TOKEN });
     expect(listPushDeliveries(db)).toMatchObject([{ deviceId: id, firstSentAt: null }]);
   });
 
   it("기기를 지우면 보낸 기록도 함께 지운다", () => {
     const db = database();
-    const { id } = addDevice(db, { name: "폰", tokenHash: "h" }, at);
+    const { id } = addDevice(db, { name: "폰", kind: "phone", tokenHash: "h" }, at);
     saveDevicePushSettings(db, id, { enabled: true, groups: GROUPS, expoPushToken: TOKEN });
     syncNotificationEvents(db, [cause], at);
     recordPushSent(db, id, [1], null, at);

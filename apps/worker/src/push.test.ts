@@ -115,7 +115,11 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
   };
   const sync = (causes: NotificationCause[]) => syncNotificationEvents(h.db, causes, clock);
   const addPushDevice = (token = TOKEN, groups = ALL_GROUPS) => {
-    const device = addDevice(h.db, { name: "폰", tokenHash: `hash-${token}` }, clock);
+    const device = addDevice(
+      h.db,
+      { name: "폰", kind: "phone", tokenHash: `hash-${token}` },
+      clock,
+    );
     saveDevicePushSettings(h.db, device.id, { enabled: true, groups, expoPushToken: token });
     return device.id;
   };
