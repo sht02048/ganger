@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { inflateSync } from "node:zlib";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
@@ -34,6 +35,9 @@ function pngChunks(path: string) {
     height: header.data.readUInt32BE(4),
     colorType: header.data.readUInt8(9),
     types: chunks.map((chunk) => chunk.type),
+    pixels: inflateSync(
+      Buffer.concat(chunks.filter((chunk) => chunk.type === "IDAT").map((chunk) => chunk.data)),
+    ),
   };
 }
 
@@ -57,5 +61,7 @@ describe("iOS 앱 아이콘(0229)", () => {
     const png = pngChunks(iosIcon.dark);
     expect({ width: png.width, height: png.height }).toEqual({ width: 1024, height: 1024 });
     expect(png.colorType).toBe(RGBA);
+    const firstPixelAlpha = png.pixels.readUInt8(1 + 3);
+    expect(firstPixelAlpha).toBe(0);
   });
 });

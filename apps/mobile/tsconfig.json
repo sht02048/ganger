@@ -13,6 +13,7 @@
     "index.ts",
     "app.config.ts",
     "app.config.test.ts",
+    "app-icon.test.ts",
     "react-compiler.test.ts",
     "src",
     "messages",
