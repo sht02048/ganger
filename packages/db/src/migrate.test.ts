@@ -230,6 +230,44 @@ describe("migrate", () => {
     ]);
   });
 
+  it("0235 마이그레이션이 기존 런을 남긴 채 To do 에서 치운 시각 칸을 비워 더한다", () => {
+    const db = openDatabase(":memory:");
+    const all = loadMigrations();
+    const added = all.findIndex((m) => m.name.endsWith("_run_todo_settled"));
+    expect(added).toBeGreaterThan(0);
+    migrate(db, all.slice(0, added));
+    db.$client.exec(`
+      INSERT INTO tracker_connections (id, kind, name, secrets, created_at) VALUES ('c', 'fake', 'c', '{}', 0);
+      INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', 0);
+      INSERT INTO runs (id, tracker_connection_id, ticket_key, workspace_id, tracker_project_id,
+        runner_project_id, agent_id, worktree_name, state, assigned_at, ended_at, agent_result, pr_state)
+        VALUES ('failed', 'c', 'ENG-1', 'w', 'tp', 'rp', 'a', 'ganger-ENG-1-1', 'ended', 1, 2,
+          'could-not-start', 'none');
+    `);
+
+    expect(migrate(db)).toEqual(all.slice(added).map((m) => m.name));
+    expect(
+      db.$client.prepare("SELECT id, state, agent_result, todo_settled_at FROM runs").all(),
+    ).toEqual([
+      { id: "failed", state: "ended", agent_result: "could-not-start", todo_settled_at: null },
+    ]);
+  });
+
+  it("0235 마이그레이션 뒤 빈 DB 의 런은 치운 시각 없이 시작한다", () => {
+    const db = openDatabase(":memory:");
+    migrate(db);
+    db.$client.exec(`
+      INSERT INTO tracker_connections (id, kind, name, secrets, created_at) VALUES ('c', 'fake', 'c', '{}', 0);
+      INSERT INTO workspaces (id, name, created_at) VALUES ('w', 'w', 0);
+      INSERT INTO runs (id, tracker_connection_id, ticket_key, workspace_id, tracker_project_id,
+        runner_project_id, agent_id, worktree_name, state, assigned_at)
+        VALUES ('queued', 'c', 'ENG-1', 'w', 'tp', 'rp', 'a', 'ganger-ENG-1-1', 'queued', 1);
+    `);
+    expect(db.$client.prepare("SELECT todo_settled_at FROM runs").get()).toEqual({
+      todo_settled_at: null,
+    });
+  });
+
   it("0230 마이그레이션 뒤 빈 DB 에 넣은 기기는 종류를 주지 않으면 phone 이다", () => {
     const db = openDatabase(":memory:");
     migrate(db);
