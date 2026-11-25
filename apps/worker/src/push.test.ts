@@ -409,6 +409,30 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     expect(expo.take()).toMatchObject([{ title: "Ganger", badge: todo }]);
   });
 
+  it("알림을 끈 기기가 지우기 푸시를 받을 때는 배지를 0으로 지운다", async () => {
+    const run = h.assign("ACME-301", projectA);
+    expect(
+      changeRunState(
+        h.db,
+        run.id,
+        { to: "ended", agentResult: "could-not-start", prState: "none" },
+        h.now,
+      ).ok,
+    ).toBe(true);
+    expect(loadShell(h.db).todo.all).toBeGreaterThan(0);
+    const id = addPushDevice();
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    expo.take();
+    saveDevicePushSettings(h.db, id, { enabled: false, groups: ALL_GROUPS });
+    sync([]);
+    await push.run();
+    expect(expo.take().filter((message) => message.data === undefined)).toEqual([
+      { to: TOKEN, badge: 0 },
+    ]);
+  });
+
   it("보낼 푸시가 없으면 배지만 담은 푸시도 보내지 않는다", async () => {
     addPushDevice();
     await delivery().run();

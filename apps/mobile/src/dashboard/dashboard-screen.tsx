@@ -229,25 +229,48 @@ export function DashboardScreen({
       setNoticeSheet({ kind: "notice", title, message });
     }
   };
+  const openingLinks = useRef(new Set<string>());
+  const openOnce = async (key: string, open: () => Promise<void>) => {
+    if (openingLinks.current.has(key)) return;
+    openingLinks.current.add(key);
+    try {
+      await open();
+    } finally {
+      openingLinks.current.delete(key);
+    }
+  };
   const runMenu = async (run: DashboardRun, action: RunMenuAction) => {
     switch (action) {
       case "cancel":
         setSheet({ kind: "cancel", run });
         return;
-      case "open-pr":
-        if (run.pullRequest !== null) await openWebLink(run.pullRequest.url);
-        return;
-      case "open-ticket": {
-        const outcome = await openTicket(port, run);
-        if (outcome === "opened") return;
-        setNoticeSheet({
-          kind: "notice",
-          title:
-            outcome === "demo" ? t("settings.serverDemo") : t("actions.menu.ticketFailedTitle"),
-          message: ticketOpenMessage(outcome),
+      case "open-pr": {
+        const url = run.pullRequest?.url;
+        if (url === undefined) return;
+        await openOnce(`${run.id}:pr`, async () => {
+          if (await openWebLink(url)) return;
+          setNoticeSheet({
+            kind: "notice",
+            title: t("actions.menu.prFailedTitle"),
+            message: t("actions.menu.prFailed"),
+          });
         });
         return;
       }
+      case "open-ticket":
+        await openOnce(`${run.id}:ticket`, async () => {
+          const outcome = await openTicket(port, run);
+          if (outcome === "opened") return;
+          setNoticeSheet({
+            kind: "notice",
+            title:
+              outcome === "demo"
+                ? t("actions.menu.demoTitle")
+                : t("actions.menu.ticketFailedTitle"),
+            message: ticketOpenMessage(outcome),
+          });
+        });
+        return;
     }
   };
   const runAction = (run: DashboardRun, action: RunCardAction) => {

@@ -17,7 +17,17 @@ import Svg, { Path } from "react-native-svg";
 
 import { Text, toneColorOf } from "./text";
 import type { TextTone } from "./text";
-import { brandArt, colors, fontFamily, fontSize, lineHeight, radius, size, space } from "./tokens";
+import {
+  brandArt,
+  colors,
+  fontFamily,
+  fontSize,
+  lineHeight,
+  radius,
+  shadow,
+  size,
+  space,
+} from "./tokens";
 
 export function Card({
   emphasis = "none",
@@ -376,6 +386,7 @@ export interface PopoverAnchor {
   height: number;
 }
 
+const POPOVER_BORDER = 1;
 const POPOVER_EDGE = space.s2;
 const POPOVER_GAP = space.s1;
 const POPOVER_PADDING = space.s1;
@@ -388,7 +399,7 @@ export function popoverHeight(groups: ReadonlyArray<ReadonlyArray<MenuItem>>): n
     items * size.touchTarget +
     dividers * (StyleSheet.hairlineWidth + MENU_DIVIDER_SPACE * 2) +
     POPOVER_PADDING * 2 +
-    2
+    POPOVER_BORDER * 2
   );
 }
 
@@ -480,50 +491,56 @@ export function PopoverMenu({
         onRequestClose={close}
         onDismiss={dismissed}
       >
-        <Pressable
-          testID="popover-backdrop"
-          accessibilityRole="button"
-          accessibilityLabel={closeLabel}
-          onPress={close}
+        <View
+          accessibilityViewIsModal
+          onAccessibilityEscape={close}
           style={StyleSheet.absoluteFill}
-        />
-        {placement === null ? null : (
-          <View
-            testID="popover"
-            accessibilityViewIsModal
-            accessibilityRole="menu"
-            accessibilityLabel={label}
-            onAccessibilityEscape={close}
-            style={[styles.popover, { top: placement.top, left: placement.left }]}
-          >
-            {filled.map((group, index) => (
-              <View key={group.map((item) => item.key).join(":")}>
-                {index === 0 ? null : <View testID="popover-divider" style={styles.menuDivider} />}
-                {group.map((item) => (
-                  <Pressable
-                    key={item.key}
-                    accessibilityRole="menuitem"
-                    accessibilityLabel={item.accessibilityLabel ?? item.label}
-                    onPress={() => choose(item)}
-                    style={({ pressed }) => [
-                      styles.menuItem,
-                      pressed ? styles.menuItemPressed : null,
-                    ]}
-                  >
-                    <MenuGlyph
-                      icon={item.icon}
-                      color={toneColorOf(item.tone ?? "primary")}
-                      iconSize={size.menuIcon}
-                    />
-                    <Text variant="body" tone={item.tone ?? "primary"} numberOfLines={1}>
-                      {item.label}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            ))}
-          </View>
-        )}
+        >
+          <Pressable
+            testID="popover-backdrop"
+            accessibilityRole="button"
+            accessibilityLabel={closeLabel}
+            onPress={close}
+            style={StyleSheet.absoluteFill}
+          />
+          {placement === null ? null : (
+            <View
+              testID="popover"
+              accessibilityRole="menu"
+              accessibilityLabel={label}
+              style={[styles.popover, { top: placement.top, left: placement.left }]}
+            >
+              {filled.map((group, index) => (
+                <View key={group.map((item) => item.key).join(":")}>
+                  {index === 0 ? null : (
+                    <View testID="popover-divider" style={styles.menuDivider} />
+                  )}
+                  {group.map((item) => (
+                    <Pressable
+                      key={item.key}
+                      accessibilityRole="menuitem"
+                      accessibilityLabel={item.accessibilityLabel ?? item.label}
+                      onPress={() => choose(item)}
+                      style={({ pressed }) => [
+                        styles.menuItem,
+                        pressed ? styles.menuItemPressed : null,
+                      ]}
+                    >
+                      <MenuGlyph
+                        icon={item.icon}
+                        color={toneColorOf(item.tone ?? "primary")}
+                        iconSize={size.menuIcon}
+                      />
+                      <Text variant="body" tone={item.tone ?? "primary"} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
       </Modal>
     </>
   );
@@ -947,10 +964,10 @@ const styles = StyleSheet.create({
     paddingVertical: space.s1,
     backgroundColor: colors.bgRaised,
     borderRadius: radius.card,
-    borderWidth: 1,
+    borderWidth: POPOVER_BORDER,
     borderColor: colors.borderDefault,
-    shadowColor: colors.bgCanvas,
-    shadowOpacity: 0.5,
+    shadowColor: shadow.color,
+    shadowOpacity: shadow.opacity,
     shadowRadius: space.s4,
     shadowOffset: { width: 0, height: space.s1 },
   },

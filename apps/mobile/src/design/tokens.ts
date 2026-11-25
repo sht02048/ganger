@@ -39,6 +39,11 @@ export const colors = {
   idleSoft: "#262626",
 } as const;
 
+export const shadow = {
+  color: "#000000",
+  opacity: 0.5,
+} as const;
+
 export const brandArt = {
   body: "#f5f5f5",
   brim: "#ffbb49",

@@ -686,7 +686,7 @@ describe("런 상세의 Linear에서 열기", () => {
       { ...fakePort().port, ticketLink: () => Promise.resolve({ kind: "unavailable" }) },
     );
     await press("Linear에서 열기");
-    expect(document.body.textContent).toContain("Linear 주소를 읽지 못했어요");
+    expect(document.body.textContent).toContain("Linear 티켓을 열지 못했어요");
     for (const unmount of mounted.splice(0)) unmount();
     await open(
       { kind: "detail", run: failedRun },
@@ -697,7 +697,7 @@ describe("런 상세의 Linear에서 열기", () => {
     );
     await press("Linear에서 열기");
     expect(openURL).not.toHaveBeenCalled();
-    expect(document.body.textContent).toContain("Linear 주소를 읽지 못했어요");
+    expect(document.body.textContent).toContain("Linear 티켓을 열지 못했어요");
     openURL.mockRestore();
   });
 

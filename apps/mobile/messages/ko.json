@@ -383,7 +383,10 @@
       "openPr": "PR {pr} 열기",
       "cancel": "런 취소",
       "ticketFailedTitle": "Linear를 열지 못했어요",
-      "ticketFailed": "Linear 주소를 읽지 못했어요. 잠시 뒤 다시 해 주세요."
+      "ticketFailed": "Linear 티켓을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "prFailedTitle": "PR을 열지 못했어요",
+      "prFailed": "GitHub에서 PR을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "demoTitle": "데모 모드"
     },
     "retry": {
       "title": "다시 맡길까요?",

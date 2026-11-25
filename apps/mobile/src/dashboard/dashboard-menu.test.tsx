@@ -118,4 +118,34 @@ describe("Dashboard 카드 … 메뉴", () => {
     await choose("Linear에서 열기");
     expect(openURL).toHaveBeenLastCalledWith(LINEAR);
   });
+
+  it("PR을 열지 못하면 알림 시트로 말한다", async () => {
+    vi.spyOn(Linking, "openURL").mockRejectedValue(new Error("no handler"));
+    await showDashboard("done", demoRunPort);
+    await openMenu("ACME-117");
+    await choose("PR #203 GitHub에서 열기");
+    expect(document.body.textContent).toContain("PR을 열지 못했어요");
+  });
+
+  it("주소를 기다리는 동안 Linear에서 열기를 다시 골라도 한 번만 연다", async () => {
+    const openURL = vi.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    let answer: (link: { kind: "ok"; value: string }) => void = () => undefined;
+    const ticketLink = vi.fn<RunPort["ticketLink"]>(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await showDashboard("running", { ...demoRunPort, ticketLink });
+    await openMenu("ACME-150");
+    await choose("Linear에서 열기");
+    await openMenu("ACME-150");
+    await choose("Linear에서 열기");
+    await act(async () => {
+      answer({ kind: "ok", value: LINEAR });
+      await Promise.resolve();
+    });
+    expect(ticketLink).toHaveBeenCalledOnce();
+    expect(openURL).toHaveBeenCalledOnce();
+  });
 });

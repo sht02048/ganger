@@ -256,7 +256,7 @@ export function withBadge(planned: ReadonlyArray<PlannedPush>, badge: number): P
   );
   const badgeOnly = [...clearedDevices.values()].map((device): PlannedPush => ({
     device,
-    message: { to: device.token, badge },
+    message: { to: device.token, badge: device.enabled ? badge : 0 },
     effect: { kind: "badge" },
   }));
   return [...alerts, ...badgeOnly];
