@@ -11,7 +11,7 @@ blocked_by: []
 
 ## 실패 근거
 
-- PR #287(0225, `apps/mobile`만 바꿈)의 CI run 45592206740 첫 시도, 잡 `browser (3)`에서 실패했다. 그 PR은 `apps/web`·`packages`·`e2e`를 바꾸지 않았다.
+- PR #287(0225)의 CI run 45592206740 첫 시도, 잡 `browser (3)`에서 실패했다. 그 PR은 `apps/mobile`, 0225 티켓, `pnpm-lock.yaml`(모바일 의존성)만 바꾸고 `apps/web`·`packages`·`e2e`는 바꾸지 않았다.
 - 실패는 두 번째 보내기 뒤 `expect.poll(() => input.inputValue()).toBe("")`의 시간 초과다(`Matcher did not succeed in time`). 입력칸에 「한 번만 갈 말」이 남아 있었다. 말이 두 번 저장됐는지 보는 단언까지는 가지 못했다.
 - 같은 시험은 그 PR의 워커가 로컬에서 단독으로 3번 돌려 3번 통과했다.
 
