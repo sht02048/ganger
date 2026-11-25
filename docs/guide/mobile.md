@@ -66,14 +66,14 @@ The values live in two places: `apps/mobile/.env` for commands on your Mac, and 
 
    ```sh
    eas env:list --environment development
-   npx expo config --type public
+   GANGER_MOBILE_BUILD=development npx expo config --type public --json
    ```
 
-   The second command must show `ios.bundleIdentifier` and `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`.
+   The second command must show `ios.bundleIdentifier` (for example `com.example.ganger`), `extra.eas.projectId`, `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`, and the `expo-notifications` plugin with `"mode": "development"`. Keep `--json`: without it the output is not JSON and is hard to search. Keep `GANGER_MOBILE_BUILD=development` too: the development build profile sets it on EAS (see below), and without it the command shows the release settings (`"mode": "production"`).
 
 To change a value later, edit `.env` and run steps 2 and 3 again.
 
-The `development` build profile also sets `GANGER_MOBILE_BUILD=development`. That build accepts local-network HTTP (for the Metro dev server) and registers for the APNs development environment. You do not set it yourself.
+The `development` build profile in `apps/mobile/eas.json` sets `GANGER_MOBILE_BUILD=development` (`env`). With it, the build accepts local-network HTTP (for the Metro dev server) and is signed for the APNs development environment (`aps-environment` `development`). It is not an account value, so do not add it to `.env` or to the EAS environment.
 
 ## 4. Upload the push key
 
