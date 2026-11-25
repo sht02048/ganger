@@ -11,3 +11,14 @@ export function mobileDevEnv(
     EXPO_PUBLIC_GANGER_DEV_TOKEN: server.token,
   };
 }
+
+export function mobileLaunch(args: readonly string[]): {
+  serverArgs: string[];
+  expoArgs: string[];
+} {
+  const target = args.includes("--dev-client") ? "--dev-client" : "--go";
+  return {
+    serverArgs: args.filter((arg) => arg !== "--dev-client"),
+    expoArgs: ["start", target],
+  };
+}
