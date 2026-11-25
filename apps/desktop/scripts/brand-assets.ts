@@ -10,6 +10,7 @@ const BRAND = join(REPO, "packages", "ui", "brand");
 const WEB_PUBLIC = join(REPO, "apps", "web", "public");
 const ICONS = join(DESKTOP, "icons");
 const ASSETS = join(DESKTOP, "assets");
+const MOBILE_ASSETS = join(REPO, "apps", "mobile", "assets");
 
 const source = (name: string): string => readFileSync(join(BRAND, name), "utf8");
 
@@ -44,12 +45,27 @@ const ICON_BACKGROUND = fillOf(appIcon, /<rect width="1024"[^>]*>/);
 const BODY = fillOf(appIcon, /<path[^>]*>/);
 const YELLOW = fillOf(appIcon, /<rect x="66"[^>]*>/);
 const TEMPLATE_BLACK = "currentColor";
+const markBody = /<path[^>]*fill-rule="evenodd"[^>]*\/>/.exec(appIcon)?.[0];
+const mouthpiece = /<rect x="66"[^>]*\/>/.exec(appIcon)?.[0];
+if (markBody === undefined || mouthpiece === undefined)
+  throw new Error("app-icon.svg layers missing");
+const iconCanvas = (background: string, body: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">${background}<g transform="translate(194.56 174.08) scale(6.5536)">${body}</g></svg>\n`;
+const layer = (body: string) => iconCanvas("", body);
+const singleColor = (shape: string, fill: string) =>
+  shape.replace(/fill="[^"]+"/, `fill="${fill}"`);
 
 const faviconTile = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="${ICON_BACKGROUND}"/><svg x="6" y="6" width="88" height="88" viewBox="${viewBoxOf(favicon)}">${recolor(favicon, { ink: BODY, mouthpiece: YELLOW })}</svg></svg>`;
 
 const squircle = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><defs><clipPath id="s"><rect x="100" y="100" width="824" height="824" rx="185.4"/></clipPath></defs><g clip-path="url(#s)"><svg x="100" y="100" width="824" height="824" viewBox="0 0 1024 1024">${inner(appIcon)}</svg></g></svg>`;
 
 const trayTemplate = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBoxOf(favicon)}">${recolor(favicon, { ink: TEMPLATE_BLACK })}</svg>`;
+
+const mobileDark = layer(markBody + mouthpiece);
+const mobileTinted = iconCanvas(
+  `<rect width="1024" height="1024" fill="${ICON_BACKGROUND}"/>`,
+  singleColor(markBody, BODY) + singleColor(mouthpiece, BODY),
+);
 
 const browser = await chromium.launch({ channel: "chrome" });
 const page = await browser.newPage();
@@ -97,6 +113,11 @@ writeFileSync(join(WEB_PUBLIC, "apple-touch-icon.png"), await png(appIcon, 180))
 writeFileSync(join(ASSETS, "trayTemplate.png"), await png(trayTemplate, 16));
 writeFileSync(join(ASSETS, "trayTemplate@2x.png"), await png(trayTemplate, 32));
 
+mkdirSync(MOBILE_ASSETS, { recursive: true });
+writeFileSync(join(MOBILE_ASSETS, "icon.png"), await png(appIcon, 1024));
+writeFileSync(join(MOBILE_ASSETS, "icon-dark.png"), await png(mobileDark, 1024));
+writeFileSync(join(MOBILE_ASSETS, "icon-tinted.png"), await png(mobileTinted, 1024));
+
 mkdirSync(ICONS, { recursive: true });
 const iconset = join(mkdtempSync(join(tmpdir(), "ganger-icon-")), "icon.iconset");
 mkdirSync(iconset);
@@ -114,12 +135,6 @@ if (iconutil.status !== 0) throw new Error(`iconutil exited with ${iconutil.stat
 const composer = join(ICONS, "AppIcon.icon");
 rmSync(composer, { recursive: true, force: true });
 mkdirSync(join(composer, "Assets"), { recursive: true });
-const layer = (body: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><g transform="translate(194.56 174.08) scale(6.5536)">${body}</g></svg>\n`;
-const markBody = /<path[^>]*fill-rule="evenodd"[^>]*\/>/.exec(appIcon)?.[0];
-const mouthpiece = /<rect x="66"[^>]*\/>/.exec(appIcon)?.[0];
-if (markBody === undefined || mouthpiece === undefined)
-  throw new Error("app-icon.svg layers missing");
 writeFileSync(join(composer, "Assets", "body.svg"), layer(markBody));
 writeFileSync(join(composer, "Assets", "mouthpiece.svg"), layer(mouthpiece));
 writeFileSync(
@@ -144,3 +159,4 @@ writeFileSync(
 
 console.log(`web: ${WEB_PUBLIC}`);
 console.log(`desktop: ${ICONS}, ${ASSETS}`);
+console.log(`mobile: ${MOBILE_ASSETS}`);
