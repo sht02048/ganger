@@ -7,6 +7,8 @@ import { toGroups, toPreferences } from "./push-data";
 import { EMPTY_PUSH_MEMORY } from "./push-port";
 import type { PushDevicePort, PushMemory, PushMemoryValue } from "./push-port";
 
+export const PUSH_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 export type PushNotice =
   | "address-lost"
   | "permission-denied"
@@ -49,6 +51,7 @@ export function useDeviceNotifications({
   const remembered = useRef<PushMemoryValue>(EMPTY_PUSH_MEMORY);
   const writing = useRef(false);
   const writes = useRef(0);
+  const checkedAt = useRef<number | null>(null);
 
   const remember = useCallback(
     async (value: PushMemoryValue) => {
@@ -75,6 +78,9 @@ export function useDeviceNotifications({
 
   useEffect(() => {
     if (!foreground) return;
+    if (checkedAt.current !== null && Date.now() - checkedAt.current < PUSH_CHECK_INTERVAL_MS) {
+      return;
+    }
     let cancelled = false;
     const refresh = async () => {
       const writesAtStart = writes.current;
@@ -86,6 +92,7 @@ export function useDeviceNotifications({
         setNotice("load-failed");
         return;
       }
+      checkedAt.current = Date.now();
       setSettings(reply.data);
       setNotice((current) => (current === "load-failed" ? null : current));
       if (!reply.data.hasPushAddress && stored.registered) setNotice("address-lost");
@@ -93,10 +100,15 @@ export function useDeviceNotifications({
       if (!device.supported || !reply.data.enabled || !reply.data.hasPushAddress) return;
       if ((await device.permission()) !== "granted") return;
       const address = await device.pushAddress();
-      if (cancelled || writes.current !== writesAtStart) return;
-      if (address === null || address === stored.address) return;
+      if (cancelled || writes.current !== writesAtStart || address === null) {
+        checkedAt.current = null;
+        return;
+      }
+      if (address === stored.address) return;
       if (await save(toPreferences(reply.data.enabled, reply.data.groups), address)) {
         await remember({ ...stored, address });
+      } else {
+        checkedAt.current = null;
       }
     };
     void refresh();
