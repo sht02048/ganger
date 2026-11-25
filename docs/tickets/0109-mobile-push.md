@@ -41,10 +41,10 @@ blocked_by: [0107, 0108]
 
 ## 운영자 확인(실기기, 머지 뒤)
 
-준비:
+준비: [`docs/guide/mobile.md`](../guide/mobile.md)(0227)의 절차대로 한다.
 
-1. Expo 프로젝트를 만들고 프로젝트 Apple 팀의 APNs 키를 올린다(`eas credentials`). 키와 서명 값은 저장소에 두지 않는다.
-2. `GANGER_EXPO_PROJECT_ID`, `GANGER_IOS_BUNDLE_ID`, `GANGER_APPLE_TEAM_ID`를 환경 변수로 주고 `GANGER_MOBILE_BUILD=development`로 서명된 개발 빌드를 만든다. 이 세 값이 있어야 NSE 타깃과 공유 키체인이 생긴다. Expo Go로는 NSE가 돌지 않는다.
+1. Expo 프로젝트를 만들고(`eas init`) 프로젝트 Apple 팀의 APNs 키를 올린다(`eas credentials`). 키와 서명 값은 저장소에 두지 않는다.
+2. `GANGER_EXPO_PROJECT_ID`, `GANGER_IOS_BUNDLE_ID`, `GANGER_APPLE_TEAM_ID`를 `apps/mobile/.env`에 먼저 적고 같은 값을 EAS `development` 환경 변수로 옮긴 뒤, `eas build --profile development --platform ios`로 서명된 개발 빌드를 만든다. 이 프로필이 `GANGER_MOBILE_BUILD=development`를 준다. 세 값이 있어야 NSE 타깃과 공유 키체인이 생긴다. Expo Go로는 NSE가 돌지 않는다.
 3. 이미 연결한 개발 빌드는 연결을 끊고 다시 연결한다. 토큰을 공유 키체인에 새로 저장해야 NSE가 읽는다.
 
 확인 목록:
