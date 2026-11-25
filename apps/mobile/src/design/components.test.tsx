@@ -14,6 +14,7 @@ import {
   ExternalLink,
   InlineSwitch,
   RaisedBox,
+  SplitButton,
   RESTING_MASCOT_PATHS,
   RestingMascot,
   Segment,
@@ -297,6 +298,51 @@ describe("ExternalLink", () => {
       link?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onPress).toHaveBeenCalledOnce();
+  });
+});
+
+describe("SplitButton", () => {
+  const split = (props: { disabled?: boolean; menu?: boolean }) => {
+    const onPress = vi.fn<() => void>();
+    const onMenuPress = vi.fn<() => void>();
+    const host = mount(
+      <SplitButton
+        label="Squash 머지"
+        groupLabel="머지"
+        menuLabel="머지 방식 바꾸기"
+        disabled={props.disabled ?? false}
+        onPress={onPress}
+        {...(props.menu === false ? {} : { onMenuPress })}
+      />,
+    );
+    return { host, onPress, onMenuPress };
+  };
+
+  it("이름 붙은 묶음 안에 주 버튼과 방식 버튼을 두고 각각 부른다", () => {
+    const { host, onPress, onMenuPress } = split({});
+    expect(host.querySelector('[aria-label="머지"]')?.getAttribute("role")).toBe("group");
+    press(host.querySelector('[aria-label="Squash 머지"]'));
+    press(host.querySelector('[aria-label="머지 방식 바꾸기"]'));
+    expect(onPress).toHaveBeenCalledOnce();
+    expect(onMenuPress).toHaveBeenCalledOnce();
+    expect(host.querySelector('[data-testid="split-divider"]')).not.toBeNull();
+  });
+
+  it("방식 버튼이 없으면 세로선도 없다", () => {
+    const { host } = split({ menu: false });
+    expect(host.querySelector('[aria-label="머지 방식 바꾸기"]')).toBeNull();
+    expect(host.querySelector('[data-testid="split-divider"]')).toBeNull();
+  });
+
+  it("꺼지면 두 버튼 모두 누르지 못한다", () => {
+    const { host, onPress, onMenuPress } = split({ disabled: true });
+    for (const label of ["Squash 머지", "머지 방식 바꾸기"]) {
+      const button = host.querySelector(`[aria-label="${label}"]`);
+      expect(button?.getAttribute("aria-disabled")).toBe("true");
+      press(button);
+    }
+    expect(onPress).not.toHaveBeenCalled();
+    expect(onMenuPress).not.toHaveBeenCalled();
   });
 });
 

@@ -4,7 +4,9 @@ import type {
   AppRunDetail,
   AppRunInput,
   AppRunRefusal,
+  AppPrMerge,
   V1HumanCheckDecision,
+  V1MergeMethod,
 } from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
@@ -24,6 +26,7 @@ import {
   Sheet,
   SheetBody,
   SheetFooter,
+  SplitButton,
   TextField,
 } from "../design/components";
 import type { ChipTone } from "../design/components";
@@ -44,6 +47,9 @@ export type OpenRunSheet =
   | { kind: "notice"; title: string; message: string };
 
 function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageKey {
+  if (action === "merge" && reason === "request-reused") {
+    return "actions.refused.merge.request-reused";
+  }
   if (action === "answer" && (reason === "already-answered" || reason === "not-found")) {
     return `actions.refused.answer.${reason}`;
   }
@@ -96,7 +102,9 @@ export function outcomeMessage(
     case "demo":
       return t("common.demoAction");
     case "refused":
-      return t(refusalKey(action, outcome.reason));
+      return action === "merge" && outcome.reason === "blocked" && outcome.message !== undefined
+        ? t("actions.refused.merge.blockedBecause", { message: outcome.message })
+        : t(refusalKey(action, outcome.reason));
     case "unconfirmed":
       return t("actions.unconfirmed");
     case "failed":
@@ -146,8 +154,8 @@ function useRunWrite(
   const setUnconfirmed = sharedUnconfirmed?.set ?? setOwnUnconfirmed;
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
-  const send = async (write: RunWrite) => {
-    if (busy.current) return;
+  const send = async (write: RunWrite): Promise<RunWriteOutcome | null> => {
+    if (busy.current) return null;
     busy.current = true;
     setPhase("sending");
     setMessage(null);
@@ -159,12 +167,13 @@ function useRunWrite(
     setPhase("idle");
     if (outcome.kind === "sent") {
       onSent();
-      return;
+      return outcome;
     }
     setRefused(outcome.kind === "refused");
     if (outcome.kind === "unconfirmed") setUnconfirmed(true);
     setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
+    return outcome;
   };
   return {
     sending: phase !== "idle",
@@ -199,7 +208,7 @@ function useRunDetail(
   run: DashboardRun,
   disabled: boolean,
   useCache = false,
-): RunDetailView {
+): RunDetailView & { reload: () => void } {
   const [view, setView] = useState<RunDetailView>(() => cachedView(port, run, useCache));
   const [attempt, setAttempt] = useState(0);
   const wasDisabled = useRef(disabled);
@@ -227,7 +236,7 @@ function useRunDetail(
       live = false;
     };
   }, [port, run, attempt, useCache]);
-  return view;
+  return { ...view, reload: () => setAttempt((current) => current + 1) };
 }
 
 async function openWebLink(url: string): Promise<boolean> {
@@ -988,9 +997,100 @@ function prUnreadLine(detail: AppRunDetail): string | null {
   return diagnosis ?? t(`runDetail.prUnread.${detail.prReadError}`);
 }
 
-function PrBox({ detail }: { detail: AppRunDetail }) {
+interface MergeSlot {
+  run: DashboardRun;
+  port: RunPort;
+  disabled: boolean;
+  merged: boolean;
+  onMerged: () => void;
+  reload: () => void;
+}
+
+function waitingHumanCheck(detail: AppRunDetail): boolean {
+  return detail.input?.kind === "human-check" && !detail.input.answered;
+}
+
+function mergeBlockedText(merge: AppPrMerge): string | null {
+  if (merge.noPermission) return t("runDetail.merge.noPermission");
+  return merge.blocked === null ? null : t(`runDetail.merge.blocked.${merge.blocked}`);
+}
+
+function MergeControl({
+  merge,
+  humanCheck,
+  slot,
+}: {
+  merge: AppPrMerge;
+  humanCheck: boolean;
+  slot: MergeSlot;
+}) {
+  const [picked, setPicked] = useState<V1MergeMethod>(merge.defaultMethod);
+  const [choosing, setChoosing] = useState(false);
+  const method = merge.methods.includes(picked) ? picked : merge.defaultMethod;
+  const { sending, busyLabel, message, messageTone, unconfirmed, send } = useRunWrite(
+    slot.port,
+    slot.run,
+    slot.onMerged,
+    slot.disabled,
+  );
+  const blocked = mergeBlockedText(merge);
+  const hint = blocked === null && humanCheck ? t("runDetail.merge.humanCheck") : null;
+  return (
+    <View style={styles.merge}>
+      <SplitButton
+        label={
+          busyLabel === null ? t(`runDetail.merge.button.${method}`) : t("runDetail.merge.busy")
+        }
+        groupLabel={t("runDetail.merge.group")}
+        menuLabel={t("runDetail.merge.menu")}
+        disabled={blocked !== null || slot.disabled || sending || unconfirmed}
+        onPress={() =>
+          void send({ action: "merge", method, expectedHead: merge.headCommit }).then((outcome) => {
+            if (outcome?.kind === "refused") slot.reload();
+          })
+        }
+        {...(merge.methods.length > 1 ? { onMenuPress: () => setChoosing(true) } : {})}
+      />
+      {blocked === null ? null : (
+        <Text variant="small" tone="problem">
+          {blocked}
+        </Text>
+      )}
+      {hint === null ? null : <Text variant="small">{hint}</Text>}
+      <SheetMessage message={message} tone={messageTone} />
+      <Sheet
+        visible={choosing}
+        title={t("runDetail.merge.methodTitle")}
+        closeLabel={t("common.close")}
+        onClose={() => setChoosing(false)}
+      >
+        <View accessibilityRole="radiogroup" accessibilityLabel={t("runDetail.merge.methodTitle")}>
+          {merge.methods.map((option) => (
+            <RadioRow
+              key={option}
+              label={t(`runDetail.merge.option.${option}`)}
+              selected={option === method}
+              onPress={() => {
+                setPicked(option);
+                setChoosing(false);
+                AccessibilityInfo.announceForAccessibility(
+                  t("runDetail.merge.picked", {
+                    method: t(`runDetail.merge.button.${option}`),
+                  }),
+                );
+              }}
+            />
+          ))}
+        </View>
+      </Sheet>
+    </View>
+  );
+}
+
+function PrBox({ detail, mergeSlot }: { detail: AppRunDetail; mergeSlot: MergeSlot | null }) {
   const pr = detail.pullRequest;
   const line = prUnreadLine(detail);
+  const merge = pr?.state === "open" ? pr.merge : null;
   return (
     <RaisedBox>
       <View style={styles.prHead}>
@@ -1014,11 +1114,20 @@ function PrBox({ detail }: { detail: AppRunDetail }) {
           {line}
         </Text>
       )}
+      {merge === null || mergeSlot === null ? null : (
+        <MergeControl merge={merge} humanCheck={waitingHumanCheck(detail)} slot={mergeSlot} />
+      )}
     </RaisedBox>
   );
 }
 
-function RunDetailBody({ detail }: { detail: AppRunDetail }) {
+function RunDetailBody({
+  detail,
+  mergeSlot = null,
+}: {
+  detail: AppRunDetail;
+  mergeSlot?: MergeSlot | null;
+}) {
   const { summary, pullRequest } = detail;
   return (
     <>
@@ -1053,7 +1162,14 @@ function RunDetailBody({ detail }: { detail: AppRunDetail }) {
         {pullRequest === null && detail.prReadError === null ? (
           <Text variant="meta">{t("runDetail.noPr")}</Text>
         ) : (
-          <PrBox detail={detail} />
+          <>
+            {mergeSlot?.merged === true ? (
+              <Text variant="meta" tone="secondary">
+                {t("runDetail.merge.done")}
+              </Text>
+            ) : null}
+            <PrBox detail={detail} mergeSlot={mergeSlot} />
+          </>
         )}
       </View>
     </>
@@ -1071,7 +1187,13 @@ function DetailSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { read, staleNotice } = useRunDetail(port, run, disabled, true);
+  const { read, staleNotice, reload } = useRunDetail(port, run, disabled, true);
+  const [merged, setMerged] = useState(false);
+  const onMerged = () => {
+    setMerged(true);
+    AccessibilityInfo.announceForAccessibility(t("runDetail.merge.done"));
+    reload();
+  };
   return (
     <Sheet
       visible
@@ -1084,7 +1206,10 @@ function DetailSheet({
         {(detail) => (
           <SheetBody>
             <ContextLine run={run} />
-            <RunDetailBody detail={detail} />
+            <RunDetailBody
+              detail={detail}
+              mergeSlot={{ run, port, disabled, merged, onMerged, reload }}
+            />
           </SheetBody>
         )}
       </DetailGate>
@@ -1178,4 +1303,5 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
 const styles = StyleSheet.create({
   group: { gap: space.s2 },
   prHead: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
+  merge: { gap: space.px6 },
 });

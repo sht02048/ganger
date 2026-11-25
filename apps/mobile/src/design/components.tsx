@@ -293,6 +293,79 @@ export function ExternalLink({
   );
 }
 
+export function SplitButton({
+  label,
+  groupLabel,
+  menuLabel,
+  disabled = false,
+  onPress,
+  onMenuPress,
+}: {
+  label: string;
+  groupLabel: string;
+  menuLabel: string;
+  disabled?: boolean;
+  onPress: () => void;
+  onMenuPress?: () => void;
+}) {
+  const tone = disabled ? "disabled" : "onAccent";
+  return (
+    <View
+      role="group"
+      accessibilityLabel={groupLabel}
+      style={[styles.splitButton, disabled ? styles.splitButtonOff : styles.splitButtonOn]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        aria-disabled={disabled}
+        disabled={disabled}
+        onPress={onPress}
+        style={({ pressed }) => [styles.splitMain, pressed && !disabled ? styles.pressed : null]}
+      >
+        <Text variant="title" tone={tone} weight="semibold" numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
+      {onMenuPress === undefined ? null : (
+        <>
+          <View
+            testID="split-divider"
+            style={[styles.splitDivider, disabled ? styles.splitDividerOff : null]}
+          />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={menuLabel}
+            aria-disabled={disabled}
+            disabled={disabled}
+            onPress={onMenuPress}
+            style={({ pressed }) => [
+              styles.splitMenu,
+              pressed && !disabled ? styles.pressed : null,
+            ]}
+          >
+            <Svg
+              width={size.splitMenuIcon}
+              height={size.splitMenuIcon}
+              viewBox="0 0 12 12"
+              aria-hidden
+            >
+              <Path
+                d="M2.5 4.5L6 8l3.5-3.5"
+                fill="none"
+                stroke={disabled ? colors.textDisabled : colors.textOnAccent}
+                strokeWidth={1.5}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+}
+
 export function RaisedBox({ children }: { children: ReactNode }) {
   return (
     <View testID="raised-box" style={styles.raisedBox}>
@@ -656,6 +729,33 @@ const styles = StyleSheet.create({
   },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
+  splitButton: {
+    height: size.touchTarget,
+    borderRadius: radius.button,
+    flexDirection: "row",
+    alignItems: "stretch",
+    overflow: "hidden",
+  },
+  splitButtonOn: { backgroundColor: colors.accent },
+  splitButtonOff: { backgroundColor: colors.bgControl },
+  splitMain: {
+    flex: 1,
+    paddingHorizontal: space.s4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  splitDivider: {
+    width: StyleSheet.hairlineWidth,
+    marginVertical: size.splitDividerInset,
+    backgroundColor: colors.textOnAccent,
+    opacity: 0.25,
+  },
+  splitDividerOff: { backgroundColor: colors.textDisabled },
+  splitMenu: {
+    width: size.touchTarget,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   todoBadge: {
     minWidth: size.badge,
     height: size.badge,

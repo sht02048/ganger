@@ -3,11 +3,11 @@ import type { AppRunDetail } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Linking } from "react-native";
+import { AccessibilityInfo, Linking } from "react-native";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
-import { demoRunDetail } from "./run-port";
+import { demoRunDetail, demoRunPort } from "./run-port";
 import type { RunPort, RunWrite, RunWriteOutcome } from "./run-port";
 import { RunSheets } from "./run-sheets";
 import type { OpenRunSheet } from "./run-sheets";
@@ -577,6 +577,197 @@ describe("런 상세 PR 상자", () => {
     );
     expect(text).toContain("GitHub에서 PR을 읽지 못했어요");
     expect(text).not.toContain("러너(");
+  });
+});
+
+describe("런 상세 머지 버튼", () => {
+  const merge = {
+    methods: ["squash", "merge"] as Array<"squash" | "merge" | "rebase">,
+    defaultMethod: "squash" as const,
+    blocked: null,
+    noPermission: false,
+    headCommit: "head-sha",
+  };
+  type Merge = NonNullable<NonNullable<AppRunDetail["pullRequest"]>["merge"]>;
+  const withMerge = (
+    patch: Partial<Merge> | null,
+    over: Partial<AppRunDetail> = {},
+    state: "open" | "merged" | "closed" = "open",
+  ): AppRunDetail => ({
+    ...demoRunDetail(failedRun),
+    pullRequest: {
+      displayId: "#7",
+      url: "https://example.com/pull/7",
+      ci: "success",
+      problems: [],
+      state,
+      stateSince: null,
+      merge: patch === null ? null : { ...merge, ...patch },
+    },
+    ...over,
+  });
+  const openWith = async (detail: AppRunDetail, outcome: RunWriteOutcome = { kind: "sent" }) => {
+    const fake = fakePort(outcome, detail);
+    const detailSpy = vi.spyOn(fake.port, "detail");
+    await open({ kind: "detail", run: failedRun }, fake.port);
+    return { ...fake, detailSpy };
+  };
+  const text = () => document.body.textContent ?? "";
+
+  it("열린 PR 상자에 레포 기본 방식의 분할 버튼을 두고 누르면 본 head 로 바로 머지한다", async () => {
+    const { write, detailSpy } = await openWith(withMerge({}));
+    const group = byLabel("머지");
+    expect(group?.getAttribute("role")).toBe("group");
+    expect(group?.closest('[data-testid="raised-box"]')).not.toBeNull();
+    expect(byLabel("머지 방식 바꾸기")).not.toBeNull();
+    expect(isDisabled("Squash 머지")).toBe(false);
+    await press("Squash 머지");
+    expect(write.mock.calls[0]?.[1]).toEqual({
+      action: "merge",
+      method: "squash",
+      expectedHead: "head-sha",
+    });
+    expect(text()).toContain("PR을 머지했어요");
+    expect(detailSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("머지했다는 문장은 PR 구역 안, 상자 바로 위에 보인다", async () => {
+    await openWith(withMerge({}));
+    await press("Squash 머지");
+    const done = Array.from(document.body.querySelectorAll("div")).find(
+      (node) => node.textContent === "PR을 머지했어요",
+    );
+    const raised = document.body.querySelector('[data-testid="raised-box"]');
+    expect(done?.nextElementSibling).toBe(raised);
+  });
+
+  it("그사이 head 가 바뀌어 거절되면 런 상세를 다시 읽어 새 head 로 다시 머지할 수 있다", async () => {
+    const details = [withMerge({}), withMerge({ headCommit: "new-head" })];
+    const write = vi
+      .fn<(run: DashboardRun, next: RunWrite) => Promise<RunWriteOutcome>>()
+      .mockResolvedValueOnce({ kind: "refused", reason: "head-changed" })
+      .mockResolvedValueOnce({ kind: "sent" });
+    const port: RunPort = {
+      detail: () => Promise.resolve({ kind: "ok", value: details.shift() ?? withMerge({}) }),
+      ticketLink: () => Promise.resolve({ kind: "demo" }),
+      write,
+    };
+    await open({ kind: "detail", run: failedRun }, port);
+    await press("Squash 머지");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(text()).toContain("PR에 새 커밋이 올라왔어요");
+    expect(isDisabled("Squash 머지")).toBe(false);
+    await press("Squash 머지");
+    expect(write.mock.calls[1]?.[1]).toMatchObject({ expectedHead: "new-head" });
+  });
+
+  it("방식을 고르면 버튼 이름을 바꾸고 바뀐 방식을 소리로 알린다", async () => {
+    const announce = vi.spyOn(AccessibilityInfo, "announceForAccessibility");
+    await openWith(withMerge({}));
+    await press("머지 방식 바꾸기");
+    await press("Merge commit");
+    expect(announce).toHaveBeenCalledWith("Merge commit 머지로 바꿨어요");
+    expect(byLabel("Merge commit 머지")).not.toBeNull();
+    announce.mockRestore();
+  });
+
+  it("⌄ 로 레포가 허용한 방식만 골라 그 방식으로 머지한다", async () => {
+    const { write } = await openWith(withMerge({}));
+    await press("머지 방식 바꾸기");
+    expect(byLabel("Squash 머지")?.getAttribute("role")).toBe("button");
+    expect(byLabel("Rebase")).toBeNull();
+    await press("Merge commit");
+    await press("Merge commit 머지");
+    expect(write.mock.calls[0]?.[1]).toMatchObject({ method: "merge" });
+  });
+
+  it("레포가 허용한 방식이 하나면 ⌄ 칸 없이 버튼 하나다", async () => {
+    await openWith(withMerge({ methods: ["squash"] }));
+    expect(byLabel("Squash 머지")).not.toBeNull();
+    expect(byLabel("머지 방식 바꾸기")).toBeNull();
+    expect(document.body.querySelector('[data-testid="split-divider"]')).toBeNull();
+  });
+
+  it.each([
+    ["conflict", "충돌이 있어 머지할 수 없어요"],
+    ["behind", "base를 받아야 머지할 수 있어요"],
+    ["rules", "보호 규칙이 머지를 막고 있어요"],
+    ["draft", "Draft PR이라 머지할 수 없어요"],
+    ["unknown", "GitHub이 머지를 막고 있어요"],
+  ] as const)("막힌 PR(%s)은 버튼을 끄고 이유를 보인다", async (blocked, reason) => {
+    const { write } = await openWith(withMerge({ blocked }));
+    expect(isDisabled("Squash 머지")).toBe(true);
+    expect(isDisabled("머지 방식 바꾸기")).toBe(true);
+    expect(text()).toContain(reason);
+    await press("Squash 머지");
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("토큰에 머지 권한이 없으면 버튼을 끄고 권한 거절을 보인다", async () => {
+    await openWith(withMerge({ noPermission: true }));
+    expect(isDisabled("Squash 머지")).toBe(true);
+    expect(text()).toContain("토큰에 머지 권한이 없어요");
+  });
+
+  it("기다리는 Human Check 가 있으면 머지하면 확인했어요로 답한다고 알린다", async () => {
+    const hint = '머지하면 기다리는 Human Check에 "확인했어요"로 답해요';
+    await openWith(
+      withMerge(
+        {},
+        { input: { kind: "human-check", questionId: "q", body: "확인", answered: false } },
+      ),
+    );
+    expect(text()).toContain(hint);
+  });
+
+  it("기다리는 Human Check 가 없으면 안내를 보이지 않는다", async () => {
+    await openWith(withMerge({}));
+    expect(text()).not.toContain("Human Check");
+  });
+
+  it("레포 규칙이 막으면 GitHub 이 준 이유를 알리고 머지됐다고 하지 않는다", async () => {
+    await openWith(withMerge({}), {
+      kind: "refused",
+      reason: "blocked",
+      message: "Review required",
+    });
+    await press("Squash 머지");
+    expect(text()).toContain("레포 규칙이 머지를 막았어요: Review required");
+    expect(text()).not.toContain("PR을 머지했어요");
+  });
+
+  it("그사이 head 가 바뀌면 다시 확인하라고 알린다", async () => {
+    await openWith(withMerge({}), { kind: "refused", reason: "head-changed" });
+    await press("Squash 머지");
+    expect(text()).toContain("PR에 새 커밋이 올라왔어요");
+  });
+
+  it("데모 모드에서는 보내지 않는다고 알린다", async () => {
+    await open(
+      { kind: "detail", run: failedRun },
+      { ...demoRunPort, detail: () => Promise.resolve({ kind: "ok", value: withMerge({}) }) },
+    );
+    await press("Squash 머지");
+    expect(text()).toContain("데모 모드에서는 보내지 않아요");
+    expect(text()).not.toContain("PR을 머지했어요");
+  });
+
+  it("연결이 끊겨 쓰기를 막은 동안에는 버튼을 끈다", async () => {
+    const fake = fakePort({ kind: "sent" }, withMerge({}));
+    await open({ kind: "detail", run: failedRun }, fake.port, true);
+    expect(isDisabled("Squash 머지")).toBe(true);
+  });
+
+  it.each(["merged", "closed"] as const)("%s PR 에는 버튼이 없다", async (state) => {
+    await openWith(withMerge({}, {}, state));
+    expect(byLabel("머지")).toBeNull();
+  });
+
+  it("머지 정보가 없는 옛 서버 응답에는 버튼이 없다", async () => {
+    await openWith(withMerge(null));
+    expect(byLabel("머지")).toBeNull();
   });
 });
 
