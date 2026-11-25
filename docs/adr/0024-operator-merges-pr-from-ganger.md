@@ -1,10 +1,10 @@
-# 운영자는 Dashboard 런 패널과 MCP로 런의 PR을 머지한다
+# 운영자는 Dashboard 런 패널, 모바일 런 상세, MCP로 런의 PR을 머지한다
 
 [ADR 0004](0004-agent-merges-its-own-pr.md)는 PR 머지를 런의 에이전트에게 맡기고 오케스트레이터는 병합 정책을 갖지 않는다고 정했다. [ADR 0023](0023-human-check-request.md)은 에이전트가 머지 같은 일을 Human Check로 묻게 했지만 "Ganger는 머지하지 않는다"고 남겼다. 그래서 운영자는 Human Check를 받으면 GitHub를 따로 열어 머지하고, 돌아와 "확인했어요"를 눌러야 했다. 2026-11-23 운영자가 런 패널 「PR」 탭(0199)에서 바로 머지하기로 정했다(티켓 [0201](../tickets/0201-merge-pr-from-sheet.md)). 이 ADR은 ADR 0004를 넓힌다. 에이전트가 자기 PR을 머지하는 길은 그대로 두고, 운영자가 Ganger에서 머지하는 길을 하나 더한다.
 
 ## 결정
 
-1. **운영자는 「PR」 탭의 머지 버튼과 MCP `merge_pr`로 런의 PR을 머지한다.** 둘은 같은 핵심 함수(`mergeRunPullRequest`)를 쓴다. Ganger가 스스로 머지를 정하는 일은 없다. 머지할지는 언제나 운영자(또는 운영자가 허락한 MCP 클라이언트)가 정한다. 에이전트의 머지 판단 기준은 지금처럼 프로젝트의 에이전트 설정에 둔다.
+1. **운영자는 「PR」 탭의 머지 버튼, 모바일 런 상세 PR 구역의 머지 버튼, MCP `merge_pr`로 런의 PR을 머지한다.** 셋은 같은 핵심 함수(`mergeRunPullRequest`)를 쓴다. 모바일 길은 2026-11-25 운영자가 더했다(티켓 [0220](../tickets/0220-mobile-merge-pr.md)). 모바일은 v1 쓰기 `merge`로 부르고 결정 2~7을 그대로 따른다. 다른 v1 쓰기와 같이 `requestId`가 필수이고, 응답을 잃으면 같은 ID로 한 번 더 보낸다(스펙 [0002](../spec/0002-mobile.md) M55). Ganger가 스스로 머지를 정하는 일은 없다. 머지할지는 언제나 운영자(또는 운영자가 허락한 MCP 클라이언트)가 정한다. 에이전트의 머지 판단 기준은 지금처럼 프로젝트의 에이전트 설정에 둔다.
 2. **누르면 확인 단계 없이 바로 머지한다.** 레포 규칙이 막는 PR(충돌, Draft, base 갱신 필요, 보호 규칙)은 버튼을 끄고 이유를 「PR」 탭의 빨간 줄로 보인다. 규칙 판단은 GitHub의 `mergeable`·`mergeStateStatus`를 그대로 따른다. Ganger가 따로 머지 규칙을 두지 않는다. 화면이 낡았을 수 있으므로 GitHub가 마지막에 다시 판단하고, 거절하면 이유를 토스트로 알린다. 머지 호출에는 화면이 본 head 커밋을 함께 보내 그사이 새 커밋이 올라왔으면 머지하지 않는다.
 3. **머지 방식은 레포가 허용한 것만 보이고, 처음 고른 방식은 레포 기본(`viewerDefaultMergeMethod`)이다.** 허용 방식은 `squashMergeAllowed`·`mergeCommitAllowed`·`rebaseMergeAllowed`로 안다. MCP의 방식 인자는 선택이고, 없으면 같은 레포 기본을 쓴다. Ganger가 자기 기본 방식을 갖지 않는다. 다른 레포가 정한 방식(예: squash만)을 화면이 바꾸지 않게 하기 위해서다.
 4. **권한은 코드 호스트 어댑터가 가진 GitHub 토큰의 권한 그대로다.** 머지 호출은 PR을 읽는 같은 어댑터(`CodeHost.mergePullRequest`)를 지난다. 토큰을 어디서 얻는지가 바뀌어도(Settings에 넣은 토큰, gh CLI 등) 머지 코드는 그대로다. 토큰에 쓰기 권한(Pull requests·Contents write)이 없으면 버튼을 끄고 "토큰에 머지 권한이 없어요 · Settings에서 바꾸기"를 보인다. 미리 아는 경우(저장소 권한이 읽기·분류뿐)는 미리 끄고, 그 밖에는 GitHub가 403으로 거절한 뒤 그 런의 PR 정보에 거절을 남겨 끈다. 거절 기록은 GitHub 토큰을 다시 저장하면 지운다. MCP `merge_pr`는 [ADR 0013](0013-mcp-client-scope.md)의 쓰기 규칙(쓰기 허용 스위치, requestId, MCP 작업 기록, GitHub 응답 글은 `external` 칸)을 따르고, 도구 설명에 되돌리기 어려우니 운영자에게 먼저 확인받으라고 적는다.
