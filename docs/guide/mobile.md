@@ -41,9 +41,15 @@ The build reads three values. None of them are secret, but they belong to your a
 
 When all three are set, the app configuration adds the NSE target (bundle ID `<bundle ID>.notification-service`) and the shared keychain group `<team ID>.<bundle ID>.shared`. Without them the build has no NSE, and pushes arrive without their title and text on a locked phone.
 
-The values live in two places: `apps/mobile/.env` for commands on your Mac, and the `development` environment on EAS for the cloud build, which does not get `.env` because Git ignores it. Always write `.env` first and copy it to EAS, so the two never disagree:
+The values live in two places, because Expo CLI and EAS CLI read them differently:
 
-1. Write `apps/mobile/.env` (Git ignores it; Expo CLI reads it):
+- Expo CLI (`npx expo ...`) reads `apps/mobile/.env` by itself.
+- EAS CLI (`eas ...`) does not read `.env` files ([Expo: environment variables FAQ](https://docs.expo.dev/eas/environment-variables/faq/)). Until the values are on EAS, it gets them only from your shell. Without `GANGER_EXPO_PROJECT_ID` it finds no project ID in `app.config.ts`, tries to link the project again, and stops with `Cannot automatically write to dynamic config at: app.config.ts`.
+- The cloud build does not get `.env` either, because Git ignores it. It uses the variables in the EAS `development` environment.
+
+Always write `.env` first and copy it to EAS, so the two never disagree:
+
+1. Write `apps/mobile/.env` (Git ignores it):
 
    ```sh
    GANGER_EXPO_PROJECT_ID=00000000-0000-0000-0000-000000000000
@@ -51,29 +57,34 @@ The values live in two places: `apps/mobile/.env` for commands on your Mac, and 
    GANGER_APPLE_TEAM_ID=ABCDE12345
    ```
 
-2. Copy each value to the EAS `development` environment:
+2. Load `.env` into your shell. Do this in every new shell before you run an `eas` command:
 
    ```sh
-   set -a; . ./.env; set +a
-   for name in GANGER_EXPO_PROJECT_ID GANGER_IOS_BUNDLE_ID GANGER_APPLE_TEAM_ID; do
-     eas env:set --environment development --name "$name" --value "$(printenv "$name")" --visibility plaintext --non-interactive
-   done
+   set -a; source .env; set +a
    ```
 
-   `eas env:set` creates a variable or updates it (it replaces `eas env:create`, which older guides use). Keep the visibility `plaintext` or `sensitive`: EAS CLI reads the values on your Mac to resolve the app configuration, and it cannot read `secret` ones.
+3. Copy each value to the EAS `development` environment from the shell variables, so you never type a value twice:
 
-3. Check that both places agree:
+   ```sh
+   eas env:set --environment development --name GANGER_EXPO_PROJECT_ID --value "$GANGER_EXPO_PROJECT_ID" --visibility plaintext --non-interactive
+   eas env:set --environment development --name GANGER_IOS_BUNDLE_ID --value "$GANGER_IOS_BUNDLE_ID" --visibility plaintext --non-interactive
+   eas env:set --environment development --name GANGER_APPLE_TEAM_ID --value "$GANGER_APPLE_TEAM_ID" --visibility plaintext --non-interactive
+   ```
+
+   `eas env:set` creates a variable or updates it. `eas env:create`, which older guides use, is deprecated. Keep the visibility `plaintext` or `sensitive`: EAS CLI reads the values on your Mac to resolve the app configuration, and it cannot read `secret` ones.
+
+4. Check that both places agree:
 
    ```sh
    eas env:list --environment development
    GANGER_MOBILE_BUILD=development npx expo config --type public --json
    ```
 
-   The second command must show `ios.bundleIdentifier` (for example `com.example.ganger`), `extra.eas.projectId`, `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`, and the `expo-notifications` plugin with `"mode": "development"`. Keep `--json`: without it the output is not JSON and is hard to search. Keep `GANGER_MOBILE_BUILD=development` too: the development build profile sets it on EAS (see below), and without it the command shows the release settings (`"mode": "production"`).
+   The first command must list the three variables with the values in `.env`. The second must show `ios.bundleIdentifier` (for example `com.example.ganger`), `extra.eas.projectId`, `extra.eas.build.experimental.ios.appExtensions` with `GangerNotificationService`, and the `expo-notifications` plugin with `"mode": "development"`. Keep `--json`: without it the output is not JSON and is hard to search. Keep `GANGER_MOBILE_BUILD=development` too: the development build profile sets it on EAS (see below), and without it the command shows the release settings (`"mode": "production"`).
 
-To change a value later, edit `.env` and run steps 2 and 3 again.
+To change a value later, edit `.env` and run steps 2 to 4 again.
 
-Run the `eas` commands in the next steps in the same shell, or load `.env` again first with `set -a; . ./.env; set +a`, so EAS CLI resolves the app configuration with the same values.
+`eas build --profile development` resolves the app configuration on your Mac with the variables of the profile's EAS environment (`development`), and the cloud build gets the same variables ([Expo: using environment variables with EAS Build](https://docs.expo.dev/eas/environment-variables/usage/)). The project ID still has to be in your shell when the command starts, because EAS CLI needs it to know which project's variables to fetch, so keep step 2 for every shell.
 
 The `development` build profile in `apps/mobile/eas.json` sets `GANGER_MOBILE_BUILD=development` (`env`). With it, the build accepts local-network HTTP (for the Metro dev server) and is signed for the APNs development environment (`aps-environment` `development`). It is not an account value, so do not add it to `.env` or to the EAS environment.
 

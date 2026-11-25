@@ -24,7 +24,8 @@ blocked_by: []
 ### 세 값을 두는 곳(운영자 결정 2026-11-25)
 
 - 세 값은 운영자가 `apps/mobile/.env`(gitignore, Expo CLI가 자동으로 읽음)에 둔다. 저장소에는 넣지 않는다.
-- 클라우드 빌드는 gitignore 된 파일을 올리지 않으므로 같은 값을 EAS `development` 환경 변수로도 둔다. 어긋나지 않게 순서를 하나로 정했다: `.env`를 먼저 고치고, 그 파일을 읽어 `eas env:set`으로 옮기고, `eas env:list`와 `npx expo config --type public`으로 맞는지 본다. 값을 바꿀 때도 같은 순서다.
+- 클라우드 빌드는 gitignore 된 파일을 올리지 않으므로 같은 값을 EAS `development` 환경 변수로도 둔다. 어긋나지 않게 순서를 하나로 정했다: `.env`를 먼저 고치고, `set -a; source .env; set +a`로 셸에 올리고, 셸 변수(`"$GANGER_..."`)로 `eas env:set`에 옮기고, `eas env:list --environment development`와 `GANGER_MOBILE_BUILD=development npx expo config --type public --json`으로 맞는지 본다. 값을 바꿀 때도 같은 순서다.
+- EAS CLI는 `.env`를 읽지 않는다(Expo 문서 `eas/environment-variables/faq`). 운영자가 2026-11-25에 확인했다: 셸에 값이 없으면 프로젝트 ID를 못 찾아 다시 연결하려다 `Cannot automatically write to dynamic config at: app.config.ts`로 멈춘다. 그래서 `eas` 명령 전에는 셸마다 `.env`를 올린다. `eas build`는 프로필의 `environment`의 plaintext·sensitive 변수로 Mac에서 app config를 풀고 클라우드 빌드도 같은 변수를 쓴다(`eas/environment-variables/usage`). 다만 어느 프로젝트의 변수를 가져올지 알려면 프로젝트 ID가 먼저 있어야 해, 셸에 올리는 단계를 빼지 않는다.
 - 문서는 `eas env:create` 대신 `eas env:set`을 쓴다. eas-cli 27.11.0의 `env:create --help`가 `env:create`를 deprecated로 적고 `env:set`(만들거나 고치기)을 권한다. 처음과 고칠 때 같은 명령이라 순서가 하나로 남는다.
 - 공개 범위는 `plaintext`(또는 `sensitive`)다. EAS CLI가 Mac에서 app config를 풀 때 값을 읽어야 하고, `secret`은 읽지 못한다(Expo 문서 `eas/environment-variables/manage`). 세 값은 비밀이 아니다.
 
