@@ -188,13 +188,13 @@
     "address": {
       "body": "다른 맥은 이 주소로 이 서버에 닿아요. 아직 정하지 않았어요.",
       "label": "다른 기기에서 열 주소",
-      "description": "예: Tailscale Serve 주소. 나중에 Settings › 주소에서 바꿀 수 있어요.",
+      "description": "예: Tailscale Serve 주소. 나중에 Settings › 다른 기기에서 바꿀 수 있어요.",
       "placeholder": "https://server.example.ts.net",
       "save": "저장하고 명령 받기",
       "saving": "저장하는 중",
       "error": {
         "invalid-web-address": "https://server.example.ts.net 처럼 경로 없이 넣어 주세요.",
-        "invalid-webhook-address": "저장해 둔 webhook 공개 주소가 올바르지 않아 함께 저장하지 못했어요. 온보딩을 마친 뒤 Settings › 주소에서 고치거나, 지금은 다른 방법 고르기 › 주소 직접 입력하기로 러너를 등록해요.",
+        "invalid-webhook-address": "저장해 둔 webhook 받을 주소가 올바르지 않아 함께 저장하지 못했어요. 온보딩을 마친 뒤 Settings › 연결의 webhook 받을 주소에서 고치거나, 지금은 다른 방법 고르기 › 주소 직접 입력하기로 러너를 등록해요.",
         "locks-out": "저장하면 지금 보는 이 화면의 주소가 막혀요. 지금 주소를 넣거나, 이 기계의 http://127.0.0.1 에서 정해 주세요.",
         "request-failed": "서버에 닿지 못했어요. 다시 해 주세요.",
         "empty": "다른 맥이 이 서버에 닿을 주소를 넣어 주세요. 예: https://server.example.ts.net"

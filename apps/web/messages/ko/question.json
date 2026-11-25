@@ -17,7 +17,7 @@
     "confirm": "확인했어요",
     "requestChanges": "고쳐 주세요",
     "sending": "보내는 중…",
-    "after": "답을 보내면 런이 다시 Running이 돼요. Ganger는 머지하지 않아요.",
+    "after": "답을 보내면 런이 다시 Running이 돼요.",
     "failed": "답을 보내지 못했어요. 다시 보내 주세요."
   }
 }
