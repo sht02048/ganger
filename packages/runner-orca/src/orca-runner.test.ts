@@ -646,7 +646,7 @@ describe("pollRun", () => {
   function polling(worker: string, peek: string): ScriptedExec {
     return new ScriptedExec()
       .orca("orchestration worker-show", stdout(worker))
-      .orca("orchestration check", stdout(peek))
+      .orca("orchestration inbox", stdout(peek))
       .orca("worktree ps", stdout(own("worktree-ps-agent-wait-working.json")));
   }
 
@@ -656,7 +656,7 @@ describe("pollRun", () => {
         "orchestration worker-show",
         stdout(research("0120/worker-show-unverifiable-retained.json")),
       )
-      .orca("orchestration check", stdout(own("check-peek-empty.json")))
+      .orca("orchestration inbox", stdout(own("check-peek-empty.json")))
       .orca("worktree ps", stdout(research("0120/worktree-ps-two-agents.json")))
       .orca("terminal show", stdout(research("0120/terminal-show.json")));
     const progress = await runnerWith(exec).pollRun({
@@ -684,7 +684,7 @@ describe("pollRun", () => {
       permissionWaits: [],
     });
     expect(exec.commands()).toContain(
-      "/Applications/Orca.app/Contents/Resources/bin/orca orchestration check --terminal term_41ac5f6b-daad-43f3-9264-9e25ddd24ef7 --peek --full --json",
+      "/Applications/Orca.app/Contents/Resources/bin/orca orchestration inbox --terminal run:run_493ebb2f403d --limit 200 --full --json",
     );
     expect(exec.commands()).toContain(
       "/Applications/Orca.app/Contents/Resources/bin/orca worktree ps --agent-wait --limit 500 --json",
@@ -732,7 +732,7 @@ describe("pollRun", () => {
   test("a removed worktree is worktree-gone", async () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(own("worker-show-working.json")))
-      .orca("orchestration check", stdout(own("check-peek-empty.json")))
+      .orca("orchestration inbox", stdout(own("check-peek-empty.json")))
       .orca(
         "worktree ps",
         stdout(JSON.stringify({ ok: true, result: { worktrees: [], totalCount: 0 } })),
@@ -759,7 +759,7 @@ describe("pollRun", () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(research("0008/worker-show-lost.json")))
       .orca("orchestration task-list", stdout(research("0008/task-list-after-lost.json")))
-      .orca("orchestration check", stdout(peekOf(research("0008/escalation-lost-full.json"))))
+      .orca("orchestration inbox", stdout(peekOf(research("0008/escalation-lost-full.json"))))
       .orca("worktree ps", stdout(JSON.stringify({ ok: true, result: { worktrees: [] } })))
       .orca("worktree show", stdout(own("worktree-show-not-found.json"), 1));
     expect(await runnerWith(exec).pollRun(r3)).toEqual({
@@ -784,13 +784,6 @@ describe("pollRun", () => {
     });
   });
 
-  test("a mailbox that lost its Run binding is reported as missing", async () => {
-    const exec = polling(own("worker-show-working.json"), own("check-peek-consumer-fenced.json"));
-    expect(await adapterError(runnerWith(exec).pollRun(RUN))).toMatchObject({
-      kind: "mailbox-missing",
-    });
-  });
-
   test("reads the Run inbox when the run started under another Run", async () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(own("worker-show-working.json")))
@@ -802,7 +795,7 @@ describe("pollRun", () => {
       "msg_49acb8390fb2",
     ]);
     expect(exec.commands()).toContain(
-      "/Applications/Orca.app/Contents/Resources/bin/orca orchestration inbox --terminal run:run_493ebb2f403d --limit 500 --full --json",
+      "/Applications/Orca.app/Contents/Resources/bin/orca orchestration inbox --terminal run:run_493ebb2f403d --limit 200 --full --json",
     );
     expectNoConsumingCheck(exec);
   });
