@@ -358,6 +358,44 @@ export function SwitchRow({
   );
 }
 
+export function InlineSwitch({
+  label,
+  value,
+  disabled = false,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityLabel={label}
+      aria-checked={value}
+      aria-disabled={disabled}
+      disabled={disabled}
+      onPress={() => onChange(!value)}
+      style={styles.inlineSwitch}
+    >
+      <Text variant="small" tone="primary">
+        {label}
+      </Text>
+      <View testID="inline-switch-track" aria-hidden style={styles.inlineSwitchTrack}>
+        <NativeSwitch
+          value={value}
+          disabled={disabled}
+          trackColor={{ false: colors.switchTrack, true: colors.accent }}
+          thumbColor={colors.switchThumb}
+          ios_backgroundColor={colors.switchTrack}
+          {...{ activeThumbColor: colors.switchThumb }}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
 export function Sheet({
   visible,
   title,
@@ -596,6 +634,13 @@ const styles = StyleSheet.create({
     gap: space.s3,
   },
   switchLabel: { flex: 1 },
+  inlineSwitch: {
+    minHeight: size.touchTarget,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s2,
+  },
+  inlineSwitchTrack: { pointerEvents: "none" },
   sheetRoot: { flex: 1, justifyContent: "flex-end" },
   sheetBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: colors.backdrop },
   sheetBody: { flexShrink: 1 },

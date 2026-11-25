@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import type { AppDashboard } from "@ganger/api";
 import { AccessibilityInfo, ScrollView, StyleSheet, View } from "react-native";
 
-import { Button, RestingMascot, Segment, Sheet, SwitchRow } from "../design/components";
+import { Button, InlineSwitch, RestingMascot, Segment, Sheet } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { dashboardSummary } from "../format";
@@ -337,12 +337,18 @@ export function DashboardScreen({
               value={column}
               onChange={(next) => onViewChange({ ...view, column: next })}
             />
-            <Text variant="small">{countLine(board, column)}</Text>
-            <SwitchRow
-              label={t("dashboard.todoOnly")}
-              value={todoOnly}
-              onChange={(next) => onViewChange({ ...view, todoOnly: next })}
-            />
+            <View testID="dashboard-count-row" style={styles.countRow}>
+              <View style={styles.countLine}>
+                <Text variant="small">{countLine(board, column)}</Text>
+              </View>
+              <View style={styles.todoOnly}>
+                <InlineSwitch
+                  label={t("dashboard.todoOnly")}
+                  value={todoOnly}
+                  onChange={(next) => onViewChange({ ...view, todoOnly: next })}
+                />
+              </View>
+            </View>
             <ColumnBody
               board={board}
               column={column}
@@ -397,6 +403,14 @@ const styles = StyleSheet.create({
   workspace: { flex: 1, alignItems: "flex-start" },
   content: { padding: space.s4, gap: space.s3 },
   heading: { gap: space.s1 },
+  countRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space.s3,
+  },
+  countLine: { flexGrow: 1, flexShrink: 1 },
+  todoOnly: { marginLeft: "auto" },
   columnEmpty: { paddingVertical: space.s8, alignItems: "center" },
   empty: { alignItems: "center", gap: space.s4, paddingVertical: space.s8 },
 });
