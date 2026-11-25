@@ -98,7 +98,8 @@ function beginPollCycles(
       const runner = context.adapters.runner(stored);
       runner.beginPollCycle?.(agents);
       return [runner];
-    } catch {
+    } catch (error) {
+      context.logger.warn("runner.poll_cycle_failed", { runnerId, error });
       return [];
     }
   });

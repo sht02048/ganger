@@ -114,10 +114,14 @@ function taskListReply(command: string): RemoteResult {
   return stdout(JSON.stringify({ ok: true, result: { tasks } }));
 }
 
-function orcaWith(fake: FakeOrca) {
+function orcaWith(fake: FakeOrca, workerState = "ready") {
   const reads: string[] = [];
+  const workerShow = own("worker-show-working.json").replace(
+    '"state": "ready"',
+    `"state": "${workerState}"`,
+  );
   const exec = new ScriptedExec()
-    .orca("orchestration worker-show", stdout(own("worker-show-working.json")))
+    .orca("orchestration worker-show", stdout(workerShow))
     .orca("orchestration task-list", taskListReply)
     .orca("orchestration inbox", inboxReply(fake, reads))
     .orca("worktree ps", stdout(own("worktree-ps-agent-wait-working.json")));
@@ -142,11 +146,12 @@ function runOf(agent: OrcaAgent): RunOnRunner {
 async function eachAlone(
   fake: FakeOrca,
   agents: ReadonlyArray<OrcaAgent>,
+  workerState = "ready",
 ): Promise<{ progress: RunProgress[]; reads: string[] }> {
   const progress: RunProgress[] = [];
   const reads: string[] = [];
   for (const agent of agents) {
-    const alone = orcaWith(fake);
+    const alone = orcaWith(fake, workerState);
     progress.push(await alone.runner.pollRun(runOf(agent)));
     reads.push(...alone.reads);
   }
@@ -240,6 +245,41 @@ describe("one Orca inbox read per poll cycle (0232)", () => {
     expect(reads).toEqual([`${SHARED_RUN}:200`, `${SHARED_RUN}:200`]);
     expect(first.map(questionIds)).toEqual([[], []]);
     expect(second.map(questionIds)).toEqual([[toQuestionId("msg_question_ctx_late")], []]);
+  });
+
+  test("busy workers still read their task each poll but share one inbox window", async () => {
+    const fake = { inboxes: { [SHARED_RUN]: EARLY_QUESTION_BEHIND_BACKLOG } };
+    const { runner, reads, exec } = orcaWith(fake, "dispatched");
+    const shared = await inOneCycle(runner, [LATE, MID, EARLY]);
+    expect(reads).toEqual([`${SHARED_RUN}:200`, `${SHARED_RUN}:800`]);
+    expect(exec.commands().filter((command) => command.includes("task-list"))).toHaveLength(3);
+    expect(shared).toEqual((await eachAlone(fake, [LATE, MID, EARLY], "dispatched")).progress);
+    expect(shared.map(questionIds)[2]).toEqual([toQuestionId("msg_question_ctx_early")]);
+  });
+
+  test("a shared window capped at 3200 rows is read once and warns for each run", async () => {
+    const fake = {
+      inboxes: {
+        [SHARED_RUN]: [
+          question(EARLY, EARLY_START + HOUR),
+          ...endedRunMail(4000, LATE_START + HOUR),
+        ],
+      },
+    };
+    const { runner, reads, logger } = orcaWith(fake);
+    const shared = await inOneCycle(runner, [LATE, MID, EARLY]);
+    expect(reads).toEqual([`${SHARED_RUN}:200`, `${SHARED_RUN}:800`, `${SHARED_RUN}:3200`]);
+    expect(shared).toEqual((await eachAlone(fake, [LATE, MID, EARLY])).progress);
+    expect(
+      logger.entries
+        .filter((entry) => entry.level === "warn")
+        .map(({ event, fields }) => ({ event, fields })),
+    ).toEqual(
+      Array.from({ length: 3 }, () => ({
+        event: "runner.mail_window_short",
+        fields: { orcaRunId: SHARED_RUN, count: 3200, reason: "newer mail fills the window" },
+      })),
+    );
   });
 
   test("polls outside a cycle read the inbox every time", async () => {
