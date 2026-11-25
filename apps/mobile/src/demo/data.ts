@@ -115,7 +115,7 @@ const usageReadAt = (now: Date) => ({
 });
 
 function readUsage(now: Date, provider: string, windows: V1UsageWindow[]): V1RunnerUsage {
-  const highest = windows.toSorted((a, b) => b.usedPercent - a.usedPercent)[0];
+  const highest = [...windows].sort((a, b) => b.usedPercent - a.usedPercent)[0];
   return {
     ...usageReadAt(now),
     kind: "read",
