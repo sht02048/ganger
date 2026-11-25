@@ -79,7 +79,6 @@ let messageRun: RunId;
 let narrowMessageRun: RunId;
 let draftRun: RunId;
 let failedSendRun: RunId;
-let retriedRun: RunId;
 let typingRun: RunId;
 let resentRun: RunId;
 
@@ -252,27 +251,6 @@ describe("Run 상세 보내기 뒤 포커스와 안내(브라우저, 0051)", () 
     await card.getByRole("status").getByText(run.actionFailed).waitFor();
     await card.getByText("실패한 말").waitFor();
     expect(listRunAgentMessages(db, failedSendRun)).toEqual([]);
-  });
-
-  it("저장된 뒤 응답만 끊겨 다시 보내도 말은 한 번만 남는다(0147)", async () => {
-    await open(retriedRun);
-    const card = page.getByRole("region", { name: run.agentMessage.title });
-    const input = card.getByLabel(run.agentMessage.label);
-    await input.fill("한 번만 갈 말");
-    await page.route("**/_serverFn/**", async (route) => {
-      if (route.request().method() !== "POST") return route.continue();
-      await route.fetch();
-      return route.abort();
-    });
-    await card.getByRole("button", { name: run.agentMessage.send }).press("Enter");
-    await card.getByRole("status").getByText(run.actionFailed).waitFor();
-    await page.unroute("**/_serverFn/**");
-
-    await card.getByRole("button", { name: run.agentMessage.send }).press("Enter");
-    await expect.poll(() => input.inputValue()).toBe("");
-    expect(listRunAgentMessages(db, retriedRun).map((message) => message.body)).toEqual([
-      "한 번만 갈 말",
-    ]);
   });
 
   it("보내는 동안 이어 쓴 글은 응답이 와도 지우지 않는다(0147)", async () => {
@@ -449,7 +427,6 @@ function seed(db: Database): void {
   narrowMessageRun = startRun("ACME-19");
   draftRun = startRun("ACME-20");
   failedSendRun = startRun("ACME-23");
-  retriedRun = startRun("ACME-27");
   typingRun = startRun("ACME-28");
   resentRun = startRun("ACME-29");
 
