@@ -6,6 +6,8 @@ import { Button, NoticeBand, Sheet } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { t } from "../i18n";
+import { ALL_WORKSPACES } from "../dashboard/model";
+import { useAppBadge } from "../notifications/app-badge";
 import { destinationOf, pushOpenOf } from "../notifications/push-data";
 import type { PushDevicePort, PushMemory, PushResponse } from "../notifications/push-port";
 import { useDeviceNotifications } from "../notifications/use-device-notifications";
@@ -14,6 +16,9 @@ import { RunnersScreen } from "../runners/runners-screen";
 import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
 import { SettingsScreen } from "../settings/settings-screen";
+import { KeptScreen } from "../kept-screen";
+import { useFirstPaint } from "../startup/first-paint";
+import { followForeground, isForegroundAppState } from "./app-state";
 import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
@@ -21,9 +26,7 @@ import { OfflineCache } from "./offline-cache";
 import type { CacheFiles } from "./offline-cache";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
-import { staleBandText } from "./stale-band";
-
-const BAND_TICK_MS = 30_000;
+import { nextStaleBandChangeIn, staleBandText } from "./stale-band";
 
 function staleReasonText(reason: SessionState["staleReason"]): string {
   return reason === "server-error"
@@ -31,14 +34,14 @@ function staleReasonText(reason: SessionState["staleReason"]): string {
     : t("connection.band.reasonUnreachable");
 }
 
-function bandText(state: SessionState, workspaceId: string, now: number): string | null {
+function showsBand(phase: SessionState["phase"]): boolean {
+  return phase === "stale" || phase === "host-blocked" || phase === "incompatible";
+}
+
+function bandText(state: SessionState): string | null {
   switch (state.phase) {
-    case "stale": {
-      const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
-      return fetchedAt === undefined
-        ? staleReasonText(state.staleReason)
-        : staleBandText(fetchedAt, now, staleReasonText(state.staleReason));
-    }
+    case "stale":
+      return staleReasonText(state.staleReason);
     case "host-blocked":
       return t("connection.band.hostBlocked");
     case "incompatible":
@@ -68,13 +71,31 @@ function statusText({ phase, staleReason, neededUpdate }: SessionState): string 
   }
 }
 
-function useClock(intervalMs: number): number {
+function StaleBand({
+  fetchedAt,
+  reason,
+}: {
+  fetchedAt: number;
+  reason: SessionState["staleReason"];
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
-  return now;
+    const timer = setTimeout(
+      () => setNow(Date.now()),
+      nextStaleBandChangeIn(fetchedAt, Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [fetchedAt, now]);
+  return <NoticeBand message={staleBandText(fetchedAt, now, staleReasonText(reason))} />;
+}
+
+function ConnectionBand({ state, workspaceId }: { state: SessionState; workspaceId: string }) {
+  const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
+  if (state.phase === "stale" && fetchedAt !== undefined) {
+    return <StaleBand key={fetchedAt} fetchedAt={fetchedAt} reason={state.staleReason} />;
+  }
+  const message = bandText(state);
+  return message === null ? null : <NoticeBand message={message} />;
 }
 
 type Screen = "dashboard" | "runners" | "settings";
@@ -136,6 +157,8 @@ export function LiveScreens({
           },
           onDashboardRead: (workspaceId, data, fetchedAt, workspaces) =>
             cache.saveDashboard(workspaceId, data, fetchedAt, workspaces),
+          onDashboardConfirmed: (workspaceId, fetchedAt) =>
+            cache.confirmDashboard(workspaceId, fetchedAt),
         },
         INITIAL_DASHBOARD_VIEW.workspaceId,
       ),
@@ -150,13 +173,12 @@ export function LiveScreens({
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectFailed, setDisconnectFailed] = useState(false);
   const [forgetFailed, setForgetFailed] = useState(false);
-  const [foreground, setForeground] = useState(AppState.currentState !== "background");
+  const [foreground, setForeground] = useState(() => isForegroundAppState(AppState.currentState));
   const [openRun, setOpenRun] = useState<{
     id: string;
     action: boolean;
     requestedAt: number;
   } | null>(null);
-  const now = useClock(BAND_TICK_MS);
   const notifications = useDeviceNotifications({
     client,
     device: pushDevice,
@@ -164,6 +186,12 @@ export function LiveScreens({
     foreground,
   });
   const clearOpenRun = useCallback(() => setOpenRun(null), []);
+  useAppBadge({
+    device: pushDevice,
+    pushEnabled: notifications.preferences?.enabled ?? null,
+    allWorkspaces: state.dashboards.get(ALL_WORKSPACES)?.data ?? null,
+    foreground,
+  });
 
   useEffect(() => {
     const open = async ({ data, actionIdentifier }: PushResponse) => {
@@ -198,10 +226,15 @@ export function LiveScreens({
     return pushDevice.subscribeResponses((response) => void open(response));
   }, [client, pushDevice, session]);
 
+  const [cacheShown, setCacheShown] = useState(false);
+  useFirstPaint(cacheShown || state.phase !== "loading");
+
   useEffect(() => {
     let current = true;
-    void cache.load().then((content) => {
-      if (current) session.restore(content);
+    void cache.load(INITIAL_DASHBOARD_VIEW.workspaceId).then((content) => {
+      if (!current) return;
+      session.restore(content);
+      setCacheShown(true);
     });
     return () => {
       current = false;
@@ -209,16 +242,22 @@ export function LiveScreens({
   }, [cache, session]);
 
   useEffect(() => {
-    session.setForeground(AppState.currentState !== "background");
-    const subscription = AppState.addEventListener("change", (next) => {
-      session.setForeground(next === "active");
-      setForeground(next === "active");
+    if (!cacheShown || session.getState().dashboards.has(view.workspaceId)) return;
+    session.restore(cache.contentFor(view.workspaceId));
+  }, [cache, session, cacheShown, view.workspaceId]);
+
+  useEffect(() => {
+    const unfollow = followForeground(AppState, (next) => {
+      session.setForeground(next);
+      setForeground(next);
+      if (!next) void cache.flush().catch(() => undefined);
     });
     return () => {
-      subscription.remove();
+      unfollow();
       session.stop();
+      void cache.flush().catch(() => undefined);
     };
-  }, [session]);
+  }, [cache, session]);
 
   useEffect(() => session.setWorkspace(view.workspaceId), [session, view.workspaceId]);
 
@@ -252,8 +291,9 @@ export function LiveScreens({
     } else setForgetFailed(true);
   };
 
-  const message = bandText(state, view.workspaceId, now);
-  const band = message === null ? null : <NoticeBand message={message} />;
+  const band = showsBand(state.phase) ? (
+    <ConnectionBand state={state} workspaceId={view.workspaceId} />
+  ) : null;
   const settings = (
     <SettingsScreen
       band={band}
@@ -305,38 +345,35 @@ export function LiveScreens({
       <Button label={t("settings.pushAskDecline")} onPress={notifications.decline} />
     </Sheet>
   );
-  switch (screen) {
-    case "dashboard":
-      return (
-        <>
-          <DashboardScreen
-            openRun={openRun}
-            openRunSettled={
-              openRun !== null &&
-              view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
-              (state.phase === "stale" ||
-                state.phase === "host-blocked" ||
-                state.phase === "incompatible" ||
-                (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
-            }
-            onOpenRunHandled={clearOpenRun}
-            snapshot={snapshot}
-            view={view}
-            onViewChange={setView}
-            onOpenRunners={() => setScreen("runners")}
-            onOpenSettings={() => setScreen("settings")}
-            band={band}
-            actionsDisabled={state.phase !== "live" || !state.actionsReady}
-            port={port}
-            {...(state.phase === "loading" || state.phase === "live"
-              ? {}
-              : { onRetry: () => void session.refresh() })}
-          />
-          {askSheet}
-        </>
-      );
-    case "runners":
-      return (
+  return (
+    <>
+      <KeptScreen testID="dashboard-screen" shown={screen === "dashboard"}>
+        <DashboardScreen
+          openRun={openRun}
+          openRunSettled={
+            openRun !== null &&
+            view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
+            (state.phase === "stale" ||
+              state.phase === "host-blocked" ||
+              state.phase === "incompatible" ||
+              (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
+          }
+          onOpenRunHandled={clearOpenRun}
+          snapshot={snapshot}
+          view={view}
+          onViewChange={setView}
+          onOpenRunners={() => setScreen("runners")}
+          onOpenSettings={() => setScreen("settings")}
+          band={screen === "dashboard" ? band : null}
+          actionsDisabled={state.phase !== "live" || !state.actionsReady}
+          port={port}
+          {...(state.phase === "loading" || state.phase === "live"
+            ? {}
+            : { onRetry: () => void session.refresh() })}
+        />
+      </KeptScreen>
+      {screen === "dashboard" ? askSheet : null}
+      {screen === "runners" ? (
         <RunnersScreen
           band={band}
           loading={state.phase === "loading"}
@@ -344,10 +381,10 @@ export function LiveScreens({
           runners={state.runners}
           onBack={() => setScreen("dashboard")}
         />
-      );
-    case "settings":
-      return settings;
-  }
+      ) : null}
+      {screen === "settings" ? settings : null}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

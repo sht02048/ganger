@@ -160,8 +160,8 @@ export function checkRequest(request: Request, allowed: AllowedHosts): GuardVerd
 const REJECT_BODY: Record<RejectReason, string> = {
   "host-not-allowed":
     "Blocked request: this server does not accept the host name you used. " +
-    "Open it from the server machine at http://127.0.0.1, then add the address you use " +
-    "under Settings > Addresses.",
+    "Open it from the server machine at http://127.0.0.1, then turn on " +
+    "Settings > 모바일 (mobile) > 휴대폰에서 이 Mac 열기 (open this Mac from your phone).",
   "origin-not-allowed":
     "Blocked request: a page from another site tried to change this server. " +
     "Open the server at an allowed address and try again.",

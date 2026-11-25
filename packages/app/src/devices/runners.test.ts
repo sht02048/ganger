@@ -3,6 +3,7 @@ import {
   addDevice,
   migrate,
   openDatabase,
+  recordGhAccounts,
   recordRunnerCheck,
   saveRunner,
   saveWorkspace,
@@ -60,6 +61,51 @@ describe("v1 Runners", () => {
   });
 });
 
+describe("v1 Runners의 gh 계정", () => {
+  it("러너 gh 계정과 만료 표시를 싣고 읽지 않은 러너는 비운다", () => {
+    const db = world();
+    addRunner(db, "acme-runner", true);
+    addRunner(db, "fresh", true);
+    recordGhAccounts(db, {
+      runnerId: toRunnerId("acme-runner"),
+      readAt: new Date(at.getTime() - 3 * 60_000),
+      reading: {
+        kind: "logged-in",
+        accounts: [
+          { host: "github.com", login: "old-dev", active: false, expired: true },
+          { host: "github.com", login: "acme-dev", active: true, expired: false },
+        ],
+      },
+    });
+    const { runners } = loadV1Runners(db, at);
+    expect(runners.find((runner) => runner.name === "acme-runner")?.ghAccounts).toEqual({
+      kind: "logged-in",
+      readAt: "2026-11-22T23:57:00.000Z",
+      agoMs: 3 * 60_000,
+      accounts: [
+        { host: "github.com", login: "acme-dev", active: true, expired: false },
+        { host: "github.com", login: "old-dev", active: false, expired: true },
+      ],
+    });
+    expect(runners.find((runner) => runner.name === "fresh")?.ghAccounts).toBeNull();
+  });
+
+  it("gh 없음·로그인 안 됨을 그대로 싣는다", () => {
+    const db = world();
+    addRunner(db, "no-gh", true);
+    recordGhAccounts(db, {
+      runnerId: toRunnerId("no-gh"),
+      readAt: at,
+      reading: { kind: "not-installed" },
+    });
+    expect(loadV1Runners(db, at).runners[0]?.ghAccounts).toEqual({
+      kind: "not-installed",
+      readAt: at.toISOString(),
+      agoMs: 0,
+    });
+  });
+});
+
 describe("v1 Workspace와 이 기기", () => {
   it("Workspace 목록은 id와 이름만 싣는다", () => {
     const db = world();
@@ -69,7 +115,7 @@ describe("v1 Workspace와 이 기기", () => {
 
   it("이 기기 정보에 토큰 해시를 싣지 않고, 지운 기기는 없다", () => {
     const db = world();
-    const device = addDevice(db, { name: "iPhone", tokenHash: "hash-value" }, at);
+    const device = addDevice(db, { name: "iPhone", kind: "phone", tokenHash: "hash-value" }, at);
     expect(loadThisDevice(db, device.id)).toEqual({
       id: device.id,
       name: "iPhone",

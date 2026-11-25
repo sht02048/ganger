@@ -13,6 +13,7 @@ import {
   WORKTREE_KEPT_REASONS,
 } from "@ganger/core";
 import { CHANGE_KINDS, CHANGE_PARTS } from "./change-events-model.js";
+import { DEVICE_KINDS } from "./device-kinds.js";
 import { MCP_ACTION_OUTCOMES } from "./mcp-actions-model.js";
 import { NOTIFICATION_EVENT_KINDS } from "./notification-events-model.js";
 import type {
@@ -737,6 +738,7 @@ export const devices = sqliteTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     tokenHash: text("token_hash").notNull(),
+    kind: text("kind", { enum: DEVICE_KINDS }).notNull().default("phone"),
     createdAt: timeMs("created_at").notNull(),
     lastSeenAt: timeMs("last_seen_at"),
     expoPushToken: text("expo_push_token"),

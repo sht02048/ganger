@@ -4,11 +4,8 @@ import {
   Card,
   CodeBlock,
   InfoTip,
-  PageHeader,
-  ScreenLayout,
   SegmentedTabs,
   SettingsGroup,
-  SettingsLayout,
   SettingsRow,
   SettingsSection,
   Switch,
@@ -17,7 +14,7 @@ import {
   textStyles,
 } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import { isMcpRejectReason, isMcpWriteTool } from "@ganger/app/mcp/actions";
 import type { McpActionView } from "@ganger/app/mcp/actions";
@@ -26,67 +23,51 @@ import type { McpView } from "@ganger/app/settings/model";
 import { useTime } from "../format/time";
 import { browserClipboard, copyText } from "./clipboard";
 import { AutoSaveStatusText, RevertedMessage, useAutoSave } from "./row-state";
+import { SettingsFrame } from "./settings-frame";
 import type { SettingsActions } from "./settings-screen";
-import {
-  MCP_ROW_ID,
-  SettingsBackLink,
-  plainSettingsLink,
-  type RenderSettingsLink,
-} from "./settings-page";
 
 type McpClient = "hermes" | "json";
 
 export interface McpScreenProps {
   mcp: McpView;
-  ws: string | undefined;
   actions: SettingsActions;
-  renderLink?: RenderSettingsLink;
+  nav: ReactNode;
 }
 
-export function McpScreen({
-  mcp,
-  ws,
-  actions,
-  renderLink = plainSettingsLink(ws),
-}: McpScreenProps) {
+export function McpScreen({ mcp, actions, nav }: McpScreenProps) {
   const t = useTranslations("settings");
-  const back = (
-    <SettingsBackLink label={t("mcp.back")} rowId={MCP_ROW_ID} renderLink={renderLink} />
-  );
   return (
-    <ScreenLayout header={<PageHeader lead={back} title={t("mcp.title")} />}>
-      <SettingsLayout>
-        <SettingsSection
-          id="client"
-          title={t("mcp.clientTitle")}
-          info={
-            <InfoTip
-              label={t("infoLabel", { label: t("mcp.clientTitle") })}
-              content={t("mcp.intro")}
-            />
-          }
-        >
-          <ClientConfig mcp={mcp} />
-        </SettingsSection>
-        <SettingsSection id="write" title={t("mcp.writeTitle")}>
-          <SettingsGroup>
-            <WriteRow allowed={mcp.writeAllowed} actions={actions} />
-          </SettingsGroup>
-        </SettingsSection>
-        <SettingsSection
-          id="recent"
-          title={t("mcp.recentTitle")}
-          info={
-            <InfoTip
-              label={t("infoLabel", { label: t("mcp.recentTitle") })}
-              content={t("mcp.recentNote")}
-            />
-          }
-        >
-          <Recent recent={mcp.recent} now={mcp.now} />
-        </SettingsSection>
-      </SettingsLayout>
-    </ScreenLayout>
+    <SettingsFrame title={t("pages.mcp")} nav={nav}>
+      <SettingsSection
+        id="client"
+        title={t("mcp.clientTitle")}
+        info={
+          <InfoTip
+            label={t("infoLabel", { label: t("mcp.clientTitle") })}
+            content={t("mcp.intro")}
+          />
+        }
+      >
+        <ClientConfig mcp={mcp} />
+      </SettingsSection>
+      <SettingsSection id="write" title={t("mcp.writeTitle")}>
+        <SettingsGroup>
+          <WriteRow allowed={mcp.writeAllowed} actions={actions} />
+        </SettingsGroup>
+      </SettingsSection>
+      <SettingsSection
+        id="recent"
+        title={t("mcp.recentTitle")}
+        info={
+          <InfoTip
+            label={t("infoLabel", { label: t("mcp.recentTitle") })}
+            content={t("mcp.recentNote")}
+          />
+        }
+      >
+        <Recent recent={mcp.recent} now={mcp.now} />
+      </SettingsSection>
+    </SettingsFrame>
   );
 }
 

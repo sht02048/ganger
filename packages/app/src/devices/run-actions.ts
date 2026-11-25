@@ -5,11 +5,13 @@ import {
   continueBodySchema,
   denyBodySchema,
   humanCheckBodySchema,
+  mergeBodySchema,
   runDetailSchema,
   runKeyBodySchema,
 } from "@ganger/api";
 import type {
   V1ContinueOffer,
+  V1PrMerge,
   V1RetryOffer,
   V1RunAction,
   V1RunDetail,
@@ -17,10 +19,14 @@ import type {
   V1RunRefusal,
 } from "@ganger/api";
 import { toRunId } from "@ganger/core";
-import { getRun } from "@ganger/db";
+import { getRunWithRecords, worktreeTakenOverBy } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { AnswerRejectedError } from "../home/actions.js";
+import { mergeRunPullRequest } from "../home/merge-pr.js";
+import type { MergePrContext } from "../home/merge-pr.js";
 import { prProblemsOf } from "../home/model.js";
+import { mergeViewOf } from "../pr-signals-view.js";
+import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { readQuestion } from "../question.js";
 import {
   answerOnceInput,
@@ -44,7 +50,9 @@ import { mobileContinueBlock, retryOfferOf, retryRunOnce } from "./run-retry.js"
 export type V1RunActionReply =
   | { status: 200 }
   | { status: 400; reason: "invalid-request" }
-  | { status: 404 | 409; reason: V1RunRefusal };
+  | { status: 404 | 409 | 502; reason: V1RunRefusal; message?: string };
+
+export type V1ImmediateRunAction = Exclude<V1RunAction, "merge">;
 
 const INVALID: V1RunActionReply = { status: 400, reason: "invalid-request" };
 
@@ -75,7 +83,7 @@ function answered(submit: () => void): V1RunActionReply {
 export function handleV1RunAction(
   db: Database,
   runId: string,
-  action: V1RunAction,
+  action: V1ImmediateRunAction,
   raw: unknown,
   now: Date,
 ): V1RunActionReply {
@@ -126,6 +134,30 @@ export function handleV1RunAction(
   }
 }
 
+const CODE_HOST_FAILURES: ReadonlySet<V1RunRefusal> = new Set([
+  "unauthorized",
+  "rate-limited",
+  "network",
+]);
+
+export async function handleV1Merge(
+  context: MergePrContext,
+  runId: string,
+  raw: unknown,
+  now: () => Date,
+): Promise<V1RunActionReply> {
+  const body = mergeBodySchema.safeParse(raw);
+  if (!body.success) return INVALID;
+  const result = await mergeRunPullRequest(context, { runId, ...body.data }, now);
+  if (result.ok) return { status: 200 };
+  if (result.reason === "not-found" && getRunWithRecords(context.db, toRunId(runId)) === null) {
+    return { status: 404, reason: "not-found" };
+  }
+  const reason = result.reason === "not-found" ? "pr-not-found" : refusalOf(result.reason);
+  const status = CODE_HOST_FAILURES.has(reason) ? 502 : 409;
+  return { status, reason, ...(result.message === null ? {} : { message: result.message }) };
+}
+
 function continueOfferOf(run: RunDetail): V1ContinueOffer {
   if (run.status.state !== "ended" || run.status.summary !== "failed") return "not-offered";
   if (run.continueOffer?.place !== "same-worktree") return "not-offered";
@@ -153,6 +185,24 @@ function toRunInput(input: PendingInput): V1RunInput | null {
   }
 }
 
+type V1PullRequest = NonNullable<V1RunDetail["pullRequest"]>;
+
+function pullRequestStateOf(run: RunDetail): Pick<V1PullRequest, "state" | "stateSince"> {
+  if (run.status.state !== "ended") return { state: "open", stateSince: null };
+  const later = run.status.laterPrState;
+  if (later !== null) {
+    return {
+      state: later.state,
+      stateSince: {
+        at: later.at,
+        agoMs: Math.max(0, Date.parse(run.now) - Date.parse(later.at)),
+      },
+    };
+  }
+  const state = run.status.prState;
+  return { state: state === "none" ? "open" : state, stateSince: null };
+}
+
 function summaryOf(run: RunDetail): V1RunDetail["summary"] {
   const ended = run.status.state === "ended" ? run.status : null;
   return {
@@ -163,7 +213,11 @@ function summaryOf(run: RunDetail): V1RunDetail["summary"] {
   };
 }
 
-export function toV1RunDetail(run: RunDetail, retry: V1RetryOffer = "not-offered"): V1RunDetail {
+export function toV1RunDetail(
+  run: RunDetail,
+  retry: V1RetryOffer = "not-offered",
+  merge: V1PrMerge | null = null,
+): V1RunDetail {
   return runDetailSchema.parse({
     id: run.id,
     ticketKey: run.ticketKey,
@@ -184,17 +238,31 @@ export function toV1RunDetail(run: RunDetail, retry: V1RetryOffer = "not-offered
             url: run.pullRequest.url,
             ci: run.pullRequest.ci,
             problems: prProblemsOf(run.pullRequest.signals),
+            ...pullRequestStateOf(run),
+            merge,
           },
+    prReadError: run.status.state === "ended" ? run.status.prReadError : null,
+    prReadDiagnosis: run.status.state === "ended" ? (run.status.prReadDiagnosis ?? null) : null,
     input: run.status.state === "waiting-for-input" ? toRunInput(run.status.input) : null,
     nextActions: { retry, continue: continueOfferOf(run) },
   });
 }
 
-export function loadV1RunDetail(db: Database, runId: string, now: Date): V1RunDetail | null {
-  const page = loadRunDetail(db, runId, now);
+export function loadV1RunDetail(
+  db: Database,
+  runId: string,
+  now: Date,
+  serverGitHub: ServerGitHub | null = null,
+): V1RunDetail | null {
+  const page = loadRunDetail(db, runId, now, serverGitHub);
   if (page.kind !== "found") return null;
-  const stored = getRun(db, toRunId(runId));
-  return toV1RunDetail(page.run, stored === null ? "not-offered" : retryOfferOf(db, stored, now));
+  const stored = getRunWithRecords(db, toRunId(runId));
+  if (stored === null) return toV1RunDetail(page.run);
+  const merge =
+    worktreeTakenOverBy(db, stored.run.id) !== null
+      ? null
+      : mergeViewOf(stored.run, stored.records);
+  return toV1RunDetail(page.run, retryOfferOf(db, stored.run, now), merge);
 }
 
 export type V1TicketLinkReply = RunTicketLink;

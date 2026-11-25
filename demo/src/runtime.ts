@@ -79,7 +79,7 @@ async function start(options: DevStartOptions): Promise<DevRuntime> {
         if (device.name === name) removeDevice(db, device.id, now);
       }
       const token = randomBytes(32).toString("base64url");
-      addDevice(db, { name, tokenHash: hashToken(token) }, now);
+      addDevice(db, { name, kind: "phone", tokenHash: hashToken(token) }, now);
       return token;
     },
     stop: async () => {

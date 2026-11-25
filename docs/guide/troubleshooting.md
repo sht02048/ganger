@@ -35,4 +35,4 @@ jq -r '.event' ~/.ganger/logs/*.jsonl | sort | uniq -c | sort -rn
 
 ## Diagnostics bundle
 
-To attach details to an issue, open Settings > **서버 로그와 진단** (server logs and diagnostics) and make a **진단 묶음** (diagnostics bundle). It is one zip with the version and environment, a settings summary without secrets, runners, recent runs, tracker webhook deliveries, the run timeline of a run you pick, and recent server logs. By default it replaces ssh targets, hosts and tailnet addresses, runner names, home paths, and ticket key prefixes with aliases; you can turn that off. Open the file and check it before you share it.
+To attach details to an issue, open Settings > **서버** (server) > **로그와 진단** (logs and diagnostics) and make a **진단 묶음** (diagnostics bundle). It is one zip with the version and environment, a settings summary without secrets, runners, recent runs, tracker webhook deliveries, the run timeline of a run you pick, and recent server logs. By default it replaces ssh targets, hosts and tailnet addresses, runner names, home paths, and ticket key prefixes with aliases; you can turn that off. Open the file and check it before you share it.

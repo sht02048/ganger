@@ -83,6 +83,7 @@ A webhook is optional. Without one, Ganger checks the tracker about once a minut
 | [Networking and webhooks](docs/guide/networking.md) | Web address, host checks, Funnel, and tunnels         |
 | [Runners](docs/guide/runners.md)                    | Adding Macs and pull request title rules              |
 | [MCP](docs/guide/mcp.md)                            | Tools, write access, and client configuration         |
+| [iPhone development build](docs/guide/mobile.md)    | Signed iOS development build with EAS Build           |
 | [Troubleshooting](docs/guide/troubleshooting.md)    | Server logs and the diagnostics bundle                |
 | [Releasing](docs/releasing.md)                      | Release flow and repository setup for maintainers     |
 

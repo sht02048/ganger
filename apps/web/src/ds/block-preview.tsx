@@ -11,6 +11,7 @@ import {
   SettingsGroup,
   SettingsLayout,
   SettingsLinkRow,
+  SettingsNav,
   SettingsRow,
   SettingsSection,
   SettingsStep,
@@ -108,6 +109,7 @@ export const blockSectionIds = [
   "settingsRows",
   "settingsSteps",
   "sectionNav",
+  "settingsNav",
   "icons",
 ] as const;
 
@@ -742,6 +744,53 @@ export function BlockSections() {
           </Demo>
         </Section>
       </div>
+      <div id="settingsNav">
+        <Section title={tNav("settingsNav")} note={t("settingsNav.note")}>
+          <Demo>
+            <SettingsLayout
+              nav={
+                <SettingsNav
+                  label={t("settingsNav.label")}
+                  problemLabel={t("settingsNav.problem")}
+                  current="general"
+                  groups={[
+                    {
+                      id: "ds-workspace",
+                      label: t("settingsNav.groupOne"),
+                      items: [
+                        {
+                          id: "general",
+                          label: t("settingsNav.general"),
+                          render: (props) => <a href="#settingsNav" {...props} />,
+                        },
+                        {
+                          id: "projects",
+                          label: t("settingsNav.projects"),
+                          problem: true,
+                          render: (props) => <a href="#settingsNav" {...props} />,
+                        },
+                      ],
+                    },
+                    {
+                      id: "ds-install",
+                      label: t("settingsNav.groupTwo"),
+                      items: [
+                        {
+                          id: "connections",
+                          label: t("settingsNav.connections"),
+                          render: (props) => <a href="#settingsNav" {...props} />,
+                        },
+                      ],
+                    },
+                  ]}
+                />
+              }
+            >
+              <Text variant="meta">{t("sectionNav.body")}</Text>
+            </SettingsLayout>
+          </Demo>
+        </Section>
+      </div>
       <div id="icons">
         <Section title={tNav("icons")} note={t("icons.note")}>
           <Demo>
@@ -816,6 +865,22 @@ function SettingsRowsPreview() {
           control={
             <Switch aria-label={t("token")} checked={false} onCheckedChange={() => {}} disabled />
           }
+        />
+        <SettingsRow
+          label={t("tailscale")}
+          detail={t("tailscaleDetail")}
+          detailTone="pass"
+          control={<Button>{t("turnOn")}</Button>}
+        />
+        <SettingsRow
+          label={t("enabled")}
+          detail={t("enabledDetail")}
+          control={<Switch aria-label={t("enabled")} checked onCheckedChange={() => {}} />}
+        />
+        <SettingsRow
+          label={t("question")}
+          inset
+          control={<Switch aria-label={t("question")} checked onCheckedChange={() => {}} />}
         />
         <SettingsLinkRow
           label={t("runners")}

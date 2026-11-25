@@ -2,29 +2,57 @@ import { useEffect, useState } from "react";
 import { z } from "zod";
 import {
   DESKTOP_NOTIFICATIONS_GLOBAL,
-  desktopNotificationSummarySchema,
+  PERMISSION_REQUEST_RESULTS,
+  TEST_NOTIFICATION_RESULTS,
+  notificationSettingsViewSchema,
 } from "@ganger/app/notifications/desktop";
-import type { DesktopNotificationSummary } from "@ganger/app/notifications/desktop";
+import type {
+  NotificationPrefs,
+  NotificationSettingsView,
+  PermissionRequestResult,
+  TestNotificationResult,
+} from "@ganger/app/notifications/desktop";
 
 export interface DesktopNotifications {
-  current(): Promise<DesktopNotificationSummary | null>;
-  subscribe(listener: (summary: DesktopNotificationSummary) => void): () => void;
-  openSettings(): void;
+  current(): Promise<NotificationSettingsView | null>;
+  subscribe(listener: (view: NotificationSettingsView) => void): () => void;
+  save(prefs: NotificationPrefs): Promise<void>;
+  requestPermission(): Promise<PermissionRequestResult>;
+  sendTest(): Promise<TestNotificationResult>;
+  openSystemSettings(): void;
+  openFocusSettings(): void;
+  reconnectDevice(): void;
 }
 
 const callable = z.custom<(...args: never[]) => unknown>((value) => typeof value === "function");
 
 const bridgeSchema = z.object({
-  getSummary: z.custom<() => unknown>((value) => typeof value === "function"),
-  onSummary: z.custom<(listener: (summary: unknown) => void) => unknown>(
+  getSettings: z.custom<() => unknown>((value) => typeof value === "function"),
+  onSettings: z.custom<(listener: (view: unknown) => void) => unknown>(
     (value) => typeof value === "function",
   ),
-  openSettings: z.custom<() => unknown>((value) => typeof value === "function"),
+  saveSettings: z.custom<(prefs: NotificationPrefs) => unknown>(
+    (value) => typeof value === "function",
+  ),
+  requestPermission: callable,
+  sendTest: callable,
+  openSystemSettings: callable,
+  openFocusSettings: callable,
+  reconnectDevice: callable,
 });
 
-function parseSummary(value: unknown): DesktopNotificationSummary | null {
-  const parsed = desktopNotificationSummarySchema.safeParse(value);
+const permissionRequestResultSchema = z.enum(PERMISSION_REQUEST_RESULTS);
+const testNotificationResultSchema = z.enum(TEST_NOTIFICATION_RESULTS);
+
+function parseView(value: unknown): NotificationSettingsView | null {
+  const parsed = notificationSettingsViewSchema.safeParse(value);
   return parsed.success ? parsed.data : null;
+}
+
+function fireAndForget(run: () => unknown): void {
+  void Promise.resolve()
+    .then(run)
+    .catch(() => undefined);
 }
 
 export function desktopNotifications(scope: object = globalThis): DesktopNotifications | null {
@@ -34,60 +62,43 @@ export function desktopNotifications(scope: object = globalThis): DesktopNotific
   return {
     current: () =>
       Promise.resolve()
-        .then(() => bridge.getSummary())
-        .then(
-          (value) => parseSummary(value),
-          () => null,
-        ),
+        .then(() => bridge.getSettings())
+        .then(parseView, () => null),
     subscribe(listener) {
       const off = callable.safeParse(
-        bridge.onSummary((value) => {
-          const summary = parseSummary(value);
-          if (summary !== null) listener(summary);
+        bridge.onSettings((value) => {
+          const view = parseView(value);
+          if (view !== null) listener(view);
         }),
       );
       return () => {
         if (off.success) off.data();
       };
     },
-    openSettings() {
-      void Promise.resolve()
-        .then(() => bridge.openSettings())
-        .catch(() => undefined);
-    },
+    save: (prefs) =>
+      Promise.resolve()
+        .then(() => bridge.saveSettings(prefs))
+        .then(() => undefined),
+    requestPermission: () =>
+      Promise.resolve()
+        .then(() => bridge.requestPermission())
+        .then((value) => permissionRequestResultSchema.parse(value)),
+    sendTest: () =>
+      Promise.resolve()
+        .then(() => bridge.sendTest())
+        .then((value) => testNotificationResultSchema.parse(value)),
+    openSystemSettings: () => fireAndForget(() => bridge.openSystemSettings()),
+    openFocusSettings: () => fireAndForget(() => bridge.openFocusSettings()),
+    reconnectDevice: () => fireAndForget(() => bridge.reconnectDevice()),
   };
 }
 
-export type DesktopNotificationsState =
-  | { kind: "unknown" }
-  | { kind: "browser" }
-  | { kind: "desktop"; summary: DesktopNotificationSummary | null; open: () => void };
+export type DesktopAppState = "unknown" | "browser" | "desktop";
 
-export function useDesktopNotifications(): DesktopNotificationsState {
-  const [state, setState] = useState<DesktopNotificationsState>({ kind: "unknown" });
+export function useDesktopApp(): DesktopAppState {
+  const [state, setState] = useState<DesktopAppState>("unknown");
   useEffect(() => {
-    const bridge = desktopNotifications();
-    if (bridge === null) {
-      setState({ kind: "browser" });
-      return undefined;
-    }
-    const open = () => bridge.openSettings();
-    let live = true;
-    setState({ kind: "desktop", summary: null, open });
-    const off = bridge.subscribe((summary) => setState({ kind: "desktop", summary, open }));
-    void bridge.current().then((summary) => {
-      if (live && summary !== null) {
-        setState((previous) =>
-          previous.kind === "desktop" && previous.summary !== null
-            ? previous
-            : { kind: "desktop", summary, open },
-        );
-      }
-    });
-    return () => {
-      live = false;
-      off();
-    };
+    setState(desktopNotifications() === null ? "browser" : "desktop");
   }, []);
   return state;
 }

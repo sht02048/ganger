@@ -2,6 +2,8 @@ import * as stylex from "@stylexjs/stylex";
 import {
   Button,
   CodeBlock,
+  DefinitionItem,
+  DefinitionList,
   Dialog,
   DialogClose,
   Field,
@@ -17,6 +19,7 @@ import {
   SettingsSteps,
   Text,
   VisuallyHidden,
+  buttonStyles,
   focusStyles,
   showToast,
   type SettingsStepState,
@@ -24,7 +27,6 @@ import {
 import { space } from "@ganger/ui/tokens.stylex";
 import { createContext, use, useEffect, useId, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "use-intl";
-import { funnelPrefillAddress } from "@ganger/app/funnel-setup";
 import type {
   FunnelPortChoice,
   FunnelSetupView,
@@ -41,7 +43,12 @@ import {
 import { browserClipboard, copyText } from "./clipboard";
 import { CredentialFormFrame, ExternalLink, SecretField } from "./credential-forms";
 import { useInlineEdit } from "./row-state";
-import { ChangeButton, FocusFirst } from "./settings-page";
+import {
+  ChangeButton,
+  FocusFirst,
+  WEBHOOK_ADDRESS_ROW_ID,
+  type RenderSettingsLink,
+} from "./settings-page";
 import { SubmitError, useReportUnsaved, useSubmit, type SettingsActions } from "./settings-screen";
 
 export const WEBHOOK_SECTION_ID = "webhook";
@@ -50,9 +57,9 @@ export interface WebhookSectionProps {
   connection: TrackerConnectionView;
   webhookAddress: string | null;
   webhookAddressChecked: boolean;
-  setup: WebhookSetupView;
   now: string;
   actions: SettingsActions;
+  renderLink: RenderSettingsLink;
 }
 
 const FocusRequestContext = createContext<(id: string) => void>(() => {});
@@ -77,9 +84,9 @@ export function WebhookSection({
   connection,
   webhookAddress,
   webhookAddressChecked,
-  setup,
   now,
   actions,
+  renderLink,
 }: WebhookSectionProps) {
   const t = useTranslations("settings.webhook");
   const ts = useTranslations("settings");
@@ -107,8 +114,8 @@ export function WebhookSection({
             connection={connection}
             webhookAddress={webhookAddress}
             webhookAddressChecked={webhookAddressChecked}
-            setup={setup}
             actions={actions}
+            renderLink={renderLink}
           />
         ) : (
           <WebhookOn
@@ -116,9 +123,9 @@ export function WebhookSection({
             state={state}
             webhookAddress={webhookAddress}
             webhookAddressChecked={webhookAddressChecked}
-            setup={setup}
             now={now}
             actions={actions}
+            renderLink={renderLink}
           />
         )}
       </SettingsSection>
@@ -132,27 +139,19 @@ function WebhookSteps({
   connection,
   webhookAddress,
   webhookAddressChecked,
-  setup,
   actions,
+  renderLink,
 }: {
   connection: TrackerConnectionView;
   webhookAddress: string | null;
   webhookAddressChecked: boolean;
-  setup: WebhookSetupView;
   actions: SettingsActions;
+  renderLink: RenderSettingsLink;
 }) {
   const t = useTranslations("settings.webhook");
   const requestFocus = use(FocusRequestContext);
-  const edit = useInlineEdit("webhook-address");
-  const createCopyRef = useRef<HTMLButtonElement>(null);
-  const [focusCreate, setFocusCreate] = useState(false);
-  const addressDone = webhookAddressChecked && !edit.open;
+  const addressDone = webhookAddressChecked;
   const url = webhookUrl(webhookAddress, connection.webhookPath);
-  useEffect(() => {
-    if (!focusCreate || !addressDone) return;
-    createCopyRef.current?.focus();
-    setFocusCreate(false);
-  }, [focusCreate, addressDone]);
   const stateLabel = (state: SettingsStepState) => t(`stepState.${state}`);
   const addressState: SettingsStepState = addressDone ? "done" : "current";
   const laterState: SettingsStepState = addressDone ? "open" : "locked";
@@ -167,29 +166,12 @@ function WebhookSteps({
         label={t("address.label")}
         info={<AddressInfo />}
         detail={addressDone ? <VerifiedAddress address={webhookAddress} /> : undefined}
-        control={addressDone ? <ChangeButton edit={edit} label={t("address.label")} /> : undefined}
+        control={<AddressLink renderLink={renderLink} set={webhookAddress !== null} />}
       >
-        {addressDone ? null : edit.open ? (
-          <FocusFirst>
-            <AddressEditor
-              initial={webhookAddress ?? funnelPrefillAddress(setup.funnel) ?? ""}
-              setup={setup}
-              actions={actions}
-              onClose={edit.close}
-              onSaved={() => {
-                edit.close();
-                setFocusCreate(true);
-              }}
-            />
-          </FocusFirst>
-        ) : (
-          <AddressEditor
-            initial={webhookAddress ?? funnelPrefillAddress(setup.funnel) ?? ""}
-            setup={setup}
-            actions={actions}
-            onClose={undefined}
-            onSaved={() => setFocusCreate(true)}
-          />
+        {addressDone ? null : (
+          <Text variant="meta" as="p">
+            {t("address.shared")}
+          </Text>
         )}
       </SettingsStep>
       <SettingsStep
@@ -201,15 +183,8 @@ function WebhookSteps({
       >
         {url === null ? null : (
           <>
-            <CopyValue
-              ref={createCopyRef}
-              label={t("create.urlLabel")}
-              value={url}
-              copied={t("copiedUrl")}
-            />
-            <Text variant="meta" as="p">
-              {t("create.events")}
-            </Text>
+            <CopyValue label={t("create.urlLabel")} value={url} copied={t("copiedUrl")} />
+            <LinearWebhookForm />
             <span>
               <ExternalLink href={connection.webhookSettingsUrl ?? LINEAR_WEBHOOK_SETTINGS_URL}>
                 {t("create.open")}
@@ -233,6 +208,38 @@ function WebhookSteps({
         />
       </SettingsStep>
     </SettingsSteps>
+  );
+}
+
+function AddressLink({ renderLink, set }: { renderLink: RenderSettingsLink; set: boolean }) {
+  const t = useTranslations("settings.webhook.address");
+  return renderLink(
+    { kind: "page", page: "connections", rowId: WEBHOOK_ADDRESS_ROW_ID },
+    {
+      ...stylex.props(...buttonStyles("secondary")),
+      "data-variant": "secondary",
+      "aria-label": set ? t("changeOnConnections") : t("setOnConnections"),
+      children: set ? t("change") : t("set"),
+    },
+  );
+}
+
+function LinearWebhookForm() {
+  const t = useTranslations("settings.webhook.create");
+  const ts = useTranslations("settings");
+  return (
+    <div {...stylex.props(styles.form)}>
+      <span>
+        <Text variant="meta">{t("formTitle")}</Text>
+        <InfoTip label={ts("infoLabel", { label: t("formInfoLabel") })} content={t("formInfo")} />
+      </span>
+      <DefinitionList>
+        <DefinitionItem label={t("formLabel")}>{t("formLabelValue")}</DefinitionItem>
+        <DefinitionItem label={t("formUrl")}>{t("formUrlValue")}</DefinitionItem>
+        <DefinitionItem label={t("formEvents")}>{t("formEventsValue")}</DefinitionItem>
+        <DefinitionItem label={t("formTeams")}>{t("formTeamsValue")}</DefinitionItem>
+      </DefinitionList>
+    </div>
   );
 }
 
@@ -421,7 +428,7 @@ const ADDRESS_ERRORS = [
   "check-failed",
 ] as const;
 
-function AddressEditor({
+export function AddressEditor({
   initial,
   setup,
   actions,
@@ -570,6 +577,9 @@ function SecretForm({
       }
     >
       <div ref={fieldsRef} {...stylex.props(styles.fields)}>
+        <Text variant="meta" as="p">
+          {t("description")}
+        </Text>
         <SecretField
           name="webhookSecret"
           label={t("field")}
@@ -596,23 +606,22 @@ function WebhookOn({
   state,
   webhookAddress,
   webhookAddressChecked,
-  setup,
   now,
   actions,
+  renderLink,
 }: {
   connection: TrackerConnectionView;
   state: Exclude<WebhookStateView, { kind: "off" }>;
   webhookAddress: string | null;
   webhookAddressChecked: boolean;
-  setup: WebhookSetupView;
   now: string;
   actions: SettingsActions;
+  renderLink: RenderSettingsLink;
 }) {
   const t = useTranslations("settings.webhook");
   const requestFocus = use(FocusRequestContext);
   const time = useTime();
   const secretEdit = useInlineEdit("webhook-secret");
-  const addressEdit = useInlineEdit("webhook-address");
   const url = webhookUrl(webhookAddress, connection.webhookPath);
   const last =
     state.kind === "receiving"
@@ -649,35 +658,12 @@ function WebhookOn({
             label={t("address.label")}
             info={<AddressInfo />}
             detail={
-              addressEdit.open
-                ? undefined
-                : webhookAddress === null
-                  ? t("address.notSet")
-                  : t("address.notChecked", { address: webhookAddress })
+              webhookAddress === null
+                ? t("address.notSet")
+                : t("address.notChecked", { address: webhookAddress })
             }
             detailTone="problem"
-            control={
-              addressEdit.open ? undefined : (
-                <ChangeButton
-                  edit={addressEdit}
-                  label={t("address.label")}
-                  action={webhookAddress === null ? t("address.set") : t("address.check")}
-                />
-              )
-            }
-            expanded={
-              addressEdit.open ? (
-                <FocusFirst>
-                  <AddressEditor
-                    initial={webhookAddress ?? funnelPrefillAddress(setup.funnel) ?? ""}
-                    setup={setup}
-                    actions={actions}
-                    onClose={addressEdit.close}
-                    onSaved={addressEdit.close}
-                  />
-                </FocusFirst>
-              ) : null
-            }
+            control={<AddressLink renderLink={renderLink} set={webhookAddress !== null} />}
           />
         )}
         <SettingsRow
@@ -785,6 +771,7 @@ function TurnOffRow({
 }
 
 const styles = stylex.create({
+  form: { display: "flex", flexDirection: "column", gap: space.s2 },
   copy: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   funnel: { display: "flex", flexDirection: "column", gap: space.s2, minWidth: 0 },
   funnelChoice: { display: "flex", flexDirection: "column", gap: space.px2, minWidth: 0 },

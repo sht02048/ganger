@@ -17,11 +17,12 @@ import {
 import type { SignalTone } from "@ganger/ui";
 import { space } from "@ganger/ui/tokens.stylex";
 import { useRef } from "react";
-import type { MouseEvent } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useTranslations } from "use-intl";
 import type { BoardRun } from "@ganger/app/runs/board";
 import { currentPrState } from "@ganger/app/runs/model";
 import type { RunView } from "@ganger/app/runs/model";
+import { LabeledTime } from "../format/labeled-time";
 import { useTime } from "../format/time";
 import { usePrReadDiagnosisText } from "../pr-read-diagnosis";
 import { useAgentName, useQueuedReasonText } from "../labels";
@@ -186,7 +187,7 @@ export function RunPanelBody({
   );
 }
 
-function useRunWhen(run: RunView): string {
+function useRunWhen(run: RunView): ReactNode {
   const t = useTranslations("runs.panel");
   const { ago, duration, elapsed } = useTime();
   switch (run.state) {
@@ -199,10 +200,15 @@ function useRunWhen(run: RunView): string {
     case "paused":
       return run.pausedMs === null ? "" : t("pausedFor", { duration: duration(run.pausedMs) });
     case "ended":
-      return t("endedAgo", {
-        ago: ago(run.endedAt, run.endedAgoMs),
-        duration: duration(run.executionMs ?? 0),
-      });
+      return (
+        <>
+          <LabeledTime dateTime={run.endedAt} label={t("endedLabel")}>
+            {ago(run.endedAt, run.endedAgoMs)}
+          </LabeledTime>
+          {t("metaSeparator")}
+          {t("took", { duration: duration(run.executionMs ?? 0) })}
+        </>
+      );
   }
 }
 
@@ -260,7 +266,15 @@ function PrSection({ run }: { run: RunView }) {
       {...(state === null || (pr === null && state !== "unknown")
         ? {}
         : { detail: s(`state.${state}`) })}
-      {...(pr === null ? {} : { meta: s("readAt", { time: ago(pr.checkedAt, pr.checkedAgoMs) }) })}
+      {...(pr === null
+        ? {}
+        : {
+            meta: (
+              <LabeledTime dateTime={pr.checkedAt} label={s("readLabel")}>
+                {ago(pr.checkedAt, pr.checkedAgoMs)}
+              </LabeledTime>
+            ),
+          })}
     >
       {unreadText !== null ? (
         <>

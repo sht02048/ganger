@@ -11,13 +11,25 @@ import {
 import { V1_ERROR_REASONS, v1MetaSchema, v1ResponseSchema } from "./envelope.js";
 import type { V1RunRefusal } from "./envelope.js";
 import { notificationRecordSchema } from "./notifications.js";
-import { PROVIDER_USAGE_STATUSES, USAGE_WINDOW_KINDS, usageTimeFields } from "./runners.js";
+import {
+  GH_ACCOUNTS_KINDS,
+  PROVIDER_USAGE_STATUSES,
+  USAGE_WINDOW_KINDS,
+  ghAccountSchema,
+  ghReadTimeFields,
+  usageTimeFields,
+} from "./runners.js";
 import {
   V1_CONTINUE_OFFERS,
+  V1_MERGE_BLOCKS,
+  V1_MERGE_METHODS,
   V1_NEXT_STEPS,
+  V1_PR_READ_ERRORS,
+  V1_PR_STATES,
   V1_RETRY_OFFERS,
   runDetailSchema,
   runInputSchema,
+  sinceSchema,
 } from "./runs.js";
 
 export const UNKNOWN_VALUE = "unknown";
@@ -179,6 +191,47 @@ const appRunInputSchema = z.union([
 ]);
 export type AppRunInput = z.infer<typeof appRunInputSchema>;
 
+const appPrReadServerSchema = z.union([
+  z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("gh"), logins: z.array(z.string()) }),
+    z.object({ kind: z.literal("token") }),
+  ]),
+  z.object({ kind: unknownTag(["gh", "token"]) }),
+]);
+
+const appPrReadDiagnosisSchema = z.union([
+  z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("different"),
+      runner: z.string(),
+      runnerLogin: z.string(),
+      server: appPrReadServerSchema,
+    }),
+    z.object({
+      kind: z.literal("runner-unknown"),
+      runner: z.string(),
+      server: appPrReadServerSchema,
+    }),
+  ]),
+  z.object({ kind: unknownTag(["different", "runner-unknown"]) }),
+]);
+export type AppPrReadDiagnosis = z.infer<typeof appPrReadDiagnosisSchema>;
+
+const appPrMergeSchema = z
+  .object({
+    methods: z.array(tolerantEnum(V1_MERGE_METHODS)),
+    defaultMethod: tolerantEnum(V1_MERGE_METHODS),
+    blocked: tolerantEnum(V1_MERGE_BLOCKS).nullable(),
+    noPermission: z.boolean(),
+    headCommit: z.string(),
+  })
+  .transform(({ methods, defaultMethod, ...rest }) => {
+    const known = methods.filter((method) => method !== UNKNOWN_VALUE);
+    const first = known.find((method) => method === defaultMethod) ?? known[0];
+    return first === undefined ? null : { ...rest, methods: known, defaultMethod: first };
+  });
+export type AppPrMerge = NonNullable<z.infer<typeof appPrMergeSchema>>;
+
 export const appRunDetailSchema = runDetailSchema.extend({
   state: tolerantEnum([
     "queued",
@@ -201,8 +254,13 @@ export const appRunDetailSchema = runDetailSchema.extend({
       url: z.string(),
       ci: tolerantEnum(["success", "failure", "pending", "none", "unavailable", "unknown"]),
       problems: z.array(appPrProblemSchema),
+      state: tolerantEnum(V1_PR_STATES).nullable().default(null),
+      stateSince: sinceSchema.nullable().default(null),
+      merge: appPrMergeSchema.nullable().default(null),
     })
     .nullable(),
+  prReadError: tolerantEnum(V1_PR_READ_ERRORS).nullable().default(null),
+  prReadDiagnosis: appPrReadDiagnosisSchema.nullable().default(null),
   input: appRunInputSchema.nullable(),
   nextActions: z
     .object({
@@ -248,6 +306,21 @@ const appUsageLimitSchema = z.object({
 });
 export type AppUsageLimit = z.infer<typeof appUsageLimitSchema>;
 
+const appRunnerGhAccountsSchema = z.union([
+  z.discriminatedUnion("kind", [
+    z.object({
+      ...ghReadTimeFields,
+      kind: z.literal("logged-in"),
+      accounts: z.array(ghAccountSchema),
+    }),
+    z.object({ ...ghReadTimeFields, kind: z.literal("logged-out") }),
+    z.object({ ...ghReadTimeFields, kind: z.literal("not-installed") }),
+    z.object({ ...ghReadTimeFields, kind: z.literal("unreadable") }),
+  ]),
+  z.object({ kind: unknownTag(GH_ACCOUNTS_KINDS) }),
+]);
+export type AppRunnerGhAccounts = z.infer<typeof appRunnerGhAccountsSchema>;
+
 export const appRunnerSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -257,6 +330,7 @@ export const appRunnerSchema = z.object({
   capacity: z.number().int().nonnegative(),
   usage: appRunnerUsageSchema.nullable(),
   limits: z.array(appUsageLimitSchema),
+  ghAccounts: appRunnerGhAccountsSchema.nullable().optional(),
 });
 export type AppRunner = z.infer<typeof appRunnerSchema>;
 export const appRunnersResponseSchema = v1ResponseSchema(
@@ -283,7 +357,10 @@ export const appNotificationEventResponseSchema = v1ResponseSchema(appNotificati
 
 export const appErrorSchema = z.object({
   meta: v1MetaSchema,
-  error: z.object({ reason: tolerantEnum(V1_ERROR_REASONS) }),
+  error: z.object({
+    reason: tolerantEnum(V1_ERROR_REASONS),
+    message: z.string().nullable().catch(null).default(null),
+  }),
 });
 
 export type AppRunRefusal = V1RunRefusal | UnknownValue;

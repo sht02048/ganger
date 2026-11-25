@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { ReactNode } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { sectionScrollTop } from "./components/settings-layout";
@@ -23,6 +24,7 @@ import {
   SettingsGroup,
   SettingsLayout,
   SettingsLinkRow,
+  SettingsNav,
   SettingsRow,
   SettingsSection,
   Switch,
@@ -1707,6 +1709,17 @@ describe("설정 한 페이지 부품(티켓 0119)", () => {
     expect(html.match(/>Acme</g)).toHaveLength(2);
   });
 
+  it("SettingsRow 의 detailTone pass 는 둘째 줄 앞에 확인 표시를 그리고 그 표시는 읽지 않는다", () => {
+    const html = renderToString(
+      <SettingsRow label="휴대폰에서 열기" detail="연결됨" detailTone="pass" />,
+    );
+    expect(html).toMatch(/data-detail-tone="pass"[^>]*><span aria-hidden="true"[^>]*><svg/);
+    expect(html).toContain("연결됨");
+    expect(renderToString(<SettingsRow label="이름" detail="연결됨" />)).not.toContain(
+      "data-detail-tone",
+    );
+  });
+
   it("SettingsRow 는 펼치면 편집 영역을 그리고, formOnly 이면 줄 대신 편집 영역만 그린다", () => {
     const open = renderToString(
       <SettingsRow label="토큰" detail="저장했어요" expanded={<form />} />,
@@ -1758,6 +1771,42 @@ describe("설정 한 페이지 부품(티켓 0119)", () => {
     expect(html.match(/확인할 것이 있어요/g)).toHaveLength(1);
     expect(html).toContain('<section id="a" aria-labelledby="a-heading"');
     expect(html).toMatch(/<h2 id="a-heading" tabindex="-1" data-section-heading=""/);
+  });
+
+  it("SettingsNav 는 묶음 이름 아래 페이지 링크를 두고 지금 페이지에 aria-current=page, 문제 페이지에 점과 읽을 글을 붙인다(0214)", () => {
+    const link = (href: string) => (props: { children: ReactNode }) => <a href={href} {...props} />;
+    const html = renderToString(
+      <SettingsNav
+        label="Settings 메뉴"
+        problemLabel="확인할 것이 있어요"
+        current="b"
+        groups={[
+          { id: "one", label: "묶음 하나", items: [{ id: "a", label: "가", render: link("/a") }] },
+          {
+            id: "two",
+            label: "묶음 둘",
+            items: [
+              { id: "b", label: "나", render: link("/b") },
+              { id: "c", label: "다", problem: true, render: link("/c") },
+            ],
+          },
+        ]}
+      />,
+    );
+    expect(html).toContain('<nav aria-label="Settings 메뉴"');
+    expect(html).toMatch(
+      /id="settings-nav-two"[^>]*>묶음 둘<\/span><ul aria-labelledby="settings-nav-two"/,
+    );
+    expect(html).toMatch(/href="\/b"[^>]*aria-current="page"/);
+    expect(html).not.toMatch(/href="\/a"[^>]*aria-current/);
+    expect(html.match(/확인할 것이 있어요/g)).toHaveLength(1);
+    expect(html).toMatch(/href="\/c"[^>]*>다<span aria-hidden="true"/);
+  });
+
+  it("SettingsRow inset 은 줄을 들여 써 위 줄에 딸린 줄로 보인다(0214)", () => {
+    const flat = renderToString(<SettingsRow label="가" />);
+    const inset = renderToString(<SettingsRow label="가" inset />);
+    expect(inset).not.toBe(flat);
   });
 
   it("SectionNav 는 구역을 스크롤 칸 안에서만 맨 위로 옮기고, 끝까지 못 가면 끝에서 멈춘다", () => {

@@ -42,6 +42,35 @@ const usageLimitSchema = z.object({
 });
 export type V1UsageLimit = z.infer<typeof usageLimitSchema>;
 
+export const GH_ACCOUNTS_KINDS = [
+  "logged-in",
+  "logged-out",
+  "not-installed",
+  "unreadable",
+] as const;
+
+export const ghAccountSchema = z.object({
+  host: z.string(),
+  login: z.string(),
+  active: z.boolean(),
+  expired: z.boolean(),
+});
+export type V1GhAccount = z.infer<typeof ghAccountSchema>;
+
+export const ghReadTimeFields = { readAt: z.iso.datetime(), agoMs: z.number() };
+
+const runnerGhAccountsSchema = z.discriminatedUnion("kind", [
+  z.object({
+    ...ghReadTimeFields,
+    kind: z.literal("logged-in"),
+    accounts: z.array(ghAccountSchema),
+  }),
+  z.object({ ...ghReadTimeFields, kind: z.literal("logged-out") }),
+  z.object({ ...ghReadTimeFields, kind: z.literal("not-installed") }),
+  z.object({ ...ghReadTimeFields, kind: z.literal("unreadable") }),
+]);
+export type V1RunnerGhAccounts = z.infer<typeof runnerGhAccountsSchema>;
+
 export const runnerSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -51,6 +80,7 @@ export const runnerSchema = z.object({
   capacity: z.number().int().nonnegative(),
   usage: runnerUsageSchema.nullable(),
   limits: z.array(usageLimitSchema),
+  ghAccounts: runnerGhAccountsSchema.nullable(),
 });
 export type V1Runner = z.infer<typeof runnerSchema>;
 

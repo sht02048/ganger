@@ -36,22 +36,6 @@ export function mainWindowOptions(title: string, preload: string): BrowserWindow
   };
 }
 
-export function settingsWindowOptions(
-  title: string,
-  preload: string,
-): BrowserWindowConstructorOptions {
-  return {
-    width: 560,
-    height: 680,
-    minWidth: 400,
-    minHeight: 480,
-    show: false,
-    title,
-    ...hiddenTitleBar(),
-    webPreferences: webPreferences(preload),
-  };
-}
-
 export function titleBarCookie(serverUrl: string): CookiesSetDetails {
   return {
     url: new URL(serverUrl).origin,

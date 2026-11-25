@@ -4,12 +4,20 @@ import { join } from "node:path";
 import { act } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   Button,
   Card,
+  Chip,
+  ExternalLink,
+  InlineSwitch,
+  LinkButton,
+  PopoverMenu,
+  RaisedBox,
+  SplitButton,
   RESTING_MASCOT_PATHS,
   RestingMascot,
   Segment,
@@ -17,35 +25,47 @@ import {
   StatusPill,
   SwitchRow,
   TodoBadge,
+  buttonColorsOf,
   pillColorsOf,
+  popoverHeight,
+  popoverPlacement,
 } from "./components";
-import { colors } from "./tokens";
+import type { MenuItem } from "./components";
+import { KeptScreen } from "../kept-screen";
+import { toneColorOf } from "./text";
+import { colors, size } from "./tokens";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const mounted: Array<() => void> = [];
 
-function mount(node: ReactNode): HTMLElement {
+function mountRerendering(node: ReactNode) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  act(() => {
-    root.render(
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 390, height: 844 },
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-        }}
-      >
-        {node}
-      </SafeAreaProvider>,
-    );
-  });
+  const rerender = (next: ReactNode) =>
+    act(() => {
+      root.render(
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}
+        >
+          {next}
+        </SafeAreaProvider>,
+      );
+    });
+  rerender(node);
   mounted.push(() => {
     act(() => root.unmount());
     host.remove();
   });
-  return host;
+  return { host, rerender };
+}
+
+function mount(node: ReactNode): HTMLElement {
+  return mountRerendering(node).host;
 }
 
 function press(element: Element | null) {
@@ -65,6 +85,40 @@ describe("Button", () => {
     const host = mount(<Button label="재개하기" onPress={onPress} />);
     press(host.querySelector('[role="button"]'));
     expect(onPress).toHaveBeenCalledOnce();
+  });
+
+  it("answer는 Question 알약 계열, check는 Human Check 알약 계열 색이다", () => {
+    const answer = buttonColorsOf("answer");
+    expect(answer.surface).toBe(colors.answerSoft);
+    expect(toneColorOf(answer.tone)).toBe(colors.answer);
+    expect(answer.surface).toBe(pillColorsOf("question").surface);
+    const check = buttonColorsOf("check");
+    expect(check.surface).toBe(colors.checkSoft);
+    expect(toneColorOf(check.tone)).toBe(colors.check);
+    expect(check.surface).toBe(pillColorsOf("human-check").surface);
+  });
+
+  it("기존 변형의 색은 그대로다", () => {
+    expect(buttonColorsOf("primary").surface).toBe(colors.accent);
+    expect(toneColorOf(buttonColorsOf("primary").tone)).toBe(colors.textOnAccent);
+    expect(buttonColorsOf("secondary").surface).toBe(colors.bgControl);
+    expect(toneColorOf(buttonColorsOf("secondary").tone)).toBe(colors.textPrimary);
+    expect(buttonColorsOf("danger").surface).toBe(colors.bgControl);
+    expect(toneColorOf(buttonColorsOf("danger").tone)).toBe(colors.problem);
+  });
+
+  it("고른 변형을 표시하고, 고르지 않으면 secondary다", () => {
+    const host = mount(
+      <>
+        <Button label="답하기" variant="answer" />
+        <Button label="확인하기" variant="check" />
+        <Button label="재개하기" />
+      </>,
+    );
+    const ids = [...host.querySelectorAll('[role="button"]')].map((button) =>
+      button.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual(["button-answer", "button-check", "button-secondary"]);
   });
 
   it("꺼져 있으면 부르지 않는다", () => {
@@ -180,10 +234,135 @@ describe("SwitchRow", () => {
   });
 });
 
+describe("InlineSwitch", () => {
+  it("라벨을 접근 이름으로 갖는 스위치 하나로 읽히고 켜짐 상태를 알린다", () => {
+    const host = mount(<InlineSwitch label="처리할 일만" value onChange={() => {}} />);
+    const switches = [...host.querySelectorAll('[role="switch"]')].filter(
+      (element) => element.closest('[aria-hidden="true"]') === null,
+    );
+    expect(switches).toHaveLength(1);
+    expect(switches[0]?.getAttribute("aria-label")).toBe("처리할 일만");
+    expect(switches[0]?.getAttribute("aria-checked")).toBe("true");
+    const track = host.querySelector('[data-testid="inline-switch-track"]');
+    expect(track?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("라벨 글자를 눌러도 바뀐 값을 넘긴다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(<InlineSwitch label="처리할 일만" value={false} onChange={onChange} />);
+    const label = [...host.querySelectorAll('[role="switch"] div')].find(
+      (element) => element.textContent === "처리할 일만",
+    );
+    press(label ?? null);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it("스위치를 눌러도 한 번만 바뀐 값을 넘긴다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(<InlineSwitch label="처리할 일만" value onChange={onChange} />);
+    press(host.querySelector('[data-testid="inline-switch-track"] input'));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it("꺼져 있으면 넘기지 않는다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(
+      <InlineSwitch label="처리할 일만" value={false} disabled onChange={onChange} />,
+    );
+    press(host.querySelector('[role="switch"]'));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+});
+
 describe("Card", () => {
   it("멈춘 기다림은 문제 테두리로 그린다", () => {
     const host = mount(<Card emphasis="problem">내용</Card>);
     expect(host.querySelector('[data-testid="card-problem"]')).not.toBeNull();
+  });
+});
+
+describe("Chip", () => {
+  it("병합·진행 칩은 상태 알약과 같은 색을 쓰고 기본은 무채색이다", () => {
+    const host = mount(
+      <>
+        <Chip label="Merged" tone="merged" />
+        <Chip label="CI 통과" tone="progress" />
+        <Chip label="Open" />
+      </>,
+    );
+    expect(host.querySelector('[data-testid="chip-merged"]')?.textContent).toBe("Merged");
+    expect(host.querySelector('[data-testid="chip-progress"]')?.textContent).toBe("CI 통과");
+    expect(host.querySelector('[data-testid="chip-neutral"]')?.textContent).toBe("Open");
+    expect(pillColorsOf("succeeded").dot).toBe(colors.merged);
+    expect(pillColorsOf("running").dot).toBe(colors.progress);
+  });
+});
+
+describe("ExternalLink", () => {
+  it("접근 이름을 가진 링크이고 누르면 onPress를 부른다", () => {
+    const onPress = vi.fn<() => void>();
+    const host = mount(
+      <ExternalLink label="PR #7" accessibilityLabel="PR #7 GitHub에서 열기" onPress={onPress} />,
+    );
+    const link = host.querySelector('[aria-label="PR #7 GitHub에서 열기"]');
+    expect(link?.getAttribute("role")).toBe("link");
+    expect(link?.textContent).toBe("PR #7");
+    act(() => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+});
+
+describe("SplitButton", () => {
+  const split = (props: { disabled?: boolean; menu?: boolean }) => {
+    const onPress = vi.fn<() => void>();
+    const onMenuPress = vi.fn<() => void>();
+    const host = mount(
+      <SplitButton
+        label="Squash 머지"
+        groupLabel="머지"
+        menuLabel="머지 방식 바꾸기"
+        disabled={props.disabled ?? false}
+        onPress={onPress}
+        {...(props.menu === false ? {} : { onMenuPress })}
+      />,
+    );
+    return { host, onPress, onMenuPress };
+  };
+
+  it("이름 붙은 묶음 안에 주 버튼과 방식 버튼을 두고 각각 부른다", () => {
+    const { host, onPress, onMenuPress } = split({});
+    expect(host.querySelector('[aria-label="머지"]')?.getAttribute("role")).toBe("group");
+    press(host.querySelector('[aria-label="Squash 머지"]'));
+    press(host.querySelector('[aria-label="머지 방식 바꾸기"]'));
+    expect(onPress).toHaveBeenCalledOnce();
+    expect(onMenuPress).toHaveBeenCalledOnce();
+    expect(host.querySelector('[data-testid="split-divider"]')).not.toBeNull();
+  });
+
+  it("방식 버튼이 없으면 세로선도 없다", () => {
+    const { host } = split({ menu: false });
+    expect(host.querySelector('[aria-label="머지 방식 바꾸기"]')).toBeNull();
+    expect(host.querySelector('[data-testid="split-divider"]')).toBeNull();
+  });
+
+  it("꺼지면 두 버튼 모두 누르지 못한다", () => {
+    const { host, onPress, onMenuPress } = split({ disabled: true });
+    for (const label of ["Squash 머지", "머지 방식 바꾸기"]) {
+      const button = host.querySelector(`[aria-label="${label}"]`);
+      expect(button?.getAttribute("aria-disabled")).toBe("true");
+      press(button);
+    }
+    expect(onPress).not.toHaveBeenCalled();
+    expect(onMenuPress).not.toHaveBeenCalled();
+  });
+});
+
+describe("RaisedBox", () => {
+  it("내용을 감싼다", () => {
+    const host = mount(<RaisedBox>내용</RaisedBox>);
+    expect(host.querySelector('[data-testid="raised-box"]')?.textContent).toBe("내용");
   });
 });
 
@@ -208,6 +387,21 @@ describe("Sheet", () => {
     );
     expect(document.body.textContent).not.toContain("숨은 내용");
   });
+
+  it("숨겨 둔 화면 안에서는 열린 시트를 그리지 않고, 화면이 돌아오면 그린다", () => {
+    const screen = (shown: boolean) => (
+      <KeptScreen shown={shown}>
+        <Sheet visible title="Workspace" closeLabel="닫기" onClose={() => {}}>
+          시트 내용
+        </Sheet>
+      </KeptScreen>
+    );
+    const { host, rerender } = mountRerendering(screen(false));
+    expect(document.body.textContent).not.toContain("시트 내용");
+    expect(host.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    rerender(screen(true));
+    expect(document.body.textContent).toContain("시트 내용");
+  });
 });
 
 describe("RestingMascot", () => {
@@ -220,5 +414,176 @@ describe("RestingMascot", () => {
     const host = mount(<RestingMascot />);
     const mascot = host.querySelector('[data-testid="mascot-resting"]');
     expect(mascot?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+function cssColor(token: string): string {
+  const probe = document.createElement("div");
+  probe.style.backgroundColor = token;
+  return probe.style.backgroundColor;
+}
+
+describe("LinkButton", () => {
+  it("바깥 링크 아이콘과 글을 컨트롤 면 36 높이에 둔다", () => {
+    const onPress = vi.fn<() => void>();
+    const host = mount(<LinkButton label="Linear에서 열기" onPress={onPress} />);
+    const link = host.querySelector('[role="link"]');
+    if (!(link instanceof HTMLElement)) throw new Error("link not found");
+    expect(link.getAttribute("aria-label")).toBe("Linear에서 열기");
+    expect(getComputedStyle(link).height).toBe(`${size.linkButton}px`);
+    expect(getComputedStyle(link).backgroundColor).toBe(cssColor(colors.bgControl));
+    expect(link.querySelector("svg")).not.toBeNull();
+    press(link);
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+});
+
+describe("PopoverMenu", () => {
+  const item = (key: string, onSelect: () => void = () => undefined): MenuItem => ({
+    key,
+    label: key,
+    icon: "external",
+    onSelect,
+  });
+
+  async function openPopover(host: HTMLElement) {
+    const button = host.querySelector('[data-testid="popover-button"]');
+    if (button === null) throw new Error("button not found");
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    return button;
+  }
+
+  it("항목이 하나도 없으면 … 버튼을 두지 않는다", () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[], []]} />,
+    );
+    expect(host.querySelector('[role="button"]')).toBeNull();
+  });
+
+  it("… 버튼은 28 상자이고, 열린 동안 고른 면을 쓴다", async () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[item("열기")]]} />,
+    );
+    const button = host.querySelector('[data-testid="popover-button"]');
+    if (!(button instanceof HTMLElement)) throw new Error("button not found");
+    expect(getComputedStyle(button).width).toBe(`${size.moreButton}px`);
+    expect(getComputedStyle(button).backgroundColor).not.toBe(cssColor(colors.bgSelected));
+    await openPopover(host);
+    expect(getComputedStyle(button).backgroundColor).toBe(cssColor(colors.bgSelected));
+  });
+
+  it("빈 묶음은 빼고 묶음 사이에만 구분선을 둔다. 항목을 고르면 닫고 그 항목을 부른다", async () => {
+    const onSelect = vi.fn<() => void>();
+    const host = mount(
+      <PopoverMenu
+        label="ACME-1 메뉴"
+        closeLabel="메뉴 닫기"
+        groups={[[item("열기"), item("PR 열기")], [], [item("취소", onSelect)]]}
+      />,
+    );
+    await openPopover(host);
+    const menu = document.body.querySelector('[role="menu"]');
+    expect(menu?.getAttribute("aria-label")).toBe("ACME-1 메뉴");
+    expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(3);
+    expect(document.body.querySelectorAll('[data-testid="popover-divider"]')).toHaveLength(1);
+    press(document.body.querySelector('[role="menuitem"][aria-label="취소"]'));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(document.body.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it("iOS에서는 팝오버가 다 닫힌 뒤 항목 동작을 불러 다음 시트가 뜨게 한다", async () => {
+    const os = Platform.OS;
+    Reflect.set(Platform, "OS", "ios");
+    try {
+      const order: string[] = [];
+      const host = mount(
+        <PopoverMenu
+          label="ACME-1 메뉴"
+          closeLabel="메뉴 닫기"
+          groups={[[item("취소", () => order.push("selected"))]]}
+        />,
+      );
+      await openPopover(host);
+      await act(async () => {
+        document.body
+          .querySelector('[role="menuitem"]')
+          ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        order.push("pressed");
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(order).toEqual(["pressed", "selected"]);
+      expect(document.body.querySelector('[role="menu"]')).toBeNull();
+    } finally {
+      Reflect.set(Platform, "OS", os);
+    }
+  });
+
+  it("폭은 220이고 항목 높이는 44다", async () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[item("열기")]]} />,
+    );
+    await openPopover(host);
+    const menu = document.body.querySelector('[role="menu"]');
+    if (!(menu instanceof HTMLElement)) throw new Error("menu not found");
+    expect(getComputedStyle(menu).width).toBe(`${size.popoverWidth}px`);
+    const entry = menu.querySelector('[role="menuitem"]');
+    if (!(entry instanceof HTMLElement)) throw new Error("item not found");
+    expect(getComputedStyle(entry).height).toBe(`${size.touchTarget}px`);
+  });
+});
+
+describe("popoverPlacement", () => {
+  const screen = { width: 390, height: 844 };
+  const insets = { top: 47, bottom: 34 };
+  const anchor = { x: 340, y: 100, width: 28, height: 28 };
+
+  it("버튼 바로 아래에 오른쪽을 맞춘다", () => {
+    expect(popoverPlacement({ anchor, menuHeight: 100, screen, insets })).toEqual({
+      top: 132,
+      left: 368 - size.popoverWidth,
+    });
+  });
+
+  it("왼쪽·오른쪽 가장자리에서 잘리지 않는다", () => {
+    const left = popoverPlacement({
+      anchor: { ...anchor, x: 0 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(left.left).toBe(8);
+    const right = popoverPlacement({
+      anchor: { ...anchor, x: 380, width: 28 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(right.left + size.popoverWidth).toBeLessThanOrEqual(screen.width - 8);
+  });
+
+  it("아래 자리가 모자라면 버튼 위로 올리고, 위로도 모자라면 안전 영역 아래에 붙인다", () => {
+    const low = popoverPlacement({
+      anchor: { ...anchor, y: 760 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(low.top).toBe(760 - 4 - 100);
+    const tall = popoverPlacement({
+      anchor: { ...anchor, y: 120 },
+      menuHeight: 760,
+      screen,
+      insets,
+    });
+    expect(tall.top).toBe(47 + 8);
+  });
+
+  it("높이는 항목 수와 구분선으로 센다", () => {
+    const one = [{ key: "a", label: "a", icon: "external" as const, onSelect: () => undefined }];
+    expect(popoverHeight([one, one]) - popoverHeight([one])).toBeGreaterThan(size.touchTarget);
+    expect(popoverHeight([one])).toBe(size.touchTarget + 4 * 2 + 2);
   });
 });

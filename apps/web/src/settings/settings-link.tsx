@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router";
-import type { SettingsLinkRowRenderProps } from "@ganger/ui";
-import type { SettingsLinkTarget } from "./settings-page";
+import {
+  SETTINGS_PAGE_PATHS,
+  type SettingsLinkProps,
+  type SettingsLinkTarget,
+} from "./settings-page";
 
-export function routerSettingsLink(target: SettingsLinkTarget, props: SettingsLinkRowRenderProps) {
+export function routerSettingsLink(target: SettingsLinkTarget, props: SettingsLinkProps) {
   switch (target.kind) {
     case "project":
       return (
@@ -20,14 +23,10 @@ export function routerSettingsLink(target: SettingsLinkTarget, props: SettingsLi
           {...props}
         />
       );
-    case "runners":
-      return <Link to="/runners" {...props} />;
-    case "mcp":
-      return <Link to="/settings/mcp" {...props} />;
-    case "settings":
+    case "page":
       return (
         <Link
-          to="/settings"
+          to={SETTINGS_PAGE_PATHS[target.page]}
           activeOptions={{ exact: true }}
           {...(target.rowId === undefined ? {} : { hash: target.rowId })}
           {...props}

@@ -13,7 +13,7 @@ import {
   replaceDeviceToken,
   seeDeviceByTokenHash,
 } from "@ganger/db";
-import type { Database } from "@ganger/db";
+import type { Database, DeviceKind } from "@ganger/db";
 import { z } from "zod";
 import {
   ENROLLMENT_TOKEN_BYTES,
@@ -134,12 +134,19 @@ export function connectDevice(
   if (!request.success) return { status: 400, reason: "invalid-request" };
   const claimed = context.codes.claim(request.data.code);
   if (!claimed.ok) return REFUSALS[claimed.refusal];
-  return { status: 200, result: issueDeviceToken(context.db, request.data.name, now) };
+  return {
+    status: 200,
+    result: issueDeviceToken(context.db, { name: request.data.name, kind: "phone" }, now),
+  };
 }
 
-function issueDeviceToken(db: Database, name: string, now: Date): ConnectResult {
+function issueDeviceToken(
+  db: Database,
+  input: { name: string; kind: DeviceKind },
+  now: Date,
+): ConnectResult {
   const token = randomBytes(DEVICE_TOKEN_BYTES).toString("base64url");
-  const device = addDevice(db, { name, tokenHash: hashToken(token) }, now);
+  const device = addDevice(db, { ...input, tokenHash: hashToken(token) }, now);
   return { deviceId: device.id, token };
 }
 
@@ -180,7 +187,7 @@ export function registerDesktop(
       return { status: 200, result: { deviceId: earlier.deviceId, token } };
     }
   }
-  const result = issueDeviceToken(context.db, name, now);
+  const result = issueDeviceToken(context.db, { name, kind: "desktop" }, now);
   context.registrations.remember(requestId, result.deviceId, name, now);
   return { status: 200, result };
 }
@@ -212,14 +219,16 @@ export function loadDevicesView(db: Database, webAddress: string | null, now: Da
   const agoMs = (at: Date) => Math.max(0, now.getTime() - at.getTime());
   return {
     address: isConnectableAddress(webAddress) ? webAddress : null,
-    devices: listDevices(db).map((device) => ({
-      id: device.id,
-      name: device.name,
-      createdAt: device.createdAt.toISOString(),
-      createdAgoMs: agoMs(device.createdAt),
-      lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
-      lastSeenAgoMs: device.lastSeenAt === null ? null : agoMs(device.lastSeenAt),
-    })),
+    devices: listDevices(db)
+      .filter((device) => device.kind === "phone")
+      .map((device) => ({
+        id: device.id,
+        name: device.name,
+        createdAt: device.createdAt.toISOString(),
+        createdAgoMs: agoMs(device.createdAt),
+        lastSeenAt: device.lastSeenAt?.toISOString() ?? null,
+        lastSeenAgoMs: device.lastSeenAt === null ? null : agoMs(device.lastSeenAt),
+      })),
   };
 }
 

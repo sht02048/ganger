@@ -1,3 +1,5 @@
+import { defaultMobileAccessDeps } from "@ganger/app/mobile-access";
+import type { MobileAccessDeps } from "@ganger/app/mobile-access";
 import {
   readServeStatusOutput,
   readThisTailnetAddresses,
@@ -20,4 +22,8 @@ export function getServeStatusOutput(cli: string): Promise<string | undefined> {
 
 export function getWebhookPingFetch(): PingFetch {
   return (url, init) => fetch(url, init);
+}
+
+export function getMobileAccessDeps(): MobileAccessDeps {
+  return defaultMobileAccessDeps;
 }

@@ -94,9 +94,86 @@ describe("toV1RunDetail", () => {
   });
 });
 
+describe("toV1RunDetail의 PR 상태와 읽기 실패", () => {
+  const pullRequest = {
+    displayId: "#7",
+    url: "https://example.com/acme/pay/pull/7",
+    ci: "success" as const,
+    signals: null,
+  };
+  const ended = (
+    status: Partial<Extract<RunDetail["status"], { state: "ended" }>>,
+    pr: RunDetail["pullRequest"] = pullRequest,
+  ): RunDetail => ({
+    ...detail,
+    pullRequest: pr,
+    status: {
+      state: "ended",
+      agentResult: "reported-success",
+      prState: "open",
+      prReadError: null,
+      prReadDiagnosis: null,
+      summary: "succeeded",
+      keptWorktree: null,
+      laterPrState: null,
+      ...status,
+    },
+  });
+
+  it("끝날 때 본 PR 상태를 싣고 시각은 비운다", () => {
+    expect(toV1RunDetail(ended({ prState: "merged" })).pullRequest).toMatchObject({
+      state: "merged",
+      stateSince: null,
+    });
+    expect(toV1RunDetail(ended({ prState: "closed" })).pullRequest?.state).toBe("closed");
+  });
+
+  it("런이 끝난 뒤 병합·닫힘을 본 때와 지난 시간을 싣는다", () => {
+    const pr = toV1RunDetail(
+      ended({ prState: "open", laterPrState: { state: "merged", at: "2026-11-22T21:00:00.000Z" } }),
+    ).pullRequest;
+    expect(pr).toMatchObject({
+      state: "merged",
+      stateSince: { at: "2026-11-22T21:00:00.000Z", agoMs: 3 * 60 * 60 * 1000 },
+    });
+  });
+
+  it("끝나지 않은 런의 PR은 열림이다", () => {
+    expect(toV1RunDetail({ ...detail, pullRequest }).pullRequest).toMatchObject({
+      state: "open",
+      stateSince: null,
+    });
+    expect(toV1RunDetail({ ...detail, pullRequest })).toMatchObject({
+      prReadError: null,
+      prReadDiagnosis: null,
+    });
+  });
+
+  it("PR 기록이 없어도 읽기 실패 이유와 진단을 싣는다", () => {
+    const diagnosis = {
+      kind: "different" as const,
+      runner: "acme-runner",
+      runnerLogin: "acme-dev",
+      server: { kind: "gh" as const, logins: ["acme-bot"] },
+    };
+    const v1 = toV1RunDetail(
+      ended({ prState: "unknown", prReadError: "no-access", prReadDiagnosis: diagnosis }, null),
+    );
+    expect(v1).toMatchObject({
+      pullRequest: null,
+      prReadError: "no-access",
+      prReadDiagnosis: diagnosis,
+    });
+    expect(toV1RunDetail(ended({ prState: "unknown", prReadError: "other" }))).toMatchObject({
+      prReadError: "other",
+      prReadDiagnosis: null,
+    });
+  });
+});
+
 describe("parseV1RunAction", () => {
-  it("v1이 여는 다섯 동작만 받고 pause는 받지 않는다", () => {
-    for (const action of ["answer", "human-check", "deny", "resume", "cancel"]) {
+  it("v1이 여는 동작만 받고 pause는 받지 않는다", () => {
+    for (const action of ["answer", "human-check", "deny", "resume", "cancel", "merge"]) {
       expect(parseV1RunAction(action)).toBe(action);
     }
     expect(parseV1RunAction("pause")).toBeNull();

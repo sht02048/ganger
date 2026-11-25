@@ -103,7 +103,7 @@ beforeAll(async () => {
   const warm = await browser.newPage({ baseURL: baseUrl, locale: "ko-KR" });
   warm.setDefaultTimeout(110_000);
   await open(warm, "/");
-  await open(warm, "/settings");
+  await open(warm, "/settings/server");
   await warm.close();
 }, 240_000);
 
@@ -190,7 +190,7 @@ describe("데스크톱 업데이트 토스트(브라우저, 0083)", () => {
   it("떠 있는 동안 높이를 알려 목록이 그만큼 아래 여백을 둔다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 800 });
     await withUpdates(page, READY);
-    await open(page, "/settings");
+    await open(page, "/settings/server");
     await pinnedToast(page).waitFor();
     await expect
       .poll(() =>
@@ -270,11 +270,11 @@ describe("데스크톱 업데이트 토스트(브라우저, 0083)", () => {
 });
 
 describe("Settings 업데이트 줄(브라우저, 0083·0119)", () => {
-  it("이 서버 구역에 버전과 마지막 확인, 지금 확인, 자동 업데이트 스위치를 두고 앱에 보낸다", async (context) => {
+  it("서버 페이지의 버전 묶음에 버전과 마지막 확인, 지금 확인, 자동 업데이트 스위치를 두고 앱에 보낸다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 800 });
     await withUpdates(page, { ...READY, toast: null, check: { kind: "latest" }, latest: null });
-    await open(page, "/settings");
-    const server = page.getByRole("region", { name: settings.sections.server });
+    await open(page, "/settings/server");
+    const server = page.getByRole("region", { name: settings.server.version });
     await server.getByText("0.1.0 · 앱과 서버가 같아요").waitFor();
     await server.scrollIntoViewIfNeeded();
     await shotAtWidths(page, "settings-updates");
@@ -286,8 +286,8 @@ describe("Settings 업데이트 줄(브라우저, 0083·0119)", () => {
 
   it("브라우저로 열면 자동 업데이트가 없다는 한 줄만 둔다", async (context) => {
     const page = await newPage(context, { width: 1280, height: 800 });
-    await open(page, "/settings");
-    const server = page.getByRole("region", { name: settings.sections.server });
+    await open(page, "/settings/server");
+    const server = page.getByRole("region", { name: settings.server.version });
     await server
       .getByText("· 이 서버는 자동으로 업데이트하지 않아요", { exact: false })
       .filter({ visible: true })

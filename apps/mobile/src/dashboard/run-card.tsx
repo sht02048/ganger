@@ -1,12 +1,13 @@
 import { StyleSheet, View } from "react-native";
 
-import { Button, Card, Chip, StatusPill } from "../design/components";
-import type { PillStatus } from "../design/components";
+import { Button, Card, Chip, PopoverMenu, StatusPill } from "../design/components";
+import type { ButtonVariant, MenuItem, PillStatus } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { agentName, formatAgo, formatDuration, queuedLine } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
+import { isWebLink } from "../runs/body-parts";
 import { PR_CHIPS_VISIBLE } from "./model";
 import type { DashboardRun, EndedRun, PrProblem } from "./model";
 
@@ -67,10 +68,6 @@ function pillOf(run: DashboardRun): PillStatus | null {
   return run.state === "paused" ? "paused" : null;
 }
 
-function firstLineOf(body: string): string {
-  return body.split("\n", 1)[0] ?? "";
-}
-
 function inputHandled(run: DashboardRun): boolean {
   if (run.state !== "waiting-for-input" || run.input === null) return false;
   if (run.input.kind === "unknown") return false;
@@ -85,15 +82,7 @@ function detailOf(run: DashboardRun): string | null {
       if (inputHandled(run)) {
         return run.input.kind === "permission" ? t("card.denied") : t("card.answered");
       }
-      switch (run.input.kind) {
-        case "permission":
-          return run.input.detail;
-        case "question":
-          return firstLineOf(run.input.summary);
-        case "human-check":
-          return firstLineOf(run.input.body);
-      }
-      break;
+      return run.input.kind === "permission" ? run.input.detail : null;
     case "disconnected": {
       const runner = run.runner?.name ?? t("card.noRunner");
       return run.unreachableMs === null
@@ -120,30 +109,78 @@ function noteOf(run: DashboardRun): string | null {
   return null;
 }
 
+export type RunMenuAction = "open-ticket" | "open-pr" | "cancel";
+
+export function runMenuGroups(run: DashboardRun): RunMenuAction[][] {
+  const links: RunMenuAction[] = ["open-ticket"];
+  if (run.pullRequest !== null && isWebLink(run.pullRequest.url)) links.push("open-pr");
+  const actions: RunMenuAction[] = run.state === "ended" || run.cancelling ? [] : ["cancel"];
+  return [links, actions].filter((group) => group.length > 0);
+}
+
+function menuItemOf(run: DashboardRun, action: RunMenuAction, onSelect: () => void): MenuItem {
+  switch (action) {
+    case "open-ticket":
+      return { key: action, label: t("actions.menu.openTicket"), icon: "external", onSelect };
+    case "open-pr": {
+      const pr = run.pullRequest?.displayId ?? "";
+      return {
+        key: action,
+        label: t("actions.menu.openPr", { pr }),
+        accessibilityLabel: t("runDetail.prLinkLabel", { pr }),
+        icon: "external",
+        onSelect,
+      };
+    }
+    case "cancel":
+      return {
+        key: action,
+        label: t("actions.menu.cancel"),
+        icon: "cancel",
+        tone: "problem",
+        onSelect,
+      };
+  }
+}
+
+function RunMenu({ run, onMenu }: { run: DashboardRun; onMenu: (action: RunMenuAction) => void }) {
+  return (
+    <PopoverMenu
+      label={t("card.menu", { key: run.ticketKey })}
+      closeLabel={t("card.menuClose")}
+      groups={runMenuGroups(run).map((group) =>
+        group.map((action) => menuItemOf(run, action, () => onMenu(action))),
+      )}
+    />
+  );
+}
+
 export type RunCardAction = "answer" | "human-check" | "deny" | "resume" | "detail" | "retry";
 
 function actionOf(
   run: DashboardRun,
-): { action: RunCardAction; key: MessageKey; danger: boolean } | null {
+): { action: RunCardAction; key: MessageKey; variant: ButtonVariant } | null {
   if (inputHandled(run)) return null;
   switch (run.todoTag) {
     case "question":
-      return { action: "answer", key: "card.answer", danger: false };
+      return { action: "answer", key: "card.answer", variant: "answer" };
     case "human-check":
-      return { action: "human-check", key: "card.check", danger: false };
+      return { action: "human-check", key: "card.check", variant: "check" };
     case "permission":
-      return { action: "deny", key: "card.deny", danger: true };
+      return { action: "deny", key: "card.deny", variant: "danger" };
     case "failed":
     case "disconnected":
     case "unknown":
-      return { action: "detail", key: "card.detail", danger: false };
+      return { action: "detail", key: "card.detail", variant: "secondary" };
     case "waiting-for-input":
     case null:
-      if (run.state === "unknown") return { action: "detail", key: "card.detail", danger: false };
+      if (run.state === "unknown") {
+        return { action: "detail", key: "card.detail", variant: "secondary" };
+      }
       return run.state === "paused" &&
         !run.cancelling &&
         (run.control === null || run.control.status === "failed")
-        ? { action: "resume", key: "card.resume", danger: false }
+        ? { action: "resume", key: "card.resume", variant: "secondary" }
         : null;
   }
 }
@@ -195,7 +232,7 @@ export function RunCard({
   actionsDisabled?: boolean;
   confirming?: boolean;
   onAction: (action: RunCardAction) => void;
-  onMenu?: () => void;
+  onMenu?: (action: RunMenuAction) => void;
 }) {
   const pill = pillOf(run);
   const detail = detailOf(run);
@@ -203,6 +240,7 @@ export function RunCard({
   const action = actionOf(run);
   const time = timeOf(run);
   const stuck = isStuck(run);
+  const showRetry = run.todoTag === "failed";
   const waitsOnBlockers =
     run.state === "queued" &&
     (run.queuedReason.kind === "blockers-waiting" || run.queuedReason.kind === "blockers-stuck");
@@ -218,11 +256,16 @@ export function RunCard({
     .join(" · ");
   return (
     <Card emphasis={stuck ? "problem" : "none"}>
-      {pill === null ? null : <StatusPill status={pill} label={t(`status.${pill}`)} />}
-      <Text variant="title" numberOfLines={2}>
-        <Text variant="meta">{run.ticketKey} </Text>
-        {run.ticketTitle}
-      </Text>
+      <View style={styles.head}>
+        <View style={styles.headMain}>
+          {pill === null ? null : <StatusPill status={pill} label={t(`status.${pill}`)} />}
+          <Text variant="title" numberOfLines={2}>
+            <Text variant="meta">{run.ticketKey} </Text>
+            {run.ticketTitle}
+          </Text>
+        </View>
+        {onMenu === undefined ? null : <RunMenu run={run} onMenu={onMenu} />}
+      </View>
       <BlockerChips run={run} />
       {detail === null ? null : (
         <Text variant="meta" tone={stuck ? "problem" : "secondary"} numberOfLines={2}>
@@ -239,28 +282,34 @@ export function RunCard({
         </View>
         {time === null ? null : <Text variant="small">{time}</Text>}
       </View>
-      {action === null ? null : (
-        <Button
-          label={confirming && action.action === "resume" ? t("actions.confirming") : t(action.key)}
-          variant={action.danger ? "danger" : "secondary"}
-          disabled={action.action !== "detail" && actionsDisabled}
-          onPress={() => onAction(action.action)}
-        />
-      )}
-      {run.todoTag === "failed" ? (
-        <Button
-          label={t("card.retry")}
-          disabled={actionsDisabled}
-          onPress={() => onAction("retry")}
-        />
-      ) : null}
-      {onMenu === undefined || run.state === "ended" ? null : (
-        <Button
-          compact
-          label={t("card.menuLabel")}
-          accessibilityLabel={t("card.menu", { key: run.ticketKey })}
-          onPress={onMenu}
-        />
+      {action === null && !showRetry ? null : (
+        <View testID="card-actions" style={styles.actions}>
+          <View testID="card-action-row" style={styles.actionRow}>
+            {action === null ? null : (
+              <View style={styles.actionCell}>
+                <Button
+                  label={
+                    confirming && action.action === "resume"
+                      ? t("actions.confirming")
+                      : t(action.key)
+                  }
+                  variant={action.variant}
+                  disabled={action.action !== "detail" && actionsDisabled}
+                  onPress={() => onAction(action.action)}
+                />
+              </View>
+            )}
+            {showRetry ? (
+              <View style={styles.actionCell}>
+                <Button
+                  label={t("card.retry")}
+                  disabled={actionsDisabled}
+                  onPress={() => onAction("retry")}
+                />
+              </View>
+            ) : null}
+          </View>
+        </View>
       )}
     </Card>
   );
@@ -286,9 +335,11 @@ function settledPrLabel(run: EndedRun): string | null {
 export function SettledRow({
   run,
   showWorkspace = false,
+  onMenu,
 }: {
   run: EndedRun;
   showWorkspace?: boolean;
+  onMenu?: (action: RunMenuAction) => void;
 }) {
   const status = run.summary;
   const trailing = [
@@ -310,14 +361,20 @@ export function SettledRow({
         </Text>
         <PrChips run={run} />
       </View>
+      {onMenu === undefined ? null : <RunMenu run={run} onMenu={onMenu} />}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s1 },
+  head: { flexDirection: "row", alignItems: "flex-start", gap: space.s2 },
+  headMain: { flex: 1, gap: space.s2 },
   footer: { flexDirection: "row", alignItems: "center", gap: space.s2 },
   meta: { flex: 1 },
+  actions: { marginTop: space.s1, gap: space.s2 },
+  actionRow: { flexDirection: "row", gap: space.s2 },
+  actionCell: { flex: 1 },
   settled: {
     flexDirection: "row",
     alignItems: "center",

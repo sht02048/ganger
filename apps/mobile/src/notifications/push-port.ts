@@ -11,6 +11,7 @@ export interface PushDevicePort {
   requestPermission(): Promise<PushPermission>;
   pushAddress(): Promise<string | null>;
   subscribeResponses(handler: (response: PushResponse) => void): () => void;
+  setBadgeCount(count: number): Promise<void>;
 }
 
 export interface PushMemoryValue {

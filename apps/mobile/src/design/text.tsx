@@ -3,7 +3,7 @@ import { StyleSheet, Text as NativeText } from "react-native";
 
 import { colors, fontFamily, fontSize, lineHeight } from "./tokens";
 
-export type TextVariant = "page" | "panel" | "title" | "body" | "meta" | "small";
+export type TextVariant = "page" | "panel" | "title" | "body" | "control" | "meta" | "small";
 export type TextTone =
   | "primary"
   | "secondary"
@@ -12,7 +12,9 @@ export type TextTone =
   | "accent"
   | "onAccent"
   | "onProblem"
-  | "problem";
+  | "problem"
+  | "answer"
+  | "check";
 
 const toneColor: Record<TextTone, string> = {
   primary: colors.textPrimary,
@@ -23,13 +25,20 @@ const toneColor: Record<TextTone, string> = {
   onAccent: colors.textOnAccent,
   onProblem: colors.textOnProblem,
   problem: colors.problem,
+  answer: colors.answer,
+  check: colors.check,
 };
+
+export function toneColorOf(tone: TextTone): string {
+  return toneColor[tone];
+}
 
 const variantTone: Record<TextVariant, TextTone> = {
   page: "primary",
   panel: "primary",
   title: "primary",
   body: "secondary",
+  control: "primary",
   meta: "tertiary",
   small: "tertiary",
 };
@@ -37,6 +46,7 @@ const variantTone: Record<TextVariant, TextTone> = {
 export function Text({
   variant = "body",
   tone,
+  weight,
   numberOfLines,
   heading = false,
   accessibilityRole,
@@ -44,6 +54,7 @@ export function Text({
 }: {
   variant?: TextVariant;
   tone?: TextTone;
+  weight?: "semibold";
   numberOfLines?: number;
   heading?: boolean;
   accessibilityRole?: "alert";
@@ -54,7 +65,11 @@ export function Text({
       {...(numberOfLines === undefined ? {} : { numberOfLines })}
       {...(heading ? { accessibilityRole: "header" as const } : {})}
       {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
-      style={[styles[variant], { color: toneColor[tone ?? variantTone[variant]] }]}
+      style={[
+        styles[variant],
+        weight === "semibold" ? styles.semibold : null,
+        { color: toneColor[tone ?? variantTone[variant]] },
+      ]}
     >
       {children}
     </NativeText>
@@ -75,6 +90,7 @@ export function TextLink({ label, onPress }: { label: string; onPress: () => voi
 
 const styles = StyleSheet.create({
   link: { textDecorationLine: "underline" },
+  semibold: { fontFamily: fontFamily.semibold },
   page: { fontFamily: fontFamily.semibold, fontSize: fontSize.page, lineHeight: lineHeight.page },
   panel: {
     fontFamily: fontFamily.semibold,
@@ -83,6 +99,11 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fontFamily.medium, fontSize: fontSize.body, lineHeight: lineHeight.body },
   body: { fontFamily: fontFamily.regular, fontSize: fontSize.body, lineHeight: lineHeight.body },
+  control: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.control,
+    lineHeight: lineHeight.control,
+  },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.ui, lineHeight: lineHeight.ui },
   small: { fontFamily: fontFamily.medium, fontSize: fontSize.small, lineHeight: lineHeight.small },
 });

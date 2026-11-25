@@ -363,6 +363,8 @@ export interface Runner {
   finishWorktreeSetup(input: FinishWorktreeSetupInput): Promise<WorktreeSetupResult>;
   isAgentAlive(run: Pick<RunOnRunner, "worktree" | "agentRef">): Promise<boolean>;
 
+  beginPollCycle?(agents: ReadonlyArray<AgentRef>): void;
+  endPollCycle?(): void;
   pollRun(run: RunOnRunner): Promise<RunProgress>;
   answerQuestion(
     run: RunOnRunner,

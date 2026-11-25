@@ -38,6 +38,7 @@ import { describe, expect, it } from "vitest";
 import domain from "../../messages/ko/domain.json" with { type: "json" };
 import runJson from "../../messages/ko/run.json" with { type: "json" };
 import { buttonsOf } from "../testing/buttons";
+import { labeledTimesOf } from "../testing/labeled-times";
 import { pillsOf } from "../testing/pills";
 import { renderWithMessages } from "../testing/render";
 import { addTitledRun, endedCases, minutes, now, seedDatabase } from "../testing/seed";
@@ -803,7 +804,14 @@ describe("Run 상세 화면", () => {
     );
     expect(valueOf(html, runJson.pr.conflict)).toBe(runJson.pr.hasConflict);
     expect(valueOf(html, runJson.pr.base)).toBe(runJson.pr.behindBy.replace("{count}", "3"));
-    expect(text(html)).toContain(runJson.pr.readAt.replace("{time} ", ""));
+    const readTime = labeledTimesOf(html).find((time) => time.title === runJson.pr.readLabel);
+    expect(readTime?.hidden).toBe(runJson.pr.readLabel);
+    expect(readTime?.visible).toMatch(/^\d{2}:\d{2}$/);
+    expect(text(html)).not.toMatch(/\d{2}:\d{2} 읽음/);
+    const endedTime = labeledTimesOf(html).find((time) => time.title === runJson.when.endedLabel);
+    expect(endedTime).toMatchObject({ hidden: runJson.when.endedLabel });
+    expect(text(html)).toContain(`${runJson.when.endedLabel} ${endedTime?.visible ?? "?"} · `);
+    expect(text(html)).not.toContain(`${endedTime?.visible ?? "?"} 끝남`);
     expect(pillsOf(html).map((pill) => pill.label)).toEqual([domain.summary.succeeded]);
     expect(text(html)).not.toContain("CI 다시");
   });
@@ -1342,9 +1350,14 @@ describe("Run 상세 화면", () => {
       completedAt: minutes(101),
       lines: ["$ pnpm test", "Tests 42 passed"],
     });
-    const body = text(render(page(db, id)));
+    const html = render(page(db, id));
+    const body = text(html);
     expect(body).toContain("Tests 42 passed");
     expect(body).not.toContain(runJson.log.pending);
+    const fetched = labeledTimesOf(html).find((time) => time.title === runJson.log.fetchedLabel);
+    expect(fetched?.hidden).toBe(runJson.log.fetchedLabel);
+    expect(body).toContain(`가져온 2줄 · ${runJson.log.fetchedLabel} ${fetched?.visible ?? "?"}`);
+    expect(html.replace(/<[^>]+>/g, "")).not.toMatch(/(ago|Just now) [가-힣]/);
   });
 
   it("완료 보고 본문과 같은 티켓의 다른 런을 보인다", () => {

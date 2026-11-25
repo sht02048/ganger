@@ -205,6 +205,40 @@ describe("migrate", () => {
     expect(db.$client.prepare("SELECT runner_id FROM runs").all()).toEqual([{ runner_id: "r" }]);
   });
 
+  it("0230 마이그레이션이 기존 기기를 남긴 채 종류 칸을 더하고 데스크톱 앱이 등록한 기기만 desktop 으로 채운다", () => {
+    const db = openDatabase(":memory:");
+    const all = loadMigrations();
+    const added = all.findIndex((m) => m.name.endsWith("_device_kind"));
+    expect(added).toBeGreaterThan(0);
+    migrate(db, all.slice(0, added));
+    db.$client.exec(`
+      INSERT INTO devices (id, name, token_hash, created_at) VALUES
+        ('phone', 'Acme iPhone', 'h1', 0),
+        ('desktop', 'Ganger 데스크톱 (acme-mac)', 'h2', 1),
+        ('lookalike', 'Ganger 데스크톱', 'h3', 2);
+    `);
+
+    expect(migrate(db)).toEqual(all.slice(added).map((m) => m.name));
+    expect(
+      db.$client
+        .prepare("SELECT id, name, token_hash, kind FROM devices ORDER BY created_at")
+        .all(),
+    ).toEqual([
+      { id: "phone", name: "Acme iPhone", token_hash: "h1", kind: "phone" },
+      { id: "desktop", name: "Ganger 데스크톱 (acme-mac)", token_hash: "h2", kind: "desktop" },
+      { id: "lookalike", name: "Ganger 데스크톱", token_hash: "h3", kind: "phone" },
+    ]);
+  });
+
+  it("0230 마이그레이션 뒤 빈 DB 에 넣은 기기는 종류를 주지 않으면 phone 이다", () => {
+    const db = openDatabase(":memory:");
+    migrate(db);
+    db.$client.exec(
+      "INSERT INTO devices (id, name, token_hash, created_at) VALUES ('d', 'Acme iPhone', 'h', 0)",
+    );
+    expect(db.$client.prepare("SELECT kind FROM devices").get()).toEqual({ kind: "phone" });
+  });
+
   it("0144 마이그레이션이 기존 런을 그대로 옮기고 PR 못 읽음과 이유 칸을 더한다", () => {
     const db = openDatabase(":memory:");
     const all = loadMigrations();

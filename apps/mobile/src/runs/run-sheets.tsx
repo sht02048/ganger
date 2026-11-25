@@ -1,8 +1,16 @@
 import { V1_CONTINUE_MESSAGE_MAX_LENGTH, V1_TEXT_MAX_LENGTH } from "@ganger/api";
-import type { AppRunDetail, AppRunInput, AppRunRefusal, V1HumanCheckDecision } from "@ganger/api";
+import type {
+  AppPrReadDiagnosis,
+  AppRunDetail,
+  AppRunInput,
+  AppRunRefusal,
+  AppPrMerge,
+  V1HumanCheckDecision,
+  V1MergeMethod,
+} from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
-import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
+import type { ReactNode } from "react";
+import { AccessibilityInfo, StyleSheet, View } from "react-native";
 
 import { staleBandText } from "../connection/stale-band";
 import type { DashboardRun } from "../dashboard/model";
@@ -11,30 +19,39 @@ import {
   Button,
   Card,
   Chip,
+  ExternalLink,
+  LinkButton,
   NoticeBand,
   RadioRow,
+  RaisedBox,
   Sheet,
   SheetBody,
   SheetFooter,
+  SplitButton,
   TextField,
 } from "../design/components";
+import type { ChipTone } from "../design/components";
 import { Text, TextLink } from "../design/text";
 import type { TextTone } from "../design/text";
 import { space } from "../design/tokens";
-import { agentName } from "../format";
+import { agentName, formatAgo } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
 import { bodyParts, isWebLink } from "./body-parts";
+import { openTicket, openWebLink } from "./open-link";
 import type { RunPort, RunRead, RunWrite, RunWriteOutcome } from "./run-port";
 
 export type OpenRunSheet =
   | {
-      kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "menu" | "retry";
+      kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "retry";
       run: DashboardRun;
     }
   | { kind: "notice"; title: string; message: string };
 
 function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageKey {
+  if (action === "merge" && reason === "request-reused") {
+    return "actions.refused.merge.request-reused";
+  }
   if (action === "answer" && (reason === "already-answered" || reason === "not-found")) {
     return `actions.refused.answer.${reason}`;
   }
@@ -61,6 +78,19 @@ function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageK
     case "resolved":
     case "state-changed":
       return "actions.refused.run.state-changed";
+    case "no-write-access":
+    case "blocked":
+    case "head-changed":
+    case "method-not-allowed":
+    case "not-open":
+    case "no-pull-request":
+    case "pr-not-found":
+    case "no-code-host":
+    case "unauthorized":
+    case "rate-limited":
+    case "network":
+    case "superseded":
+      return `actions.refused.merge.${reason}`;
   }
 }
 
@@ -74,7 +104,9 @@ export function outcomeMessage(
     case "demo":
       return t("common.demoAction");
     case "refused":
-      return t(refusalKey(action, outcome.reason));
+      return action === "merge" && outcome.reason === "blocked" && outcome.message !== undefined
+        ? t("actions.refused.merge.blockedBecause", { message: outcome.message })
+        : t(refusalKey(action, outcome.reason));
     case "unconfirmed":
       return t("actions.unconfirmed");
     case "failed":
@@ -82,12 +114,33 @@ export function outcomeMessage(
   }
 }
 
-const SendingLock = createContext<RefObject<boolean>>({ current: false });
+interface Lock {
+  held: () => boolean;
+  hold: () => boolean;
+  release: () => void;
+}
+
+function createLock(): Lock {
+  let held = false;
+  return {
+    held: () => held,
+    hold: () => {
+      if (held) return false;
+      held = true;
+      return true;
+    },
+    release: () => {
+      held = false;
+    },
+  };
+}
+
+const SendingLock = createContext<Lock>(createLock());
 
 function useCloseUnlessSending(onClose: () => void): () => void {
   const sending = useContext(SendingLock);
   return () => {
-    if (!sending.current) onClose();
+    if (!sending.held()) onClose();
   };
 }
 
@@ -124,25 +177,25 @@ function useRunWrite(
   const setUnconfirmed = sharedUnconfirmed?.set ?? setOwnUnconfirmed;
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
-  const send = async (write: RunWrite) => {
-    if (busy.current) return;
-    busy.current = true;
+  const send = async (write: RunWrite): Promise<RunWriteOutcome | null> => {
+    if (!busy.hold()) return null;
     setPhase("sending");
     setMessage(null);
     const outcome = await port.write(run, write, () => {
       setPhase("confirming");
       AccessibilityInfo.announceForAccessibility(t("actions.confirming"));
     });
-    busy.current = false;
+    busy.release();
     setPhase("idle");
     if (outcome.kind === "sent") {
       onSent();
-      return;
+      return outcome;
     }
     setRefused(outcome.kind === "refused");
     if (outcome.kind === "unconfirmed") setUnconfirmed(true);
     setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
+    return outcome;
   };
   return {
     sending: phase !== "idle",
@@ -177,7 +230,7 @@ function useRunDetail(
   run: DashboardRun,
   disabled: boolean,
   useCache = false,
-): RunDetailView {
+): RunDetailView & { reload: () => void } {
   const [view, setView] = useState<RunDetailView>(() => cachedView(port, run, useCache));
   const [attempt, setAttempt] = useState(0);
   const wasDisabled = useRef(disabled);
@@ -205,17 +258,7 @@ function useRunDetail(
       live = false;
     };
   }, [port, run, attempt, useCache]);
-  return view;
-}
-
-async function openWebLink(url: string): Promise<boolean> {
-  if (!isWebLink(url)) return false;
-  try {
-    await Linking.openURL(url);
-    return true;
-  } catch {
-    return false;
-  }
+  return { ...view, reload: () => setAttempt((current) => current + 1) };
 }
 
 function ContextLine({ run }: { run: DashboardRun }) {
@@ -636,75 +679,6 @@ function CancelSheet({
   );
 }
 
-function MenuSheet({
-  run,
-  port,
-  disabled,
-  onClose,
-}: {
-  run: DashboardRun;
-  port: RunPort;
-  disabled: boolean;
-  onClose: () => void;
-}) {
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<TextTone>("problem");
-  const [opening, setOpening] = useState(false);
-  const closeSheet = useCloseUnlessSending(onClose);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const openTicket = async () => {
-    setOpening(true);
-    setMessage(null);
-    const link = await port.ticketLink(run);
-    if (!mounted.current) return;
-    const opened = link.kind === "ok" && (await openWebLink(link.value));
-    if (!mounted.current) return;
-    setOpening(false);
-    if (opened) {
-      onClose();
-      return;
-    }
-    setMessageTone(link.kind === "demo" ? "secondary" : "problem");
-    setMessage(link.kind === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed"));
-  };
-  return (
-    <Sheet
-      visible
-      title={confirmingCancel ? t("actions.cancel.title") : run.ticketKey}
-      closeLabel={t("common.close")}
-      onClose={closeSheet}
-    >
-      {confirmingCancel ? (
-        <CancelConfirm run={run} port={port} disabled={disabled} onClose={onClose} />
-      ) : (
-        <>
-          <Button
-            label={t("actions.menu.openTicket")}
-            disabled={opening}
-            onPress={() => void openTicket()}
-          />
-          {run.cancelling ? null : (
-            <Button
-              variant="danger"
-              label={t("actions.menu.cancel")}
-              disabled={disabled}
-              onPress={() => setConfirmingCancel(true)}
-            />
-          )}
-          <SheetMessage message={message} tone={messageTone} />
-        </>
-      )}
-    </Sheet>
-  );
-}
-
 function RetryForm({
   run,
   detail,
@@ -887,7 +861,216 @@ function RetrySheet({
   );
 }
 
-function RunDetailBody({ detail }: { detail: AppRunDetail }) {
+function prReadDiagnosisText(diagnosis: AppPrReadDiagnosis): string | null {
+  if (diagnosis.kind === "unknown") return null;
+  const { server } = diagnosis;
+  if (server.kind === "unknown") return null;
+  const serverLogins = server.kind === "gh" ? server.logins.join(", ") : "";
+  if (diagnosis.kind === "runner-unknown") {
+    return server.kind === "gh"
+      ? t("runDetail.prReadDiagnosis.runnerUnknownGh", { runner: diagnosis.runner, serverLogins })
+      : t("runDetail.prReadDiagnosis.runnerUnknownToken", { runner: diagnosis.runner });
+  }
+  const values = { runner: diagnosis.runner, runnerLogin: diagnosis.runnerLogin, serverLogins };
+  return server.kind === "gh"
+    ? t("runDetail.prReadDiagnosis.differentGh", values)
+    : t("runDetail.prReadDiagnosis.differentToken", values);
+}
+
+type DetailPullRequest = NonNullable<AppRunDetail["pullRequest"]>;
+
+interface PrChipView {
+  key: string;
+  label: string;
+  tone: ChipTone;
+}
+
+function prStateChip(pr: DetailPullRequest, unread: boolean): PrChipView | null {
+  const { state, stateSince } = pr;
+  if (state === null || (state === "unknown" && unread)) return null;
+  const name = t(`runDetail.prStateChip.${state}`);
+  const label =
+    stateSince === null
+      ? name
+      : t("runDetail.prStateChip.since", {
+          state: name,
+          time: formatAgo(stateSince.at, stateSince.agoMs),
+        });
+  return { key: "state", label, tone: state === "merged" ? "merged" : "neutral" };
+}
+
+function ciChip(pr: DetailPullRequest): PrChipView | null {
+  const label = t("runDetail.ciLabel", { state: t(`runDetail.ci.${pr.ci}`) });
+  switch (pr.ci) {
+    case "success":
+      return { key: "ci", label, tone: "progress" };
+    case "failure":
+      return pr.problems.some((problem) => problem.kind === "ci-failed")
+        ? null
+        : { key: "ci", label, tone: "problem" };
+    case "pending":
+    case "none":
+    case "unavailable":
+    case "unknown":
+      return { key: "ci", label, tone: "neutral" };
+  }
+}
+
+function prChips(detail: AppRunDetail): PrChipView[] {
+  const pr = detail.pullRequest;
+  const unread = detail.prReadError !== null;
+  const unreadChip: PrChipView[] = unread
+    ? [{ key: "unread", label: t("runDetail.prUnreadChip"), tone: "problem" }]
+    : [];
+  if (pr === null) return unreadChip;
+  const problems = pr.problems.map((problem, index): PrChipView => ({
+    key: `${problem.kind}:${index}`,
+    label: prProblemLabel(problem),
+    tone: prProblemTone(problem),
+  }));
+  return [prStateChip(pr, unread), ...unreadChip, ciChip(pr), ...problems].filter(
+    (chip): chip is PrChipView => chip !== null,
+  );
+}
+
+function prUnreadLine(detail: AppRunDetail): string | null {
+  if (detail.prReadError === null) return null;
+  const diagnosis =
+    detail.prReadDiagnosis === null ? null : prReadDiagnosisText(detail.prReadDiagnosis);
+  return diagnosis ?? t(`runDetail.prUnread.${detail.prReadError}`);
+}
+
+interface MergeSlot {
+  run: DashboardRun;
+  port: RunPort;
+  disabled: boolean;
+  merged: boolean;
+  onMerged: () => void;
+  reload: () => void;
+}
+
+function waitingHumanCheck(detail: AppRunDetail): boolean {
+  return detail.input?.kind === "human-check" && !detail.input.answered;
+}
+
+function mergeBlockedText(merge: AppPrMerge): string | null {
+  if (merge.noPermission) return t("runDetail.merge.noPermission");
+  return merge.blocked === null ? null : t(`runDetail.merge.blocked.${merge.blocked}`);
+}
+
+function MergeControl({
+  merge,
+  humanCheck,
+  slot,
+}: {
+  merge: AppPrMerge;
+  humanCheck: boolean;
+  slot: MergeSlot;
+}) {
+  const [picked, setPicked] = useState<V1MergeMethod>(merge.defaultMethod);
+  const [choosing, setChoosing] = useState(false);
+  const method = merge.methods.includes(picked) ? picked : merge.defaultMethod;
+  const { sending, busyLabel, message, messageTone, unconfirmed, send } = useRunWrite(
+    slot.port,
+    slot.run,
+    slot.onMerged,
+    slot.disabled,
+  );
+  const blocked = mergeBlockedText(merge);
+  const hint = blocked === null && humanCheck ? t("runDetail.merge.humanCheck") : null;
+  return (
+    <View style={styles.merge}>
+      <SplitButton
+        label={
+          busyLabel === null ? t(`runDetail.merge.button.${method}`) : t("runDetail.merge.busy")
+        }
+        groupLabel={t("runDetail.merge.group")}
+        menuLabel={t("runDetail.merge.menu")}
+        disabled={blocked !== null || slot.disabled || sending || unconfirmed}
+        onPress={() =>
+          void send({ action: "merge", method, expectedHead: merge.headCommit }).then((outcome) => {
+            if (outcome?.kind === "refused") slot.reload();
+          })
+        }
+        {...(merge.methods.length > 1 ? { onMenuPress: () => setChoosing(true) } : {})}
+      />
+      {blocked === null ? null : (
+        <Text variant="small" tone="problem">
+          {blocked}
+        </Text>
+      )}
+      {hint === null ? null : <Text variant="small">{hint}</Text>}
+      <SheetMessage message={message} tone={messageTone} />
+      <Sheet
+        visible={choosing}
+        title={t("runDetail.merge.methodTitle")}
+        closeLabel={t("common.close")}
+        onClose={() => setChoosing(false)}
+      >
+        <View accessibilityRole="radiogroup" accessibilityLabel={t("runDetail.merge.methodTitle")}>
+          {merge.methods.map((option) => (
+            <RadioRow
+              key={option}
+              label={t(`runDetail.merge.option.${option}`)}
+              selected={option === method}
+              onPress={() => {
+                setPicked(option);
+                setChoosing(false);
+                AccessibilityInfo.announceForAccessibility(
+                  t("runDetail.merge.picked", {
+                    method: t(`runDetail.merge.button.${option}`),
+                  }),
+                );
+              }}
+            />
+          ))}
+        </View>
+      </Sheet>
+    </View>
+  );
+}
+
+function PrBox({ detail, mergeSlot }: { detail: AppRunDetail; mergeSlot: MergeSlot | null }) {
+  const pr = detail.pullRequest;
+  const line = prUnreadLine(detail);
+  const merge = pr?.state === "open" ? pr.merge : null;
+  return (
+    <RaisedBox>
+      <View style={styles.prHead}>
+        {pr === null ? null : isWebLink(pr.url) ? (
+          <ExternalLink
+            label={t("runDetail.prLink", { pr: pr.displayId })}
+            accessibilityLabel={t("runDetail.prLinkLabel", { pr: pr.displayId })}
+            onPress={() => void openWebLink(pr.url)}
+          />
+        ) : (
+          <Text variant="title" weight="semibold">
+            {t("runDetail.prLink", { pr: pr.displayId })}
+          </Text>
+        )}
+        {prChips(detail).map((chip) => (
+          <Chip key={chip.key} label={chip.label} tone={chip.tone} size="row" />
+        ))}
+      </View>
+      {line === null ? null : (
+        <Text variant="meta" tone="secondary">
+          {line}
+        </Text>
+      )}
+      {merge === null || mergeSlot === null ? null : (
+        <MergeControl merge={merge} humanCheck={waitingHumanCheck(detail)} slot={mergeSlot} />
+      )}
+    </RaisedBox>
+  );
+}
+
+function RunDetailBody({
+  detail,
+  mergeSlot = null,
+}: {
+  detail: AppRunDetail;
+  mergeSlot?: MergeSlot | null;
+}) {
   const { summary, pullRequest } = detail;
   return (
     <>
@@ -919,31 +1102,16 @@ function RunDetailBody({ detail }: { detail: AppRunDetail }) {
         <Text variant="title" heading>
           {t("runDetail.pr")}
         </Text>
-        {pullRequest === null ? (
+        {pullRequest === null && detail.prReadError === null ? (
           <Text variant="meta">{t("runDetail.noPr")}</Text>
         ) : (
           <>
-            <Text variant="body" tone="primary">
-              {pullRequest.displayId}
-            </Text>
-            <Text variant="meta">
-              {t("runDetail.ciLabel", { state: t(`runDetail.ci.${pullRequest.ci}`) })}
-            </Text>
-            <View style={styles.chips}>
-              {pullRequest.problems.map((problem, index) => (
-                <Chip
-                  key={`${problem.kind}:${index}`}
-                  tone={prProblemTone(problem)}
-                  label={prProblemLabel(problem)}
-                />
-              ))}
-            </View>
-            {isWebLink(pullRequest.url) ? (
-              <Button
-                label={t("runDetail.openPr")}
-                onPress={() => void openWebLink(pullRequest.url)}
-              />
+            {mergeSlot?.merged === true ? (
+              <Text variant="meta" tone="secondary">
+                {t("runDetail.merge.done")}
+              </Text>
             ) : null}
+            <PrBox detail={detail} mergeSlot={mergeSlot} />
           </>
         )}
       </View>
@@ -962,7 +1130,13 @@ function DetailSheet({
   disabled: boolean;
   onClose: () => void;
 }) {
-  const { read, staleNotice } = useRunDetail(port, run, disabled, true);
+  const { read, staleNotice, reload } = useRunDetail(port, run, disabled, true);
+  const [merged, setMerged] = useState(false);
+  const onMerged = () => {
+    setMerged(true);
+    AccessibilityInfo.announceForAccessibility(t("runDetail.merge.done"));
+    reload();
+  };
   return (
     <Sheet
       visible
@@ -971,15 +1145,58 @@ function DetailSheet({
       closeLabel={t("common.close")}
       onClose={onClose}
     >
+      <View style={styles.ticket}>
+        <ContextLine run={run} />
+        <TicketLinkButton run={run} port={port} />
+      </View>
       <DetailGate read={read} staleNotice={staleNotice}>
         {(detail) => (
           <SheetBody>
-            <ContextLine run={run} />
-            <RunDetailBody detail={detail} />
+            <RunDetailBody
+              detail={detail}
+              mergeSlot={{ run, port, disabled, merged, onMerged, reload }}
+            />
           </SheetBody>
         )}
       </DetailGate>
     </Sheet>
+  );
+}
+
+export function ticketOpenMessage(outcome: "demo" | "failed"): string {
+  return outcome === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed");
+}
+
+function TicketLinkButton({ run, port }: { run: DashboardRun; port: RunPort }) {
+  const [opening, setOpening] = useState(false);
+  const [failure, setFailure] = useState<"demo" | "failed" | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const open = async () => {
+    setOpening(true);
+    setFailure(null);
+    const outcome = await openTicket(port, run);
+    if (!mounted.current) return;
+    setOpening(false);
+    setFailure(outcome === "opened" ? null : outcome);
+  };
+  return (
+    <>
+      <LinkButton
+        label={t("actions.menu.openTicket")}
+        disabled={opening}
+        onPress={() => void open()}
+      />
+      <SheetMessage
+        message={failure === null ? null : ticketOpenMessage(failure)}
+        tone={failure === "demo" ? "secondary" : "problem"}
+      />
+    </>
   );
 }
 
@@ -991,7 +1208,7 @@ interface RunSheetsProps {
 }
 
 export function RunSheets({ sheet, ...rest }: RunSheetsProps) {
-  const sendingLock = useRef(false);
+  const [sendingLock] = useState(createLock);
   if (sheet === null) return null;
   return (
     <SendingLock.Provider value={sendingLock}>
@@ -1017,16 +1234,6 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
     case "cancel":
       return (
         <CancelSheet
-          key={sheet.run.id}
-          run={sheet.run}
-          port={port}
-          disabled={disabled}
-          onClose={onClose}
-        />
-      );
-    case "menu":
-      return (
-        <MenuSheet
           key={sheet.run.id}
           run={sheet.run}
           port={port}
@@ -1068,5 +1275,7 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
 
 const styles = StyleSheet.create({
   group: { gap: space.s2 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s1 },
+  ticket: { gap: space.s2 },
+  prHead: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
+  merge: { gap: space.px6 },
 });

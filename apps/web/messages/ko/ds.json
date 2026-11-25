@@ -57,6 +57,7 @@
     "settingsRows": "설정 줄",
     "settingsSteps": "설정 단계",
     "sectionNav": "설정 목차",
+    "settingsNav": "설정 페이지 메뉴",
     "motionPrimitives": "움직임"
   },
   "motionDemo": {
@@ -393,7 +394,8 @@
   "signals": {
     "title": "PR #12",
     "detail": "Open",
-    "meta": "5 min ago 읽음",
+    "meta": "5 min ago",
+    "metaLabel": "마지막으로 읽은 때",
     "ci": "CI",
     "ciValue": "7개 중 2개 실패",
     "conflict": "충돌",
@@ -431,7 +433,8 @@
     "loadGpu": "GPU",
     "loadNone": "없음",
     "panelTitle": "공급자 사용량",
-    "panelMeta": "3 min ago 읽었어요",
+    "panelMeta": "3 min ago",
+    "panelMetaLabel": "마지막으로 읽은 때",
     "panelRow": "PanelRows는 Row의 안쪽 여백만큼 밖으로 내어 글자를 블록 제목 선에 맞춰요.",
     "listTitle": "관계",
     "listInfoLabel": "관계 안내",
@@ -683,9 +686,15 @@
       "saved": "저장했어요",
       "token": "GitHub 토큰",
       "tokenDetail": "아직 없어요",
+      "tailscale": "휴대폰에서 이 Mac 열기",
+      "tailscaleDetail": "Tailscale 연결됨 · studio.example.ts.net",
+      "turnOn": "켜기",
       "runners": "러너",
       "runnersDetail": "3대",
-      "runnersValue": "Runners 에서 더하고 고쳐요"
+      "runnersValue": "Runners 에서 더하고 고쳐요",
+      "enabled": "알림 받기",
+      "enabledDetail": "끄면 알림을 모두 멈춰요",
+      "question": "Question"
     },
     "settingsSteps": {
       "note": "설정 화면에서 차례로 따라 할 단계를 카드 하나에 쌓아요. 앞 단계를 끝내기 전의 단계는 잠그고 이름만 보여요. 구역 제목 옆에는 지금 상태를 짧게 둬요(detail).",
@@ -709,6 +718,16 @@
       "first": "첫째 구역",
       "second": "둘째 구역",
       "body": "구역 안 내용"
+    },
+    "settingsNav": {
+      "note": "페이지로 나눈 설정의 메뉴예요. 묶음 이름이 적용 범위를 말하고, 지금 페이지를 표시하고, 확인할 것이 있는 페이지에 점을 붙여요. 좁으면 가로 칩 줄이 돼요.",
+      "label": "예시 설정 메뉴",
+      "problem": "확인할 것이 있어요",
+      "groupOne": "Workspace · Acme",
+      "groupTwo": "설치 전체",
+      "general": "일반",
+      "projects": "프로젝트",
+      "connections": "연결"
     }
   }
 }

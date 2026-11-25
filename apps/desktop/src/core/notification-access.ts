@@ -1,4 +1,12 @@
-import type { NotificationPermission } from "@ganger/app/notifications/desktop";
+import {
+  PERMISSION_REQUEST_RESULTS,
+  TEST_NOTIFICATION_RESULTS,
+} from "@ganger/app/notifications/desktop";
+import type {
+  NotificationPermission,
+  PermissionRequestResult,
+  TestNotificationResult,
+} from "@ganger/app/notifications/desktop";
 import type { NativeAuthorization, NotificationPermissionPort } from "./notification-addon.js";
 
 export const SYSTEM_NOTIFICATION_SETTINGS_URL =
@@ -6,11 +14,8 @@ export const SYSTEM_NOTIFICATION_SETTINGS_URL =
 export const FOCUS_SETTINGS_URL = "x-apple.systempreferences:com.apple.Focus-Settings.extension";
 export const TEST_NOTIFICATION_TIMEOUT_MS = 5_000;
 
-export const TEST_NOTIFICATION_RESULTS = ["sent", "unsigned", "denied", "failed"] as const;
-export type TestNotificationResult = (typeof TEST_NOTIFICATION_RESULTS)[number];
-
-export const PERMISSION_REQUEST_RESULTS = ["allowed", "not-allowed", "unsigned"] as const;
-export type PermissionRequestResult = (typeof PERMISSION_REQUEST_RESULTS)[number];
+export { PERMISSION_REQUEST_RESULTS, TEST_NOTIFICATION_RESULTS };
+export type { PermissionRequestResult, TestNotificationResult };
 
 export function permissionFromNative(status: NativeAuthorization): NotificationPermission {
   switch (status) {

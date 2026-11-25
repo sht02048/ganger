@@ -49,7 +49,7 @@ _Avoid_: Worker, Agent, Host, Machine
 _Avoid_: 초대, 페어링 코드
 
 **기기 연결**:
-다른 기기(모바일 앱 등)를 이 서버에 붙이는 일. Settings의 기기 연결 화면이 QR을 띄우고, 기기가 그 QR의 연결 코드를 기기 토큰으로 바꾼다. 연결한 기기는 같은 화면의 목록에서 지워 끊는다.
+다른 기기(모바일 앱 등)를 이 서버에 붙이는 일. Settings › 모바일 페이지가 "휴대폰에서 이 Mac 열기"를 켠 동안 QR을 페이지 안에 바로 펼치고, 기기가 그 QR의 연결 코드를 기기 토큰으로 바꾼다. 연결한 휴대폰은 같은 페이지의 목록에서 "연결 끊기"로 끊는다. 데스크톱 앱도 같은 기기 토큰을 받지만(등록 경로가 따로다) 이 목록에는 보이지 않는다. 둘은 기기의 종류(`phone`·`desktop`, 티켓 0230)로 가른다.
 _Avoid_: 페어링
 
 **연결 코드**:
@@ -105,7 +105,7 @@ _Avoid_: 프롬프트(단독으로), spec, 지시(단독으로. 티켓 앞뒤 �
 _Avoid_: 시스템 프롬프트, ask guide(코드 이름 밖에서)
 
 **티켓 앞뒤 지시**:
-운영자가 Workspace마다 정해 그 Workspace의 모든 런의 지시서에 덧붙이는 글 두 칸. 티켓 앞 지시와 티켓 뒤 지시이고 기본은 비어 있다. 칸마다 8,000자까지다. Settings › Workspace의 "에이전트에게 보내는 지시"에서 고치고, 옆의 미리 보기로 예시 티켓과 합친 지시서를 본다. 저장하면 새로 시작하는 런부터 적용하고 도는 런은 그대로다(스펙 0006 C1·C2). 영어 화면 이름은 "agent instructions"(칸은 "before the ticket", "after the ticket")다.
+운영자가 Workspace마다 정해 그 Workspace의 모든 런의 지시서에 덧붙이는 글 두 칸. 티켓 앞 지시와 티켓 뒤 지시이고 기본은 비어 있다. 칸마다 8,000자까지다. Settings › 일반 페이지의 "에이전트에게 보내는 지시"에서 고치고, 옆의 미리 보기로 예시 티켓과 합친 지시서를 본다. 저장하면 새로 시작하는 런부터 적용하고 도는 런은 그대로다(스펙 0006 C1·C2). 영어 화면 이름은 "agent instructions"(칸은 "before the ticket", "after the ticket")다.
 _Avoid_: 프롬프트 템플릿, 시스템 프롬프트, 앞뒤 프롬프트, 기본 지시
 
 **이어서 맡기기**:
@@ -251,7 +251,7 @@ Waiting for Input 런 중 에이전트가 권한 프롬프트에서 허용을 �
 _Avoid_: 권한 대기(종류 이름으로), 권한 요청
 
 **Human Check**:
-Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. 운영자가 Dashboard 런 패널 「PR」 탭이나 MCP `merge_pr`로 그 런의 PR을 머지하면 Ganger가 "확인했어요"와 "운영자가 PR을 머지했어요"로 대신 답한다(ADR [0024](docs/adr/0024-operator-merges-pr-from-ganger.md)). Ganger가 스스로 머지를 정하지는 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
+Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. 운영자가 Dashboard 런 패널 「PR」 탭, 모바일 런 상세 PR 구역, MCP `merge_pr`로 그 런의 PR을 머지하면 Ganger가 "확인했어요"와 "운영자가 PR을 머지했어요"로 대신 답한다(ADR [0024](docs/adr/0024-operator-merges-pr-from-ganger.md)). Ganger가 스스로 머지를 정하지는 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
 _Avoid_: 승인 요청, 리뷰 요청, 결정 게이트(Orca 이름 `decision_gate` 밖에서), Human Check를 요약 결과로
 
 **Runner Issue**:
@@ -319,11 +319,11 @@ Runs 화면은 이 필터를 쓰지 않는다(티켓 0173). 러너별 "지금" �
 _Avoid_: 패키지(npm 패키지와 헷갈린다), 빌드 산출물(앱 하나의 `dist`를 가리킨다)
 
 **다른 기기에서 열 주소**:
-운영자가 노트북·휴대폰에서 이 서버의 화면을 여는 주소(예: Tailscale Serve 주소). Settings의 주소에서 정하고 DB 설치 설정에 둔다. 서버는 이 주소의 호스트와 127.0.0.1·localhost·바인드 주소로 온 요청만 받는다(Host 검사, 티켓 0048). 화면·사용자 문서에서는 "web address"로 쓴다.
+운영자가 노트북·휴대폰에서 이 서버의 화면을 여는 주소(예: Tailscale Serve 주소). Settings › 모바일 페이지의 "휴대폰에서 이 Mac 열기"를 켜면 이 Mac의 Tailscale CLI로 tailnet 전용 Serve(https 443 → 이 서버 포트)를 켜고 그 MagicDNS https 주소를 넣으며, 끄면 비운다(티켓 0230, 그 전에는 같은 자리의 "열 주소" 칸에 직접 넣었다). 직접 넣는 칸은 없고, 전에 넣어 둔 주소는 그대로 쓴다. DB 설치 설정에 둔다. 서버는 이 주소의 호스트와 127.0.0.1·localhost·바인드 주소로 온 요청만 받는다(Host 검사, 티켓 0048). 화면·사용자 문서에서는 "web address"로 쓴다.
 _Avoid_: 바인드 주소(`WEB_HOST`, 서버가 듣는 인터페이스다), 공개 주소(단독으로)
 
-**Linear가 이 서버에 닿을 주소**:
-트래커가 인터넷에서 webhook을 보내 이 서버에 닿는 주소(예: Tailscale Funnel `https://<기기>.<tailnet>.ts.net:8443`, Cloudflare Tunnel 주소). 서버에 하나이고 모든 트래커 연결이 같이 쓴다. 트래커 연결 상세의 Webhook 구역 1단계에서 정하고, 서버가 그 주소로 webhook 확인 경로를 물어 이 설치가 답할 때만 저장한다(티켓 0130). 이 주소의 호스트로는 webhook 경로만 받는다. 코드·DB에서는 `webhookAddress`, 영어 화면·사용자 문서에서는 "address Linear reaches this server at"으로 쓴다. 온보딩은 webhook을 묻지 않고, 1단계에서 webhook 없이도 자동 할당이 도는 방식과 켜는 곳만 안내한다.
+**webhook 받을 주소**:
+트래커가 인터넷에서 webhook을 보내 이 서버에 닿는 주소(예: Tailscale Funnel `https://<기기>.<tailnet>.ts.net:8443`, Cloudflare Tunnel 주소). 서버에 하나이고 모든 트래커 연결이 같이 쓴다. Settings › 연결 페이지 맨 위 "webhook 받을 주소" 줄 한 곳에서 정하고(티켓 0214, 그 전에는 트래커 연결 상세의 Webhook 구역 1단계), 서버가 그 주소로 webhook 확인 경로를 물어 이 설치가 답할 때만 저장한다(티켓 0130). 이 주소의 호스트로는 webhook 경로만 받는다. 코드·DB에서는 `webhookAddress`, 영어 화면·사용자 문서에서는 "webhook address"로 쓴다. 트래커 연결 상세의 Webhook 1단계는 이 주소를 보여 주고 그 줄로 안내만 한다. 온보딩은 webhook을 묻지 않고, 1단계에서 webhook 없이도 자동 할당이 도는 방식과 켜는 곳만 안내한다.
 _Avoid_: 공개 주소(단독으로, 어느 주소인지 흐리다), webhook 공개 주소(예전 화면 이름), 터널 주소
 
 **webhook 확인 경로**:
@@ -353,9 +353,9 @@ Ganger가 도는 기계에서 MCP로 Ganger를 읽고 다루는 에이전트(예
 _Avoid_: 봇, 자동화(무엇이 했는지 흐리다), 사용자(다중 사용자로 읽힌다)
 
 **MCP 쓰기 허용**:
-Settings MCP 구역의 스위치. 켜야 MCP 클라이언트에게 쓰기 도구가 보인다. 기본은 꺼짐이고 화면에서만 바꾼다. 티켓 0089.
+Settings › MCP 페이지의 스위치. 켜야 MCP 클라이언트에게 쓰기 도구가 보인다. 기본은 꺼짐이고 화면에서만 바꾼다. 티켓 0089.
 _Avoid_: 쓰기 모드, 권한(런의 Permission과 헷갈린다)
 
 **MCP 작업 기록**:
-MCP 클라이언트가 한 쓰기 하나의 기록. 시각, "MCP · 〈클라이언트 이름〉", 도구, 대상, 결과를 둔다. 런에 대한 것은 Run 상세 상태 기록 사이에, 나머지는 Settings MCP 구역의 최근 작업에 보인다. 티켓 0089.
+MCP 클라이언트가 한 쓰기 하나의 기록. 시각, "MCP · 〈클라이언트 이름〉", 도구, 대상, 결과를 둔다. 런에 대한 것은 Run 상세 상태 기록 사이에, 나머지는 Settings › MCP 페이지의 최근 작업에 보인다. 티켓 0089.
 _Avoid_: 감사 로그, 활동 로그(런 로그와 헷갈린다)

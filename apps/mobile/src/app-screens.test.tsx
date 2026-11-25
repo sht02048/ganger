@@ -101,9 +101,26 @@ describe("Dashboard 데모", () => {
   it("처리할 일만 켜면 꼬리표 없는 카드를 숨긴다", () => {
     const host = mountApp();
     expect(host.textContent).toContain("ACME-150");
-    press(host.querySelector('input[type="checkbox"]'));
+    press(byLabel(host, "처리할 일만"));
     expect(host.textContent).not.toContain("ACME-150");
     expect(host.textContent).toContain("ACME-138");
+  });
+
+  it("처리할 일만 스위치는 개수 줄과 한 줄에 있고 라벨을 눌러도 바뀐다", () => {
+    const host = mountApp();
+    const row = host.querySelector('[data-testid="dashboard-count-row"]');
+    const todoOnly = () => row?.querySelector('[role="switch"][aria-label="처리할 일만"]');
+    expect(row?.textContent).toBe("처리할 일 4 · Running 4처리할 일만");
+    expect(todoOnly()?.getAttribute("aria-checked")).toBe("false");
+    const label = [...(todoOnly()?.querySelectorAll("div") ?? [])].find(
+      (element) => element.textContent === "처리할 일만",
+    );
+    press(label);
+    expect(todoOnly()?.getAttribute("aria-checked")).toBe("true");
+    expect(host.textContent).not.toContain("ACME-150");
+    press(label);
+    expect(todoOnly()?.getAttribute("aria-checked")).toBe("false");
+    expect(host.textContent).toContain("ACME-150");
   });
 
   it("Workspace를 고르면 그 Workspace의 런만 남는다", () => {
@@ -174,7 +191,7 @@ describe("설정 데모", () => {
       "Question",
       "Permission",
       "Human Check",
-      "Failed·Disconnected",
+      "Failed · Disconnected",
       "Runner Issue",
     ]) {
       expect(host.textContent).toContain(kind);

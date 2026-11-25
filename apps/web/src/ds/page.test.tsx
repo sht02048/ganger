@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import * as ui from "@ganger/ui";
 import { describe, expect, it } from "vitest";
 
+import { labeledTimesOf } from "../testing/labeled-times";
 import { renderWithMessages } from "../testing/render";
 import { dsMessages } from "./messages";
 import { DesignSystemPage } from "./page";
@@ -13,6 +14,16 @@ function renderPage(): string {
 }
 
 describe("/ds 서버 렌더", () => {
+  it("PanelSection 예시의 읽은 때는 시간만 보이고 뜻은 숨긴 글과 툴팁에 둔다(0216)", () => {
+    const label = messages.ds.signals.metaLabel;
+    expect(labeledTimesOf(renderPage())).toContainEqual(
+      expect.objectContaining({ title: label, hidden: label, visible: messages.ds.signals.meta }),
+    );
+    const visible = labeledTimesOf(renderPage()).map((time) => time.visible);
+    expect(visible).toContain(messages.ds.usage.panelMeta);
+    expect(renderPage().replace(/<[^>]+>/g, "")).not.toMatch(/ago [가-힣]/);
+  });
+
   it("오류 없이 모든 토큰·컴포넌트 구역을 그린다", () => {
     const html = renderPage();
     const ids = [
@@ -63,6 +74,7 @@ describe("/ds 서버 렌더", () => {
       "settingsRows",
       "settingsSteps",
       "sectionNav",
+      "settingsNav",
       "icons",
       "motionPrimitives",
     ];

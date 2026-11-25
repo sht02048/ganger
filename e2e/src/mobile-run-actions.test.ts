@@ -263,25 +263,32 @@ describe("늦게 간 쓰기", () => {
 });
 
 describe("requestId(M25)", () => {
-  it.each(["answer", "human-check", "deny", "resume", "cancel", "retry", "continue"] as const)(
-    "%s는 requestId가 없으면 거절한다",
-    async (action) => {
-      const run = await startedRun();
-      const bodies: Record<V1RunAction, unknown> = {
-        answer: { questionId: "q", answer: "A" },
-        "human-check": { questionId: "q", decision: "confirmed", note: "" },
-        deny: { promptId: "p", reason: "" },
-        resume: {},
-        cancel: {},
-        retry: {},
-        continue: { message: "이어 주세요" },
-      };
-      expect(await refused(await post(run.id, action, bodies[action]))).toEqual({
-        status: 400,
-        reason: "invalid-request",
-      });
-    },
-  );
+  it.each([
+    "answer",
+    "human-check",
+    "deny",
+    "resume",
+    "cancel",
+    "retry",
+    "continue",
+    "merge",
+  ] as const)("%s는 requestId가 없으면 거절한다", async (action) => {
+    const run = await startedRun();
+    const bodies: Record<V1RunAction, unknown> = {
+      answer: { questionId: "q", answer: "A" },
+      "human-check": { questionId: "q", decision: "confirmed", note: "" },
+      deny: { promptId: "p", reason: "" },
+      resume: {},
+      cancel: {},
+      retry: {},
+      continue: { message: "이어 주세요" },
+      merge: { method: "squash", expectedHead: "abc" },
+    };
+    expect(await refused(await post(run.id, action, bodies[action]))).toEqual({
+      status: 400,
+      reason: "invalid-request",
+    });
+  });
 
   it("답하기는 같은 ID와 내용을 한 번만 처리하고, 다른 내용은 already-answered다", async () => {
     const { run, questionId } = await askedRun();

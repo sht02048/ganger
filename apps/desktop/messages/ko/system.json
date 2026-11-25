@@ -109,9 +109,6 @@
       "body": "이 알림이 보이면 Ganger 알림을 받을 수 있어요."
     }
   },
-  "settingsWindow": {
-    "title": "알림 설정"
-  },
   "providers": {
     "claude": "Claude",
     "codex": "Codex"
@@ -119,5 +116,9 @@
   "diagnostics": {
     "saved": "진단 묶음을 저장했어요. 공개하기 전에 파일을 직접 열어 확인해 주세요.",
     "failed": "진단 묶음을 만들지 못했어요. 다시 해 주세요."
+  },
+  "pageUnsupported": {
+    "message": "이 서버에서는 알림 설정을 열 수 없어요",
+    "detail": "서버가 앱보다 오래된 버전이라 Settings에 알림 페이지가 없어요. 서버를 업데이트하면 Settings › 알림에서 고를 수 있어요."
   }
 }

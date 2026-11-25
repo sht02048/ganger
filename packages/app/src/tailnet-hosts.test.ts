@@ -92,7 +92,7 @@ describe("tailnet 주소 기억", () => {
 describe("주소가 허용되지 않은 안내 화면", () => {
   const copy = {
     title: (host: string | null) => `이 서버가 ${host ?? "이 주소"}를 허용하지 않아요`,
-    body: "서버 맥에서 Settings › 주소에 넣어 주세요.",
+    body: "서버 맥의 Settings › 모바일에서 휴대폰에서 열기를 켜면 그 주소로 열 수 있어요.",
   };
   const request = (host: string, accept = "text/html", method = "GET") =>
     new Request("http://127.0.0.1:3000/", { method, headers: { host, accept } });

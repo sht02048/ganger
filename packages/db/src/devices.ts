@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { recordSettingsChange } from "./change-events.js";
 import type { Database } from "./database.js";
+import type { DeviceKind } from "./device-kinds.js";
 import { inTransaction } from "./database.js";
 import { devices } from "./schema.js";
 
@@ -21,9 +22,12 @@ export interface DeviceNotifications {
   groups: Record<DeviceNotificationGroup, boolean>;
 }
 
+export { DEVICE_KINDS, type DeviceKind } from "./device-kinds.js";
+
 export interface DeviceSummary {
   id: string;
   name: string;
+  kind: DeviceKind;
   createdAt: Date;
   lastSeenAt: Date | null;
 }
@@ -31,24 +35,32 @@ export interface DeviceSummary {
 const summaryColumns = {
   id: devices.id,
   name: devices.name,
+  kind: devices.kind,
   createdAt: devices.createdAt,
   lastSeenAt: devices.lastSeenAt,
 };
 
 export function addDevice(
   db: Database,
-  input: { name: string; tokenHash: string },
+  input: { name: string; kind: DeviceKind; tokenHash: string },
   now: Date,
 ): DeviceSummary {
   const device: DeviceSummary = {
     id: randomUUID(),
     name: input.name,
+    kind: input.kind,
     createdAt: now,
     lastSeenAt: null,
   };
   inTransaction(db, () => {
     db.insert(devices)
-      .values({ id: device.id, name: device.name, tokenHash: input.tokenHash, createdAt: now })
+      .values({
+        id: device.id,
+        name: device.name,
+        kind: device.kind,
+        tokenHash: input.tokenHash,
+        createdAt: now,
+      })
       .run();
     recordSettingsChange(db, undefined, now);
   });

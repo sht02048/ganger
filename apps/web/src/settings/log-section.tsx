@@ -42,7 +42,7 @@ const NO_RUN = "";
 export function LogSection({ view, actions }: LogSectionProps) {
   const t = useTranslations("settings");
   return (
-    <SettingsSection id="logs" title={t("sections.logs")}>
+    <SettingsSection id="logs" title={t("logs.title")}>
       <SettingsGroup>
         <SizeRow view={view} />
         {view.available ? (

@@ -7,8 +7,16 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#090909",
     "platforms": ["ios", "web"],
+    "experiments": {
+      "reactCompiler": true
+    },
     "ios": {
-      "supportsTablet": false
+      "supportsTablet": false,
+      "icon": {
+        "light": "./assets/icon.png",
+        "dark": "./assets/icon-dark.png",
+        "tinted": "./assets/icon-tinted.png"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -23,7 +31,18 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/pretendard/dist/public/static/Pretendard-Regular.otf",
+            "./node_modules/pretendard/dist/public/static/Pretendard-Medium.otf",
+            "./node_modules/pretendard/dist/public/static/Pretendard-SemiBold.otf"
+          ]
+        }
+      ],
+      ["expo-splash-screen", { "backgroundColor": "#090909" }]
     ]
   }
 }

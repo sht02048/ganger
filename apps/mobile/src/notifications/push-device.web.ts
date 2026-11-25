@@ -6,6 +6,7 @@ export const pushDevice: PushDevicePort = {
   requestPermission: () => Promise.resolve("denied"),
   pushAddress: () => Promise.resolve(null),
   subscribeResponses: () => () => undefined,
+  setBadgeCount: () => Promise.resolve(),
 };
 
 export function setUpPushHandling(): void {

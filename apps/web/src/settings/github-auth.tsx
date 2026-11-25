@@ -60,6 +60,7 @@ export function GitHubAuthPanel({
   actions,
   connectFirst = false,
   tokenGuide,
+  tokenForm = true,
   onClose,
 }: {
   view: GitHubAuthView | undefined;
@@ -67,6 +68,7 @@ export function GitHubAuthPanel({
   actions: SettingsActions;
   connectFirst?: boolean;
   tokenGuide?: ReactNode;
+  tokenForm?: boolean;
   onClose?: () => void;
 }) {
   const t = useTranslations("settings.githubAuth");
@@ -102,16 +104,18 @@ export function GitHubAuthPanel({
         </span>
         <SubmitError state={check.state} describe={describe} />
       </div>
-      <Disclosure flat defaultOpen={view.cli.kind === "missing"} summary={t("tokenToggle")}>
-        <Text variant="ui" as="p">
-          {view.tokenSaved ? t("tokenSaved") : t("tokenFallback")}
-        </Text>
-        <Text variant="ui" as="p">
-          {t("tokenPermissions")}
-        </Text>
-        {tokenGuide}
-        <GitHubTokenForm actions={actions} primary={!loggedIn && !connected} />
-      </Disclosure>
+      {tokenForm ? (
+        <Disclosure flat defaultOpen={view.cli.kind === "missing"} summary={t("tokenToggle")}>
+          <Text variant="ui" as="p">
+            {view.tokenSaved ? t("tokenSaved") : t("tokenFallback")}
+          </Text>
+          <Text variant="ui" as="p">
+            {t("tokenPermissions")}
+          </Text>
+          {tokenGuide}
+          <GitHubTokenForm actions={actions} primary={!loggedIn && !connected} />
+        </Disclosure>
+      ) : null}
     </div>
   );
 }

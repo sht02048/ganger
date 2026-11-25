@@ -7,6 +7,7 @@ import type { V1ErrorReason, V1Meta } from "@ganger/api";
 import { authenticateDevice, connectDevice, registerDesktop } from "@ganger/app/devices/connection";
 import { toV1Dashboard } from "@ganger/app/devices/dashboard";
 import {
+  handleV1Merge,
   handleV1RunAction,
   loadV1RunDetail,
   loadV1TicketLink,
@@ -39,6 +40,7 @@ import { getDeviceConnectionCodes } from "./device-connection-codes";
 import { removeDeviceAndCloseStreams } from "./device-removal";
 import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
+import { serverGitHubForDiagnosis } from "./server-github";
 import { sendDeviceActivity } from "./worker-wake";
 
 const RUN_ACTION_BODY_LIMIT_BYTES = 64 * 1024;
@@ -53,8 +55,9 @@ function v1Data(data: unknown): Response {
   return Response.json({ meta: META, data }, { headers: NO_STORE });
 }
 
-function v1Error(status: number, reason: V1ErrorReason): Response {
-  return Response.json({ meta: META, error: { reason } }, { status, headers: NO_STORE });
+function v1Error(status: number, reason: V1ErrorReason, message?: string): Response {
+  const error = message === undefined ? { reason } : { reason, message };
+  return Response.json({ meta: META, error }, { status, headers: NO_STORE });
 }
 
 function requestDevice(request: Request): string | null {
@@ -179,9 +182,10 @@ export async function serveV1DeviceActivity(
   return v1Data({ recorded: true });
 }
 
-export function serveV1RunDetail(request: Request, runId: string): Response {
+export async function serveV1RunDetail(request: Request, runId: string): Promise<Response> {
   if (requestDevice(request) === null) return v1Error(401, "invalid-token");
-  const detail = loadV1RunDetail(getDatabase(), runId, new Date());
+  const db = getDatabase();
+  const detail = loadV1RunDetail(db, runId, new Date(), await serverGitHubForDiagnosis(db));
   return detail === null ? v1Error(404, "not-found") : v1Data(detail);
 }
 
@@ -193,14 +197,20 @@ export async function serveV1RunAction(
   if (requestDevice(request) === null) return v1Error(401, "invalid-token");
   const known = parseV1RunAction(action);
   if (known === null) return v1Error(404, "not-found");
-  const reply = handleV1RunAction(
-    getDatabase(),
-    runId,
-    known,
-    await readJson(request, RUN_ACTION_BODY_LIMIT_BYTES),
-    new Date(),
-  );
-  return reply.status === 200 ? v1Data({ accepted: true }) : v1Error(reply.status, reply.reason);
+  const body = await readJson(request, RUN_ACTION_BODY_LIMIT_BYTES);
+  const reply =
+    known === "merge"
+      ? await handleV1Merge(
+          { db: getDatabase(), secretBox: getSecretBox(), registry: getAdapterRegistry() },
+          runId,
+          body,
+          () => new Date(),
+        )
+      : handleV1RunAction(getDatabase(), runId, known, body, new Date());
+  if (reply.status === 200) return v1Data({ accepted: true });
+  return "message" in reply
+    ? v1Error(reply.status, reply.reason, reply.message)
+    : v1Error(reply.status, reply.reason);
 }
 
 export async function serveV1TicketLink(request: Request, runId: string): Promise<Response> {

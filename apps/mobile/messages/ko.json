@@ -142,7 +142,7 @@
     "detail": "런 상세",
     "retry": "다시 맡기기",
     "menu": "{key} 메뉴",
-    "menuLabel": "더 보기"
+    "menuClose": "메뉴 닫기"
   },
   "runners": {
     "title": "Runners",
@@ -162,6 +162,17 @@
     "usageValue": "{percent}%",
     "usageNotRead": "사용량을 아직 읽지 않았어요",
     "usageUnreadable": "사용량을 읽지 못했어요",
+    "gh": {
+      "label": "GitHub (gh)",
+      "account": "{login} · {host}",
+      "expired": "{login} · 로그인이 만료됐어요",
+      "notRead": "아직 읽지 않았어요",
+      "unreadable": "읽지 못했어요",
+      "notInstalled": "gh 없음",
+      "loggedOut": "로그인 안 됨",
+      "unknown": "알 수 없는 상태",
+      "expiredProblem": "러너의 gh 계정 {login} 로그인이 만료됐어요. 이 러너로는 push와 PR 열기를 하지 못해요."
+    },
     "window": {
       "session": "5시간",
       "weekly": "주간",
@@ -194,7 +205,7 @@
       "question": "Question",
       "permission": "Permission",
       "humanCheck": "Human Check",
-      "failedDisconnected": "Failed·Disconnected",
+      "failedDisconnected": "Failed · Disconnected",
       "runnerIssue": "Runner Issue"
     },
     "pushNotice": "알림은 Expo Push를 거쳐 와요. 티켓 내용은 싣지 않아요.",
@@ -243,7 +254,7 @@
   },
   "connection": {
     "title": "서버에 연결해요",
-    "body": "Ganger의 Settings › 기기 연결에서 QR을 띄운 뒤 카메라로 읽어 주세요.",
+    "body": "서버 맥의 Ganger에서 Settings › 모바일을 열고 휴대폰에서 열기를 켜면 QR이 보여요. 카메라로 읽어 주세요.",
     "scan": "QR 읽기",
     "scanning": "QR을 화면에 맞춰 주세요",
     "stopScan": "그만 읽기",
@@ -263,7 +274,7 @@
       "invalid-request": "연결 요청을 서버가 읽지 못했어요. 다시 시도해 주세요.",
       "unreachable": "서버에 닿지 않아요. 네트워크와 서버 주소를 확인해 주세요.",
       "server-error": "서버가 요청을 처리하지 못했어요. 잠시 뒤 다시 해 주세요.",
-      "host-blocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소에서 이 주소를 넣어 주세요."
+      "host-blocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 모바일에서 휴대폰에서 열기를 켜고 새 QR로 연결해 주세요."
     },
     "update": {
       "app": "앱을 업데이트해 주세요.",
@@ -274,7 +285,7 @@
       "stale": "{reason} · {minutes}분 전 기준",
       "staleHours": "{reason} · {hours}시간 전 기준",
       "staleDays": "{reason} · {days}일 전 기준",
-      "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소를 고쳐 주세요. 연결은 그대로 뒀어요.",
+      "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 모바일에서 휴대폰에서 열기를 켜 주세요. 연결은 그대로 뒀어요.",
       "reasonUnreachable": "서버에 닿지 않아요",
       "reasonServerError": "서버가 요청을 처리하지 못했어요"
     },
@@ -321,6 +332,22 @@
         "previous-agent": "이전 에이전트가 아직 멈추지 않았어요. 웹이나 데스크톱에서 확인해 주세요.",
         "cannot-assign": "같은 러너와 저장소로 맡길 수 없어요. 웹이나 데스크톱에서 맡겨 주세요.",
         "unknown": "서버가 이 요청을 받지 않았어요. 지금 상태를 확인해 주세요."
+      },
+      "merge": {
+        "no-write-access": "토큰에 머지 권한이 없어요. 웹이나 데스크톱의 Settings에서 바꿔 주세요",
+        "blocked": "레포 규칙이 머지를 막았어요",
+        "head-changed": "PR에 새 커밋이 올라왔어요. 다시 확인하고 머지해 주세요",
+        "method-not-allowed": "레포가 허용하지 않는 방식이에요",
+        "not-open": "이미 머지했거나 닫힌 PR이에요",
+        "no-pull-request": "이 런에는 PR이 없어요",
+        "pr-not-found": "PR을 찾지 못했어요",
+        "no-code-host": "이 저장소를 다룰 GitHub 토큰이 없어요. 웹이나 데스크톱의 Settings에서 넣어 주세요",
+        "unauthorized": "GitHub 토큰이 맞지 않아요. 웹이나 데스크톱의 Settings에서 새로 넣어 주세요",
+        "rate-limited": "GitHub 요청이 많아 잠시 막혔어요. 조금 뒤에 다시 해 주세요",
+        "network": "GitHub에 연결하지 못했어요. 다시 해 주세요",
+        "superseded": "이 런의 워크트리를 다른 런이 이어받았어요. 새 런에서 머지해 주세요",
+        "blockedBecause": "레포 규칙이 머지를 막았어요: {message}",
+        "request-reused": "같은 요청을 다른 방식으로 보냈어요. 다시 눌러 주세요"
       }
     },
     "answer": {
@@ -338,7 +365,7 @@
       "noteLabel": "에이전트에게 함께 보낼 말(선택)",
       "confirm": "확인했어요",
       "requestChanges": "고쳐 주세요",
-      "after": "답을 보내면 런이 다시 Running이 돼요. Ganger는 머지하지 않아요.",
+      "after": "답을 보내면 런이 다시 Running이 돼요.",
       "handled": "이미 답한 요청이에요. 다시 보내지 않아도 돼요."
     },
     "deny": {
@@ -355,8 +382,13 @@
     },
     "menu": {
       "openTicket": "Linear에서 열기",
+      "openPr": "PR {pr} 열기",
       "cancel": "런 취소",
-      "ticketFailed": "Linear 주소를 읽지 못했어요. 잠시 뒤 다시 해 주세요."
+      "ticketFailedTitle": "Linear를 열지 못했어요",
+      "ticketFailed": "Linear 티켓을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "prFailedTitle": "PR을 열지 못했어요",
+      "prFailed": "GitHub에서 PR을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "demoTitle": "데모 모드"
     },
     "retry": {
       "title": "다시 맡길까요?",
@@ -381,13 +413,22 @@
     "next": "처리할 일",
     "summary": "요약",
     "pr": "PR",
-    "openPr": "GitHub에서 열기",
     "state": "상태",
     "agentResult": "에이전트 결과",
     "report": "에이전트 보고",
     "startError": "시작 오류",
     "noReport": "에이전트 보고가 아직 없어요.",
     "noPr": "아직 PR이 없어요.",
+    "prLink": "PR {pr}",
+    "prLinkLabel": "PR {pr} GitHub에서 열기",
+    "prStateChip": {
+      "open": "Open",
+      "merged": "Merged",
+      "closed": "Closed",
+      "unknown": "알 수 없는 상태",
+      "since": "{state} · {time}"
+    },
+    "prUnreadChip": "PR 못 읽음",
     "ciLabel": "CI {state}",
     "ci": {
       "success": "통과",
@@ -396,6 +437,17 @@
       "none": "없음",
       "unavailable": "읽을 수 없음",
       "unknown": "알 수 없음"
+    },
+    "prUnread": {
+      "no-access": "GitHub 토큰이 이 저장소를 볼 수 없어요. Ganger 웹이나 데스크톱 앱의 Settings에서 토큰의 저장소 권한을 확인해 주세요. 읽을 때까지 워크트리를 남겨 두고 worker가 다시 읽어요.",
+      "other": "GitHub에서 PR을 읽지 못했어요. 읽을 때까지 워크트리를 남겨 두고 worker가 간격을 늘려 가며 다시 읽어요.",
+      "unknown": "알 수 없는 이유로 PR을 읽지 못했어요. 웹이나 데스크톱에서 확인해 주세요."
+    },
+    "prReadDiagnosis": {
+      "differentGh": "러너({runner})는 {runnerLogin}, 서버는 {serverLogins} 계정으로 읽어요. 서버 계정이 이 저장소를 볼 수 없어요.",
+      "differentToken": "러너({runner})는 {runnerLogin} 계정, 서버는 붙여 넣은 토큰으로 읽어요. 붙여 넣은 토큰이 이 저장소를 볼 수 없어요.",
+      "runnerUnknownGh": "서버는 {serverLogins} 계정으로 읽어요. 러너({runner})의 gh 계정을 아직 몰라 서버 계정과 견줘 보지 못했어요.",
+      "runnerUnknownToken": "서버는 붙여 넣은 토큰으로 읽어요. 러너({runner})의 gh 계정을 아직 몰라 토큰과 견줘 보지 못했어요."
     },
     "step": {
       "pr-ci-failed": "PR의 CI가 실패했어요. GitHub에서 확인해 주세요.",
@@ -411,6 +463,33 @@
       "failed": "런이 실패했어요. 이유를 확인해 주세요.",
       "none": "지금 처리할 일은 없어요.",
       "unknown": "알 수 없는 상태예요. 웹이나 데스크톱에서 확인해 주세요."
+    },
+    "merge": {
+      "group": "머지",
+      "menu": "머지 방식 바꾸기",
+      "methodTitle": "머지 방식",
+      "button": {
+        "squash": "Squash 머지",
+        "merge": "Merge commit 머지",
+        "rebase": "Rebase 머지"
+      },
+      "option": {
+        "squash": "Squash 머지",
+        "merge": "Merge commit",
+        "rebase": "Rebase"
+      },
+      "busy": "머지하는 중…",
+      "picked": "{method}로 바꿨어요",
+      "done": "PR을 머지했어요",
+      "humanCheck": "머지하면 기다리는 Human Check에 \"확인했어요\"로 답해요",
+      "blocked": {
+        "conflict": "충돌이 있어 머지할 수 없어요",
+        "behind": "base를 받아야 머지할 수 있어요",
+        "rules": "보호 규칙이 머지를 막고 있어요",
+        "draft": "Draft PR이라 머지할 수 없어요",
+        "unknown": "GitHub이 머지를 막고 있어요"
+      },
+      "noPermission": "토큰에 머지 권한이 없어요. 웹이나 데스크톱의 Settings에서 바꿔 주세요"
     }
   }
 }

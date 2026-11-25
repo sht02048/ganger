@@ -1,4 +1,11 @@
-import type { AppProviderUsage, AppRunner, AppUsageLimit, AppUsageWindow } from "@ganger/api";
+import type {
+  AppProviderUsage,
+  AppRunner,
+  AppRunnerGhAccounts,
+  AppUsageLimit,
+  AppUsageWindow,
+  V1GhAccount,
+} from "@ganger/api";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 
@@ -34,12 +41,20 @@ function problemLines(runner: AppRunner): string[] {
         : runner.cause === "unknown"
           ? [t("runners.unknownCause")]
           : [];
-  return [...cause, ...runner.limits.map(limitText)];
+  const ghLogin = expiredGhLogin(runner);
+  const gh = ghLogin === null ? [] : [t("runners.gh.expiredProblem", { login: ghLogin })];
+  return [...cause, ...runner.limits.map(limitText), ...gh];
+}
+
+function hasProblem(runner: AppRunner): boolean {
+  return runner.cause !== null || runner.limits.length > 0 || expiredGhLogin(runner) !== null;
 }
 
 function problemStatus(runner: AppRunner): "offline" | "runner-issue" | "unknown" {
   if (runner.cause === "offline") return "offline";
-  return runner.cause === "unknown" && runner.limits.length === 0 ? "unknown" : "runner-issue";
+  const onlyUnknown =
+    runner.cause === "unknown" && runner.limits.length === 0 && expiredGhLogin(runner) === null;
+  return onlyUnknown ? "unknown" : "runner-issue";
 }
 
 function ProblemCard({ runner }: { runner: AppRunner }) {
@@ -125,6 +140,61 @@ function ProviderWindows({ usage }: { usage: AppProviderUsage }) {
   );
 }
 
+function shownGhAccount(gh: AppRunnerGhAccounts | null | undefined): V1GhAccount | null {
+  if (gh?.kind !== "logged-in") return null;
+  return gh.accounts.find((account) => account.active) ?? gh.accounts[0] ?? null;
+}
+
+function isExpiredInUse(account: V1GhAccount): boolean {
+  return account.active && account.expired;
+}
+
+function expiredGhLogin(runner: AppRunner): string | null {
+  const account = shownGhAccount(runner.ghAccounts);
+  return account !== null && isExpiredInUse(account) ? account.login : null;
+}
+
+function ghStatusText(gh: AppRunnerGhAccounts | null): string {
+  if (gh === null) return t("runners.gh.notRead");
+  switch (gh.kind) {
+    case "logged-in":
+    case "unknown":
+      return t("runners.gh.unknown");
+    case "logged-out":
+      return t("runners.gh.loggedOut");
+    case "not-installed":
+      return t("runners.gh.notInstalled");
+    case "unreadable":
+      return t("runners.gh.unreadable");
+  }
+}
+
+function GhRow({ gh }: { gh: AppRunnerGhAccounts | null }) {
+  const account = shownGhAccount(gh);
+  return (
+    <View style={styles.ghRow}>
+      <Text variant="small" tone="tertiary">
+        {t("runners.gh.label")}
+      </Text>
+      <View style={styles.ghValue}>
+        {account === null ? (
+          <Text variant="small" tone="secondary" numberOfLines={1}>
+            {ghStatusText(gh)}
+          </Text>
+        ) : isExpiredInUse(account) ? (
+          <Text variant="small" tone="problem" numberOfLines={1}>
+            {t("runners.gh.expired", { login: account.login })}
+          </Text>
+        ) : (
+          <Text variant="small" tone="secondary" numberOfLines={1}>
+            {t("runners.gh.account", { login: account.login, host: account.host })}
+          </Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function RunnerCard({ runner }: { runner: AppRunner }) {
   const status =
     runner.cause === "offline" ? "offline" : runner.cause === "unknown" ? "unknown" : "online";
@@ -138,6 +208,7 @@ function RunnerCard({ runner }: { runner: AppRunner }) {
         {t("runners.capacity", { total: runner.capacity, used: runner.used })}
       </Text>
       <RunnerUsage usage={runner.usage} />
+      {runner.ghAccounts === undefined ? null : <GhRow gh={runner.ghAccounts} />}
     </Card>
   );
 }
@@ -160,7 +231,7 @@ export function RunnersScreen({
     : unavailable
       ? t("runners.unavailable")
       : t("runners.empty");
-  const problems = runners.filter((runner) => runner.cause !== null || runner.limits.length > 0);
+  const problems = runners.filter(hasProblem);
   return (
     <View style={styles.root}>
       {band}
@@ -168,30 +239,48 @@ export function RunnersScreen({
       <ScrollView contentContainerStyle={styles.content}>
         {runners.length === 0 ? <Text variant="meta">{emptyMessage}</Text> : null}
         {problems.length === 0 ? null : (
-          <Text variant="meta" tone="secondary" heading>
-            {t("runners.problems")}
-          </Text>
+          <RunnerSection title={t("runners.problems")}>
+            {problems.map((runner) => (
+              <ProblemCard key={runner.id} runner={runner} />
+            ))}
+          </RunnerSection>
         )}
-        {problems.map((runner) => (
-          <ProblemCard key={runner.id} runner={runner} />
-        ))}
         {runners.length === 0 ? null : (
-          <Text variant="meta" tone="secondary" heading>
-            {t("runners.list")}
-          </Text>
+          <RunnerSection title={t("runners.list")}>
+            {runners.map((runner) => (
+              <RunnerCard key={runner.id} runner={runner} />
+            ))}
+          </RunnerSection>
         )}
-        {runners.map((runner) => (
-          <RunnerCard key={runner.id} runner={runner} />
-        ))}
       </ScrollView>
+    </View>
+  );
+}
+
+function RunnerSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <View style={styles.section}>
+      <Text variant="meta" tone="secondary" heading>
+        {title}
+      </Text>
+      <View style={styles.cards}>{children}</View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { padding: space.s4, gap: space.s3 },
+  content: { padding: space.s4, gap: space.s6 },
+  section: { gap: space.s2 },
+  cards: { gap: space.s3 },
   runnerHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   usage: { gap: space.s1 },
+  ghValue: { flexShrink: 1 },
+  ghRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: space.s2,
+  },
   usageText: { flexDirection: "row", justifyContent: "space-between" },
 });

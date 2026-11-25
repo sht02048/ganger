@@ -6,6 +6,7 @@ import {
   resolveRunProgress,
 } from "@ganger/core";
 import type {
+  AgentRef,
   AgentResult,
   CompletionReport,
   PermissionRequestId,
@@ -13,6 +14,7 @@ import type {
   RunOnRunner,
   RunProgress,
   Runner,
+  RunnerId,
 } from "@ganger/core";
 import {
   DEFAULT_MAX_RUN_MS,
@@ -57,20 +59,50 @@ export async function watchActiveRuns(context: TickContext): Promise<void> {
   const { db, logger } = context;
   const runnersById = new Map(listRunners(db).map((runner) => [runner.id, runner]));
   const maxRunMs = new Map(listWorkspaces(db).map((ws) => [ws.id, ws.maxRunMs]));
-  for (const run of listRuns(db, {
+  const runs = listRuns(db, {
     states: ["running", "waiting-for-input", "paused", "disconnected"],
-  })) {
-    if (run.state === "queued" || run.state === "ended") continue;
-    try {
-      await withLogContext(runLogContext(run), () =>
-        watchRun(context, run, runnersById.get(run.runnerId), {
-          maxRunMs: maxRunMs.get(run.workspaceId) ?? DEFAULT_MAX_RUN_MS,
-        }),
-      );
-    } catch (error) {
-      logger.warn("run.watch_failed", { ...runLogContext(run), error });
+  }).filter((run): run is ActiveRun => run.state !== "queued" && run.state !== "ended");
+  const cycleRunners = beginPollCycles(context, runnersById, runs);
+  try {
+    for (const run of runs) {
+      try {
+        await withLogContext(runLogContext(run), () =>
+          watchRun(context, run, runnersById.get(run.runnerId), {
+            maxRunMs: maxRunMs.get(run.workspaceId) ?? DEFAULT_MAX_RUN_MS,
+          }),
+        );
+      } catch (error) {
+        logger.warn("run.watch_failed", { ...runLogContext(run), error });
+      }
     }
+  } finally {
+    for (const runner of cycleRunners) runner.endPollCycle?.();
   }
+}
+
+function beginPollCycles(
+  context: TickContext,
+  runnersById: ReadonlyMap<RunnerId, StoredRunner>,
+  runs: ReadonlyArray<ActiveRun>,
+): Runner[] {
+  const agentsByRunner = new Map<RunnerId, AgentRef[]>();
+  for (const run of runs) {
+    const agents = agentsByRunner.get(run.runnerId) ?? [];
+    agents.push(run.agentRef);
+    agentsByRunner.set(run.runnerId, agents);
+  }
+  return [...agentsByRunner].flatMap(([runnerId, agents]) => {
+    const stored = runnersById.get(runnerId);
+    if (stored === undefined) return [];
+    try {
+      const runner = context.adapters.runner(stored);
+      runner.beginPollCycle?.(agents);
+      return [runner];
+    } catch (error) {
+      context.logger.warn("runner.poll_cycle_failed", { runnerId, error });
+      return [];
+    }
+  });
 }
 
 interface WatchSettings {

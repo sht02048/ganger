@@ -1,23 +1,74 @@
 // @vitest-environment jsdom
 import { APP_CONTRACT_VERSION, CONTRACT_VERSION, V1_PATHS, connectionQrText } from "@ganger/api";
 import type { V1Dashboard } from "@ganger/api";
-import { act } from "react";
+import { Profiler, act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { busySnapshot } from "../demo/data";
 import { pushDevice as webPushDevice } from "../notifications/push-device.web";
+import { todoCountOf } from "../notifications/app-badge";
+import { FirstPaintReady } from "../startup/first-paint";
+import { SPLASH_MAX_MS, createSplashGate } from "../startup/splash-gate";
 import { EMPTY_PUSH_MEMORY } from "../notifications/push-port";
-import type { PushMemory } from "../notifications/push-port";
+import type { PushDevicePort, PushMemory } from "../notifications/push-port";
 import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
 import type { CacheFiles } from "./offline-cache";
-import { POLL_INTERVAL_MS } from "./session";
+import { CHANGE_DEBOUNCE_MS, POLL_INTERVAL_MS, RETRY_MAX_MS } from "./session";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+
+const renders = vi.hoisted(() => ({ commits: 0, dashboard: 0, cards: new Array<string>() }));
+
+vi.mock("../dashboard/dashboard-screen", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dashboard/dashboard-screen")>();
+  return {
+    ...actual,
+    DashboardScreen: (props: Parameters<typeof actual.DashboardScreen>[0]) => {
+      renders.dashboard += 1;
+      return actual.DashboardScreen(props);
+    },
+  };
+});
+
+vi.mock("../dashboard/run-card", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dashboard/run-card")>();
+  return {
+    ...actual,
+    RunCard: (props: Parameters<typeof actual.RunCard>[0]) => {
+      renders.cards.push(props.run.id);
+      return actual.RunCard(props);
+    },
+    SettledRow: (props: Parameters<typeof actual.SettledRow>[0]) => {
+      renders.cards.push(props.run.id);
+      return actual.SettledRow(props);
+    },
+  };
+});
+
+function clearRenders() {
+  renders.commits = 0;
+  renders.dashboard = 0;
+  renders.cards = [];
+}
+
+async function streamed() {
+  const server = fakeServer();
+  server.state.liveStream = true;
+  const host = await mount(memoryStore(STORED).store, server.fetcher);
+  await advance(0);
+  expect(byLabel("답하기")?.getAttribute("aria-disabled")).not.toBe("true");
+  return { server, host };
+}
+
+async function serverChanged(server: ReturnType<typeof fakeServer>) {
+  server.emit("event: reset\ndata: {}");
+  await advance(CHANGE_DEBOUNCE_MS);
+}
 
 const NOW = new Date("2026-11-23T03:00:00.000Z");
 const SERVER = "https://ganger.example.com";
@@ -31,12 +82,30 @@ function fakeServer() {
     mode: Mode;
     requests: Array<{ path: string; method: string }>;
     dashboard: V1Dashboard;
+    pushEnabled: boolean;
+    liveStream: boolean;
   } = {
     mode: "ok",
+    liveStream: false,
+    pushEnabled: false,
     requests: [],
     dashboard: busySnapshot(NOW).dashboardFor("all"),
   };
   const ok = (data: unknown) => Response.json({ meta: META, data });
+  const streams: Array<ReadableStreamDefaultController<Uint8Array>> = [];
+  const emit = (block: string) => {
+    for (const stream of streams) stream.enqueue(new TextEncoder().encode(`${block}\n\n`));
+  };
+  const openStream = () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          streams.push(controller);
+          controller.enqueue(new TextEncoder().encode("event: ready\ndata: {}\n\n"));
+        },
+      }),
+      { headers: { "content-type": "text/event-stream" } },
+    );
   const fetcher: FetchLike = (url, init) => {
     const { pathname: path } = new URL(url);
     const method = init?.method ?? "GET";
@@ -45,7 +114,9 @@ function fakeServer() {
     if (path === IDENTITY_PATH) {
       return Promise.resolve(Response.json({ product: "ganger", webAccess: "host-not-allowed" }));
     }
-    if (path === V1_PATHS.changeStream) return new Promise(() => undefined);
+    if (path === V1_PATHS.changeStream) {
+      return Promise.resolve(state.liveStream ? openStream() : new Response("", { status: 503 }));
+    }
     if (state.mode === "host-blocked") {
       return Promise.resolve(new Response("Blocked", { status: 403 }));
     }
@@ -69,8 +140,8 @@ function fakeServer() {
       case V1_PATHS.thisDeviceNotifications:
         return Promise.resolve(
           ok({
-            enabled: false,
-            hasPushAddress: false,
+            enabled: state.pushEnabled,
+            hasPushAddress: state.pushEnabled,
             groups: {
               question: true,
               permission: true,
@@ -98,7 +169,7 @@ function fakeServer() {
         throw new Error(`unexpected request: ${path}`);
     }
   };
-  return { state, fetcher };
+  return { state, fetcher, emit };
 }
 
 function memoryStore(initial: StoredConnection | null) {
@@ -153,29 +224,35 @@ async function mount(
   fetcher: FetchLike,
   devConnection: { server: string; token: string } | null = null,
   cacheFiles: CacheFiles = memoryCacheFiles().files,
+  markFirstPaint: () => void = () => undefined,
+  pushDevice: PushDevicePort = webPushDevice,
 ) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => {
     root.render(
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 390, height: 844 },
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-        }}
-      >
-        <AppRoot
-          store={store}
-          fetcher={fetcher}
-          devConnection={devConnection}
-          deviceName="Acme iPhone"
-          pushDevice={webPushDevice}
-          pushMemory={memoryPush}
-          cacheFiles={cacheFiles}
-          allowPaste
-        />
-      </SafeAreaProvider>,
+      <Profiler id="app" onRender={() => (renders.commits += 1)}>
+        <FirstPaintReady.Provider value={markFirstPaint}>
+          <SafeAreaProvider
+            initialMetrics={{
+              frame: { x: 0, y: 0, width: 390, height: 844 },
+              insets: { top: 0, left: 0, right: 0, bottom: 0 },
+            }}
+          >
+            <AppRoot
+              store={store}
+              fetcher={fetcher}
+              devConnection={devConnection}
+              deviceName="Acme iPhone"
+              pushDevice={pushDevice}
+              pushMemory={memoryPush}
+              cacheFiles={cacheFiles}
+              allowPaste
+            />
+          </SafeAreaProvider>
+        </FirstPaintReady.Provider>
+      </Profiler>,
     );
     await vi.advanceTimersByTimeAsync(0);
   });
@@ -471,7 +548,9 @@ describe("연결 끊기와 거절", () => {
     server.state.mode = "host-blocked";
     await advance(POLL_INTERVAL_MS);
     expect(memory.current()).toEqual(STORED);
-    expect(host.textContent).toContain("서버 맥의 Settings › 주소를 고쳐 주세요");
+    expect(host.textContent).toContain(
+      "서버 맥의 Settings › 모바일에서 휴대폰에서 열기를 켜 주세요",
+    );
     expect(host.textContent).toContain("ACME-138");
   });
 
@@ -508,6 +587,69 @@ describe("화면 갱신", () => {
   });
 });
 
+describe("다시 그리기 줄이기(티켓 0225)", () => {
+  it("같은 응답을 다시 받으면 대시보드도 카드도 다시 그리지 않는다", async () => {
+    const { server } = await streamed();
+    server.state.requests = [];
+    clearRenders();
+    await serverChanged(server);
+    expect(server.state.requests.filter(({ path }) => path === V1_PATHS.dashboard)).toHaveLength(1);
+    expect(renders).toEqual({ commits: 0, dashboard: 0, cards: [] });
+  });
+
+  it("한 런만 바뀌면 그 런의 카드만 다시 그린다", async () => {
+    const { server, host } = await streamed();
+    const board = server.state.dashboard;
+    const [changed, ...others] = board.columns.running.todo;
+    if (changed === undefined || others.length === 0) throw new Error("demo has few todo runs");
+    expect(host.textContent).toContain(changed.ticketTitle);
+    server.state.dashboard = {
+      ...board,
+      columns: {
+        ...board.columns,
+        running: {
+          ...board.columns.running,
+          todo: [{ ...changed, ticketTitle: "새 제목" }, ...others],
+        },
+      },
+    };
+    clearRenders();
+    await serverChanged(server);
+    expect(host.textContent).toContain("새 제목");
+    expect(renders.cards).toEqual([changed.id]);
+  });
+
+  it("띠가 없으면 시간이 흘러도 화면을 다시 그리지 않는다", async () => {
+    const { server } = await streamed();
+    expect(document.body.querySelector('[data-testid="notice-band"]')).toBeNull();
+    clearRenders();
+    for (let tick = 0; tick < 10; tick += 1) {
+      server.emit(": alive");
+      await advance(30_000);
+    }
+    expect(server.state.requests.filter(({ path }) => path === V1_PATHS.dashboard)).toHaveLength(1);
+    expect(renders).toEqual({ commits: 0, dashboard: 0, cards: [] });
+  });
+
+  it("Runners·설정에 갔다 와도 대시보드를 다시 마운트하지 않고, 가 있는 동안 읽히지 않게 숨긴다", async () => {
+    const server = fakeServer();
+    const host = await mount(memoryStore(STORED).store, server.fetcher);
+    const dashboard = host.querySelector('[data-testid="dashboard-screen"]');
+    const scroll = dashboard?.querySelector('[data-testid="dashboard-count-row"]');
+    expect(dashboard?.getAttribute("aria-hidden")).not.toBe("true");
+    const runnersLabel = document.body.querySelector('[aria-label^="Runners"]')?.ariaLabel;
+    for (const away of [runnersLabel ?? "Runners", "설정"]) {
+      await press(away);
+      expect(dashboard?.getAttribute("aria-hidden")).toBe("true");
+      expect(byLabel("뒤로")).not.toBeNull();
+      await press("뒤로");
+      expect(host.querySelector('[data-testid="dashboard-screen"]')).toBe(dashboard);
+      expect(dashboard?.querySelector('[data-testid="dashboard-count-row"]')).toBe(scroll);
+      expect(dashboard?.getAttribute("aria-hidden")).not.toBe("true");
+    }
+  });
+});
+
 describe("서버에 닿지 않을 때(M31)", () => {
   it("다른 Workspace로 가면 그 Workspace가 받은 때를 띠에 쓰고, 받은 적 없으면 그렇게 말한다", async () => {
     const server = fakeServer();
@@ -535,8 +677,163 @@ describe("서버에 닿지 않을 때(M31)", () => {
     expect(byLabel("답하기")?.getAttribute("aria-disabled")).toBe("true");
     await press("답하기");
     server.state.mode = "ok";
-    await advance(POLL_INTERVAL_MS);
+    await advance(RETRY_MAX_MS);
     expect(host.querySelector('[data-testid="notice-band"]')).toBeNull();
     expect(server.state.requests.filter((request) => request.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("앱 아이콘 배지", () => {
+  function badgeDevice() {
+    const counts: number[] = [];
+    const device: PushDevicePort = {
+      ...webPushDevice,
+      setBadgeCount: (count) => {
+        counts.push(count);
+        return Promise.resolve();
+      },
+    };
+    return { device, counts };
+  }
+
+  it("알림을 켠 기기는 전체 Workspace Dashboard의 처리할 일 수를 배지로 단다", async () => {
+    const server = fakeServer();
+    server.state.pushEnabled = true;
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(STORED).store, server.fetcher, null, undefined, undefined, device);
+    const todo = todoCountOf(server.state.dashboard);
+    expect(todo).toBeGreaterThan(0);
+    expect(counts.at(-1)).toBe(todo);
+  });
+
+  it("알림을 끈 기기는 배지를 지운다", async () => {
+    const { device, counts } = badgeDevice();
+    await mount(
+      memoryStore(STORED).store,
+      fakeServer().fetcher,
+      null,
+      undefined,
+      undefined,
+      device,
+    );
+    expect(counts).toContain(0);
+    expect(counts.every((count) => count === 0)).toBe(true);
+  });
+
+  it("연결을 끊으면 배지를 지운다", async () => {
+    const server = fakeServer();
+    server.state.pushEnabled = true;
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(STORED).store, server.fetcher, null, undefined, undefined, device);
+    expect(counts.at(-1)).toBeGreaterThan(0);
+    await press("설정");
+    await press("이 기기 연결 끊기");
+    expect(counts.at(-1)).toBe(0);
+  });
+
+  it("연결 화면과 데모 모드에서는 배지를 지운다", async () => {
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(null).store, fakeServer().fetcher, null, undefined, undefined, device);
+    expect(counts).toEqual([0]);
+    await press("데모로 둘러보기");
+    expect(counts).toEqual([0, 0]);
+  });
+});
+
+describe("첫 화면과 스플래시(티켓 0226)", () => {
+  function fakeSplash() {
+    const splash = { hides: 0, hide: () => (splash.hides += 1) };
+    return splash;
+  }
+
+  async function seededCache() {
+    const cache = memoryCacheFiles();
+    await mount(memoryStore(STORED).store, fakeServer().fetcher, null, cache.files);
+    await press("Workspace 고르기, 모든 Workspace");
+    await press("Payments");
+    for (const unmount of mounted.splice(0)) unmount();
+    await advance(0);
+    return cache;
+  }
+
+  function never<Value>(): Promise<Value> {
+    return new Promise(() => undefined);
+  }
+
+  it("저장된 연결과 캐시 첫 화면이 보이면 서버 응답을 기다리지 않고 스플래시를 내린다", async () => {
+    const cache = await seededCache();
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const server = fakeServer();
+    const held: FetchLike = (url, init) =>
+      new URL(url).pathname === V1_PATHS.dashboard ? never() : server.fetcher(url, init);
+    const host = await mount(memoryStore(STORED).store, held, null, cache.files, gate.ready);
+    expect(host.textContent).toContain("ACME-138");
+    expect(splash.hides).toBe(1);
+    await advance(SPLASH_MAX_MS);
+    expect(splash.hides).toBe(1);
+  });
+
+  it("캐시를 다 읽기 전에는 스플래시를 내리지 않는다", async () => {
+    const cache = await seededCache();
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    let release: () => void = () => undefined;
+    const slowFiles: CacheFiles = {
+      ...cache.files,
+      read: (server) =>
+        new Promise((resolve) => {
+          release = () => void cache.files.read(server).then(resolve);
+        }),
+    };
+    const server = fakeServer();
+    const held: FetchLike = (url, init) =>
+      new URL(url).pathname === V1_PATHS.dashboard ? never() : server.fetcher(url, init);
+    const host = await mount(memoryStore(STORED).store, held, null, slowFiles, gate.ready);
+    await advance(SPLASH_MAX_MS / 2);
+    expect(splash.hides).toBe(0);
+    await act(async () => {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(host.textContent).toContain("ACME-138");
+    expect(splash.hides).toBe(1);
+  });
+
+  it("저장된 연결이 없으면 연결 화면을 보인 뒤 스플래시를 내린다", async () => {
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const host = await mount(
+      memoryStore(null).store,
+      fakeServer().fetcher,
+      null,
+      memoryCacheFiles().files,
+      gate.ready,
+    );
+    expect(host.textContent).toContain("서버에 연결해요");
+    expect(splash.hides).toBe(1);
+  });
+
+  it("연결 정보를 읽지 못하고 있으면 상한 시간에 스플래시를 내린다", async () => {
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const stuck: ConnectionStore = { ...memoryStore(null).store, load: () => never() };
+    await mount(stuck, fakeServer().fetcher, null, memoryCacheFiles().files, gate.ready);
+    await advance(SPLASH_MAX_MS - 1);
+    expect(splash.hides).toBe(0);
+    await advance(1);
+    expect(splash.hides).toBe(1);
+  });
+
+  it("오프라인으로 켜도 다른 Workspace의 캐시 대시보드를 그 Workspace로 갈 때 꺼내 보인다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    server.state.mode = "offline";
+    const host = await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await press("Workspace 고르기, 모든 Workspace");
+    await press("Payments");
+    expect(host.textContent).not.toContain("이 Workspace는 아직 받은 내용이 없어요.");
+    expect(host.textContent).toContain("ACME-138");
+    expect(host.querySelector('[data-testid="notice-band"]')?.textContent).toContain("기준");
   });
 });

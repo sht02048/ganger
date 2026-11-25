@@ -1,13 +1,14 @@
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { DEV_DEVICE_NAME, mobileDevEnv } from "./mobile-env.ts";
+import { DEV_DEVICE_NAME, mobileDevEnv, mobileLaunch } from "./mobile-env.ts";
 import { repoRoot, startDevServer } from "./server.ts";
 
 const mobileRoot = join(repoRoot, "apps/mobile");
-const server = await startDevServer(process.argv.slice(2));
+const { serverArgs, expoArgs } = mobileLaunch(process.argv.slice(2));
+const server = await startDevServer(serverArgs);
 console.info(`[dev:mobile] demo server ${server.url}`);
 
-const expo = spawn(join(mobileRoot, "node_modules/.bin/expo"), ["start"], {
+const expo = spawn(join(mobileRoot, "node_modules/.bin/expo"), expoArgs, {
   cwd: mobileRoot,
   env: mobileDevEnv(process.env, {
     url: server.url,

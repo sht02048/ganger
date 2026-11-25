@@ -286,6 +286,7 @@ describe("v1 할당 범위", () => {
       "cancel",
       "retry",
       "continue",
+      "merge",
     ]);
   });
 
