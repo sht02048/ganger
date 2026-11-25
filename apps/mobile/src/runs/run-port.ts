@@ -225,6 +225,27 @@ function demoNextStep(run: DashboardRun): AppRunDetail["nextStep"] {
   }
 }
 
+function demoPrState(
+  run: DashboardRun,
+): Pick<NonNullable<AppRunDetail["pullRequest"]>, "state" | "stateSince"> {
+  if (run.state !== "ended") return { state: "open", stateSince: null };
+  const state = run.prState === "none" ? "open" : run.prState;
+  return {
+    state,
+    stateSince: state === "merged" ? { at: run.endedAt, agoMs: run.endedAgoMs } : null,
+  };
+}
+
+function demoPrReadDiagnosis(run: DashboardRun): AppRunDetail["prReadDiagnosis"] {
+  if (run.state !== "ended" || run.prReadError !== "no-access" || run.runner === null) return null;
+  return {
+    kind: "different",
+    runner: run.runner.name,
+    runnerLogin: "acme-dev",
+    server: { kind: "gh", logins: ["acme-bot"] },
+  };
+}
+
 export function demoRunDetail(run: DashboardRun): AppRunDetail {
   const ended = run.state === "ended" ? run : null;
   return {
@@ -254,11 +275,10 @@ export function demoRunDetail(run: DashboardRun): AppRunDetail {
               ? "failure"
               : "success",
             problems: run.pullRequest.problems,
-            state: null,
-            stateSince: null,
+            ...demoPrState(run),
           },
-    prReadError: null,
-    prReadDiagnosis: null,
+    prReadError: ended?.prReadError ?? null,
+    prReadDiagnosis: demoPrReadDiagnosis(run),
     input: demoInput(run),
     nextActions:
       run.todoTag === "failed"

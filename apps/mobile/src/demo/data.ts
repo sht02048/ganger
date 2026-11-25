@@ -114,6 +114,11 @@ const usageReadAt = (now: Date) => ({
   now: now.toISOString(),
 });
 
+const ghReadAt = (now: Date) => ({
+  readAt: new Date(now.getTime() - 4 * MINUTE).toISOString(),
+  agoMs: 4 * MINUTE,
+});
+
 function readUsage(now: Date, provider: string, windows: V1UsageWindow[]): V1RunnerUsage {
   const highest = [...windows].sort((a, b) => b.usedPercent - a.usedPercent)[0];
   return {
@@ -278,6 +283,28 @@ export function busySnapshot(now: Date): DemoSnapshot {
       ...ended(5 * HOUR),
     },
     {
+      ...base("ACME-116", "쿠폰 중복 적용 막기"),
+      state: "ended",
+      summary: "succeeded",
+      agentResult: "reported-success",
+      prState: "closed",
+      pullRequest: {
+        displayId: prDisplayId(201),
+        url: "https://example.com/acme/pay/pull/201",
+        problems: [],
+      },
+      ...ended(7 * HOUR),
+    },
+    {
+      ...base("ACME-114", "영수증 메일 템플릿 정리"),
+      state: "ended",
+      summary: "succeeded",
+      agentResult: "reported-success",
+      prState: "unknown",
+      ...ended(9 * HOUR),
+      prReadError: "no-access",
+    },
+    {
       ...base("ACME-112", "이벤트 배너 문구 수정", growth),
       state: "ended",
       summary: "canceled",
@@ -297,7 +324,7 @@ export function busySnapshot(now: Date): DemoSnapshot {
       capacity: 2,
       usage: { ...usageReadAt(now), kind: "unreadable" },
       limits: [],
-      ghAccounts: null,
+      ghAccounts: { ...ghReadAt(now), kind: "unreadable" },
     },
     {
       id: "runner-build",
@@ -308,7 +335,33 @@ export function busySnapshot(now: Date): DemoSnapshot {
       capacity: 2,
       usage: readUsage(now, "codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
       limits: [],
-      ghAccounts: null,
+      ghAccounts: { ...ghReadAt(now), kind: "logged-out" },
+    },
+    {
+      id: "runner-night",
+      name: "night-box",
+      cause: null,
+      offlineMs: null,
+      used: 1,
+      capacity: 2,
+      usage: readUsage(now, "claude", [{ kind: "weekly", usedPercent: 22, resetsAt: null }]),
+      limits: [],
+      ghAccounts: {
+        ...ghReadAt(now),
+        kind: "logged-in",
+        accounts: [{ host: "github.com", login: "acme-bot", active: true, expired: true }],
+      },
+    },
+    {
+      id: "runner-spare",
+      name: "spare-box",
+      cause: null,
+      offlineMs: null,
+      used: 0,
+      capacity: 1,
+      usage: null,
+      limits: [],
+      ghAccounts: { ...ghReadAt(now), kind: "not-installed" },
     },
     {
       id: "runner-mini",
@@ -322,7 +375,14 @@ export function busySnapshot(now: Date): DemoSnapshot {
         { kind: "weekly", usedPercent: 64, resetsAt: null },
       ]),
       limits: [{ provider: "claude", window: "session", resetsInMs: 42 * MINUTE }],
-      ghAccounts: null,
+      ghAccounts: {
+        ...ghReadAt(now),
+        kind: "logged-in",
+        accounts: [
+          { host: "github.com", login: "acme-dev", active: true, expired: false },
+          { host: "github.com", login: "acme-old", active: false, expired: true },
+        ],
+      },
     },
   ];
   const workspaces = [payments, growth];
