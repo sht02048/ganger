@@ -73,12 +73,10 @@ import { BriefPreview } from "./workspace-brief";
 import settingsJson from "../../messages/ko/settings.json" with { type: "json" };
 import { ProjectDetailScreen, findBoundProject } from "./project-detail";
 import { ConnectionsScreen } from "./connections-page";
-import { DevicesScreen } from "./devices-page";
 import { ProjectCandidates, ProjectsScreen } from "./projects-page";
 import { ServerScreen } from "./server-page";
 import { SettingsPagesNav, pageProblems, settingsNavState } from "./settings-frame";
 import {
-  WEB_ADDRESS_ROW_ID,
   plainSettingsLink,
   projectRowId,
   settingsHref,
@@ -199,7 +197,7 @@ const TOKEN_ONLY_VIEW: GitHubAuthView = {
   source: "token",
 };
 
-type PageKind = "general" | "projects" | "connections" | "devices" | "server";
+type PageKind = "general" | "projects" | "connections" | "server";
 
 function renderPage(kind: PageKind, page: SettingsPage, github?: GitHubAuthView): string {
   const ws = page.workspace?.general.id;
@@ -215,17 +213,6 @@ function renderPage(kind: PageKind, page: SettingsPage, github?: GitHubAuthView)
         setup={{ funnel: null }}
         github={github}
         renderLink={plainSettingsLink(ws)}
-      />
-    ),
-    devices: () => (
-      <DevicesScreen
-        {...common}
-        devices={{ devices: [], address: page.install.addresses.webAddress }}
-        deviceActions={{
-          start: () => Promise.resolve({ ok: false, reason: "no-https-address" }),
-          cancel: () => Promise.resolve(),
-          remove: () => Promise.resolve({ ok: true }),
-        }}
       />
     ),
     server: () => (
@@ -820,14 +807,10 @@ describe("Settings 페이지 주소(0214)", () => {
     expect(settingsTargetOf("#workspace", "one")).toEqual({ kind: "page", page: "general" });
     expect(settingsTargetOf("#server", "one")).toEqual({ kind: "page", page: "server" });
     expect(settingsTargetOf("#logs", "one")).toEqual({ kind: "page", page: "server" });
-    expect(settingsTargetOf("#devices", "one")).toEqual({ kind: "page", page: "devices" });
+    expect(settingsTargetOf("#devices", "one")).toEqual({ kind: "page", page: "mobile" });
     expect(settingsTargetOf("#advanced", "one")).toEqual({ kind: "page", page: "mcp" });
     expect(settingsTargetOf("#mcp-row", "one")).toEqual({ kind: "page", page: "mcp" });
-    expect(settingsTargetOf("#web-address-row", "one")).toEqual({
-      kind: "page",
-      page: "devices",
-      rowId: WEB_ADDRESS_ROW_ID,
-    });
+    expect(settingsTargetOf("#web-address-row", "one")).toEqual({ kind: "page", page: "mobile" });
     expect(settingsTargetOf("#connection-c1", "one")).toEqual({
       kind: "connection",
       connectionId: "c1",
@@ -872,10 +855,6 @@ describe("주소(0048)", () => {
       webhookAddressChecked: false,
       autoAllowedHosts: [],
     });
-    const devices = textOf(renderPage("devices", page));
-    expect(devices).toContain(settingsJson.addresses.web);
-    expect(devices).toContain("https://server.example.ts.net");
-    expect(devices).not.toContain("https://hooks.example.com");
     expect(textOf(renderPage("server", page))).not.toContain("https://server.example.ts.net");
 
     expect(saveAddresses(f.context, { webAddress: "", webhookAddress: "" }, now, local)).toEqual({
@@ -889,7 +868,7 @@ describe("주소(0048)", () => {
     });
   });
 
-  it("와일드카드 바인드면 자동으로 허용한 tailnet 주소를 보이고, 그 주소로 연 화면은 저장해도 막히지 않는다", async () => {
+  it("와일드카드 바인드면 tailnet 주소를 자동으로 허용하고, 그 주소로 연 화면은 저장해도 막히지 않는다", async () => {
     const f = fixture();
     const tailnetHosts = ["server.example.ts.net", "100.64.0.10"];
     const page = await loadSettingsPage(
@@ -897,11 +876,7 @@ describe("주소(0048)", () => {
       undefined,
       now,
     );
-    const devices = textOf(renderPage("devices", page));
-    expect(devices).toContain(settingsJson.addresses.autoAllowed);
-    expect(devices).toContain("server.example.ts.net, 100.64.0.10");
-    const none = await loadSettingsPage(f.context, undefined, now);
-    expect(textOf(renderPage("devices", none))).not.toContain(settingsJson.addresses.autoAllowed);
+    expect(page.install.addresses.autoAllowedHosts).toEqual(tailnetHosts);
     const from = { host: "server.example.ts.net:3000", bindHost: "0.0.0.0", webPort: 3000 };
     const input = { webAddress: "", webhookAddress: "" };
     expect(saveAddresses(f.context, input, now, { ...from, tailnetHosts })).toEqual({ ok: true });
@@ -1376,7 +1351,7 @@ describe("Settings 화면", () => {
       "/settings/general",
       "/settings/projects",
       "/settings/connections",
-      "/settings/devices",
+      "/settings/mobile",
       "/settings/server",
       "/settings/mcp",
     ]);
@@ -1490,7 +1465,7 @@ describe("Settings 화면", () => {
   it("페이지 머리는 제목 하나이고 설명 줄을 두지 않는다", async () => {
     const f = fixture();
     const page = await loadSettingsPage(f.context, commerce, now);
-    for (const kind of ["general", "projects", "connections", "devices", "server"] as const) {
+    for (const kind of ["general", "projects", "connections", "server"] as const) {
       const html = renderPage(kind, page);
       expect(html.match(/<h1/g)).toHaveLength(1);
       expect(html).not.toMatch(/<h1[^>]*>[^<]*<\/h1><p/);
@@ -1501,7 +1476,7 @@ describe("Settings 화면", () => {
     const f = fixture();
     await addConnection(f);
     const page = await loadSettingsPage(f.context, commerce, now);
-    for (const kind of ["general", "projects", "connections", "devices", "server"] as const) {
+    for (const kind of ["general", "projects", "connections", "server"] as const) {
       const html = renderPage(kind, page);
       expect(html).not.toContain('type="password"');
       expect(html).not.toContain('data-variant="primary"');
@@ -1531,7 +1506,6 @@ describe("Settings 화면", () => {
     const page = await loadSettingsPage(f.context, commerce, now);
     const html = renderPage("general", page);
     expect(html).toContain('aria-label="최대 실행 시간 도움말"');
-    expect(renderPage("devices", page)).toContain('aria-label="열 주소 도움말"');
     const visible = textOf(
       html.replace(/<div[^>]*role="tooltip"[^>]*hidden=""[^>]*>.*?<\/div>/gs, ""),
     );

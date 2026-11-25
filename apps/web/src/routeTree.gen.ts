@@ -27,6 +27,7 @@ import { Route as AppSettingsBriefRouteImport } from './routes/_app/settings.bri
 import { Route as AppSettingsDevicesRouteImport } from './routes/_app/settings.devices'
 import { Route as AppSettingsGeneralRouteImport } from './routes/_app/settings.general'
 import { Route as AppSettingsMcpRouteImport } from './routes/_app/settings.mcp'
+import { Route as AppSettingsMobileRouteImport } from './routes/_app/settings.mobile'
 import { Route as AppSettingsNotificationsRouteImport } from './routes/_app/settings.notifications'
 import { Route as AppSettingsChar91serverChar93RouteImport } from './routes/_app/settings.[server]'
 import { Route as ApiChangeEventsStreamRouteImport } from './routes/api/change-events/stream'
@@ -144,6 +145,11 @@ const AppSettingsGeneralRoute = AppSettingsGeneralRouteImport.update({
 const AppSettingsMcpRoute = AppSettingsMcpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsMobileRoute = AppSettingsMobileRouteImport.update({
+  id: '/mobile',
+  path: '/mobile',
   getParentRoute: () => AppSettingsRoute,
 } as any)
 const AppSettingsNotificationsRoute =
@@ -325,6 +331,7 @@ export interface FileRoutesByFullPath {
   '/settings/devices': typeof AppSettingsDevicesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
+  '/settings/mobile': typeof AppSettingsMobileRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
   '/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
@@ -372,6 +379,7 @@ export interface FileRoutesByTo {
   '/settings/devices': typeof AppSettingsDevicesRoute
   '/settings/general': typeof AppSettingsGeneralRoute
   '/settings/mcp': typeof AppSettingsMcpRoute
+  '/settings/mobile': typeof AppSettingsMobileRoute
   '/settings/notifications': typeof AppSettingsNotificationsRoute
   '/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
@@ -422,6 +430,7 @@ export interface FileRoutesById {
   '/_app/settings/devices': typeof AppSettingsDevicesRoute
   '/_app/settings/general': typeof AppSettingsGeneralRoute
   '/_app/settings/mcp': typeof AppSettingsMcpRoute
+  '/_app/settings/mobile': typeof AppSettingsMobileRoute
   '/_app/settings/notifications': typeof AppSettingsNotificationsRoute
   '/_app/settings/server': typeof AppSettingsChar91serverChar93Route
   '/api/change-events/stream': typeof ApiChangeEventsStreamRoute
@@ -472,6 +481,7 @@ export interface FileRouteTypes {
     | '/settings/devices'
     | '/settings/general'
     | '/settings/mcp'
+    | '/settings/mobile'
     | '/settings/notifications'
     | '/settings/server'
     | '/api/change-events/stream'
@@ -519,6 +529,7 @@ export interface FileRouteTypes {
     | '/settings/devices'
     | '/settings/general'
     | '/settings/mcp'
+    | '/settings/mobile'
     | '/settings/notifications'
     | '/settings/server'
     | '/api/change-events/stream'
@@ -568,6 +579,7 @@ export interface FileRouteTypes {
     | '/_app/settings/devices'
     | '/_app/settings/general'
     | '/_app/settings/mcp'
+    | '/_app/settings/mobile'
     | '/_app/settings/notifications'
     | '/_app/settings/server'
     | '/api/change-events/stream'
@@ -758,6 +770,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/settings/mcp'
       preLoaderRoute: typeof AppSettingsMcpRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/mobile': {
+      id: '/_app/settings/mobile'
+      path: '/mobile'
+      fullPath: '/settings/mobile'
+      preLoaderRoute: typeof AppSettingsMobileRouteImport
       parentRoute: typeof AppSettingsRoute
     }
     '/_app/settings/notifications': {
@@ -971,6 +990,7 @@ interface AppSettingsRouteChildren {
   AppSettingsDevicesRoute: typeof AppSettingsDevicesRoute
   AppSettingsGeneralRoute: typeof AppSettingsGeneralRoute
   AppSettingsMcpRoute: typeof AppSettingsMcpRoute
+  AppSettingsMobileRoute: typeof AppSettingsMobileRoute
   AppSettingsNotificationsRoute: typeof AppSettingsNotificationsRoute
   AppSettingsChar91serverChar93Route: typeof AppSettingsChar91serverChar93Route
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
@@ -985,6 +1005,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsDevicesRoute: AppSettingsDevicesRoute,
   AppSettingsGeneralRoute: AppSettingsGeneralRoute,
   AppSettingsMcpRoute: AppSettingsMcpRoute,
+  AppSettingsMobileRoute: AppSettingsMobileRoute,
   AppSettingsNotificationsRoute: AppSettingsNotificationsRoute,
   AppSettingsChar91serverChar93Route: AppSettingsChar91serverChar93Route,
   AppSettingsIndexRoute: AppSettingsIndexRoute,

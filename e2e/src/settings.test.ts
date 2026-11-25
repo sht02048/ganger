@@ -15,6 +15,7 @@ import {
   SecretBox,
   forgetWebhookReceipt,
   getAutoAssignLabel,
+  getInstallSettings,
   getWorkspaceBrief,
   getMapping,
   getWorkspaceTrackerProject,
@@ -228,23 +229,17 @@ describe("Settings 페이지(브라우저, 0214)", () => {
     expect(await page.getByText("lin_api_example").count()).toBe(0);
   });
 
-  it("다른 기기의 열 주소를 잘못 넣으면 그 줄에 이유를 보이고 저장하지 않는다", async () => {
+  it("옛 /settings/devices 주소는 Workspace 를 이어 모바일로 보낸다", async () => {
     await openSettings(page, "/settings/devices");
-    const main = page.getByRole("main");
-    await main.getByRole("button", { name: settings.addresses.set }).click();
-    const address = main.getByRole("textbox", { name: settings.addresses.web, exact: true });
-    await address.fill("server.example.ts.net/app");
-    await main.getByRole("button", { name: settings.save }).click();
-    await main
-      .getByRole("alert")
-      .getByText(settings.addresses.error["invalid-web-address"])
-      .waitFor();
-    await main.getByRole("button", { name: settings.close }).click();
-    await main.getByText(settings.addresses.webNone).waitFor();
-    await expect.poll(focused).toBe(settings.addresses.set);
+    await page.waitForURL(
+      (url) => url.pathname === "/settings/mobile" && url.searchParams.get("ws") === workspaceId,
+    );
+    await page.getByRole("heading", { level: 1, name: settings.pages.mobile }).waitFor();
+    const nav = page.getByRole("navigation", { name: settings.nav.label });
+    await expect.poll(() => current(nav)).toContain(settings.pages.mobile);
   });
 
-  it("지금 보는 주소가 막히는 값은 저장하지 않고 그 줄에서 경고한다", async () => {
+  it("지금 보는 주소로 연 화면에서는 휴대폰에서 열기를 끄지 않고 이유를 알린다", async () => {
     const port = new URL(baseUrl).port;
     saveInstallAddresses(
       db,
@@ -252,16 +247,14 @@ describe("Settings 페이지(브라우저, 0214)", () => {
       new Date(),
     );
     try {
-      await page.goto(`http://${lockedHost}:${port}/settings/devices?ws=${workspaceId}`);
+      await page.goto(`http://${lockedHost}:${port}/settings/mobile?ws=${workspaceId}`);
       await page.waitForFunction(() => "__TSR_ROUTER__" in globalThis);
       await page.waitForLoadState("networkidle");
       const main = page.getByRole("main");
-      await main.getByRole("button", { name: settings.change }).first().click();
-      const address = main.getByRole("textbox", { name: settings.addresses.web, exact: true });
-      await address.fill("https://other.example.ts.net");
-      await main.getByRole("button", { name: settings.save }).click();
-      await main.getByRole("alert").getByText(settings.addresses.error["locks-out"]).waitFor();
-      expect(await address.inputValue()).toBe("https://other.example.ts.net");
+      await main.getByText(`http://${lockedHost}:${port}`).waitFor();
+      await main.getByRole("button", { name: settings.mobile.turnOff }).click();
+      await main.getByRole("status").getByText(settings.mobile.refusal["locks-out"]).waitFor();
+      expect(getInstallSettings(db).webAddress).toBe(`http://${lockedHost}:${port}`);
       await shot(page, "settings-row-error-1280");
     } finally {
       saveInstallAddresses(db, { webAddress: null, webhookAddress: null }, new Date());

@@ -6,7 +6,7 @@ import {
   getDevices,
   startConnection,
 } from "../server/device-functions";
-import type { DeviceActions } from "./devices-section";
+import type { DeviceActions } from "./mobile-phones";
 
 export const DEVICES_KEY = ["devices"] as const;
 
