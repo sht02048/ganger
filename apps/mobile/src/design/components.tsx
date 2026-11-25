@@ -15,7 +15,7 @@ import Svg, { Path } from "react-native-svg";
 
 import { Text } from "./text";
 import type { TextTone } from "./text";
-import { brandArt, colors, fontFamily, fontSize, radius, size, space } from "./tokens";
+import { brandArt, colors, fontFamily, fontSize, lineHeight, radius, size, space } from "./tokens";
 
 export function Card({
   emphasis = "none",
@@ -205,15 +205,87 @@ export function IssueBadge({ count }: { count: number }) {
   );
 }
 
-export function Chip({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "problem" }) {
+export type ChipTone = "neutral" | "problem" | "merged" | "progress";
+
+const chipTone: Record<ChipTone, { text: TextTone | null; dot: string | null; surface: string }> = {
+  neutral: { text: "secondary", dot: null, surface: colors.bgControl },
+  problem: { text: "problem", dot: null, surface: colors.problemSoft },
+  merged: { text: null, dot: colors.merged, surface: colors.mergedSoft },
+  progress: { text: null, dot: colors.progress, surface: colors.progressSoft },
+};
+
+export function Chip({
+  label,
+  tone = "neutral",
+  size: chipSize = "compact",
+}: {
+  label: string;
+  tone?: ChipTone;
+  size?: "compact" | "row";
+}) {
+  const look = chipTone[tone];
   return (
     <View
       testID={`chip-${tone}`}
-      style={[styles.chip, tone === "problem" ? styles.chipProblem : null]}
+      style={[
+        styles.chip,
+        { backgroundColor: look.surface },
+        chipSize === "row" ? styles.chipRow : null,
+      ]}
     >
-      <Text variant="small" tone={tone === "problem" ? "problem" : "secondary"} numberOfLines={1}>
+      {look.dot === null ? null : <View style={[styles.dot, { backgroundColor: look.dot }]} />}
+      <Text variant="small" tone={look.text ?? "primary"} numberOfLines={1}>
         {label}
       </Text>
+    </View>
+  );
+}
+
+const LINK_HIT_SLOP = {
+  top: (size.touchTarget - lineHeight.body) / 2,
+  bottom: (size.touchTarget - lineHeight.body) / 2,
+  left: space.s2,
+  right: space.s2,
+};
+
+export function ExternalLink({
+  label,
+  accessibilityLabel,
+  onPress,
+}: {
+  label: string;
+  accessibilityLabel: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="link"
+      accessibilityLabel={accessibilityLabel}
+      hitSlop={LINK_HIT_SLOP}
+      onPress={onPress}
+      style={({ pressed }) => [styles.externalLink, pressed ? styles.pressed : null]}
+    >
+      <Text variant="title" tone="accent" weight="semibold" numberOfLines={1}>
+        {label}
+      </Text>
+      <Svg width={size.linkIcon} height={size.linkIcon} viewBox="0 0 12 12" aria-hidden>
+        <Path
+          d="M4 2h6v6M10 2L3 9"
+          fill="none"
+          stroke={colors.accentText}
+          strokeWidth={1.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </Pressable>
+  );
+}
+
+export function RaisedBox({ children }: { children: ReactNode }) {
+  return (
+    <View testID="raised-box" style={styles.raisedBox}>
+      {children}
     </View>
   );
 }
@@ -594,12 +666,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s1,
     paddingHorizontal: space.s2,
     paddingVertical: space.px2,
     borderRadius: radius.pill,
     backgroundColor: colors.bgControl,
   },
-  chipProblem: { backgroundColor: colors.problemSoft },
+  chipRow: { minHeight: size.chipRow, justifyContent: "center" },
+  externalLink: { flexDirection: "row", alignItems: "center", gap: space.s1 },
+  raisedBox: {
+    backgroundColor: colors.bgControl,
+    borderRadius: radius.card,
+    borderWidth: 1,
+    borderColor: colors.borderDefault,
+    padding: space.s3 + space.px2,
+    gap: space.s3,
+  },
   segment: {
     flexDirection: "row",
     padding: space.s1,

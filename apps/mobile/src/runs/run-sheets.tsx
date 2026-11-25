@@ -1,5 +1,11 @@
 import { V1_CONTINUE_MESSAGE_MAX_LENGTH, V1_TEXT_MAX_LENGTH } from "@ganger/api";
-import type { AppRunDetail, AppRunInput, AppRunRefusal, V1HumanCheckDecision } from "@ganger/api";
+import type {
+  AppPrReadDiagnosis,
+  AppRunDetail,
+  AppRunInput,
+  AppRunRefusal,
+  V1HumanCheckDecision,
+} from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
 import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
@@ -11,17 +17,20 @@ import {
   Button,
   Card,
   Chip,
+  ExternalLink,
   NoticeBand,
   RadioRow,
+  RaisedBox,
   Sheet,
   SheetBody,
   SheetFooter,
   TextField,
 } from "../design/components";
+import type { ChipTone } from "../design/components";
 import { Text, TextLink } from "../design/text";
 import type { TextTone } from "../design/text";
 import { space } from "../design/tokens";
-import { agentName } from "../format";
+import { agentName, formatAgo } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
 import { bodyParts, isWebLink } from "./body-parts";
@@ -887,6 +896,115 @@ function RetrySheet({
   );
 }
 
+export function prReadDiagnosisText(diagnosis: AppPrReadDiagnosis): string | null {
+  if (diagnosis.kind === "unknown") return null;
+  const { server } = diagnosis;
+  if (server.kind === "unknown") return null;
+  const serverLogins = server.kind === "gh" ? server.logins.join(", ") : "";
+  if (diagnosis.kind === "runner-unknown") {
+    return server.kind === "gh"
+      ? t("runDetail.prReadDiagnosis.runnerUnknownGh", { runner: diagnosis.runner, serverLogins })
+      : t("runDetail.prReadDiagnosis.runnerUnknownToken", { runner: diagnosis.runner });
+  }
+  const values = { runner: diagnosis.runner, runnerLogin: diagnosis.runnerLogin, serverLogins };
+  return server.kind === "gh"
+    ? t("runDetail.prReadDiagnosis.differentGh", values)
+    : t("runDetail.prReadDiagnosis.differentToken", values);
+}
+
+type DetailPullRequest = NonNullable<AppRunDetail["pullRequest"]>;
+
+interface PrChipView {
+  key: string;
+  label: string;
+  tone: ChipTone;
+}
+
+function prStateChip(pr: DetailPullRequest, unread: boolean): PrChipView | null {
+  const { state, stateSince } = pr;
+  if (state === null || (state === "unknown" && unread)) return null;
+  const name = t(`runDetail.prStateChip.${state}`);
+  const label =
+    stateSince === null
+      ? name
+      : t("runDetail.prStateChip.since", {
+          state: name,
+          time: formatAgo(stateSince.at, stateSince.agoMs),
+        });
+  return { key: "state", label, tone: state === "merged" ? "merged" : "neutral" };
+}
+
+function ciChip(pr: DetailPullRequest): PrChipView | null {
+  const label = t("runDetail.ciLabel", { state: t(`runDetail.ci.${pr.ci}`) });
+  switch (pr.ci) {
+    case "success":
+      return { key: "ci", label, tone: "progress" };
+    case "failure":
+      return pr.problems.some((problem) => problem.kind === "ci-failed")
+        ? null
+        : { key: "ci", label, tone: "problem" };
+    case "pending":
+    case "none":
+    case "unavailable":
+    case "unknown":
+      return { key: "ci", label, tone: "neutral" };
+  }
+}
+
+export function prChips(detail: AppRunDetail): PrChipView[] {
+  const pr = detail.pullRequest;
+  const unread = detail.prReadError !== null;
+  const unreadChip: PrChipView[] = unread
+    ? [{ key: "unread", label: t("runDetail.prUnreadChip"), tone: "problem" }]
+    : [];
+  if (pr === null) return unreadChip;
+  const problems = pr.problems.map((problem, index): PrChipView => ({
+    key: `${problem.kind}:${index}`,
+    label: prProblemLabel(problem),
+    tone: prProblemTone(problem),
+  }));
+  return [prStateChip(pr, unread), ...unreadChip, ciChip(pr), ...problems].filter(
+    (chip): chip is PrChipView => chip !== null,
+  );
+}
+
+function prUnreadLine(detail: AppRunDetail): string | null {
+  if (detail.prReadError === null) return null;
+  const diagnosis =
+    detail.prReadDiagnosis === null ? null : prReadDiagnosisText(detail.prReadDiagnosis);
+  return diagnosis ?? t(`runDetail.prUnread.${detail.prReadError}`);
+}
+
+function PrBox({ detail }: { detail: AppRunDetail }) {
+  const pr = detail.pullRequest;
+  const line = prUnreadLine(detail);
+  return (
+    <RaisedBox>
+      <View style={styles.prHead}>
+        {pr === null ? null : isWebLink(pr.url) ? (
+          <ExternalLink
+            label={t("runDetail.prLink", { pr: pr.displayId })}
+            accessibilityLabel={t("runDetail.prLinkLabel", { pr: pr.displayId })}
+            onPress={() => void openWebLink(pr.url)}
+          />
+        ) : (
+          <Text variant="title" weight="semibold">
+            {t("runDetail.prLink", { pr: pr.displayId })}
+          </Text>
+        )}
+        {prChips(detail).map((chip) => (
+          <Chip key={chip.key} label={chip.label} tone={chip.tone} size="row" />
+        ))}
+      </View>
+      {line === null ? null : (
+        <Text variant="meta" tone="secondary">
+          {line}
+        </Text>
+      )}
+    </RaisedBox>
+  );
+}
+
 function RunDetailBody({ detail }: { detail: AppRunDetail }) {
   const { summary, pullRequest } = detail;
   return (
@@ -919,32 +1037,10 @@ function RunDetailBody({ detail }: { detail: AppRunDetail }) {
         <Text variant="title" heading>
           {t("runDetail.pr")}
         </Text>
-        {pullRequest === null ? (
+        {pullRequest === null && detail.prReadError === null ? (
           <Text variant="meta">{t("runDetail.noPr")}</Text>
         ) : (
-          <>
-            <Text variant="body" tone="primary">
-              {pullRequest.displayId}
-            </Text>
-            <Text variant="meta">
-              {t("runDetail.ciLabel", { state: t(`runDetail.ci.${pullRequest.ci}`) })}
-            </Text>
-            <View style={styles.chips}>
-              {pullRequest.problems.map((problem, index) => (
-                <Chip
-                  key={`${problem.kind}:${index}`}
-                  tone={prProblemTone(problem)}
-                  label={prProblemLabel(problem)}
-                />
-              ))}
-            </View>
-            {isWebLink(pullRequest.url) ? (
-              <Button
-                label={t("runDetail.openPr")}
-                onPress={() => void openWebLink(pullRequest.url)}
-              />
-            ) : null}
-          </>
+          <PrBox detail={detail} />
         )}
       </View>
     </>
@@ -1068,5 +1164,5 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
 
 const styles = StyleSheet.create({
   group: { gap: space.s2 },
-  chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s1 },
+  prHead: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
 });

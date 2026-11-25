@@ -10,7 +10,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Button,
   Card,
+  Chip,
+  ExternalLink,
   InlineSwitch,
+  RaisedBox,
   RESTING_MASCOT_PATHS,
   RestingMascot,
   Segment,
@@ -225,6 +228,46 @@ describe("Card", () => {
   it("멈춘 기다림은 문제 테두리로 그린다", () => {
     const host = mount(<Card emphasis="problem">내용</Card>);
     expect(host.querySelector('[data-testid="card-problem"]')).not.toBeNull();
+  });
+});
+
+describe("Chip", () => {
+  it("병합·진행 칩은 상태 알약과 같은 색을 쓰고 기본은 무채색이다", () => {
+    const host = mount(
+      <>
+        <Chip label="Merged" tone="merged" />
+        <Chip label="CI 통과" tone="progress" />
+        <Chip label="Open" />
+      </>,
+    );
+    expect(host.querySelector('[data-testid="chip-merged"]')?.textContent).toBe("Merged");
+    expect(host.querySelector('[data-testid="chip-progress"]')?.textContent).toBe("CI 통과");
+    expect(host.querySelector('[data-testid="chip-neutral"]')?.textContent).toBe("Open");
+    expect(pillColorsOf("succeeded").dot).toBe(colors.merged);
+    expect(pillColorsOf("running").dot).toBe(colors.progress);
+  });
+});
+
+describe("ExternalLink", () => {
+  it("접근 이름을 가진 링크이고 누르면 onPress를 부른다", () => {
+    const onPress = vi.fn<() => void>();
+    const host = mount(
+      <ExternalLink label="PR #7" accessibilityLabel="PR #7 GitHub에서 열기" onPress={onPress} />,
+    );
+    const link = host.querySelector('[aria-label="PR #7 GitHub에서 열기"]');
+    expect(link?.getAttribute("role")).toBe("link");
+    expect(link?.textContent).toBe("PR #7");
+    act(() => {
+      link?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+});
+
+describe("RaisedBox", () => {
+  it("내용을 감싼다", () => {
+    const host = mount(<RaisedBox>내용</RaisedBox>);
+    expect(host.querySelector('[data-testid="raised-box"]')?.textContent).toBe("내용");
   });
 });
 
