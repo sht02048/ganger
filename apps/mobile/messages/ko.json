@@ -474,6 +474,7 @@
         "rebase": "Rebase"
       },
       "busy": "머지하는 중…",
+      "picked": "{method}로 바꿨어요",
       "done": "PR을 머지했어요",
       "humanCheck": "머지하면 기다리는 Human Check에 \"확인했어요\"로 답해요",
       "blocked": {

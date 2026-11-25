@@ -79,6 +79,7 @@ export const size = {
   touchTarget: 44,
   chipRow: 22,
   splitDividerInset: 10,
+  splitMenuIcon: 12,
   linkIcon: 12,
   backIcon: 24,
   dot: 6,

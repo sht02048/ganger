@@ -3,7 +3,7 @@ import type { AppRunDetail } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { Linking } from "react-native";
+import { AccessibilityInfo, Linking } from "react-native";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
@@ -629,6 +629,48 @@ describe("런 상세 머지 버튼", () => {
     });
     expect(text()).toContain("PR을 머지했어요");
     expect(detailSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("머지했다는 문장은 PR 구역 안, 상자 바로 위에 보인다", async () => {
+    await openWith(withMerge({}));
+    await press("Squash 머지");
+    const done = Array.from(document.body.querySelectorAll("div")).find(
+      (node) => node.textContent === "PR을 머지했어요",
+    );
+    const raised = document.body.querySelector('[data-testid="raised-box"]');
+    expect(done?.nextElementSibling).toBe(raised);
+  });
+
+  it("그사이 head 가 바뀌어 거절되면 런 상세를 다시 읽어 새 head 로 다시 머지할 수 있다", async () => {
+    const details = [withMerge({}), withMerge({ headCommit: "new-head" })];
+    const write = vi
+      .fn<(run: DashboardRun, next: RunWrite) => Promise<RunWriteOutcome>>()
+      .mockResolvedValueOnce({ kind: "refused", reason: "head-changed" })
+      .mockResolvedValueOnce({ kind: "sent" });
+    const port: RunPort = {
+      detail: () => Promise.resolve({ kind: "ok", value: details.shift() ?? withMerge({}) }),
+      ticketLink: () => Promise.resolve({ kind: "demo" }),
+      write,
+    };
+    await open({ kind: "detail", run: failedRun }, port);
+    await press("Squash 머지");
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(text()).toContain("PR에 새 커밋이 올라왔어요");
+    expect(isDisabled("Squash 머지")).toBe(false);
+    await press("Squash 머지");
+    expect(write.mock.calls[1]?.[1]).toMatchObject({ expectedHead: "new-head" });
+  });
+
+  it("방식을 고르면 버튼 이름을 바꾸고 바뀐 방식을 소리로 알린다", async () => {
+    const announce = vi.spyOn(AccessibilityInfo, "announceForAccessibility");
+    await openWith(withMerge({}));
+    await press("머지 방식 바꾸기");
+    await press("Merge commit");
+    expect(announce).toHaveBeenCalledWith("Merge commit 머지로 바꿨어요");
+    expect(byLabel("Merge commit 머지")).not.toBeNull();
+    announce.mockRestore();
   });
 
   it("⌄ 로 레포가 허용한 방식만 골라 그 방식으로 머지한다", async () => {

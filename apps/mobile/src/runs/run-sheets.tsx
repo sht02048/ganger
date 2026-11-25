@@ -154,8 +154,8 @@ function useRunWrite(
   const setUnconfirmed = sharedUnconfirmed?.set ?? setOwnUnconfirmed;
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
-  const send = async (write: RunWrite) => {
-    if (busy.current) return;
+  const send = async (write: RunWrite): Promise<RunWriteOutcome | null> => {
+    if (busy.current) return null;
     busy.current = true;
     setPhase("sending");
     setMessage(null);
@@ -167,12 +167,13 @@ function useRunWrite(
     setPhase("idle");
     if (outcome.kind === "sent") {
       onSent();
-      return;
+      return outcome;
     }
     setRefused(outcome.kind === "refused");
     if (outcome.kind === "unconfirmed") setUnconfirmed(true);
     setMessageTone(outcome.kind === "demo" ? "secondary" : "problem");
     setMessage(outcomeMessage(write.action, outcome));
+    return outcome;
   };
   return {
     sending: phase !== "idle",
@@ -1000,7 +1001,9 @@ interface MergeSlot {
   run: DashboardRun;
   port: RunPort;
   disabled: boolean;
+  merged: boolean;
   onMerged: () => void;
+  reload: () => void;
 }
 
 function waitingHumanCheck(detail: AppRunDetail): boolean {
@@ -1041,7 +1044,11 @@ function MergeControl({
         groupLabel={t("runDetail.merge.group")}
         menuLabel={t("runDetail.merge.menu")}
         disabled={blocked !== null || slot.disabled || sending || unconfirmed}
-        onPress={() => void send({ action: "merge", method, expectedHead: merge.headCommit })}
+        onPress={() =>
+          void send({ action: "merge", method, expectedHead: merge.headCommit }).then((outcome) => {
+            if (outcome?.kind === "refused") slot.reload();
+          })
+        }
         {...(merge.methods.length > 1 ? { onMenuPress: () => setChoosing(true) } : {})}
       />
       {blocked === null ? null : (
@@ -1066,6 +1073,11 @@ function MergeControl({
               onPress={() => {
                 setPicked(option);
                 setChoosing(false);
+                AccessibilityInfo.announceForAccessibility(
+                  t("runDetail.merge.picked", {
+                    method: t(`runDetail.merge.button.${option}`),
+                  }),
+                );
               }}
             />
           ))}
@@ -1103,12 +1115,7 @@ function PrBox({ detail, mergeSlot }: { detail: AppRunDetail; mergeSlot: MergeSl
         </Text>
       )}
       {merge === null || mergeSlot === null ? null : (
-        <MergeControl
-          key={merge.headCommit}
-          merge={merge}
-          humanCheck={waitingHumanCheck(detail)}
-          slot={mergeSlot}
-        />
+        <MergeControl merge={merge} humanCheck={waitingHumanCheck(detail)} slot={mergeSlot} />
       )}
     </RaisedBox>
   );
@@ -1155,7 +1162,14 @@ function RunDetailBody({
         {pullRequest === null && detail.prReadError === null ? (
           <Text variant="meta">{t("runDetail.noPr")}</Text>
         ) : (
-          <PrBox detail={detail} mergeSlot={mergeSlot} />
+          <>
+            {mergeSlot?.merged === true ? (
+              <Text variant="meta" tone="secondary">
+                {t("runDetail.merge.done")}
+              </Text>
+            ) : null}
+            <PrBox detail={detail} mergeSlot={mergeSlot} />
+          </>
         )}
       </View>
     </>
@@ -1192,8 +1206,10 @@ function DetailSheet({
         {(detail) => (
           <SheetBody>
             <ContextLine run={run} />
-            {merged ? <SheetMessage message={t("runDetail.merge.done")} tone="secondary" /> : null}
-            <RunDetailBody detail={detail} mergeSlot={{ run, port, disabled, onMerged }} />
+            <RunDetailBody
+              detail={detail}
+              mergeSlot={{ run, port, disabled, merged, onMerged, reload }}
+            />
           </SheetBody>
         )}
       </DetailGate>

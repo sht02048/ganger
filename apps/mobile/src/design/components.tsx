@@ -333,7 +333,12 @@ export function SplitButton({
               pressed && !disabled ? styles.pressed : null,
             ]}
           >
-            <Svg width={size.linkIcon} height={size.linkIcon} viewBox="0 0 12 12" aria-hidden>
+            <Svg
+              width={size.splitMenuIcon}
+              height={size.splitMenuIcon}
+              viewBox="0 0 12 12"
+              aria-hidden
+            >
               <Path
                 d="M2.5 4.5L6 8l3.5-3.5"
                 fill="none"
