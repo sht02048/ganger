@@ -12,7 +12,9 @@ export type TextTone =
   | "accent"
   | "onAccent"
   | "onProblem"
-  | "problem";
+  | "problem"
+  | "answer"
+  | "check";
 
 const toneColor: Record<TextTone, string> = {
   primary: colors.textPrimary,
@@ -23,7 +25,13 @@ const toneColor: Record<TextTone, string> = {
   onAccent: colors.textOnAccent,
   onProblem: colors.textOnProblem,
   problem: colors.problem,
+  answer: colors.answer,
+  check: colors.check,
 };
+
+export function toneColorOf(tone: TextTone): string {
+  return toneColor[tone];
+}
 
 const variantTone: Record<TextVariant, TextTone> = {
   page: "primary",
