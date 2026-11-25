@@ -174,7 +174,7 @@ describe("설정 데모", () => {
       "Question",
       "Permission",
       "Human Check",
-      "Failed·Disconnected",
+      "Failed · Disconnected",
       "Runner Issue",
     ]) {
       expect(host.textContent).toContain(kind);

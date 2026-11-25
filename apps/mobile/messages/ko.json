@@ -194,7 +194,7 @@
       "question": "Question",
       "permission": "Permission",
       "humanCheck": "Human Check",
-      "failedDisconnected": "Failed·Disconnected",
+      "failedDisconnected": "Failed · Disconnected",
       "runnerIssue": "Runner Issue"
     },
     "pushNotice": "알림은 Expo Push를 거쳐 와요. 티켓 내용은 싣지 않아요.",
@@ -243,7 +243,7 @@
   },
   "connection": {
     "title": "서버에 연결해요",
-    "body": "Ganger의 Settings › 기기 연결에서 QR을 띄운 뒤 카메라로 읽어 주세요.",
+    "body": "Ganger의 Settings › 다른 기기에서 QR을 띄운 뒤 카메라로 읽어 주세요.",
     "scan": "QR 읽기",
     "scanning": "QR을 화면에 맞춰 주세요",
     "stopScan": "그만 읽기",
@@ -263,7 +263,7 @@
       "invalid-request": "연결 요청을 서버가 읽지 못했어요. 다시 시도해 주세요.",
       "unreachable": "서버에 닿지 않아요. 네트워크와 서버 주소를 확인해 주세요.",
       "server-error": "서버가 요청을 처리하지 못했어요. 잠시 뒤 다시 해 주세요.",
-      "host-blocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소에서 이 주소를 넣어 주세요."
+      "host-blocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 다른 기기에서 열 주소에 이 주소를 넣어 주세요."
     },
     "update": {
       "app": "앱을 업데이트해 주세요.",
@@ -274,7 +274,7 @@
       "stale": "{reason} · {minutes}분 전 기준",
       "staleHours": "{reason} · {hours}시간 전 기준",
       "staleDays": "{reason} · {days}일 전 기준",
-      "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 주소를 고쳐 주세요. 연결은 그대로 뒀어요.",
+      "hostBlocked": "서버가 이 주소를 허용하지 않아요. 서버 맥의 Settings › 다른 기기에서 열 주소를 고쳐 주세요. 연결은 그대로 뒀어요.",
       "reasonUnreachable": "서버에 닿지 않아요",
       "reasonServerError": "서버가 요청을 처리하지 못했어요"
     },
@@ -338,7 +338,7 @@
       "noteLabel": "에이전트에게 함께 보낼 말(선택)",
       "confirm": "확인했어요",
       "requestChanges": "고쳐 주세요",
-      "after": "답을 보내면 런이 다시 Running이 돼요. Ganger는 머지하지 않아요.",
+      "after": "답을 보내면 런이 다시 Running이 돼요.",
       "handled": "이미 답한 요청이에요. 다시 보내지 않아도 돼요."
     },
     "deny": {

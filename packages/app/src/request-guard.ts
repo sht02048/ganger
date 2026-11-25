@@ -161,7 +161,7 @@ const REJECT_BODY: Record<RejectReason, string> = {
   "host-not-allowed":
     "Blocked request: this server does not accept the host name you used. " +
     "Open it from the server machine at http://127.0.0.1, then add the address you use " +
-    "under Settings > Addresses.",
+    "under Settings > 다른 기기 (other devices) > 열 주소 (web address).",
   "origin-not-allowed":
     "Blocked request: a page from another site tried to change this server. " +
     "Open the server at an allowed address and try again.",

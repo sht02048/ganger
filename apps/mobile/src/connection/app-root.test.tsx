@@ -471,7 +471,7 @@ describe("연결 끊기와 거절", () => {
     server.state.mode = "host-blocked";
     await advance(POLL_INTERVAL_MS);
     expect(memory.current()).toEqual(STORED);
-    expect(host.textContent).toContain("서버 맥의 Settings › 주소를 고쳐 주세요");
+    expect(host.textContent).toContain("서버 맥의 Settings › 다른 기기에서 열 주소를 고쳐 주세요");
     expect(host.textContent).toContain("ACME-138");
   });
 
