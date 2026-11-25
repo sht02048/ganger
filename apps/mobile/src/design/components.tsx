@@ -677,7 +677,7 @@ const styles = StyleSheet.create({
   chipRow: { minHeight: size.chipRow, justifyContent: "center" },
   externalLink: { flexDirection: "row", alignItems: "center", gap: space.s1 },
   raisedBox: {
-    backgroundColor: colors.bgControl,
+    backgroundColor: colors.bgRaised,
     borderRadius: radius.card,
     borderWidth: 1,
     borderColor: colors.borderDefault,

@@ -145,24 +145,27 @@ function shownGhAccount(gh: AppRunnerGhAccounts | null | undefined): V1GhAccount
   return gh.accounts.find((account) => account.active) ?? gh.accounts[0] ?? null;
 }
 
+function isExpiredInUse(account: V1GhAccount): boolean {
+  return account.active && account.expired;
+}
+
 function expiredGhLogin(runner: AppRunner): string | null {
   const account = shownGhAccount(runner.ghAccounts);
-  return account?.active === true && account.expired ? account.login : null;
+  return account !== null && isExpiredInUse(account) ? account.login : null;
 }
 
 function ghStatusText(gh: AppRunnerGhAccounts | null): string {
   if (gh === null) return t("runners.gh.notRead");
   switch (gh.kind) {
     case "logged-in":
-      return t("runners.gh.loggedOut");
+    case "unknown":
+      return t("runners.gh.unknown");
     case "logged-out":
       return t("runners.gh.loggedOut");
     case "not-installed":
       return t("runners.gh.notInstalled");
     case "unreadable":
       return t("runners.gh.unreadable");
-    case "unknown":
-      return t("runners.gh.unknown");
   }
 }
 
@@ -173,19 +176,21 @@ function GhRow({ gh }: { gh: AppRunnerGhAccounts | null }) {
       <Text variant="small" tone="tertiary">
         {t("runners.gh.label")}
       </Text>
-      {account === null ? (
-        <Text variant="small" tone="secondary">
-          {ghStatusText(gh)}
-        </Text>
-      ) : account.expired ? (
-        <Text variant="small" tone="problem">
-          {t("runners.gh.expired", { login: account.login })}
-        </Text>
-      ) : (
-        <Text variant="small" tone="secondary">
-          {t("runners.gh.account", { login: account.login, host: account.host })}
-        </Text>
-      )}
+      <View style={styles.ghValue}>
+        {account === null ? (
+          <Text variant="small" tone="secondary" numberOfLines={1}>
+            {ghStatusText(gh)}
+          </Text>
+        ) : isExpiredInUse(account) ? (
+          <Text variant="small" tone="problem" numberOfLines={1}>
+            {t("runners.gh.expired", { login: account.login })}
+          </Text>
+        ) : (
+          <Text variant="small" tone="secondary" numberOfLines={1}>
+            {t("runners.gh.account", { login: account.login, host: account.host })}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
@@ -270,6 +275,7 @@ const styles = StyleSheet.create({
   cards: { gap: space.s3 },
   runnerHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   usage: { gap: space.s1 },
+  ghValue: { flexShrink: 1 },
   ghRow: {
     flexDirection: "row",
     justifyContent: "space-between",

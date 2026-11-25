@@ -896,7 +896,7 @@ function RetrySheet({
   );
 }
 
-export function prReadDiagnosisText(diagnosis: AppPrReadDiagnosis): string | null {
+function prReadDiagnosisText(diagnosis: AppPrReadDiagnosis): string | null {
   if (diagnosis.kind === "unknown") return null;
   const { server } = diagnosis;
   if (server.kind === "unknown") return null;
@@ -951,7 +951,7 @@ function ciChip(pr: DetailPullRequest): PrChipView | null {
   }
 }
 
-export function prChips(detail: AppRunDetail): PrChipView[] {
+function prChips(detail: AppRunDetail): PrChipView[] {
   const pr = detail.pullRequest;
   const unread = detail.prReadError !== null;
   const unreadChip: PrChipView[] = unread

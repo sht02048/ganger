@@ -230,10 +230,9 @@ function demoPrState(
 ): Pick<NonNullable<AppRunDetail["pullRequest"]>, "state" | "stateSince"> {
   if (run.state !== "ended") return { state: "open", stateSince: null };
   const state = run.prState === "none" ? "open" : run.prState;
-  const settled = state === "merged" || state === "closed";
   return {
     state,
-    stateSince: settled ? { at: run.endedAt, agoMs: run.endedAgoMs } : null,
+    stateSince: state === "merged" ? { at: run.endedAt, agoMs: run.endedAgoMs } : null,
   };
 }
 

@@ -33,7 +33,7 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `StatusPill`    | 점 + 상태 이름. 카드 하나에 상태 하나만 보인다. 모르는 값은 `unknown`                                                                                                      |
 | `Chip`          | 선행 티켓과 PR 칩. CI 실패·충돌은 `problem`, 뒤처짐은 중립색. 런 상세 PR 상자는 Merged에 `merged`, CI 통과에 `progress`를 쓰고 첫 줄 높이를 맞추려 `size="row"`(22)를 쓴다 |
 | `ExternalLink`  | 대상 자체가 링크인 이름(런 상세의 "PR #412"). 노란 글씨, 굵게, ↗. 줄 높이는 그대로 두고 `hitSlop`으로 누르는 곳을 44 가까이 넓힌다                                         |
-| `RaisedBox`     | 시트 안에서 한 대상을 묶는 상자(런 상세 PR 상자). 시트보다 한 단계 밝은 면과 테두리, 안쪽 여백 14, 안 간격 12                                                              |
+| `RaisedBox`     | 시트 안에서 한 대상을 묶는 상자(런 상세 PR 상자). 시트와 같은 `bgRaised` 면에 `borderDefault` 테두리(안의 무채색 칩 면과 갈리도록), 안쪽 여백 14, 안 간격 12               |
 | `Button`        | `primary`는 화면의 주 행동 하나, 카드 행동은 `secondary`, 위험은 `danger`                                                                                                  |
 | `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                                                                                                                 |
 | `Meter`         | 러너의 공급자 사용량 막대                                                                                                                                                  |

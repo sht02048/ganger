@@ -105,8 +105,16 @@ describe("Runners의 러너 gh 계정", () => {
     expect(text.indexOf("문제")).toBeLessThan(text.indexOf("러너의 gh 계정"));
   });
 
+  it("사용 중이 아닌 계정의 만료는 문제로 올리지 않는다", () => {
+    const host = mount([{ ...runner, ghAccounts: loggedIn([account("acme-old", false, true)]) }]);
+    expect(host.textContent).toContain("acme-old · github.com");
+    expect(host.textContent).not.toContain("로그인이 만료됐어요");
+    expect(host.querySelector('[data-testid="card-problem"]')).toBeNull();
+  });
+
   it.each([
     [null, "아직 읽지 않았어요"],
+    [{ ...readAt, kind: "logged-in" as const, accounts: [] }, "알 수 없는 상태"],
     [{ ...readAt, kind: "not-installed" as const }, "gh 없음"],
     [{ ...readAt, kind: "logged-out" as const }, "로그인 안 됨"],
     [{ ...readAt, kind: "unreadable" as const }, "읽지 못했어요"],
