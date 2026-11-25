@@ -841,7 +841,7 @@ export class OrcaRunner implements Runner {
         checkResultSchema,
       );
       if (messages.length < limit) return messages;
-      task ??= await this.taskOf(agent);
+      if (task === undefined) task = await this.taskOf(agent);
       const since = taskStartedAt(task);
       if (since !== null && reachesBefore(messages, since)) return messages;
       if (limit >= MAIL_WINDOW_MAX) {

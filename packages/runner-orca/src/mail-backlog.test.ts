@@ -203,6 +203,23 @@ describe.each(MAILBOXES)("mail behind an unread backlog over 100 ($path, 0231)",
     expect(exec.commands().some((command) => command.includes("task-list"))).toBe(false);
   });
 
+  test("a task Orca no longer lists is read once and the window warns with an unknown start", async () => {
+    const { exec, runner, limits, logger } = polling([...backlog(3300, -86_400), NEW_QUESTION]);
+    const missing = {
+      ...runOn(mailbox),
+      agentRef: encodeAgent({ dispatchId: DISPATCH, taskId: "task_gone", runId: ORCA_RUN }),
+    };
+    const progress = await runner.pollRun(missing);
+    expect(progress.kind === "active" && progress.questions.map((q) => q.id)).toEqual([
+      toQuestionId("msg_new_question"),
+    ]);
+    expect(limits).toEqual([200, 800, 3200]);
+    expect(exec.commands().filter((command) => command.includes("task-list"))).toHaveLength(1);
+    expect(logger.entries.filter((entry) => entry.level === "warn").map((e) => e.fields)).toEqual([
+      { orcaRunId: ORCA_RUN, count: 3200, reason: "task start unknown" },
+    ]);
+  });
+
   test("mail that fills the largest window warns instead of missing it quietly", async () => {
     const { runner, limits, logger } = polling([NEW_QUESTION, ...backlog(4000, 10_000)]);
     const progress = await runner.pollRun(runOn(mailbox));
