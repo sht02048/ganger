@@ -40,6 +40,26 @@ describe("Host 검사", () => {
     }
   });
 
+  it("443 이 아닌 포트로 연 열 주소는 그 포트의 Host 와 Origin 을 받는다", () => {
+    const onFallbackPort: AllowedHostsInput = {
+      bindHost: "127.0.0.1",
+      webAddress: "https://server.example.ts.net:8444",
+      webhookAddress: null,
+    };
+    const post = request("/_serverFn/x", {
+      method: "POST",
+      host: "server.example.ts.net:8444",
+      origin: "https://server.example.ts.net:8444",
+    });
+    expect(verdictOf(post, onFallbackPort)).toEqual({ ok: true });
+    expect(
+      verdictOf(request("/runs", { host: "other.example.ts.net:8444" }), onFallbackPort),
+    ).toMatchObject({
+      ok: false,
+      reason: "host-not-allowed",
+    });
+  });
+
   it("주소를 잘못 넣어도 127.0.0.1 은 막히지 않는다", () => {
     const wrong = {
       bindHost: "0.0.0.0",

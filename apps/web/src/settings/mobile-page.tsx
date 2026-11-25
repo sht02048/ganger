@@ -224,6 +224,11 @@ function TurnedOn({
             {t("turnOff")}
           </Button>
         }
+        message={
+          access.fallbackPort === null ? null : (
+            <Text variant="meta">{t("fallbackPort", { port: String(access.fallbackPort) })}</Text>
+          )
+        }
         expanded={<PhoneQr view={devices} actions={deviceActions} />}
       />
       <PhoneList view={devices} actions={deviceActions} report={report} statusRef={statusRef} />

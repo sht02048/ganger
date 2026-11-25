@@ -88,7 +88,7 @@ describe("Settings › 모바일(0230)", () => {
 
   it("켠 뒤에는 모노 주소 · 켜짐과 끄기, 페이지 안 QR 묶음, 휴대폰 목록을 보인다", () => {
     const html = render(
-      { kind: "on", address: `https://${HOST}`, viaTailscale: true },
+      { kind: "on", address: `https://${HOST}`, viaTailscale: true, fallbackPort: null },
       { devices: [phone], address: `https://${HOST}` },
     );
     const text = textOf(html);
@@ -104,9 +104,34 @@ describe("Settings › 모바일(0230)", () => {
     expect(primaryButtons(html)).toBe(0);
   });
 
+  it("443 이 아닌 포트로 열었으면 포트 붙은 주소와 그 포트로 연 까닭을 작게 보인다", () => {
+    const address = `https://${HOST}:8444`;
+    const html = render(
+      { kind: "on", address, viaTailscale: true, fallbackPort: 8444 },
+      { devices: [], address },
+    );
+    const text = textOf(html);
+    expect(text).toContain(`${address}${settings.mobile.onDetail}`);
+    expect(text).toContain("443은 다른 곳이 쓰고 있어 8444로 열었어요.");
+    expect(html).toContain(`role="group" aria-label="${settings.mobile.qr.label}"`);
+  });
+
+  it("443 으로 열었으면 포트 안내를 보이지 않는다", () => {
+    const html = render(
+      { kind: "on", address: `https://${HOST}`, viaTailscale: true, fallbackPort: null },
+      { devices: [], address: `https://${HOST}` },
+    );
+    expect(textOf(html)).not.toContain("443은 다른 곳이");
+  });
+
   it("Tailscale 이 아닌 옛 열 주소도 켠 상태로 보이고 끄기를 둔다", () => {
     const html = render(
-      { kind: "on", address: "https://ganger.example.com", viaTailscale: false },
+      {
+        kind: "on",
+        address: "https://ganger.example.com",
+        viaTailscale: false,
+        fallbackPort: null,
+      },
       { devices: [], address: "https://ganger.example.com" },
     );
     expect(textOf(html)).toContain("https://ganger.example.com · 켜짐");
