@@ -188,7 +188,7 @@
     "address": {
       "body": "다른 맥은 이 주소로 이 서버에 닿아요. 아직 정하지 않았어요.",
       "label": "다른 기기에서 열 주소",
-      "description": "예: Tailscale Serve 주소. 나중에 Settings › 다른 기기에서 바꿀 수 있어요.",
+      "description": "예: Tailscale Serve 주소. 나중에 Settings › 모바일에서 끄거나 다시 켤 수 있어요.",
       "placeholder": "https://server.example.ts.net",
       "save": "저장하고 명령 받기",
       "saving": "저장하는 중",

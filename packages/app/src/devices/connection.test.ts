@@ -228,4 +228,26 @@ describe("기기 토큰", () => {
     expect(view).not.toContain("ExponentPushToken");
     expect(view.toLowerCase()).not.toContain("expo");
   });
+
+  it("휴대폰은 phone, 데스크톱 앱은 desktop 으로 넣고 목록 화면에는 휴대폰만 보인다", () => {
+    const context = world();
+    const phone = connected(context);
+    const registrations = new DesktopRegistrations();
+    const desktop = registerDesktop(
+      { db: context.db, registrations },
+      { name: "Acme Mac", requestId: "request-id-0000004" },
+      at,
+    );
+    if (desktop.status !== 200) throw new Error("등록 실패");
+
+    expect(listDevices(context.db).map(({ id, kind }) => ({ id, kind }))).toEqual(
+      expect.arrayContaining([
+        { id: phone.deviceId, kind: "phone" },
+        { id: desktop.result.deviceId, kind: "desktop" },
+      ]),
+    );
+    expect(loadDevicesView(context.db, SERVER, at).devices.map((device) => device.id)).toEqual([
+      phone.deviceId,
+    ]);
+  });
 });

@@ -69,7 +69,7 @@ describe("Mac 앞이면 푸시 미루기(M15, M32, M51)", () => {
     sent = [];
     clock = new Date("2026-11-23T03:00:00.000Z");
     h.db.$client.exec("PRAGMA foreign_keys = OFF");
-    const phone = addDevice(h.db, { name: "폰", tokenHash: "hash-phone" }, clock);
+    const phone = addDevice(h.db, { name: "폰", kind: "phone", tokenHash: "hash-phone" }, clock);
     saveDevicePushSettings(h.db, phone.id, {
       enabled: true,
       groups: GROUPS,

@@ -115,7 +115,7 @@ describe("v1 Workspace와 이 기기", () => {
 
   it("이 기기 정보에 토큰 해시를 싣지 않고, 지운 기기는 없다", () => {
     const db = world();
-    const device = addDevice(db, { name: "iPhone", tokenHash: "hash-value" }, at);
+    const device = addDevice(db, { name: "iPhone", kind: "phone", tokenHash: "hash-value" }, at);
     expect(loadThisDevice(db, device.id)).toEqual({
       id: device.id,
       name: "iPhone",

@@ -20,7 +20,7 @@ export const SETTINGS_PAGES = [
   "general",
   "projects",
   "connections",
-  "devices",
+  "mobile",
   "server",
   "mcp",
   "notifications",
@@ -29,7 +29,7 @@ export type SettingsPageId = (typeof SETTINGS_PAGES)[number];
 
 export const SETTINGS_NAV_GROUPS = {
   workspace: ["general", "projects"],
-  install: ["connections", "devices", "server", "mcp"],
+  install: ["connections", "mobile", "server", "mcp"],
   mac: ["notifications"],
 } as const satisfies Record<string, ReadonlyArray<SettingsPageId>>;
 export type SettingsNavGroupId = keyof typeof SETTINGS_NAV_GROUPS;
@@ -38,7 +38,7 @@ export const SETTINGS_PAGE_PATHS = {
   general: "/settings/general",
   projects: "/settings/projects",
   connections: "/settings/connections",
-  devices: "/settings/devices",
+  mobile: "/settings/mobile",
   server: "/settings/server",
   mcp: "/settings/mcp",
   notifications: "/settings/notifications",
@@ -88,7 +88,6 @@ export function projectRowId(connectionId: string, projectId: string): string {
 
 export const PROJECTS_HEADING_ID = "projects-heading";
 export const WEBHOOK_ADDRESS_ROW_ID = "webhook-address";
-export const WEB_ADDRESS_ROW_ID = "web-address";
 
 export type LegacySettingsTarget =
   | { kind: "page"; page: SettingsPageId; rowId?: string }
@@ -99,11 +98,11 @@ const LEGACY_TARGETS = new Map<string, LegacySettingsTarget>([
   ["projects", { kind: "page", page: "projects" }],
   ["connections", { kind: "page", page: "connections" }],
   ["server", { kind: "page", page: "server" }],
-  ["devices", { kind: "page", page: "devices" }],
+  ["devices", { kind: "page", page: "mobile" }],
   ["logs", { kind: "page", page: "server" }],
   ["advanced", { kind: "page", page: "mcp" }],
   ["mcp-row", { kind: "page", page: "mcp" }],
-  ["web-address-row", { kind: "page", page: "devices", rowId: WEB_ADDRESS_ROW_ID }],
+  ["web-address-row", { kind: "page", page: "mobile" }],
 ]);
 
 function decodedHash(hash: string): string {

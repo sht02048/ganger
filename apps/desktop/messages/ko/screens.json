@@ -44,7 +44,7 @@
     "missing": "Tailscale을 찾지 못했어요. 주소로 연결할 수 있어요.",
     "stopped": "Tailscale을 켜면 서버를 찾을 수 있어요.",
     "unreadable": "Tailscale 상태를 읽지 못했어요. 주소로 연결할 수 있어요.",
-    "noneFound": "서버를 찾지 못했어요. 서버 기기의 Settings › 다른 기기에서 열 주소를 복사해 넣어 주세요.",
+    "noneFound": "서버를 찾지 못했어요. 서버 기기의 Settings › 모바일에 있는 주소를 복사해 넣어 주세요.",
     "listLabel": "tailnet에서 찾은 서버",
     "refresh": "다시 찾기",
     "empty": "찾은 서버가 없어요.",
@@ -53,7 +53,7 @@
     "versionDiffers": "앱과 버전이 달라요",
     "open": "열기",
     "openByAddress": "주소로 열기",
-    "hostNotAllowed": "이 이름으로는 열 수 없어요. 서버의 Settings › 다른 기기에서 열 주소를 정한 뒤 다시 찾아 주세요.",
+    "hostNotAllowed": "이 이름으로는 열 수 없어요. 서버의 Settings › 모바일에서 휴대폰에서 열기를 켠 뒤 다시 찾아 주세요.",
     "notListed": "찾는 서버가 없나요?",
     "byAddress": "주소로 연결하기",
     "otherPort": "다른 포트로 찾기",
@@ -64,7 +64,7 @@
   "address": {
     "title": "주소로 연결하기",
     "back": "서버 찾기로",
-    "summary": "서버 기기의 Settings › 다른 기기에 있는 열 주소를 넣어 주세요.",
+    "summary": "서버 기기의 Settings › 모바일에 있는 주소를 넣어 주세요.",
     "label": "서버 주소",
     "placeholder": "https://server.example.ts.net",
     "hint": "예: https://server.example.ts.net 또는 http://100.64.0.10:3000",
@@ -74,12 +74,12 @@
       "invalid": "주소 모양이 맞지 않아요. 위 예처럼 넣어 주세요.",
       "unreachable": "그 주소에 닿지 않아요. 서버가 켜져 있는지, 포트가 맞는지 확인해 주세요.",
       "not-ours": "그 주소는 Ganger 서버가 아니에요.",
-      "host-not-allowed": "서버는 찾았지만 이 주소로는 열 수 없어요. 그 서버의 Settings › 다른 기기에서 열 주소를 정해 주세요."
+      "host-not-allowed": "서버는 찾았지만 이 주소로는 열 수 없어요. 그 서버의 Settings › 모바일에서 휴대폰에서 열기를 켜 주세요."
     }
   },
   "hostBlocked": {
     "title": "이 서버가 {host}를 허용하지 않아요",
-    "summary": "서버 맥에서 Settings › 다른 기기의 열 주소에 넣어 주세요.",
+    "summary": "서버 맥의 Settings › 모바일에서 휴대폰에서 열기를 켜면 그 주소로 열 수 있어요.",
     "checking": "다시 확인하고 있어요",
     "address": "서버 주소",
     "retry": "다시 시도",
