@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { openChangeStream } from "./change-stream";
+import { changeNoticeOf, openChangeStream } from "./change-stream";
 import type { ChangeStreamHandlers } from "./change-stream";
 import type { FetchLike } from "./client";
 
@@ -47,7 +47,7 @@ describe("변경 기록 SSE 읽기", () => {
       authorization: "Bearer secret",
     });
     expect(on.onReady).toHaveBeenCalledOnce();
-    expect(on.onChange).toHaveBeenCalledTimes(2);
+    expect(on.onChange.mock.calls).toEqual([[null], [null]]);
     expect(on.onAlive).toHaveBeenCalledTimes(5);
   });
 
@@ -72,5 +72,47 @@ describe("변경 기록 SSE 읽기", () => {
     await Promise.resolve();
     expect(signal?.aborted).toBe(true);
     expect(on.onEnd).not.toHaveBeenCalled();
+  });
+});
+
+describe("변경 줄의 종류와 Workspace 읽기(티켓 0224)", () => {
+  it("change 줄의 종류·Workspace·부분을 넘기고 reset은 null로 넘긴다", async () => {
+    const fetcher = vi.fn<FetchLike>(() =>
+      Promise.resolve(
+        streamOf([
+          'event: change\nid: 3\ndata: {"kind":"run","targetId":"r1","workspaceId":"ws-a","part":"log"}\n\n',
+          'event: change\nid: 4\ndata: {"kind":"runner","targetId":"m1","workspaceId":null,"part":null}\n\n',
+          'event: reset\nid: 9\ndata: {"seq":9}\n\n',
+        ]),
+      ),
+    );
+    const on = handlers();
+    openChangeStream(fetcher, target, on);
+    await vi.waitFor(() => expect(on.onEnd).toHaveBeenCalled());
+    expect(on.onChange.mock.calls).toEqual([
+      [{ kind: "run", workspaceId: "ws-a", part: "log" }],
+      [{ kind: "runner", workspaceId: null, part: null }],
+      [null],
+    ]);
+  });
+
+  it("모양이 다르거나 JSON이 아니면 null로 넘겨 전체를 다시 읽게 한다", () => {
+    expect(changeNoticeOf(null)).toBeNull();
+    expect(changeNoticeOf("{broken")).toBeNull();
+    expect(changeNoticeOf('{"kind":7,"workspaceId":null}')).toBeNull();
+    expect(changeNoticeOf('{"kind":"run"}')).toBeNull();
+  });
+
+  it("모르는 부분 값이나 빠진 부분은 null로 읽는다", () => {
+    expect(changeNoticeOf('{"kind":"run","workspaceId":"ws-a"}')).toEqual({
+      kind: "run",
+      workspaceId: "ws-a",
+      part: null,
+    });
+    expect(changeNoticeOf('{"kind":"future","workspaceId":null,"part":"x"}')).toEqual({
+      kind: "future",
+      workspaceId: null,
+      part: "x",
+    });
   });
 });

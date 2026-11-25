@@ -14,7 +14,7 @@ import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
 import type { CacheFiles } from "./offline-cache";
-import { POLL_INTERVAL_MS } from "./session";
+import { POLL_INTERVAL_MS, RETRY_MAX_MS } from "./session";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
@@ -45,7 +45,7 @@ function fakeServer() {
     if (path === IDENTITY_PATH) {
       return Promise.resolve(Response.json({ product: "ganger", webAccess: "host-not-allowed" }));
     }
-    if (path === V1_PATHS.changeStream) return new Promise(() => undefined);
+    if (path === V1_PATHS.changeStream) return Promise.resolve(new Response("", { status: 503 }));
     if (state.mode === "host-blocked") {
       return Promise.resolve(new Response("Blocked", { status: 403 }));
     }
@@ -535,7 +535,7 @@ describe("서버에 닿지 않을 때(M31)", () => {
     expect(byLabel("답하기")?.getAttribute("aria-disabled")).toBe("true");
     await press("답하기");
     server.state.mode = "ok";
-    await advance(POLL_INTERVAL_MS);
+    await advance(RETRY_MAX_MS);
     expect(host.querySelector('[data-testid="notice-band"]')).toBeNull();
     expect(server.state.requests.filter((request) => request.method !== "GET")).toEqual([]);
   });

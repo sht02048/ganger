@@ -14,6 +14,7 @@ import { RunnersScreen } from "../runners/runners-screen";
 import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
 import { SettingsScreen } from "../settings/settings-screen";
+import { followForeground, isForegroundAppState } from "./app-state";
 import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
@@ -136,6 +137,8 @@ export function LiveScreens({
           },
           onDashboardRead: (workspaceId, data, fetchedAt, workspaces) =>
             cache.saveDashboard(workspaceId, data, fetchedAt, workspaces),
+          onDashboardConfirmed: (workspaceId, fetchedAt) =>
+            cache.confirmDashboard(workspaceId, fetchedAt),
         },
         INITIAL_DASHBOARD_VIEW.workspaceId,
       ),
@@ -150,7 +153,7 @@ export function LiveScreens({
   const [disconnecting, setDisconnecting] = useState(false);
   const [disconnectFailed, setDisconnectFailed] = useState(false);
   const [forgetFailed, setForgetFailed] = useState(false);
-  const [foreground, setForeground] = useState(AppState.currentState !== "background");
+  const [foreground, setForeground] = useState(() => isForegroundAppState(AppState.currentState));
   const [openRun, setOpenRun] = useState<{
     id: string;
     action: boolean;
@@ -209,16 +212,16 @@ export function LiveScreens({
   }, [cache, session]);
 
   useEffect(() => {
-    session.setForeground(AppState.currentState !== "background");
-    const subscription = AppState.addEventListener("change", (next) => {
-      session.setForeground(next === "active");
-      setForeground(next === "active");
+    const unfollow = followForeground(AppState, (next) => {
+      session.setForeground(next);
+      setForeground(next);
+      if (!next) void cache.flush();
     });
     return () => {
-      subscription.remove();
+      unfollow();
       session.stop();
     };
-  }, [session]);
+  }, [cache, session]);
 
   useEffect(() => session.setWorkspace(view.workspaceId), [session, view.workspaceId]);
 
