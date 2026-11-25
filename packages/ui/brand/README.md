@@ -73,12 +73,13 @@ In app code, use the tokens above and never a literal color. The SVG files in th
 
 ## App icon
 
-- **Source**: [`app-icon.svg`](app-icon.svg), a 1024 × 1024 square with no rounded corners. It has a background layer and the mark's layers (body and mouthpiece). macOS draws the corners and the glass.
+- **Source**: [`app-icon.svg`](app-icon.svg), a 1024 × 1024 square with no rounded corners. It has a background layer and the mark's layers (body and mouthpiece). macOS and iOS draw the corners, and macOS draws the glass.
 - **Outputs**: `pnpm --filter @ganger/desktop brand-assets` builds every derived file from this folder:
   - `apps/desktop/icons/AppIcon.icon`, an Icon Composer document for macOS 26 and later.
   - `apps/desktop/icons/icon.icns`, ten PNGs from 16 to 512@2x with the squircle drawn in, for macOS 15 and earlier.
   - `apps/desktop/assets/trayTemplate.png` and `@2x`, the menu bar icon as a black template image on a transparent background.
   - `apps/web/public/favicon.ico` (16 and 32), `icon.svg`, and `apple-touch-icon.png` (180, opaque).
+  - `apps/mobile/assets/icon.png`, `icon-dark.png`, and `icon-tinted.png`, the iOS app icon for `ios.icon` in `apps/mobile/app.json`. All three are 1024 × 1024 squares; iOS draws the corners. `icon.png` is the source as is, opaque (no alpha channel), as the App Store requires. `icon-dark.png` is the mark's layers in full color on a transparent background, so iOS 18 and later put their own dark background behind it. `icon-tinted.png` is the mark in one color (Paper, like [`mark-mono.svg`](mark-mono.svg)) on the source's background, opaque, so the tinted appearance has a single shape to tint.
 - **Packaging**: `pnpm --filter @ganger/desktop package` passes both `.icns` and `.icon` when Xcode 26 or later (`actool` 26+) is installed. Without it, the app ships with `.icns` only, and packaging still works.
 
 Don't edit the derived files by hand. Change the source in this folder and run the script again.
