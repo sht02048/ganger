@@ -347,7 +347,7 @@
     "error": {
       "invalid-web-address": "다른 기기에서 열 주소를 https://server.example.ts.net 처럼 경로 없이 넣어 주세요.",
       "invalid-webhook-address": "Linear가 이 서버에 닿을 주소를 https://hooks.example.com 처럼 경로 없이 넣어 주세요.",
-      "locks-out": "저장하면 지금 보는 이 화면의 주소가 막혀요. 지금 주소를 다른 기기에서 열 주소에 넣거나, 이 기계의 http://127.0.0.1 에서 바꿔 주세요."
+      "locks-out": "저장하면 지금 보는 이 화면의 주소가 막혀요. Settings › 모바일에서 휴대폰에서 열기를 켜거나, 이 기계의 http://127.0.0.1 에서 바꿔 주세요."
     }
   },
   "power": {
@@ -701,7 +701,7 @@
     "turningOn": "켜는 중…",
     "turnOff": "끄기",
     "turningOff": "끄는 중…",
-    "onDetail": "켜짐",
+    "onDetail": " · 켜짐",
     "turnedOn": "켰어요. 휴대폰 Ganger 앱으로 QR을 찍어 주세요.",
     "turnedOff": "껐어요. 이제 휴대폰에서 이 Mac을 열 수 없어요.",
     "portInUse": "이 Mac의 443 포트를 다른 곳에서 쓰고 있어 켤 수 없어요. 쓰는 곳: {uses}",
@@ -719,10 +719,10 @@
     "needs": {
       "title": "Tailscale이 있어야 휴대폰에서 열 수 있어요",
       "body": "Mac과 휴대폰을 같은 Tailscale 계정에 연결하면, 밖에서도 이 Mac에 안전하게 닿아요.",
-      "stepsLabel": "Tailscale 준비",
       "step1": "이 Mac에 Tailscale을 설치하고 로그인해요",
       "step2": "휴대폰에도 Tailscale을 설치하고 같은 계정으로 로그인해요",
       "download": "Tailscale 받기",
+      "externalMark": " ↗",
       "recheck": "다시 확인",
       "rechecking": "확인하는 중…",
       "stillMissing": "아직 이 Mac에서 켜진 Tailscale을 찾지 못했어요."

@@ -6,8 +6,8 @@ import {
   Button,
   InfoTip,
   SettingsGroup,
+  NumberedList,
   SettingsRow,
-  StepMarker,
   Text,
   TextLink,
   VisuallyHidden,
@@ -207,7 +207,7 @@ function TurnedOn({
             <Text variant="meta" mono>
               {access.address}
             </Text>
-            {` · ${t("onDetail")}`}
+            {t("onDetail")}
           </>
         }
         control={
@@ -251,14 +251,7 @@ function NeedsTailscale({ actions, report }: { actions: MobileActions; report: R
           </Text>
           <Text variant="meta">{t("body")}</Text>
         </div>
-        <ol aria-label={t("stepsLabel")} {...stylex.props(styles.steps)}>
-          {(["step1", "step2"] as const).map((step, index) => (
-            <li key={step} {...stylex.props(styles.step)}>
-              <StepMarker state="todo">{index + 1}</StepMarker>
-              <Text variant="body">{t(step)}</Text>
-            </li>
-          ))}
-        </ol>
+        <NumberedList items={[t("step1"), t("step2")]} />
         <Actions>
           <a
             href={TAILSCALE_DOWNLOAD_URL}
@@ -268,7 +261,7 @@ function NeedsTailscale({ actions, report }: { actions: MobileActions; report: R
             {...stylex.props(...buttonStyles("primary"))}
           >
             {t("download")}
-            <span aria-hidden="true"> ↗</span>
+            <span aria-hidden="true">{t("externalMark")}</span>
             <VisuallyHidden>{tSettings("externalLink")}</VisuallyHidden>
           </a>
           <Button
@@ -287,13 +280,4 @@ function NeedsTailscale({ actions, report }: { actions: MobileActions; report: R
 const styles = stylex.create({
   needs: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: space.s4 },
   lines: { display: "flex", flexDirection: "column", gap: space.s1 },
-  steps: {
-    display: "flex",
-    flexDirection: "column",
-    gap: space.s2,
-    margin: 0,
-    padding: 0,
-    listStyle: "none",
-  },
-  step: { display: "flex", alignItems: "center", gap: space.s3 },
 });

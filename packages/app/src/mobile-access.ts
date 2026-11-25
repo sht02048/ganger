@@ -200,7 +200,8 @@ export async function turnOffMobileAccess(
 ): Promise<MobileAccessResult> {
   const current = getInstallSettings(context.db);
   if (current.webAddress === null) return { ok: true };
-  if (locksOutWithoutWebAddress(current.webhookAddress, from)) {
+  const openedThroughIt = URL.parse(current.webAddress)?.host === from.host;
+  if (openedThroughIt || locksOutWithoutWebAddress(current.webhookAddress, from)) {
     return { ok: false, reason: "locks-out" };
   }
   const deps = context.deps ?? defaultMobileAccessDeps;

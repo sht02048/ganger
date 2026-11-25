@@ -92,7 +92,7 @@ describe("Settings › 모바일(0230)", () => {
       { devices: [phone], address: `https://${HOST}` },
     );
     const text = textOf(html);
-    expect(text).toContain(`https://${HOST} · ${settings.mobile.onDetail}`);
+    expect(text).toContain(`https://${HOST}${settings.mobile.onDetail}`);
     expect(html).toContain(">끄기<");
     expect(html).toContain(settings.mobile.onInfo);
     expect(html).toContain(`role="group" aria-label="${settings.mobile.qr.label}"`);
@@ -121,7 +121,7 @@ describe("Settings › 모바일(0230)", () => {
     expect(text).toContain(settings.mobile.needs.body);
     expect(html).toMatch(
       new RegExp(
-        `<ol aria-label="${settings.mobile.needs.stepsLabel}"[^>]*><li[^>]*>.*>1<.*${settings.mobile.needs.step1}.*<li[^>]*>.*>2<.*${settings.mobile.needs.step2}`,
+        `<ol[^>]*><li[^>]*><span aria-hidden="true"[^>]*>1<.*${settings.mobile.needs.step1}.*<li[^>]*><span aria-hidden="true"[^>]*>2<.*${settings.mobile.needs.step2}`,
         "s",
       ),
     );

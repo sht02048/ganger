@@ -306,6 +306,18 @@ describe("휴대폰에서 열기 끄기", () => {
     expect(getInstallSettings(db).webAddress).toBe(`https://${HOST}`);
   });
 
+  it("자동 허용 tailnet 주소여도 끌 그 주소로 연 화면에서는 끄지 않는다", async () => {
+    const db = database();
+    saveInstallAddresses(db, { webAddress: `https://${HOST}`, webhookAddress: null }, NOW);
+    const { deps, commands } = fakeTailscale({ serve: ours });
+    const viaServe = { host: HOST, bindHost: "0.0.0.0", webPort: 3000, tailnetHosts: [HOST] };
+    await expect(turnOffMobileAccess(context(db, deps), NOW, viaServe)).resolves.toEqual({
+      ok: false,
+      reason: "locks-out",
+    });
+    expect(commands).toEqual([]);
+  });
+
   it("지금 그 주소로 연 화면에서는 끄지 않는다", async () => {
     const db = database();
     saveInstallAddresses(db, { webAddress: `https://${HOST}`, webhookAddress: null }, NOW);
