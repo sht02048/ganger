@@ -92,23 +92,93 @@ describe("RunCard", () => {
     expect(buttons(mount(<RunCard run={cancelling} onAction={noAction} />))).toBe(0);
   });
 
-  it("긴 질문은 첫 줄만 보인다", () => {
+  it("답하지 않은 Question은 요약 없이 answer 색 답하기를 둔다", () => {
+    const actions: string[] = [];
     const run: DashboardRun = {
       ...base,
       state: "waiting-for-input",
       waitingMs: null,
+      todoTag: "question",
       input: {
         kind: "question",
         questionId: "q",
-        body: "첫 줄\n둘째 줄",
-        summary: "첫 줄\n둘째 줄",
+        body: "어느 쪽으로 고칠까요?\n둘째 줄",
+        summary: "어느 쪽으로 고칠까요?\n둘째 줄",
         choices: [],
         answered: false,
       },
     };
+    const host = mount(<RunCard run={run} onAction={(action) => actions.push(action)} />);
+    expect(host.textContent).not.toContain("어느 쪽으로 고칠까요?");
+    const answer = host.querySelector('[aria-label="답하기"]');
+    expect(answer?.getAttribute("data-testid")).toBe("button-answer");
+    act(() => {
+      answer?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(actions).toEqual(["answer"]);
+  });
+
+  it("답하지 않은 Human Check는 내용 없이 check 색 확인하기를 둔다", () => {
+    const actions: string[] = [];
+    const run: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "human-check",
+      input: {
+        kind: "human-check",
+        questionId: "q",
+        body: "PR을 확인해 주세요\n둘째 줄",
+        answered: false,
+      },
+    };
+    const host = mount(<RunCard run={run} onAction={(action) => actions.push(action)} />);
+    expect(host.textContent).not.toContain("PR을 확인해 주세요");
+    const check = host.querySelector('[aria-label="확인하기"]');
+    expect(check?.getAttribute("data-testid")).toBe("button-check");
+    act(() => {
+      check?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(actions).toEqual(["human-check"]);
+  });
+
+  it("이미 답한 Human Check는 버튼 없이 보낸 사실을 말한다", () => {
+    const run: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "human-check",
+      input: { kind: "human-check", questionId: "q", body: "PR을 확인해 주세요", answered: true },
+    };
     const host = mount(<RunCard run={run} onAction={noAction} />);
-    expect(host.textContent).toContain("첫 줄");
-    expect(host.textContent).not.toContain("둘째 줄");
+    expect(buttons(host)).toBe(0);
+    expect(host.textContent).toContain("답을 보냈어요");
+  });
+
+  it("Paused 재개하기와 Permission 거절은 색을 바꾸지 않는다", () => {
+    const paused: DashboardRun = {
+      ...base,
+      state: "paused",
+      pausedMs: null,
+      pauseSource: "operator",
+    };
+    const pausedHost = mount(<RunCard run={paused} onAction={noAction} />);
+    expect(pausedHost.textContent).toContain("Ganger에서 멈춤");
+    expect(pausedHost.querySelector('[aria-label="재개하기"]')?.getAttribute("data-testid")).toBe(
+      "button-secondary",
+    );
+    const permission: DashboardRun = {
+      ...base,
+      state: "waiting-for-input",
+      waitingMs: null,
+      todoTag: "permission",
+      input: { kind: "permission", promptId: "p", detail: "pnpm test", denied: false },
+    };
+    const permissionHost = mount(<RunCard run={permission} onAction={noAction} />);
+    expect(permissionHost.textContent).toContain("pnpm test");
+    expect(permissionHost.querySelector('[aria-label="거절"]')?.getAttribute("data-testid")).toBe(
+      "button-danger",
+    );
   });
 
   it("모든 Workspace를 볼 때만 Workspace 이름을 붙인다", () => {
@@ -132,6 +202,45 @@ describe("RunCard", () => {
     const host = mount(<RunCard run={run} onAction={noAction} />);
     expect(host.querySelector('[data-testid="chip-neutral"]')?.textContent).toBe("2커밋 뒤");
     expect(host.querySelector('[data-testid="chip-problem"]')).toBeNull();
+  });
+});
+
+describe("카드 행동 버튼 배치", () => {
+  const space = { s1: "4px", s2: "8px" };
+
+  it("아랫줄과 버튼 묶음 사이를 카드 간격보다 4 더 띄우고, 버튼끼리는 8 띄운다", () => {
+    const run: DashboardRun = { ...base, state: "paused", pausedMs: null, pauseSource: "operator" };
+    const host = mount(<RunCard run={run} onAction={noAction} onMenu={noAction} />);
+    const actions = host.querySelector('[data-testid="card-actions"]');
+    if (actions === null) throw new Error("card-actions not found");
+    expect(getComputedStyle(actions).marginTop).toBe(space.s1);
+    expect(getComputedStyle(actions).gap).toBe(space.s2);
+    expect(actions.querySelectorAll('[role="button"]')).toHaveLength(2);
+  });
+
+  it("Failed 카드는 런 상세와 다시 맡기기를 한 줄에 같은 폭으로 둔다", () => {
+    const failed: EndedRun = {
+      ...settled,
+      todoTag: "failed",
+      summary: "failed",
+      agentResult: "reported-failure",
+    };
+    const host = mount(<RunCard run={failed} onAction={noAction} />);
+    const row = host.querySelector('[data-testid="card-action-row"]');
+    if (row === null) throw new Error("card-action-row not found");
+    expect(getComputedStyle(row).flexDirection).toBe("row");
+    expect(getComputedStyle(row).gap).toBe(space.s2);
+    const cells = [...row.children];
+    expect(
+      cells.map((cell) => cell.querySelector('[role="button"]')?.getAttribute("aria-label")),
+    ).toEqual(["런 상세", "다시 맡기기"]);
+    for (const cell of cells) expect(getComputedStyle(cell).flexGrow).toBe("1");
+  });
+
+  it("행동이 없으면 버튼 묶음을 두지 않는다", () => {
+    const run: DashboardRun = { ...base, state: "running" };
+    const host = mount(<RunCard run={run} onAction={noAction} />);
+    expect(host.querySelector('[data-testid="card-actions"]')).toBeNull();
   });
 });
 

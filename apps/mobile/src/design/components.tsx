@@ -34,13 +34,19 @@ export function Card({
   );
 }
 
-export type ButtonVariant = "primary" | "secondary" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "danger" | "answer" | "check";
 
-const buttonTone: Record<ButtonVariant, TextTone> = {
-  primary: "onAccent",
-  secondary: "primary",
-  danger: "problem",
+const buttonColors: Record<ButtonVariant, { surface: string; tone: TextTone }> = {
+  primary: { surface: colors.accent, tone: "onAccent" },
+  secondary: { surface: colors.bgControl, tone: "primary" },
+  danger: { surface: colors.bgControl, tone: "problem" },
+  answer: { surface: colors.answerSoft, tone: "answer" },
+  check: { surface: colors.checkSoft, tone: "check" },
 };
+
+export function buttonColorsOf(variant: ButtonVariant): { surface: string; tone: TextTone } {
+  return buttonColors[variant];
+}
 
 export function Button({
   label,
@@ -61,6 +67,7 @@ export function Button({
 }) {
   return (
     <Pressable
+      testID={`button-${variant}`}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       aria-disabled={disabled}
@@ -69,12 +76,16 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         compact ? styles.buttonCompact : null,
-        variant === "primary" ? styles.buttonPrimary : styles.buttonSecondary,
+        { backgroundColor: buttonColors[variant].surface },
         pressed && !disabled ? styles.pressed : null,
         disabled ? styles.disabled : null,
       ]}
     >
-      <Text variant={compact ? "meta" : "title"} tone={buttonTone[variant]} numberOfLines={1}>
+      <Text
+        variant={compact ? "meta" : "title"}
+        tone={buttonColors[variant].tone}
+        numberOfLines={1}
+      >
         {label}
       </Text>
       <IssueBadge count={issueCount} />
@@ -643,8 +654,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: radius.button,
   },
-  buttonPrimary: { backgroundColor: colors.accent },
-  buttonSecondary: { backgroundColor: colors.bgControl },
   pressed: { opacity: 0.8 },
   disabled: { opacity: 0.5 },
   todoBadge: {
