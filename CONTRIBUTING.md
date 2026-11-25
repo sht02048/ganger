@@ -56,7 +56,7 @@ pnpm install   # also installs the lefthook pre-commit hook
 | `pnpm release:mac`          | Builds a release dmg (see [Build a release dmg](#build-a-release-dmg)) |
 | `pnpm update:browser-times` | Refreshes the browser test shard times from CI runs                    |
 
-`pnpm dev:mobile` opens the app in Expo Go. Add `--dev-client` to open it in a signed iPhone development build instead; [iPhone development build](docs/guide/mobile.md) covers building one with EAS.
+`pnpm dev:mobile` opens the app in Expo Go. Add `--dev-client` to open it in a signed iPhone development build instead; [iPhone builds](docs/guide/mobile.md) covers building one with EAS, and a preview build that runs without your Mac.
 
 The browser tests in `e2e` drive the Google Chrome installed on the machine through `playwright-core`; they do not download a browser. GitHub's Ubuntu runners already have Chrome. When a browser test fails, a screenshot of the page is saved to `e2e/test-results/`, and CI uploads it as an artifact. A unit test that mounts a component starts with `// @vitest-environment jsdom` and runs in jsdom, a development dependency of `apps/web`.
 

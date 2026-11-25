@@ -93,7 +93,7 @@ describe("푸시 빌드 설정(0109)", () => {
   });
 });
 
-describe("EAS 개발 빌드(0227)", () => {
+describe("EAS 빌드 프로필(0227, 0233)", () => {
   const pushKeys = ["GANGER_EXPO_PROJECT_ID", "GANGER_IOS_BUNDLE_ID", "GANGER_APPLE_TEAM_ID"];
   const easJson = z
     .object({
@@ -134,7 +134,7 @@ describe("EAS 개발 빌드(0227)", () => {
   };
 
   it("development 프로필은 내부 배포용 개발 클라이언트를 development 환경 변수로 만든다", () => {
-    expect(Object.keys(easJson.build)).toEqual(["development"]);
+    expect(Object.keys(easJson.build)).toEqual(["development", "preview"]);
     expect(development).toMatchObject({
       developmentClient: true,
       distribution: "internal",
@@ -143,16 +143,20 @@ describe("EAS 개발 빌드(0227)", () => {
     });
   });
 
-  it("빌드 서버의 Node 와 pnpm 은 저장소가 쓰는 버전과 같다", () => {
-    const nvmrc = readFileSync(join(import.meta.dirname, "..", "..", ".nvmrc"), "utf8").trim();
-    const rootPackage = z
-      .object({ packageManager: z.string() })
-      .parse(
-        JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "package.json"), "utf8")),
-      );
-    expect(development?.node?.split(".")[0]).toBe(nvmrc);
-    expect(`pnpm@${development?.pnpm ?? ""}`).toBe(rootPackage.packageManager);
-  });
+  it.each(Object.keys(easJson.build))(
+    "%s 프로필의 빌드 서버 Node 와 pnpm 은 저장소가 쓰는 버전과 같다",
+    (name) => {
+      const profile = easJson.build[name];
+      const nvmrc = readFileSync(join(import.meta.dirname, "..", "..", ".nvmrc"), "utf8").trim();
+      const rootPackage = z
+        .object({ packageManager: z.string() })
+        .parse(
+          JSON.parse(readFileSync(join(import.meta.dirname, "..", "..", "package.json"), "utf8")),
+        );
+      expect(profile?.node?.split(".")[0]).toBe(nvmrc);
+      expect(`pnpm@${profile?.pnpm ?? ""}`).toBe(rootPackage.packageManager);
+    },
+  );
 
   it("eas.json 에 프로젝트 ID·번들 ID·팀 값을 두지 않는다", () => {
     const stored = readFileSync(join(import.meta.dirname, "eas.json"), "utf8");
@@ -218,5 +222,83 @@ describe("EAS 개발 빌드(0227)", () => {
     expect(config.ios).not.toHaveProperty("bundleIdentifier");
     expect(config.extra).toEqual({ eas: {} });
     expect(JSON.stringify(config.plugins)).not.toContain("with-notification-service");
+  });
+  const preview = easJson.build["preview"];
+
+  it("preview 프로필은 개발 클라이언트 없이 내부 배포용 출시 설정을 preview 환경 변수로 만든다", () => {
+    expect(preview).toEqual({
+      distribution: "internal",
+      environment: "preview",
+      node: development?.node,
+      pnpm: development?.pnpm,
+      env: { GANGER_MOBILE_BUILD: "release" },
+    });
+    expect(buildVariantOf(preview?.env?.["GANGER_MOBILE_BUILD"])).toBe("release");
+    expect(JSON.stringify(preview)).not.toContain("EXPO_PUBLIC_GANGER_DEV");
+  });
+
+  it("세 값이 있으면 preview 빌드는 APNs 운영 환경·ATS 예외 없음·NSE 로컬 네트워크 꺼짐으로 만든다", () => {
+    const config = configWith({
+      ...preview?.env,
+      GANGER_EXPO_PROJECT_ID: "00000000-0000-0000-0000-000000000000",
+      GANGER_IOS_BUNDLE_ID: "com.example.ganger",
+      GANGER_APPLE_TEAM_ID: "ABCDE12345",
+    });
+    expect(config.ios?.infoPlist).toEqual({
+      NSAppTransportSecurity: { NSAllowsArbitraryLoads: false },
+    });
+    expect(JSON.stringify(config)).not.toContain("NSAllowsLocalNetworking");
+    expect(config.ios).toMatchObject({
+      bundleIdentifier: "com.example.ganger",
+      appleTeamId: "ABCDE12345",
+      entitlements: { "keychain-access-groups": ["ABCDE12345.com.example.ganger.shared"] },
+    });
+    expect(config.plugins).toContainEqual([
+      "expo-notifications",
+      { mode: "production", enableBackgroundRemoteNotifications: true },
+    ]);
+    expect(config.plugins).toContainEqual([
+      "./plugins/with-notification-service.cjs",
+      {
+        targetName: "GangerNotificationService",
+        bundleIdentifier: "com.example.ganger.notification-service",
+        teamId: "ABCDE12345",
+        keychainAccessGroup: "ABCDE12345.com.example.ganger.shared",
+        allowLocalNetworking: false,
+      },
+    ]);
+    expect(config.extra).toMatchObject({
+      eas: {
+        projectId: "00000000-0000-0000-0000-000000000000",
+        build: {
+          experimental: {
+            ios: {
+              appExtensions: [
+                {
+                  targetName: "GangerNotificationService",
+                  bundleIdentifier: "com.example.ganger.notification-service",
+                },
+              ],
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it("preview 빌드와 개발 빌드는 같은 번들 ID 를 써 한 기기에서 서로 덮어쓴다", () => {
+    const pushValues = {
+      GANGER_EXPO_PROJECT_ID: "00000000-0000-0000-0000-000000000000",
+      GANGER_IOS_BUNDLE_ID: "com.example.ganger",
+      GANGER_APPLE_TEAM_ID: "ABCDE12345",
+    };
+    const previewConfig = configWith({ ...preview?.env, ...pushValues });
+    const developmentConfig = configWith({ ...development?.env, ...pushValues });
+    expect(previewConfig.ios?.["bundleIdentifier"]).toBe(
+      developmentConfig.ios?.["bundleIdentifier"],
+    );
+    expect(previewConfig.extra?.["keychainAccessGroup"]).toBe(
+      developmentConfig.extra?.["keychainAccessGroup"],
+    );
   });
 });
