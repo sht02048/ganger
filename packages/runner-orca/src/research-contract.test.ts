@@ -173,7 +173,7 @@ describe("research 0008 contract", () => {
   test("pollRun + answerQuestion: R1 asks, the answer goes back with reply --from the mailbox", async () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(research("0008/worker-show-asked.json")))
-      .orca("orchestration check", stdout(peekOf(...inboxRows("inbox-question-full.json"))))
+      .orca("orchestration inbox", stdout(peekOf(...inboxRows("inbox-question-full.json"))))
       .orca("worktree ps", stdout(JSON.stringify({ ok: true, result: { worktrees: [] } })))
       .orca("worktree show", R1_WORKTREE_SHOW)
       .orca("orchestration reply", stdout(research("0008/reply.json")));
@@ -229,7 +229,7 @@ describe("research 0008 contract", () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(r2Show))
       .orca(
-        "orchestration check",
+        "orchestration inbox",
         stdout(peekOf(research("0008/escalation-needs-input-full.json"))),
       )
       .orca("worktree ps", stdout(research("0008/worktree-ps-permission.json")))
@@ -262,7 +262,7 @@ describe("research 0008 contract", () => {
       .orca("orchestration worker-stop", stdout(research("0008/worker-stop.json")))
       .orca("orchestration worker-show", stdout(research("0008/worker-show-after-stop.json")))
       .orca("orchestration task-list", stdout(research("0008/task-list-after-stop.json")))
-      .orca("orchestration check", stdout(JSON.stringify({ ok: true, result: { messages: [] } })))
+      .orca("orchestration inbox", stdout(JSON.stringify({ ok: true, result: { messages: [] } })))
       .orca("worktree ps", stdout(JSON.stringify({ ok: true, result: { worktrees: [] } })))
       .orca(
         "worktree show",
@@ -291,7 +291,7 @@ describe("research 0008 contract", () => {
     const exec = new ScriptedExec()
       .orca("orchestration worker-show", stdout(research("0008/worker-show-lost.json")))
       .orca("orchestration task-list", stdout(research("0008/task-list-after-lost.json")))
-      .orca("orchestration check", stdout(peekOf(research("0008/escalation-lost-full.json"))))
+      .orca("orchestration inbox", stdout(peekOf(research("0008/escalation-lost-full.json"))))
       .orca("worktree ps", stdout(JSON.stringify({ ok: true, result: { worktrees: [] } })))
       .orca("worktree show", R1_WORKTREE_SHOW);
     expect(await runnerWith(exec).pollRun(runOf(3))).toMatchObject({

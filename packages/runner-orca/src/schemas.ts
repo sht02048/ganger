@@ -121,6 +121,7 @@ export const taskListResultSchema = z.object({
       id: text,
       status: text,
       result: z.union([z.string(), z.record(z.string(), z.unknown())]).nullish(),
+      created_at: optionalText,
     }),
   ),
 });
@@ -221,6 +222,7 @@ export const workerReadResultSchema = z.object({
 });
 
 export type MailRow = z.infer<typeof mailRowSchema>;
+export type TaskRow = z.infer<typeof taskListResultSchema>["tasks"][number];
 export type MailPayload = z.infer<typeof mailPayloadSchema>;
 export type WorkerShowResult = z.infer<typeof workerShowResultSchema>;
 export type WorktreePsResult = z.infer<typeof worktreePsResultSchema>;

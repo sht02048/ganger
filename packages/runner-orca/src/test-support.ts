@@ -50,7 +50,7 @@ export interface RecordedCall {
   stdin: string | undefined;
 }
 
-type Reply = RemoteResult | (() => RemoteResult);
+type Reply = RemoteResult | ((command: string) => RemoteResult);
 
 export class ScriptedExec implements RemoteExec {
   readonly calls: RecordedCall[] = [];
@@ -73,7 +73,7 @@ export class ScriptedExec implements RemoteExec {
     if (route === undefined) return Promise.reject(new Error(`unexpected command: ${command}`));
     const reply = route.replies.length > 1 ? route.replies.shift() : route.replies[0];
     if (reply === undefined) return Promise.reject(new Error(`no reply for: ${command}`));
-    return Promise.resolve(typeof reply === "function" ? reply() : reply);
+    return Promise.resolve(typeof reply === "function" ? reply(command) : reply);
   }
 
   commands(): string[] {

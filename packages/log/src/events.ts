@@ -90,6 +90,7 @@ export const LOG_EVENTS = {
   "runner.removed_worktrees_failed": "could not confirm removed worktrees",
   "runner.kept_worktree_check_failed": "could not check whether a kept worktree still exists",
   "runner.provider_usage_failed": "could not read runner provider usage",
+  "runner.mail_window_short": "could not read a run's mail back to its start",
 
   "auto_assign.failed": "could not assign automatically",
   "auto_assign.ticket_failed": "could not assign ticket automatically",

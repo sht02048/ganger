@@ -27,7 +27,6 @@ Local paths, host names, user names and accounts are replaced with `<path>`, `<h
 | `check-peek-empty.json`                    | `orchestration check --peek` with no mail                                     |
 | `check-peek-full-question.json`            | `check --peek --full` with one question                                       |
 | `check-peek-full-question-and-done.json`   | `check --peek --full` after the `worker_done` report                          |
-| `check-peek-consumer-fenced.json`          | `check --run` for a Run the mailbox is not bound to                           |
 | `worker-start-spec-stdin.json`             | `orchestration worker-start --spec-file -` with the spec on ssh stdin         |
 | `worktree-show.json`                       | `worktree show --worktree name:<name>` of the started worktree                |
 | `worktree-show-not-found.json`             | `worktree show` for a name that does not exist                                |
