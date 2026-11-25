@@ -193,6 +193,8 @@ export function RunCard({
   const action = actionOf(run);
   const time = timeOf(run);
   const stuck = isStuck(run);
+  const showRetry = run.todoTag === "failed";
+  const menu = run.state === "ended" ? undefined : onMenu;
   const waitsOnBlockers =
     run.state === "queued" &&
     (run.queuedReason.kind === "blockers-waiting" || run.queuedReason.kind === "blockers-stuck");
@@ -229,28 +231,44 @@ export function RunCard({
         </View>
         {time === null ? null : <Text variant="small">{time}</Text>}
       </View>
-      {action === null ? null : (
-        <Button
-          label={confirming && action.action === "resume" ? t("actions.confirming") : t(action.key)}
-          variant={action.variant}
-          disabled={action.action !== "detail" && actionsDisabled}
-          onPress={() => onAction(action.action)}
-        />
-      )}
-      {run.todoTag === "failed" ? (
-        <Button
-          label={t("card.retry")}
-          disabled={actionsDisabled}
-          onPress={() => onAction("retry")}
-        />
-      ) : null}
-      {onMenu === undefined || run.state === "ended" ? null : (
-        <Button
-          compact
-          label={t("card.menuLabel")}
-          accessibilityLabel={t("card.menu", { key: run.ticketKey })}
-          onPress={onMenu}
-        />
+      {action === null && !showRetry && menu === undefined ? null : (
+        <View testID="card-actions" style={styles.actions}>
+          {action === null && !showRetry ? null : (
+            <View testID="card-action-row" style={styles.actionRow}>
+              {action === null ? null : (
+                <View style={styles.actionCell}>
+                  <Button
+                    label={
+                      confirming && action.action === "resume"
+                        ? t("actions.confirming")
+                        : t(action.key)
+                    }
+                    variant={action.variant}
+                    disabled={action.action !== "detail" && actionsDisabled}
+                    onPress={() => onAction(action.action)}
+                  />
+                </View>
+              )}
+              {showRetry ? (
+                <View style={styles.actionCell}>
+                  <Button
+                    label={t("card.retry")}
+                    disabled={actionsDisabled}
+                    onPress={() => onAction("retry")}
+                  />
+                </View>
+              ) : null}
+            </View>
+          )}
+          {menu === undefined ? null : (
+            <Button
+              compact
+              label={t("card.menuLabel")}
+              accessibilityLabel={t("card.menu", { key: run.ticketKey })}
+              onPress={menu}
+            />
+          )}
+        </View>
       )}
     </Card>
   );
@@ -308,6 +326,9 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", gap: space.s1 },
   footer: { flexDirection: "row", alignItems: "center", gap: space.s2 },
   meta: { flex: 1 },
+  actions: { marginTop: space.s1, gap: space.s2 },
+  actionRow: { flexDirection: "row", gap: space.s2 },
+  actionCell: { flex: 1 },
   settled: {
     flexDirection: "row",
     alignItems: "center",

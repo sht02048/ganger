@@ -205,6 +205,45 @@ describe("RunCard", () => {
   });
 });
 
+describe("카드 행동 버튼 배치", () => {
+  const space = { s1: "4px", s2: "8px" };
+
+  it("아랫줄과 버튼 묶음 사이를 카드 간격보다 4 더 띄우고, 버튼끼리는 8 띄운다", () => {
+    const run: DashboardRun = { ...base, state: "paused", pausedMs: null, pauseSource: "operator" };
+    const host = mount(<RunCard run={run} onAction={noAction} onMenu={noAction} />);
+    const actions = host.querySelector('[data-testid="card-actions"]');
+    if (actions === null) throw new Error("card-actions not found");
+    expect(getComputedStyle(actions).marginTop).toBe(space.s1);
+    expect(getComputedStyle(actions).gap).toBe(space.s2);
+    expect(actions.querySelectorAll('[role="button"]')).toHaveLength(2);
+  });
+
+  it("Failed 카드는 런 상세와 다시 맡기기를 한 줄에 같은 폭으로 둔다", () => {
+    const failed: EndedRun = {
+      ...settled,
+      todoTag: "failed",
+      summary: "failed",
+      agentResult: "reported-failure",
+    };
+    const host = mount(<RunCard run={failed} onAction={noAction} />);
+    const row = host.querySelector('[data-testid="card-action-row"]');
+    if (row === null) throw new Error("card-action-row not found");
+    expect(getComputedStyle(row).flexDirection).toBe("row");
+    expect(getComputedStyle(row).gap).toBe(space.s2);
+    const cells = [...row.children];
+    expect(
+      cells.map((cell) => cell.querySelector('[role="button"]')?.getAttribute("aria-label")),
+    ).toEqual(["런 상세", "다시 맡기기"]);
+    for (const cell of cells) expect(getComputedStyle(cell).flexGrow).toBe("1");
+  });
+
+  it("행동이 없으면 버튼 묶음을 두지 않는다", () => {
+    const run: DashboardRun = { ...base, state: "running" };
+    const host = mount(<RunCard run={run} onAction={noAction} />);
+    expect(host.querySelector('[data-testid="card-actions"]')).toBeNull();
+  });
+});
+
 describe("재개 요청 중", () => {
   it("재개 버튼을 숨기고 재개하는 중을 보인다", () => {
     const run: DashboardRun = {
