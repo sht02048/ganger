@@ -879,7 +879,7 @@ export function registerWriteTools(
     {
       title: "Clear a Failed run from To do",
       description:
-        'Takes a Failed run off To do, the same as "확인했어요" on the Dashboard card. The run stays Failed and can still be assigned again. Use it only after the operator says nothing more needs doing. Sending the same requestId again does nothing more.',
+        'Takes a Failed run off To do, the same as "확인했어요" in the Dashboard run panel or the mobile card menu. The run stays Failed and can still be assigned again. Use it only after the operator says nothing more needs doing. Sending the same requestId again does nothing more.',
       annotations: { ...WRITE, idempotentHint: true },
     },
     { runId: runIdArg, requestId: requestIdArg },

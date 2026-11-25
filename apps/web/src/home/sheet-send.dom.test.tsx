@@ -639,6 +639,14 @@ describe("Dashboard 패널 탭(티켓 0199)", () => {
   });
 });
 
+function clearButton(): HTMLElement {
+  const button = [...(dialog()?.querySelectorAll("button") ?? [])].find((candidate) =>
+    candidate.textContent.startsWith(homeJson.sheet.clearTodo),
+  );
+  if (button === undefined) throw new Error("no clear-todo button");
+  return button;
+}
+
 describe("Dashboard 패널의 확인했어요(티켓 0235)", () => {
   const FAILED_KEY = "ACME-40";
   const failedRun: HomeRun = {
@@ -669,7 +677,7 @@ describe("Dashboard 패널의 확인했어요(티켓 0235)", () => {
       (link) => link.textContent === homeJson.sheet.retry,
     );
     expect(retry).toBeDefined();
-    expect(retry?.parentElement).toBe(dialogButton(homeJson.sheet.clearTodo).parentElement);
+    expect(retry?.parentElement).toBe(clearButton().parentElement);
   });
 
   it("누르면 To do 에서 빼고 패널을 닫은 뒤 Done 칸으로 옮긴 카드로 포커스를 돌린다", async () => {
@@ -679,7 +687,7 @@ describe("Dashboard 패널의 확인했어요(티켓 0235)", () => {
     });
     draw(failedPage(), { onClearTodo });
     await openSummary(failedRun.id);
-    await press(dialogButton(homeJson.sheet.clearTodo));
+    await press(clearButton());
     expect(onClearTodo.mock.calls).toEqual([[failedRun.id]]);
     expect(dialog()).toBeNull();
     expect(toast.mock.calls).toEqual([[homeJson.sheetSent.cleared.replace("{key}", FAILED_KEY)]]);
@@ -694,10 +702,10 @@ describe("Dashboard 패널의 확인했어요(티켓 0235)", () => {
   it("빼지 못하면 패널에 남아 결과 문장을 알리고 그 문장으로 포커스를 옮긴다", async () => {
     draw(failedPage(), { onClearTodo: () => Promise.reject(new Error("state-changed")) });
     await openSummary(failedRun.id);
-    await press(dialogButton(homeJson.sheet.clearTodo));
+    await press(clearButton());
     const status = dialog()?.querySelector('[role="status"]');
     expect(status?.textContent).toBe(homeJson.sheet.clearTodoFailed);
     expect(document.activeElement).toBe(status);
-    expect(dialogButton(homeJson.sheet.clearTodo)).toBeDefined();
+    expect(clearButton()).toBeDefined();
   });
 });

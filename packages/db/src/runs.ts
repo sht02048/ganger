@@ -1009,6 +1009,7 @@ export function updateRunRecords(
       | "agentStopRequestedAt"
       | "prReadError"
       | "worktreeRemoveRequestedAt"
+      | "todoSettledAt"
     >
   >,
 ): boolean {

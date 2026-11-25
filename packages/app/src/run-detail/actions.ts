@@ -117,8 +117,8 @@ export const agentMessageInput = z.object({
     .refine((body) => !body.includes("\0")),
 });
 
-export function clearTodoRequest(db: Database, runId: string, now: Date): RunActionResult {
-  return settleRunTodo(db, toRunId(runId), now);
+export function clearTodoRequest(db: Database, runId: RunId, now: Date): RunActionResult {
+  return settleRunTodo(db, runId, now);
 }
 
 export function clearTodoOnce(
@@ -133,7 +133,7 @@ export function clearTodoOnce(
     "clear-todo",
     [],
     now,
-    () => clearTodoRequest(db, key.runId, now),
+    () => clearTodoRequest(db, toRunId(key.runId), now),
     onReplay === undefined ? {} : { onReplay },
   );
 }

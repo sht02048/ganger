@@ -446,8 +446,12 @@ function FailedActions({
         >
           {t("retry")}
         </a>
-        <Button variant="secondary" aria-disabled={sending} aria-busy={sending} onClick={clear}>
-          {sending ? t("clearingTodo") : t("clearTodo")}
+        <Button
+          variant="secondary"
+          busy={{ active: sending, label: t("clearingTodo") }}
+          onClick={clear}
+        >
+          {t("clearTodo")}
         </Button>
       </div>
     </div>
