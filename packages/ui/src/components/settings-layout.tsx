@@ -384,7 +384,7 @@ export function SettingsGroup({
   );
 }
 
-export type SettingsDetailTone = "default" | "problem";
+export type SettingsDetailTone = "default" | "problem" | "pass";
 
 export interface SettingsRowProps {
   label: ReactNode;
@@ -673,12 +673,19 @@ function RowText({
       </span>
       {detail === undefined || detail === null ? null : (
         <span
+          {...(detailTone === "pass" ? { "data-detail-tone": "pass" } : {})}
           {...stylex.props(
             textStyles("meta", detailTone === "problem" ? "problem" : undefined),
             detailMono && styles.mono,
             styles.detail,
+            detailTone === "pass" && styles.detailPass,
           )}
         >
+          {detailTone === "pass" ? (
+            <span aria-hidden="true" {...stylex.props(styles.detailPassIcon)}>
+              <CheckIcon />
+            </span>
+          ) : null}
           {detail}
         </span>
       )}
@@ -908,6 +915,13 @@ const styles = stylex.create({
     marginBlock: `calc(-1 * ${space.s1})`,
   },
   detail: { overflowWrap: "anywhere" },
+  detailPass: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: space.s1,
+    color: colors.progress,
+  },
+  detailPassIcon: { display: "inline-flex", flexShrink: 0 },
   mono: { fontFamily: fonts.mono },
   rowEnd: {
     display: "flex",

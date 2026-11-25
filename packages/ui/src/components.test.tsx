@@ -1709,6 +1709,17 @@ describe("설정 한 페이지 부품(티켓 0119)", () => {
     expect(html.match(/>Acme</g)).toHaveLength(2);
   });
 
+  it("SettingsRow 의 detailTone pass 는 둘째 줄 앞에 확인 표시를 그리고 그 표시는 읽지 않는다", () => {
+    const html = renderToString(
+      <SettingsRow label="휴대폰에서 열기" detail="연결됨" detailTone="pass" />,
+    );
+    expect(html).toMatch(/data-detail-tone="pass"[^>]*><span aria-hidden="true"[^>]*><svg/);
+    expect(html).toContain("연결됨");
+    expect(renderToString(<SettingsRow label="이름" detail="연결됨" />)).not.toContain(
+      "data-detail-tone",
+    );
+  });
+
   it("SettingsRow 는 펼치면 편집 영역을 그리고, formOnly 이면 줄 대신 편집 영역만 그린다", () => {
     const open = renderToString(
       <SettingsRow label="토큰" detail="저장했어요" expanded={<form />} />,

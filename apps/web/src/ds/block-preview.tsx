@@ -867,6 +867,12 @@ function SettingsRowsPreview() {
           }
         />
         <SettingsRow
+          label={t("tailscale")}
+          detail={t("tailscaleDetail")}
+          detailTone="pass"
+          control={<Button>{t("turnOn")}</Button>}
+        />
+        <SettingsRow
           label={t("enabled")}
           detail={t("enabledDetail")}
           control={<Switch aria-label={t("enabled")} checked onCheckedChange={() => {}} />}
