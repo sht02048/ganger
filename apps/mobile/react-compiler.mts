@@ -58,7 +58,7 @@ export async function compileWithReactCompiler(code: string, filename: string) {
     babelrc: false,
     configFile: false,
     sourceMaps: true,
-    parserOpts: { plugins: ["typescript", "jsx"] },
+    parserOpts: { plugins: filename.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"] },
     plugins: [[reactCompiler, options]],
   });
   return { code: result?.code ?? code, map: result?.map ?? null, report };

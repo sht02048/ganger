@@ -39,7 +39,7 @@ blocked_by: [0221, 0222, 0224]
    - stale 띠(`StaleBand`)는 30초 간격 대신 "n분 전" 이 바뀌는 때(`nextStaleBandChangeIn`)에 맞춰 한 번씩 다시 그린다. 지연은 그때의 현재 시각으로 잡는다. 받은 때가 바뀌면(Workspace 바꾸기 등) 띠를 새로 마운트해 현재 시각부터 센다.
 5. 화면 전환 때 대시보드를 다시 마운트하지 않는다(`kept-screen.tsx` `KeptScreen`).
    - Runners·설정을 보는 동안 대시보드를 `display: "none"` 으로 숨겨 두고 `aria-hidden` 을 붙인다. React Native 는 `aria-hidden` 을 iOS `accessibilityElementsHidden`, Android `importantForAccessibility="no-hide-descendants"` 로 바꿔 VoiceOver·TalkBack 이 숨긴 화면을 읽지 않는다.
-   - `Sheet`·`PopoverMenu` 는 떠 있는 `Modal` 이라 부모의 `display: "none"`·`aria-hidden` 을 따르지 않는다. 시트를 연 채 알림을 눌러 Runners 로 가면 숨긴 대시보드의 시트가 위에 남는다. `KeptScreen` 이 `ScreenShown` 문맥을 내려 숨긴 화면 안의 시트·팝오버는 열린 상태를 지닌 채 보이지 않고, 돌아오면 다시 보인다(`apps/mobile/DESIGN.md`).
+   - `Sheet`·`PopoverMenu` 는 떠 있는 `Modal` 이라 부모의 `display: "none"`·`aria-hidden` 을 따르지 않는다. 시트를 연 채 알림을 눌러 Runners 로 가면 숨긴 대시보드의 시트가 위에 남는다. `KeptScreen` 이 `ScreenShown` 문맥을 내려 숨긴 화면 안의 시트·팝오버는 보이지 않는다. 열렸는지는 부른 쪽이 지녀 돌아오면 다시 열리지만, `Modal` 이 닫히며 내용을 언마운트해 시트 안의 입력은 처음부터 시작한다(`apps/mobile/DESIGN.md`).
    - 숨긴 대시보드에는 띠를 넘기지 않는다. 띠는 보이는 화면에만 있다.
    - 데모 화면(`app-screens.tsx`)도 같은 방식이다.
 6. `Text` 의 스타일 배열은 컴파일러가 `variant`·`weight`·`tone` 이 바뀔 때만 다시 만든다. 손으로 고치지 않았다.
@@ -60,6 +60,9 @@ blocked_by: [0221, 0222, 0224]
 스크린숏은 필요 없다. 실기기 체감 확인은 운영자가 머지 뒤 한다.
 
 ## 남은 일
+
+- 실기기 확인(운영자, 머지 뒤): 대시보드를 스크롤하고 Runners·설정에 갔다 오면 위치가 그대로인지. iOS Fabric 은 `display: none` 인 뷰를 내렸다가 돌아올 때 새로 만들고, ScrollView 는 상태에 저장된 `contentOffset` 으로 위치를 되돌린다. jsdom 시험은 같은 노드인지만 본다. 위치를 잃으면 `onScroll` 로 위치를 기억했다가 되돌린다.
+- stale 띠가 "n시간 전"·"n일 전" 일 때도 1분마다 다시 그린다. 띠가 보일 때만이라 그대로 두었다.
 
 - 한 런이 바뀌면 보드가 새로 만들어져 칸 고르기(Segment)와 개수 줄은 다시 그린다. 개수가 바뀔 수 있어 그대로 두었다.
 - 띠를 보이는 동안에는 대시보드와 Runners·설정을 오갈 때 띠가 새로 마운트돼 시계도 새로 시작한다. 현재 시각으로 시작하므로 표시는 맞다.
