@@ -3,7 +3,7 @@ import { StyleSheet, Text as NativeText } from "react-native";
 
 import { colors, fontFamily, fontSize, lineHeight } from "./tokens";
 
-export type TextVariant = "page" | "panel" | "title" | "body" | "meta" | "small";
+export type TextVariant = "page" | "panel" | "title" | "body" | "control" | "meta" | "small";
 export type TextTone =
   | "primary"
   | "secondary"
@@ -38,6 +38,7 @@ const variantTone: Record<TextVariant, TextTone> = {
   panel: "primary",
   title: "primary",
   body: "secondary",
+  control: "primary",
   meta: "tertiary",
   small: "tertiary",
 };
@@ -98,6 +99,11 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fontFamily.medium, fontSize: fontSize.body, lineHeight: lineHeight.body },
   body: { fontFamily: fontFamily.regular, fontSize: fontSize.body, lineHeight: lineHeight.body },
+  control: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.control,
+    lineHeight: lineHeight.control,
+  },
   meta: { fontFamily: fontFamily.regular, fontSize: fontSize.ui, lineHeight: lineHeight.ui },
   small: { fontFamily: fontFamily.medium, fontSize: fontSize.small, lineHeight: lineHeight.small },
 });
