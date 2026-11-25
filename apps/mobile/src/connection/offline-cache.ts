@@ -36,12 +36,25 @@ export interface CachedContent {
   workspaces: V1Workspaces["workspaces"];
 }
 
+interface UnparsedEntry {
+  raw: unknown;
+  fetchedAt: number;
+}
+
+type Slot<Data> = ({ parsed: true } & CachedEntry<Data>) | ({ parsed: false } & UnparsedEntry);
+
+interface RunSlot {
+  id: string;
+  slot: Slot<AppRunDetail>;
+}
+
 interface WorkspaceCache {
-  dashboard: CachedEntry<AppDashboard> | null;
-  runs: Array<CachedEntry<AppRunDetail>>;
+  dashboard: Slot<AppDashboard> | null;
+  runs: RunSlot[];
 }
 
 const rawEntrySchema = z.object({ data: z.unknown(), fetchedAt: z.number() });
+const runKeySchema = z.object({ id: z.string() });
 
 const cacheFileSchema = z.object({
   version: z.literal(CACHE_FORMAT_VERSION),
@@ -56,16 +69,28 @@ const cacheFileSchema = z.object({
   ),
 });
 
-function readEntry<Data>(
-  raw: z.infer<typeof rawEntrySchema> | null,
-  schema: z.ZodType<Data>,
-  now: number,
-): CachedEntry<Data> | null {
-  if (raw === null) return null;
-  const age = now - raw.fetchedAt;
-  if (age < 0 || age > CACHE_MAX_AGE_MS) return null;
-  const parsed = schema.safeParse(raw.data);
-  return parsed.success ? { data: parsed.data, fetchedAt: raw.fetchedAt } : null;
+function isFresh(fetchedAt: number, now: number): boolean {
+  const age = now - fetchedAt;
+  return age >= 0 && age <= CACHE_MAX_AGE_MS;
+}
+
+function unparsed(raw: z.infer<typeof rawEntrySchema> | null, now: number): UnparsedEntry | null {
+  if (raw === null || !isFresh(raw.fetchedAt, now)) return null;
+  return { raw: raw.data, fetchedAt: raw.fetchedAt };
+}
+
+function parsedSlot<Data>(data: Data, fetchedAt: number): Slot<Data> {
+  return { parsed: true, data, fetchedAt };
+}
+
+function parseSlot<Data>(slot: Slot<Data>, schema: z.ZodType<Data>): Slot<Data> | null {
+  if (slot.parsed) return slot;
+  const parsed = schema.safeParse(slot.raw);
+  return parsed.success ? parsedSlot(parsed.data, slot.fetchedAt) : null;
+}
+
+function storedSlot<Data>(slot: Slot<Data>): { data: unknown; fetchedAt: number } {
+  return { data: slot.parsed ? slot.data : slot.raw, fetchedAt: slot.fetchedAt };
 }
 
 function parseCacheFile(text: string, server: string) {
@@ -83,7 +108,7 @@ export class OfflineCache {
   readonly #now: () => number;
   readonly #boards = new Map<string, WorkspaceCache>();
   #workspaceList: CachedEntry<V1Workspaces["workspaces"]> | null = null;
-  #loading: Promise<CachedContent> | null = null;
+  #loading: Promise<void> | null = null;
   #closed = false;
   #readFailed = false;
   #dirty = false;
@@ -98,9 +123,41 @@ export class OfflineCache {
     this.#now = now;
   }
 
-  load(): Promise<CachedContent> {
+  async load(workspaceId: string): Promise<CachedContent> {
+    await this.#read();
+    const first = this.contentFor(workspaceId);
+    return first.dashboards.size > 0 ? first : this.#everyDashboard();
+  }
+
+  #everyDashboard(): CachedContent {
+    const dashboards = new Map<string, CachedEntry<AppDashboard>>();
+    for (const workspaceId of this.#boards.keys()) {
+      const dashboard = this.#closed ? null : this.#dashboardOf(workspaceId);
+      if (dashboard !== null) dashboards.set(workspaceId, dashboard);
+    }
+    return { dashboards, workspaces: this.#workspaceList?.data ?? [] };
+  }
+
+  contentFor(workspaceId: string): CachedContent {
+    const dashboards = new Map<string, CachedEntry<AppDashboard>>();
+    const dashboard = this.#closed ? null : this.#dashboardOf(workspaceId);
+    if (dashboard !== null) dashboards.set(workspaceId, dashboard);
+    return { dashboards, workspaces: this.#workspaceList?.data ?? [] };
+  }
+
+  #read(): Promise<void> {
     this.#loading ??= this.#readFile();
     return this.#loading;
+  }
+
+  #dashboardOf(workspaceId: string): CachedEntry<AppDashboard> | null {
+    const board = this.#boards.get(workspaceId);
+    if (board === undefined || board.dashboard === null) return null;
+    if (!isFresh(board.dashboard.fetchedAt, this.#now())) return null;
+    board.dashboard = parseSlot(board.dashboard, appDashboardSchema);
+    return board.dashboard?.parsed === true
+      ? { data: board.dashboard.data, fetchedAt: board.dashboard.fetchedAt }
+      : null;
   }
 
   saveDashboard(
@@ -110,7 +167,7 @@ export class OfflineCache {
     workspaces: V1Workspaces["workspaces"],
   ): void {
     if (this.#closed) return;
-    this.#boardOf(workspaceId).dashboard = { data, fetchedAt };
+    this.#boardOf(workspaceId).dashboard = parsedSlot(data, fetchedAt);
     this.#workspaceList = { data: workspaces, fetchedAt };
     this.#schedule();
   }
@@ -128,7 +185,10 @@ export class OfflineCache {
     if (this.#closed) return;
     this.#dropRun(detail.id);
     const board = this.#boardOf(detail.workspace.id);
-    board.runs = [{ data: detail, fetchedAt }, ...board.runs].slice(0, CACHED_RUNS_PER_WORKSPACE);
+    board.runs = [{ id: detail.id, slot: parsedSlot(detail, fetchedAt) }, ...board.runs].slice(
+      0,
+      CACHED_RUNS_PER_WORKSPACE,
+    );
     this.#schedule();
   }
 
@@ -140,8 +200,16 @@ export class OfflineCache {
   cachedRun(runId: string): CachedEntry<AppRunDetail> | null {
     const now = this.#now();
     for (const board of this.#boards.values()) {
-      const found = board.runs.find((entry) => entry.data.id === runId);
-      if (found !== undefined) return now - found.fetchedAt > CACHE_MAX_AGE_MS ? null : found;
+      const found = board.runs.find((entry) => entry.id === runId);
+      if (found === undefined) continue;
+      if (now - found.slot.fetchedAt > CACHE_MAX_AGE_MS) return null;
+      const slot = parseSlot(found.slot, appRunDetailSchema);
+      if (slot === null || !slot.parsed || slot.data.id !== runId) {
+        board.runs = board.runs.filter((entry) => entry !== found);
+        return null;
+      }
+      found.slot = slot;
+      return { data: slot.data, fetchedAt: slot.fetchedAt };
     }
     return null;
   }
@@ -176,26 +244,24 @@ export class OfflineCache {
   #dropRun(runId: string): boolean {
     let dropped = false;
     for (const board of this.#boards.values()) {
-      const kept = board.runs.filter((entry) => entry.data.id !== runId);
+      const kept = board.runs.filter((entry) => entry.id !== runId);
       dropped ||= kept.length !== board.runs.length;
       board.runs = kept;
     }
     return dropped;
   }
 
-  async #readFile(): Promise<CachedContent> {
+  async #readFile(): Promise<void> {
     let text: string | null = null;
     try {
       text = await this.#files.read(this.#server);
     } catch {
       this.#readFailed = true;
     }
-    if (this.#closed) return { dashboards: new Map(), workspaces: [] };
-    if (text === null) return this.#content();
+    if (this.#closed || text === null) return;
     const file = parseCacheFile(text, this.#server);
     if (file !== null) this.#merge(file);
     if (!this.#hasContent()) await this.#files.remove(this.#server).catch(() => undefined);
-    return this.#content();
   }
 
   #hasContent(): boolean {
@@ -206,27 +272,24 @@ export class OfflineCache {
 
   #merge(file: z.infer<typeof cacheFileSchema>): void {
     const now = this.#now();
-    const list = readEntry(file.workspaceList, workspacesSchema, now);
-    if (list !== null)
-      this.#workspaceList ??= { data: list.data.workspaces, fetchedAt: list.fetchedAt };
+    const listEntry = unparsed(file.workspaceList, now);
+    const list = listEntry === null ? null : workspacesSchema.safeParse(listEntry.raw);
+    if (listEntry !== null && list?.success === true)
+      this.#workspaceList ??= { data: list.data.workspaces, fetchedAt: listEntry.fetchedAt };
     for (const stored of file.workspaces) {
       const board = this.#boardOf(stored.workspaceId);
-      board.dashboard ??= readEntry(stored.dashboard, appDashboardSchema, now);
-      const known = new Set(board.runs.map((entry) => entry.data.id));
-      const runs = stored.runs.flatMap((raw) => {
-        const entry = readEntry(raw, appRunDetailSchema, now);
-        return entry === null || known.has(entry.data.id) ? [] : [entry];
+      const dashboard = unparsed(stored.dashboard, now);
+      if (dashboard !== null) board.dashboard ??= { parsed: false, ...dashboard };
+      const known = new Set(board.runs.map((entry) => entry.id));
+      const runs = stored.runs.flatMap((raw): RunSlot[] => {
+        const entry = unparsed(raw, now);
+        const key = entry === null ? null : runKeySchema.safeParse(entry.raw);
+        if (entry === null || key?.success !== true || known.has(key.data.id)) return [];
+        known.add(key.data.id);
+        return [{ id: key.data.id, slot: { parsed: false, ...entry } }];
       });
       board.runs = [...board.runs, ...runs].slice(0, CACHED_RUNS_PER_WORKSPACE);
     }
-  }
-
-  #content(): CachedContent {
-    const dashboards = new Map<string, CachedEntry<AppDashboard>>();
-    for (const [workspaceId, board] of this.#boards) {
-      if (board.dashboard !== null) dashboards.set(workspaceId, board.dashboard);
-    }
-    return { dashboards, workspaces: this.#workspaceList?.data ?? [] };
   }
 
   #schedule(): void {
@@ -251,7 +314,7 @@ export class OfflineCache {
 
   async #flush(): Promise<void> {
     try {
-      await this.load();
+      await this.#read();
       if ((this.#dirty || this.#touched) && !this.#closed && !this.#readFailed) {
         this.#dirty = false;
         this.#touched = false;
@@ -277,8 +340,8 @@ export class OfflineCache {
             },
       workspaces: [...this.#boards].map(([workspaceId, board]) => ({
         workspaceId,
-        dashboard: board.dashboard,
-        runs: board.runs,
+        dashboard: board.dashboard === null ? null : storedSlot(board.dashboard),
+        runs: board.runs.map((entry) => storedSlot(entry.slot)),
       })),
     });
   }

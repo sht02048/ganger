@@ -16,6 +16,7 @@ import { RunnersScreen } from "../runners/runners-screen";
 import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
 import { SettingsScreen } from "../settings/settings-screen";
+import { useFirstPaint } from "../startup/first-paint";
 import { followForeground, isForegroundAppState } from "./app-state";
 import { openChangeStream } from "./change-stream";
 import { createV1Client } from "./client";
@@ -209,15 +210,25 @@ export function LiveScreens({
     return pushDevice.subscribeResponses((response) => void open(response));
   }, [client, pushDevice, session]);
 
+  const [cacheShown, setCacheShown] = useState(false);
+  useFirstPaint(cacheShown || state.phase !== "loading");
+
   useEffect(() => {
     let current = true;
-    void cache.load().then((content) => {
-      if (current) session.restore(content);
+    void cache.load(INITIAL_DASHBOARD_VIEW.workspaceId).then((content) => {
+      if (!current) return;
+      session.restore(content);
+      setCacheShown(true);
     });
     return () => {
       current = false;
     };
   }, [cache, session]);
+
+  useEffect(() => {
+    if (!cacheShown || session.getState().dashboards.has(view.workspaceId)) return;
+    session.restore(cache.contentFor(view.workspaceId));
+  }, [cache, session, cacheShown, view.workspaceId]);
 
   useEffect(() => {
     const unfollow = followForeground(AppState, (next) => {
