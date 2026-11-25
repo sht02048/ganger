@@ -251,7 +251,7 @@ Waiting for Input 런 중 에이전트가 권한 프롬프트에서 허용을 �
 _Avoid_: 권한 대기(종류 이름으로), 권한 요청
 
 **Human Check**:
-Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. 운영자가 Dashboard 런 패널 「PR」 탭이나 MCP `merge_pr`로 그 런의 PR을 머지하면 Ganger가 "확인했어요"와 "운영자가 PR을 머지했어요"로 대신 답한다(ADR [0024](docs/adr/0024-operator-merges-pr-from-ganger.md)). Ganger가 스스로 머지를 정하지는 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
+Waiting for Input 런 중 에이전트가 사람이 확인해야 끝나는 일(예: 머지 위험이 one-way인 PR)을 무엇을 확인할지와 링크로 요청하고 답을 기다리는 To do. 에이전트는 Orca 오케스트레이션의 `decision_gate`로 보내고, Ganger는 Question과 따로 묶어 "확인해 주세요"로 보인다(ADR [0023](docs/adr/0023-human-check-request.md), 스펙 0006 C3·C4). 답은 "확인했어요" / "고쳐 주세요"와 함께 보낼 말(선택)이고, 답하면 런은 Running으로 돌아간다. 운영자가 Dashboard 런 패널 「PR」 탭, 모바일 런 상세 PR 구역, MCP `merge_pr`로 그 런의 PR을 머지하면 Ganger가 "확인했어요"와 "운영자가 PR을 머지했어요"로 대신 답한다(ADR [0024](docs/adr/0024-operator-merges-pr-from-ganger.md)). Ganger가 스스로 머지를 정하지는 않는다. 무엇을 요청할지는 프로젝트 규칙이나 티켓 앞뒤 지시가 정한다. 0145 전에는 요약 결과 이름이었지만 지금은 요약 결과가 아니다.
 _Avoid_: 승인 요청, 리뷰 요청, 결정 게이트(Orca 이름 `decision_gate` 밖에서), Human Check를 요약 결과로
 
 **Runner Issue**:

@@ -472,6 +472,7 @@ describe("런 상세 PR 상자", () => {
     problems: [],
     state: "open" as const,
     stateSince: null,
+    merge: null,
     ...patch,
   });
   const openDetail = async (detail: AppRunDetail) => {

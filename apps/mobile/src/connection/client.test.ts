@@ -210,6 +210,29 @@ describe("v1 응답 가르기", () => {
       }),
     ).toEqual({ ok: false, failure: { kind: "refused", reason: "unknown" } });
   });
+
+  it("머지 거절은 GitHub 에 닿지 못한 502 도 이유와 GitHub 이 준 문장으로 읽는다", async () => {
+    const fetcher = vi.fn<FetchLike>((url) =>
+      Promise.resolve(
+        new URL(url).pathname === "/api/v1/runs/run-1/merge"
+          ? json({ meta: META, error: { reason: "network" } }, 502)
+          : json({ meta: META, error: { reason: "blocked", message: "Review required" } }, 409),
+      ),
+    );
+    const merge = {
+      action: "merge",
+      body: { requestId: "0123456789abcdef", method: "squash", expectedHead: "abc" },
+    } as const;
+    expect(await client(fetcher).runAction("run-1", merge)).toEqual({
+      ok: false,
+      failure: { kind: "refused", reason: "network" },
+    });
+    expect(fetcher.mock.calls[0]?.[1]?.body).toBe(JSON.stringify(merge.body));
+    expect(await client(fetcher).runAction("run-2", merge)).toEqual({
+      ok: false,
+      failure: { kind: "refused", reason: "blocked", message: "Review required" },
+    });
+  });
 });
 
 describe("연결 코드 교환", () => {

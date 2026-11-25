@@ -1,4 +1,4 @@
-export const CONTRACT_VERSION = 2;
+export const CONTRACT_VERSION = 3;
 export const MIN_CLIENT_CONTRACT_VERSION = 1;
 
 export const APP_CONTRACT_VERSION = CONTRACT_VERSION;
