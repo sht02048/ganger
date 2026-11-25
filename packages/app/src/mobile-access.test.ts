@@ -295,6 +295,18 @@ describe("휴대폰에서 열기 끄기", () => {
     expect(getInstallSettings(db).webAddress).toBeNull();
   });
 
+  it("Serve 상태를 읽지 못하면 남은 Serve 를 두고 끄지 않는다", async () => {
+    const db = database();
+    saveInstallAddresses(db, { webAddress: `https://${HOST}`, webhookAddress: null }, NOW);
+    const { deps, commands } = fakeTailscale({ serve: null });
+    await expect(turnOffMobileAccess(context(db, deps), NOW, LOCAL)).resolves.toEqual({
+      ok: false,
+      reason: "serve-unreadable",
+    });
+    expect(commands).toEqual([]);
+    expect(getInstallSettings(db).webAddress).toBe(`https://${HOST}`);
+  });
+
   it("끄는 명령이 실패하면 열 주소를 그대로 둔다", async () => {
     const db = database();
     saveInstallAddresses(db, { webAddress: `https://${HOST}`, webhookAddress: null }, NOW);

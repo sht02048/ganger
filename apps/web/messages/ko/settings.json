@@ -712,7 +712,7 @@
     "refusal": {
       "no-tailscale": "Tailscale이 꺼졌거나 로그아웃돼 켜지 못했어요. 확인하고 다시 해 주세요.",
       "port-in-use": "이 Mac의 443 포트를 다른 곳에서 쓰고 있어 켤 수 없어요.",
-      "serve-unreadable": "Tailscale Serve 설정을 읽지 못해 켜지 않았어요. 다시 해 주세요.",
+      "serve-unreadable": "Tailscale Serve 설정을 읽지 못해 바꾸지 않았어요. 다시 해 주세요.",
       "serve-failed": "Tailscale Serve를 바꾸지 못했어요. 다시 해 주세요.",
       "locks-out": "지금 이 주소로 연 화면이라 끄면 이 화면이 막혀요. 이 Mac에서 http://127.0.0.1 로 열어 꺼 주세요."
     },

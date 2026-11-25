@@ -32,7 +32,7 @@ export function useMobileActions(): MobileActions {
         return result;
       },
       recheck: async () => {
-        await queryClient.refetchQueries({ queryKey: MOBILE_ACCESS_KEY });
+        await queryClient.refetchQueries({ queryKey: MOBILE_ACCESS_KEY }, { throwOnError: true });
         return queryClient.getQueryData(MOBILE_ACCESS_KEY) ?? null;
       },
     };

@@ -134,6 +134,17 @@ describe("Settings › 모바일(0230)", () => {
     expect(primaryButtons(html)).toBe(1);
   });
 
+  it("끈 상태나 Tailscale 이 없어도 연결한 휴대폰은 보여 끊을 수 있다", () => {
+    for (const access of [
+      { kind: "off", host: HOST, portInUse: null },
+      { kind: "needs-tailscale" },
+    ] as const) {
+      const text = textOf(render(access, { devices: [phone], address: null }));
+      expect(text).toContain("Acme iPhone 연결 끊기");
+    }
+    expect(textOf(render({ kind: "needs-tailscale" }))).not.toContain("연결 끊기");
+  });
+
   it("남은 시간은 분:초로 보인다", () => {
     expect(remainingText(600_000)).toBe("10:00");
     expect(remainingText(582_400)).toBe("9:43");

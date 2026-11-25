@@ -208,7 +208,9 @@ export async function turnOffMobileAccess(
   const mac = await readThisMac(deps);
   if (mac.kind === "running" && current.webAddress === mobileAddress(mac.host)) {
     const target = mobileServeTarget(context.bindHost, context.webPort);
-    if ((await readServe(deps, mac.cli, target)).kind === "ours") {
+    const serve = await readServe(deps, mac.cli, target);
+    if (serve.kind === "unreadable") return { ok: false, reason: "serve-unreadable" };
+    if (serve.kind === "ours") {
       const outcome = await deps.command(mac.cli, serveOffCommand(), SERVE_TIMEOUT_MS);
       if (!outcome.ok || (await readServe(deps, mac.cli, target)).kind === "ours") {
         return { ok: false, reason: "serve-failed" };

@@ -62,6 +62,11 @@ export function MobileScreen({ access, devices, deviceActions, actions, nav }: M
           statusRef={statusRef}
         />
       )}
+      {access.kind === "on" || devices.devices.length === 0 ? null : (
+        <SettingsGroup>
+          <PhoneList view={devices} actions={deviceActions} report={report} statusRef={statusRef} />
+        </SettingsGroup>
+      )}
       <div ref={statusRef} tabIndex={-1} role="status" {...stylex.props(focusStyles.target)}>
         {status === null ? null : (
           <Text variant="meta" {...(status.tone === "problem" ? { tone: "problem" } : {})}>
