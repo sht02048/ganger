@@ -11,6 +11,7 @@ export const V1_RUN_ACTIONS = [
   "retry",
   "continue",
   "merge",
+  "clear-todo",
 ] as const;
 export type V1RunAction = (typeof V1_RUN_ACTIONS)[number];
 

@@ -11,7 +11,7 @@ import type {
   SummaryOutcome,
 } from "@ganger/core";
 import type { McpActionOutcome } from "@ganger/db";
-import type { InputWait } from "../home/model.js";
+import type { InputWait, TodoClearedBy } from "../home/model.js";
 import type { PrSignalsView } from "../pr-signals-view.js";
 import type { RunControlView } from "../run-control-view.js";
 import type { QueuedReason } from "../runs/model.js";
@@ -83,6 +83,7 @@ export type RunDetailStatus =
       prReadError: PrReadError | null;
       prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
+      todoCleared?: TodoClearedBy | null;
       keptWorktree: KeptWorktree | null;
       laterPrState: { state: "merged" | "closed"; at: string } | null;
     };

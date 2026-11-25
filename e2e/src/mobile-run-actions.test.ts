@@ -272,6 +272,7 @@ describe("requestId(M25)", () => {
     "retry",
     "continue",
     "merge",
+    "clear-todo",
   ] as const)("%s는 requestId가 없으면 거절한다", async (action) => {
     const run = await startedRun();
     const bodies: Record<V1RunAction, unknown> = {
@@ -283,6 +284,7 @@ describe("requestId(M25)", () => {
       retry: {},
       continue: { message: "이어 주세요" },
       merge: { method: "squash", expectedHead: "abc" },
+      "clear-todo": {},
     };
     expect(await refused(await post(run.id, action, bodies[action]))).toEqual({
       status: 400,

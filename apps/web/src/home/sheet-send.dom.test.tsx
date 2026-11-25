@@ -163,6 +163,7 @@ function draw(page: HomePage, actions: Partial<HomeScreenProps> = {}) {
           onControl={() => Promise.resolve("requested")}
           onMerge={() => Promise.resolve({ ok: true as const, replayed: false })}
           onLoadCommits={() => Promise.resolve([])}
+          onClearTodo={resolved}
           {...actions}
         />
       </IntlProvider>,
@@ -635,5 +636,76 @@ describe("Dashboard 패널 탭(티켓 0199)", () => {
     await press(tabNamed(sheet.tabs.pr));
     await press(tabNamed(sheet.tabs.run));
     expect(dialog()?.querySelector("textarea")?.value).toBe("지수 백오프로 바꿔 주세요");
+  });
+});
+
+function clearButton(): HTMLElement {
+  const button = [...(dialog()?.querySelectorAll("button") ?? [])].find((candidate) =>
+    candidate.textContent.startsWith(homeJson.sheet.clearTodo),
+  );
+  if (button === undefined) throw new Error("no clear-todo button");
+  return button;
+}
+
+describe("Dashboard 패널의 확인했어요(티켓 0235)", () => {
+  const FAILED_KEY = "ACME-40";
+  const failedRun: HomeRun = {
+    ...baseRun("run-failed", FAILED_KEY),
+    state: "ended",
+    agentResult: "timed-out",
+    prState: "none",
+    prReadError: null,
+    summary: "failed",
+    todoCleared: null,
+    endedAt: "2026-11-23T00:00:00.000Z",
+    endedAgoMs: 60_000,
+  };
+  const failedPage = (): HomePage => ({
+    ...loadSeededPage(),
+    attention: [{ kind: "run", run: failedRun }],
+    endedRecently: [failedRun],
+  });
+  const clearedPage = (): HomePage => {
+    const cleared: HomeRun = { ...failedRun, todoCleared: "operator" };
+    return { ...loadSeededPage(), attention: [], endedRecently: [cleared] };
+  };
+
+  it("Failed 패널의 버튼 줄에 다시 맡기기와 확인했어요를 함께 둔다", async () => {
+    draw(failedPage());
+    await openSummary(failedRun.id);
+    const retry = [...(dialog()?.querySelectorAll("a") ?? [])].find(
+      (link) => link.textContent === homeJson.sheet.retry,
+    );
+    expect(retry).toBeDefined();
+    expect(retry?.parentElement).toBe(clearButton().parentElement);
+  });
+
+  it("누르면 To do 에서 빼고 패널을 닫은 뒤 Done 칸으로 옮긴 카드로 포커스를 돌린다", async () => {
+    const onClearTodo = vi.fn<(runId: string) => Promise<void>>(() => {
+      draw(clearedPage(), { onClearTodo });
+      return Promise.resolve();
+    });
+    draw(failedPage(), { onClearTodo });
+    await openSummary(failedRun.id);
+    await press(clearButton());
+    expect(onClearTodo.mock.calls).toEqual([[failedRun.id]]);
+    expect(dialog()).toBeNull();
+    expect(toast.mock.calls).toEqual([[homeJson.sheetSent.cleared.replace("{key}", FAILED_KEY)]]);
+    const moved = cardButton(failedRun.id);
+    expect(moved.closest('section[aria-label="Done"]')).not.toBeNull();
+    expect(
+      container.querySelector(`li[data-run="${failedRun.id}"]`)?.getAttribute("data-tag"),
+    ).toBeNull();
+    expect(document.activeElement).toBe(moved);
+  });
+
+  it("빼지 못하면 패널에 남아 결과 문장을 알리고 그 문장으로 포커스를 옮긴다", async () => {
+    draw(failedPage(), { onClearTodo: () => Promise.reject(new Error("state-changed")) });
+    await openSummary(failedRun.id);
+    await press(clearButton());
+    const status = dialog()?.querySelector('[role="status"]');
+    expect(status?.textContent).toBe(homeJson.sheet.clearTodoFailed);
+    expect(document.activeElement).toBe(status);
+    expect(clearButton()).toBeDefined();
   });
 });

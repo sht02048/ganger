@@ -322,6 +322,7 @@ export const runs = sqliteTable(
     pausedMs: integer("paused_ms").notNull().default(0),
     pauseSource: text("pause_source", { enum: PAUSE_SOURCES }),
     lastLog: text("last_log", { mode: "json" }).$type<string[]>(),
+    todoSettledAt: timeMs("todo_settled_at"),
   },
   (t) => [
     check("runs_state", sql`${t.state} IN ${inList(RUN_STATES)}`),

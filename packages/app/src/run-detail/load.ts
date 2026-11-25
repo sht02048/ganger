@@ -39,6 +39,7 @@ import type {
   StoredRunQuestion,
 } from "@ganger/db";
 import { pendingInput } from "../home/load.js";
+import { todoClearedOf } from "../todo-cleared.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { mcpActionView } from "../mcp/actions.js";
 import type { QueuedReason } from "../runs/model.js";
@@ -282,6 +283,7 @@ function statusOf(
         prReadError: records.prReadError,
         prReadDiagnosis: diagnose(records.prReadError),
         summary: outcome.outcome,
+        todoCleared: todoClearedOf(run, records),
         keptWorktree: takenOver ? null : keptWorktreeOf(run, records, outcome.worktree),
         laterPrState:
           records.laterPrState === null

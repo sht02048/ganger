@@ -5,6 +5,8 @@ import type {
   TicketPriority,
   TrackerStateCategory,
 } from "@ganger/core";
+import { isOpenFailed } from "../home/model.js";
+import type { TodoClearedBy } from "../home/model.js";
 import type { BlockerReason, BlockerView } from "../runs/model.js";
 import type { Remote } from "../settings/model.js";
 import type { WorkspaceChoice } from "../shell/model.js";
@@ -30,6 +32,7 @@ export type TicketRun =
       laterPrState: "merged" | "closed" | null;
       pullRequest: TicketRunPullRequest | null;
       summary: SummaryOutcome;
+      todoCleared?: TodoClearedBy | null;
     };
 
 export interface TicketRunPullRequest {
@@ -224,7 +227,7 @@ export function isTodo(run: TicketRun): boolean {
     case "disconnected":
       return true;
     case "ended":
-      return run.summary === "failed";
+      return isOpenFailed(run);
     case "queued":
     case "running":
     case "paused":

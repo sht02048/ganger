@@ -149,3 +149,46 @@ describe("Dashboard 카드 … 메뉴", () => {
     expect(openURL).toHaveBeenCalledOnce();
   });
 });
+
+describe("Failed 카드 … 메뉴의 확인했어요(0235)", () => {
+  it("확인했어요는 clear-todo 쓰기를 보내고 To do에서 뺐다고 읽어 주며, 끝난 런이라 런 취소는 없다", async () => {
+    const { AccessibilityInfo } = await import("react-native");
+    const announce = vi.spyOn(AccessibilityInfo, "announceForAccessibility");
+    const write = vi.fn<RunPort["write"]>(() => Promise.resolve({ kind: "sent" }));
+    await showDashboard("done", { ...demoRunPort, write });
+    await openMenu("ACME-119");
+    expect(document.body.querySelector('[role="menuitem"][aria-label="런 취소"]')).toBeNull();
+    await choose("확인했어요");
+    expect(write.mock.calls.map(([run, request]) => [run.ticketKey, request])).toEqual([
+      ["ACME-119", { action: "clear-todo" }],
+    ]);
+    expect(announce).toHaveBeenCalledWith("To do에서 뺐어요");
+  });
+
+  it("서버가 거절하면 알림 시트로 말한다", async () => {
+    await showDashboard("done", {
+      ...demoRunPort,
+      write: () => Promise.resolve({ kind: "refused", reason: "state-changed" }),
+    });
+    await openMenu("ACME-119");
+    await choose("확인했어요");
+    expect(document.body.textContent).toContain("To do에서 빼지 못했어요");
+    expect(document.body.textContent).toContain("런의 상태가 그사이 바뀌었어요");
+  });
+
+  it("데모에서는 보내지 않고 데모라고 알린다", async () => {
+    await showDashboard("done", demoRunPort);
+    await openMenu("ACME-119");
+    await choose("확인했어요");
+    expect(document.body.textContent).toContain("데모 모드에서는 보내지 않아요");
+  });
+
+  it("PR 이 병합돼 To do에서 빠진 Failed 줄은 PR 병합됨을 보이고, 메뉴에 확인했어요 대신 다시 맡기기를 둔다", async () => {
+    await showDashboard("done", demoRunPort);
+    expect(document.body.textContent).toContain("PR #199 병합됨");
+    await openMenu("ACME-115");
+    expect(document.body.querySelector('[role="menuitem"][aria-label="확인했어요"]')).toBeNull();
+    await choose("다시 맡기기");
+    expect(document.body.textContent).toContain("다시 맡길까요?");
+  });
+});

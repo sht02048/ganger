@@ -420,6 +420,45 @@ describe("MCP 쓰기 도구", () => {
     expect(short.isError).toBe(true);
   });
 
+  it("clear_todo는 Failed 런을 To do 에서 빼고 결과는 Failed 로 두며, 같은 요청 ID는 한 번만 기록한다(0235)", async () => {
+    await connect();
+    const failed = queueRun(seeded.db, "ACME-7", 40);
+    const ended = changeRunState(
+      seeded.db,
+      failed,
+      { to: "ended", agentResult: "could-not-start", prState: "none" },
+      at(41),
+    );
+    if (!ended.ok) throw new Error("end ACME-7");
+    const stopped = async () => {
+      const dashboard = await call("get_dashboard");
+      const groups = z
+        .array(z.object({ group: z.string(), runs: z.array(z.object({ id: z.string() })) }))
+        .parse(dashboard.json["todo"]);
+      return groups.flatMap((group) => group.runs.map((run) => run.id));
+    };
+    expect(await stopped()).toContain(failed);
+
+    const args = { runId: failed, requestId: "request-0235-0001" };
+    expect((await call("clear_todo", args)).json["outcome"]).toBe("done");
+    expect((await call("clear_todo", args)).json["outcome"]).toBe("done");
+    expect(listRunMcpActions(seeded.db, failed).map((a) => [a.tool, a.outcome])).toEqual([
+      ["clear_todo", "done"],
+    ]);
+    expect(await stopped()).not.toContain(failed);
+    expect(getRun(seeded.db, failed)).toMatchObject({
+      state: "ended",
+      agentResult: "could-not-start",
+    });
+
+    const refused = await call("clear_todo", {
+      runId: seeded.ended,
+      requestId: "request-0235-0002",
+    });
+    expect(refused.isError).toBe(true);
+    expect(refused.json["reason"]).toBe("not-failed");
+  });
+
   it("서버가 꺼져 있으면 worker가 처리하는 쓰기의 결과에 서버가 켜지면 처리한다고 알린다", async () => {
     status = { running: false, url: null };
     await connect();

@@ -45,7 +45,7 @@ import { cardTag, RunCard } from "./run-card";
 import type { SheetMode } from "./run-card";
 import { RunSheet } from "./run-sheet";
 import type { CommitsLoader, MergeHandler } from "./sheet-pr-tab";
-import type { SheetSentHandler, SheetTarget } from "./run-sheet";
+import type { ClearTodoHandler, SheetSentHandler, SheetTarget } from "./run-sheet";
 import { initialSheetTab } from "./sheet-tabs";
 import type { SheetTab } from "./sheet-tabs";
 import { href } from "./run-text";
@@ -91,6 +91,7 @@ export interface HomeScreenProps {
   onControl: (input: ControlInput) => Promise<RunControlOutcome>;
   onMerge: MergeHandler;
   onLoadCommits: CommitsLoader;
+  onClearTodo: ClearTodoHandler;
   openRunId?: RunId | undefined;
   onOpenRunShown?: () => void;
 }
@@ -123,6 +124,7 @@ export function HomeScreen({
   onControl,
   onMerge,
   onLoadCommits,
+  onClearTodo,
   openRunId,
   onOpenRunShown = () => {},
 }: HomeScreenProps) {
@@ -400,6 +402,7 @@ export function HomeScreen({
           onControl={host.onControl}
           onMerge={onMerge}
           onLoadCommits={onLoadCommits}
+          onClearTodo={onClearTodo}
         />
       </div>
     </ScreenLayout>

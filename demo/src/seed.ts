@@ -473,7 +473,10 @@ function demoMerge(
   return { methods: ["squash", "merge"], defaultMethod: "squash", ...state };
 }
 
-const ACTIVE_TICKETS = { ACME: [1, 2, 3, 4, 5, 6, 7, 8, 9, 21, 22, 23, 24, 25, 26, 27], GLX: [2] };
+const ACTIVE_TICKETS = {
+  ACME: [1, 2, 3, 4, 5, 6, 7, 8, 9, 21, 22, 23, 24, 25, 26, 27, 28],
+  GLX: [2],
+};
 const HISTORY_TICKETS = [
   range(1, 35).filter((n) => !ACTIVE_TICKETS.ACME.includes(n)),
   range(1, 10).filter((n) => !ACTIVE_TICKETS.GLX.includes(n)),
@@ -615,6 +618,15 @@ function seedActive(db: Database, now: Date): SeededRuns {
     prNumber += 1;
     end(db, runId, { ending, at: ago(120 - n * 15), prNumber, repo: t.project.repo });
   }
+  const mergedAfterFailing = ticket("ACME", 28);
+  const timedOut = startedRun(db, mergedAfterFailing, runnerB.id, ago(150), ago(148));
+  end(db, timedOut, {
+    ending: { agentResult: "timed-out", prState: "open" },
+    at: ago(60),
+    prNumber: 910,
+    repo: mergedAfterFailing.project.repo,
+  });
+  updateRunRecords(db, timedOut, { laterPrState: { state: "merged", at: ago(20) } });
   return {
     queued,
     running,

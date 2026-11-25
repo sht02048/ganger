@@ -225,6 +225,7 @@ function nextStepReader(db: Database, ticketRuns: ReadonlyArray<StoredRun>) {
           pullRequest,
           state: "ended",
           summary: view.summary,
+          todoCleared: view.todoCleared ?? null,
           prState: view.prState,
           laterPrState: view.laterPrState,
           keptWorktree: taken

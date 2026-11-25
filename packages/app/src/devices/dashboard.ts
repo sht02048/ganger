@@ -70,6 +70,7 @@ function toRun(run: HomeRun): V1DashboardRun {
         agentResult: run.agentResult,
         prState: run.prState,
         prReadError: run.prReadError,
+        todoCleared: run.todoCleared ?? null,
         endedAt: run.endedAt,
         endedAgoMs: run.endedAgoMs,
       };

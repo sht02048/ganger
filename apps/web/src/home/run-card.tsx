@@ -310,7 +310,13 @@ function useCardParts(
       const time = ago(run.endedAt, run.endedAgoMs);
       const pr = run.pullRequest;
       const prUnread = run.prReadError === null ? null : t("prUnread");
-      const prLine = prUnread ?? (pr === null ? null : t("pullRequest", { pr: pr.displayId }));
+      const prLine =
+        prUnread ??
+        (pr === null
+          ? null
+          : t(run.todoCleared === "pr-merged" ? "pullRequestMerged" : "pullRequest", {
+              pr: pr.displayId,
+            }));
       if (tagged && run.summary === "failed")
         return {
           detail: text.agentResult(run),
