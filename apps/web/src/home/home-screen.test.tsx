@@ -10,7 +10,12 @@ import { buttonsOf } from "../testing/buttons";
 import { pillsOf } from "../testing/pills";
 import { renderWithMessages } from "../testing/render";
 import { addTitledRun, minutes, now, seedDatabase } from "../testing/seed";
-import { changeRunState, completeRunControlRequest, requestRunControl } from "@ganger/db";
+import {
+  changeRunState,
+  completeRunControlRequest,
+  requestRunControl,
+  updateRunRecords,
+} from "@ganger/db";
 import { COLUMN_VISIBLE, DONE_TODO_VISIBLE, HomeScreen, SETTLED_VISIBLE } from "./home-screen";
 import type { DashboardView } from "./home-screen";
 import { loadHomePage } from "@ganger/app/home/load";
@@ -32,6 +37,7 @@ function render(page: HomePage) {
       onControl={reject}
       onMerge={reject}
       onLoadCommits={reject}
+      onClearTodo={reject}
     />,
     homeMessages,
   );
@@ -48,6 +54,7 @@ function renderView(page: HomePage, view: DashboardView) {
       onControl={reject}
       onMerge={reject}
       onLoadCommits={reject}
+      onClearTodo={reject}
     />,
     homeMessages,
   );
@@ -318,6 +325,20 @@ describe("Dashboard 칸반(티켓 0100)", () => {
     expect(text(merged)).toContain("Succeeded");
     for (const tagged of ["ACME-6", "ACME-5"])
       expect(done.indexOf(row(done, tagged))).toBeLessThan(subheading);
+  });
+
+  it("PR 이 병합돼 To do 에서 빠진 Failed 카드는 소제목 아래에서 Failed 와 PR 병합됨을 함께 보인다(0235)", () => {
+    const { db, ids } = seedDatabase();
+    const failed = ids.get("ACME-2");
+    if (failed === undefined) throw new Error("ACME-2 missing");
+    updateRunRecords(db, failed, { laterPrState: { state: "merged", at: minutes(115) } });
+    const done = section(render(loadHomePage(db, "ws-commerce", now, "UTC")), "Done");
+    const card = row(done, "ACME-2");
+    expect(done.indexOf(card)).toBeGreaterThan(done.indexOf(homeJson.board.settled));
+    expect(card).not.toContain("data-tag=");
+    expect(text(card)).toContain(
+      `Failed · ${homeJson.card.pullRequestMerged.replace("{pr}", "#2")}`,
+    );
   });
 
   it("처리할 일 없이 끝난 카드가 5장을 넘으면 5장만 보이고 더 보기나 Runs 링크를 두지 않는다 (0186)", () => {

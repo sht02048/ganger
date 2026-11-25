@@ -135,6 +135,7 @@ describe("앱의 쓰기 요청", () => {
     { action: "resume" },
     { action: "cancel" },
     { action: "retry" },
+    { action: "clear-todo" },
     { action: "continue", message: "이어서" },
   ] as const)("$action 쓰기도 응답을 잃으면 같은 ID로 다시 보낸다", async (write) => {
     const w = world([lost, sent]);

@@ -54,7 +54,9 @@ export interface SheetTarget {
   mode: SheetMode;
 }
 
-export type SheetSent = "answered" | "confirmed" | "changes-requested" | "denied";
+export type SheetSent = "answered" | "confirmed" | "changes-requested" | "denied" | "cleared";
+
+export type ClearTodoHandler = (runId: HomeRun["id"]) => Promise<void>;
 
 export type SheetSentHandler = (run: HomeRun, sent: SheetSent) => void;
 
@@ -73,6 +75,7 @@ export function RunSheet({
   onControl,
   onMerge,
   onLoadCommits,
+  onClearTodo,
 }: {
   target: SheetTarget | null;
   open: boolean;
@@ -88,6 +91,7 @@ export function RunSheet({
   onControl: SheetControl;
   onMerge: MergeHandler;
   onLoadCommits: CommitsLoader;
+  onClearTodo: ClearTodoHandler;
 }) {
   const t = useTranslations("home.sheet");
   if (target === null) return null;
@@ -132,6 +136,7 @@ export function RunSheet({
                   onDeny={onDeny}
                   onSent={onSent}
                   onControl={onControl}
+                  onClearTodo={onClearTodo}
                 />
               </TabPanel>
               {showsPr ? (
@@ -216,6 +221,7 @@ function RunTabContent({
   onDeny,
   onSent,
   onControl,
+  onClearTodo,
 }: {
   run: HomeRun;
   mode: SheetMode;
@@ -226,6 +232,7 @@ function RunTabContent({
   onDeny: (input: DenyInput) => Promise<void>;
   onSent: SheetSentHandler;
   onControl: SheetControl;
+  onClearTodo: ClearTodoHandler;
 }) {
   return (
     <div {...stylex.props(styles.tab)}>
@@ -239,7 +246,13 @@ function RunTabContent({
       />
       <RunSummary run={run} />
       <RunRows run={run} mode={mode} tagged={tagged} all={all} />
-      <RunAction run={run} tagged={tagged} onControl={onControl} />
+      <RunAction
+        run={run}
+        tagged={tagged}
+        onControl={onControl}
+        onClearTodo={onClearTodo}
+        onSent={onSent}
+      />
     </div>
   );
 }
@@ -375,17 +388,57 @@ function RunAction({
   run,
   tagged,
   onControl,
+  onClearTodo,
+  onSent,
 }: {
   run: HomeRun;
   tagged: boolean;
   onControl: SheetControl;
+  onClearTodo: ClearTodoHandler;
+  onSent: SheetSentHandler;
 }) {
-  const t = useTranslations("home.sheet");
   if (run.state === "running" || run.state === "paused")
     return <ControlBlock run={run} onControl={onControl} />;
   if (run.state === "ended" && tagged && run.summary === "failed")
-    return (
-      <div>
+    return <FailedActions run={run} onClearTodo={onClearTodo} onSent={onSent} />;
+  return null;
+}
+
+function FailedActions({
+  run,
+  onClearTodo,
+  onSent,
+}: {
+  run: HomeRun;
+  onClearTodo: ClearTodoHandler;
+  onSent: SheetSentHandler;
+}) {
+  const t = useTranslations("home.sheet");
+  const statusRef = useRef<HTMLParagraphElement>(null);
+  const [sending, setSending] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const clear = (): void => {
+    if (sending) return;
+    setSending(true);
+    setFailed(false);
+    onClearTodo(run.id).then(
+      () => {
+        setSending(false);
+        onSent(run, "cleared");
+      },
+      () => {
+        setSending(false);
+        setFailed(true);
+        statusRef.current?.focus();
+      },
+    );
+  };
+  return (
+    <div {...stylex.props(styles.controlGroup)}>
+      <Text variant="ui" as="p" ref={statusRef} role="status" tabIndex={-1} tone="problem">
+        {failed ? t("clearTodoFailed") : null}
+      </Text>
+      <div {...stylex.props(styles.actionRow, failed && styles.controlBelowStatus)}>
         <a
           href={ticketHref(run)}
           data-variant="secondary"
@@ -393,9 +446,12 @@ function RunAction({
         >
           {t("retry")}
         </a>
+        <Button variant="secondary" aria-disabled={sending} aria-busy={sending} onClick={clear}>
+          {sending ? t("clearingTodo") : t("clearTodo")}
+        </Button>
       </div>
-    );
-  return null;
+    </div>
+  );
 }
 
 type SheetControl = (
@@ -641,6 +697,7 @@ const styles = stylex.create({
   block: { display: "flex", flexDirection: "column", gap: space.s3, minWidth: 0 },
   controlGroup: { display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 },
   controlBelowStatus: { paddingTop: space.s2 },
+  actionRow: { display: "flex", flexWrap: "wrap", gap: space.s2 },
   foot: { display: "flex", justifyContent: "flex-end", gap: space.s3 },
   result: { outline: "none" },
   ticketLine: { display: "flex", alignItems: "flex-start", gap: space.s2, minWidth: 0 },

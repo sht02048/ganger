@@ -11,6 +11,7 @@ export type RunWrite =
   | { action: "resume" }
   | { action: "cancel" }
   | { action: "retry" }
+  | { action: "clear-todo" }
   | { action: "continue"; message: string }
   | { action: "merge"; method: V1MergeMethod; expectedHead: string };
 
@@ -51,6 +52,7 @@ function slotOf(runId: string, write: RunWrite): string {
     case "resume":
     case "cancel":
     case "retry":
+    case "clear-todo":
     case "continue":
     case "merge":
       return `${runId}:${write.action}`;
@@ -82,6 +84,7 @@ function requestOf(write: RunWrite, requestId: string): V1RunActionBody {
     case "resume":
     case "cancel":
     case "retry":
+    case "clear-todo":
       return { action: write.action, body: { requestId } };
     case "continue":
       return { action: "continue", body: { requestId, message: write.message } };

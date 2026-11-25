@@ -278,7 +278,7 @@ export type V1RunActionBody =
   | { action: "answer"; body: V1AnswerBody }
   | { action: "human-check"; body: V1HumanCheckBody }
   | { action: "deny"; body: V1DenyBody }
-  | { action: "resume" | "cancel" | "retry"; body: V1RunKeyBody }
+  | { action: "resume" | "cancel" | "retry" | "clear-todo"; body: V1RunKeyBody }
   | { action: "continue"; body: V1ContinueBody }
   | { action: "merge"; body: V1MergeBody };
 

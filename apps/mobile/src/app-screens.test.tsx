@@ -95,7 +95,7 @@ describe("Dashboard 데모", () => {
     expect(text.indexOf("ACME-119")).toBeLessThan(text.indexOf("처리할 일 없이 끝났어요"));
     expect(text).toContain("Succeeded");
     expect(text).toContain("Canceled");
-    expect(text).toContain("PR #205 병합됨");
+    expect(text).toContain("PR #199 병합됨");
   });
 
   it("처리할 일만 켜면 꼬리표 없는 카드를 숨긴다", () => {

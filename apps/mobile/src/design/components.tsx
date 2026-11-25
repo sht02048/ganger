@@ -316,11 +316,12 @@ export function ExternalLink({
   );
 }
 
-export type MenuIcon = "external" | "cancel";
+export type MenuIcon = "external" | "cancel" | "check";
 
 const MENU_ICON_PATHS: Record<MenuIcon, string> = {
   external: "M4 2h6v6M10 2L3 9",
   cancel: "M3 3l6 6M9 3L3 9",
+  check: "M2.5 6.5l2.5 2.5 4.5-5",
 };
 
 function MenuGlyph({ icon, color, iconSize }: { icon: MenuIcon; color: string; iconSize: number }) {

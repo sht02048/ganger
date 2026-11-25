@@ -286,6 +286,20 @@ const settled: EndedRun = {
 };
 
 describe("SettledRow", () => {
+  it("PR 이 병합돼 To do 에서 빠진 Failed 런은 끝날 때 PR 이 열려 있었어도 병합됨으로 보인다(0235)", () => {
+    const run: EndedRun = {
+      ...settled,
+      summary: "failed",
+      agentResult: "timed-out",
+      prState: "open",
+      todoCleared: "pr-merged",
+      pullRequest: { displayId: "#9", url: "https://example.com/pull/9", problems: [] },
+    };
+    const host = mount(<SettledRow run={run} />);
+    expect(host.textContent).toContain("Failed");
+    expect(host.textContent).toContain("PR #9 병합됨");
+  });
+
   it("끝난 런에도 열린 PR의 칩을 보인다", () => {
     const run: EndedRun = {
       ...settled,
@@ -446,6 +460,22 @@ describe("카드 … 메뉴", () => {
       ["open-ticket", "open-pr"],
     ]);
     expect(runMenuGroups(withPr(settled, "javascript:alert(1)"))).toEqual([["open-ticket"]]);
+  });
+
+  it("To do 의 Failed 런은 런 취소 자리에 확인했어요를 두고, 옛 서버가 치운 까닭 칸을 보내지 않으면 두지 않는다(0235)", () => {
+    const failed: EndedRun = {
+      ...settled,
+      summary: "failed",
+      agentResult: "timed-out",
+      todoTag: "failed",
+      todoCleared: null,
+    };
+    expect(runMenuGroups(failed)).toEqual([["open-ticket"], ["clear-todo"]]);
+    const { todoCleared: _absent, ...fromOldServer } = failed;
+    expect(runMenuGroups(fromOldServer)).toEqual([["open-ticket"]]);
+    expect(runMenuGroups({ ...failed, todoTag: null, todoCleared: "operator" })).toEqual([
+      ["open-ticket"],
+    ]);
   });
 
   it("카드 아래에 더 보기 버튼을 두지 않고, 오른쪽 위 … 버튼으로 메뉴를 연다", async () => {

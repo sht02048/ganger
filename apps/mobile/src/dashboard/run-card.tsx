@@ -109,13 +109,21 @@ function noteOf(run: DashboardRun): string | null {
   return null;
 }
 
-export type RunMenuAction = "open-ticket" | "open-pr" | "cancel";
+export type RunMenuAction = "open-ticket" | "open-pr" | "cancel" | "clear-todo";
+
+export function canClearTodo(run: DashboardRun): boolean {
+  return run.state === "ended" && run.todoTag === "failed" && run.todoCleared !== undefined;
+}
+
+function runActionsOf(run: DashboardRun): RunMenuAction[] {
+  if (canClearTodo(run)) return ["clear-todo"];
+  return run.state === "ended" || run.cancelling ? [] : ["cancel"];
+}
 
 export function runMenuGroups(run: DashboardRun): RunMenuAction[][] {
   const links: RunMenuAction[] = ["open-ticket"];
   if (run.pullRequest !== null && isWebLink(run.pullRequest.url)) links.push("open-pr");
-  const actions: RunMenuAction[] = run.state === "ended" || run.cancelling ? [] : ["cancel"];
-  return [links, actions].filter((group) => group.length > 0);
+  return [links, runActionsOf(run)].filter((group) => group.length > 0);
 }
 
 function menuItemOf(run: DashboardRun, action: RunMenuAction, onSelect: () => void): MenuItem {
@@ -132,6 +140,8 @@ function menuItemOf(run: DashboardRun, action: RunMenuAction, onSelect: () => vo
         onSelect,
       };
     }
+    case "clear-todo":
+      return { key: action, label: t("actions.menu.clearTodo"), icon: "check", onSelect };
     case "cancel":
       return {
         key: action,
@@ -318,7 +328,7 @@ export function RunCard({
 function settledPrLabel(run: EndedRun): string | null {
   if (run.pullRequest === null) return null;
   const pr = run.pullRequest.displayId;
-  switch (run.prState) {
+  switch (run.todoCleared === "pr-merged" ? "merged" : run.prState) {
     case "merged":
       return t("card.prMerged", { pr });
     case "closed":

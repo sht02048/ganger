@@ -9,6 +9,7 @@ import { keysChangedByRunWrite } from "../runs/queries";
 import {
   answerHumanCheck,
   answerQuestion,
+  clearRunTodo,
   controlRun,
   denyPermission,
   getRunPrCommits,
@@ -30,6 +31,7 @@ export interface DashboardActions {
   onControl: (input: ControlInput) => Promise<RunControlOutcome>;
   onMerge: MergeHandler;
   onLoadCommits: CommitsLoader;
+  onClearTodo: (runId: RunId) => Promise<void>;
 }
 
 export function useDashboardActions(): DashboardActions {
@@ -95,6 +97,14 @@ export function useDashboardActions(): DashboardActions {
       ),
     onSettled: (_result, _error, input) => afterWrite(toRunId(input.runId)),
   });
+  const clearTodo = useMutation({
+    mutationFn: (runId: RunId) =>
+      withRunActionRequestId(queryClient, runId, "clear-todo", "", async (requestId) => {
+        const result = await clearRunTodo({ data: { runId, requestId } });
+        if (!result.ok) throw new Error(result.reason);
+      }),
+    onSettled: (_result, _error, runId) => afterWrite(runId),
+  });
   return {
     onAnswer: async (input) => {
       await answer.mutateAsync(input);
@@ -108,5 +118,8 @@ export function useDashboardActions(): DashboardActions {
     onControl: (input) => control.mutateAsync(input),
     onMerge: (runId, method, expectedHead) => merge.mutateAsync({ runId, method, expectedHead }),
     onLoadCommits: (runId) => getRunPrCommits({ data: { runId } }),
+    onClearTodo: async (runId) => {
+      await clearTodo.mutateAsync(runId);
+    },
   };
 }

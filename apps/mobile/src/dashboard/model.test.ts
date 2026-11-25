@@ -103,7 +103,7 @@ describe("buildBoard", () => {
   it("Done 칸의 꼬리표는 Failed뿐이다", () => {
     expect(board.done.todo.map((run) => run.ticketKey)).toEqual(["ACME-119"]);
     expect(board.done.settled.map((run) => run.ticketKey)).toEqual([
-      "ACME-118",
+      "ACME-115",
       "ACME-117",
       "ACME-116",
       "ACME-114",

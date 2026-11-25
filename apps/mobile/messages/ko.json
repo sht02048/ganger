@@ -384,6 +384,7 @@
       "openTicket": "Linear에서 열기",
       "openPr": "PR {pr} 열기",
       "cancel": "런 취소",
+      "clearTodo": "확인했어요",
       "ticketFailedTitle": "Linear를 열지 못했어요",
       "ticketFailed": "Linear 티켓을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
       "prFailedTitle": "PR을 열지 못했어요",
@@ -407,7 +408,11 @@
       "back": "돌아가기",
       "agentRunning": "이전 에이전트가 멈춘 것을 확인하면 이어서 맡길 수 있어요. 웹이나 데스크톱에서 확인해 주세요."
     },
-    "resumeFailedTitle": "재개하지 못했어요"
+    "resumeFailedTitle": "재개하지 못했어요",
+    "clearTodo": {
+      "done": "To do에서 뺐어요",
+      "failedTitle": "To do에서 빼지 못했어요"
+    }
   },
   "runDetail": {
     "next": "처리할 일",
