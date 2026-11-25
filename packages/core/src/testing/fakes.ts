@@ -230,6 +230,11 @@ export interface FakeRunnerRun {
 export const FAKE_AGENT_PROTOCOL = "## Fake protocol\n\n- ask the operator with ask.";
 const FAKE_WORKTREE_HEAD = "fake-worktree-head";
 
+export type FakePollCycleEvent =
+  | { kind: "begin"; agents: AgentRef[] }
+  | { kind: "end" }
+  | { kind: "poll"; agent: AgentRef };
+
 export class FakeRunner implements Runner {
   readonly kind: RunnerKind;
   agentProtocol = FAKE_AGENT_PROTOCOL;
@@ -243,6 +248,7 @@ export class FakeRunner implements Runner {
   readonly prepareCalls: PrepareContinuationInput[] = [];
   readonly goneBranches = new Set<string>();
   readonly liveAgents = new Set<AgentRef>();
+  readonly pollCycleEvents: FakePollCycleEvent[] = [];
   readonly recreatedWorktrees = new Map<WorktreeRef, string>();
   failNextPrepare: RunnerErrorDetail | null = null;
   readonly setupCalls: FinishWorktreeSetupInput[] = [];
@@ -527,7 +533,16 @@ export class FakeRunner implements Runner {
     return source?.started.branch ?? `fake/${input.worktreeName}`;
   }
 
+  beginPollCycle(agents: ReadonlyArray<AgentRef>): void {
+    this.pollCycleEvents.push({ kind: "begin", agents: [...agents] });
+  }
+
+  endPollCycle(): void {
+    this.pollCycleEvents.push({ kind: "end" });
+  }
+
   pollRun(run: RunOnRunner): Promise<RunProgress> {
+    this.pollCycleEvents.push({ kind: "poll", agent: run.agentRef });
     return this.reach((): RunProgress => {
       const found = this.find(run.worktree);
       if (found === null) return { kind: "worktree-gone" };
