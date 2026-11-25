@@ -24,15 +24,17 @@ export function useAppBadge({
   device,
   pushEnabled,
   allWorkspaces,
+  foreground,
 }: {
   device: PushDevicePort;
   pushEnabled: boolean | null;
   allWorkspaces: AppDashboard | null;
+  foreground: boolean;
 }): void {
   const count = appBadgeCount({ pushEnabled, allWorkspaces });
   useEffect(() => {
-    if (count !== null) void device.setBadgeCount(count);
-  }, [device, count]);
+    if (foreground && count !== null) void device.setBadgeCount(count);
+  }, [device, count, allWorkspaces, foreground]);
 }
 
 export function useClearedAppBadge(device: PushDevicePort, clearingScreen: string | null): void {

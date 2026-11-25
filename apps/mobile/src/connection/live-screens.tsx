@@ -173,6 +173,7 @@ export function LiveScreens({
     device: pushDevice,
     pushEnabled: notifications.preferences?.enabled ?? null,
     allWorkspaces: state.dashboards.get(ALL_WORKSPACES)?.data ?? null,
+    foreground,
   });
 
   useEffect(() => {

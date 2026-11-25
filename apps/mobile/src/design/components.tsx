@@ -521,10 +521,7 @@ export function PopoverMenu({
                       accessibilityRole="menuitem"
                       accessibilityLabel={item.accessibilityLabel ?? item.label}
                       onPress={() => choose(item)}
-                      style={({ pressed }) => [
-                        styles.menuItem,
-                        pressed ? styles.menuItemPressed : null,
-                      ]}
+                      style={({ pressed }) => [styles.menuItem, pressed ? styles.pressed : null]}
                     >
                       <MenuGlyph
                         icon={item.icon}
@@ -1078,7 +1075,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.s3,
   },
-  menuItemPressed: { backgroundColor: colors.bgSelected },
   menuDivider: {
     height: StyleSheet.hairlineWidth,
     marginVertical: space.s1,
