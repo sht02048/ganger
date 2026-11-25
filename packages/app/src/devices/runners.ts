@@ -3,7 +3,7 @@ import type { V1Runner, V1ThisDevice, V1Workspaces } from "@ganger/api";
 import { listDevices, listRunners, listWorkspaces } from "@ganger/db";
 import type { Database, StoredRunner } from "@ganger/db";
 import { dashboardUsage } from "../home/load.js";
-import { loadRunnersPage } from "../runners/load.js";
+import { ghAccountsView, loadRunnersPage } from "../runners/load.js";
 import { runnerIssueCause } from "../shell/model.js";
 
 export function loadV1Runners(db: Database, now: Date): { runners: V1Runner[] } {
@@ -21,6 +21,7 @@ export function loadV1Runners(db: Database, now: Date): { runners: V1Runner[] } 
       capacity: runner.capacity,
       usage: runner.usage,
       limits: source === undefined ? [] : dashboardUsage(source, now).limits,
+      ghAccounts: ghAccountsView(source?.ghAccounts ?? null, now),
     };
   });
   return runnersSchema.parse({

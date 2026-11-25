@@ -39,6 +39,7 @@ import { getDeviceConnectionCodes } from "./device-connection-codes";
 import { removeDeviceAndCloseStreams } from "./device-removal";
 import { getDeviceStreams } from "./device-streams";
 import { readLimited } from "./runner-enrollment-http";
+import { serverGitHubForDiagnosis } from "./server-github";
 import { sendDeviceActivity } from "./worker-wake";
 
 const RUN_ACTION_BODY_LIMIT_BYTES = 64 * 1024;
@@ -179,9 +180,10 @@ export async function serveV1DeviceActivity(
   return v1Data({ recorded: true });
 }
 
-export function serveV1RunDetail(request: Request, runId: string): Response {
+export async function serveV1RunDetail(request: Request, runId: string): Promise<Response> {
   if (requestDevice(request) === null) return v1Error(401, "invalid-token");
-  const detail = loadV1RunDetail(getDatabase(), runId, new Date());
+  const db = getDatabase();
+  const detail = loadV1RunDetail(db, runId, new Date(), await serverGitHubForDiagnosis(db));
   return detail === null ? v1Error(404, "not-found") : v1Data(detail);
 }
 

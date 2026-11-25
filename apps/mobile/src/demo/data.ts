@@ -297,6 +297,7 @@ export function busySnapshot(now: Date): DemoSnapshot {
       capacity: 2,
       usage: { ...usageReadAt(now), kind: "unreadable" },
       limits: [],
+      ghAccounts: null,
     },
     {
       id: "runner-build",
@@ -307,6 +308,7 @@ export function busySnapshot(now: Date): DemoSnapshot {
       capacity: 2,
       usage: readUsage(now, "codex", [{ kind: "weekly", usedPercent: 31, resetsAt: null }]),
       limits: [],
+      ghAccounts: null,
     },
     {
       id: "runner-mini",
@@ -320,6 +322,7 @@ export function busySnapshot(now: Date): DemoSnapshot {
         { kind: "weekly", usedPercent: 64, resetsAt: null },
       ]),
       limits: [{ provider: "claude", window: "session", resetsInMs: 42 * MINUTE }],
+      ghAccounts: null,
     },
   ];
   const workspaces = [payments, growth];

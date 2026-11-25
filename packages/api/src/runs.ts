@@ -120,6 +120,27 @@ export const runInputSchema = z.discriminatedUnion("kind", [
 ]);
 export type V1RunInput = z.infer<typeof runInputSchema>;
 
+export const V1_PR_STATES = ["open", "merged", "closed", "unknown"] as const;
+export const V1_PR_READ_ERRORS = ["no-access", "other"] as const;
+
+export const prReadServerSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("gh"), logins: z.array(z.string()) }),
+  z.object({ kind: z.literal("token") }),
+]);
+
+export const prReadDiagnosisSchema = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("different"),
+    runner: z.string(),
+    runnerLogin: z.string(),
+    server: prReadServerSchema,
+  }),
+  z.object({ kind: z.literal("runner-unknown"), runner: z.string(), server: prReadServerSchema }),
+]);
+export type V1PrReadDiagnosis = z.infer<typeof prReadDiagnosisSchema>;
+
+export const sinceSchema = z.object({ at: z.iso.datetime(), agoMs: z.number() });
+
 export const runDetailSchema = z.object({
   id: z.string(),
   ticketKey: z.string(),
@@ -155,8 +176,12 @@ export const runDetailSchema = z.object({
       url: z.string(),
       ci: z.enum(["success", "failure", "pending", "none", "unavailable", "unknown"]),
       problems: z.array(prProblemSchema),
+      state: z.enum(V1_PR_STATES),
+      stateSince: sinceSchema.nullable(),
     })
     .nullable(),
+  prReadError: z.enum(V1_PR_READ_ERRORS).nullable(),
+  prReadDiagnosis: prReadDiagnosisSchema.nullable(),
   input: runInputSchema.nullable(),
   nextActions: z
     .object({ retry: z.enum(V1_RETRY_OFFERS), continue: z.enum(V1_CONTINUE_OFFERS) })
