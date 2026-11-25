@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 blocked_by: []
 ---
 
@@ -64,5 +64,5 @@ blocked_by: []
 
 ## 남은 일
 
-- 러너 부하 수치만 바뀐 변경을 서버가 따로 보내면(예: `runner` 종류에 부하 부분) 모바일이 요청도 건너뛸 수 있다. `change_events.part` 의 CHECK 제약을 넓히는 DB 마이그레이션이 필요해, 운영자 결정 뒤 따로 한다.
+- 러너 부하 수치만 바뀐 때(러너마다 최대 60초에 한 번)도 모바일은 runners 와 대시보드 두 요청을 보낸다. 상태·캐시는 바뀌지 않는다. 요청까지 없애려면 서버가 부하 변경을 따로 보내야 한다(예: `runner` 종류에 `change_events.part` `load`). `part` 의 CHECK 제약을 넓히는 DB 마이그레이션이 필요해 운영자 승인 뒤 따로 한다(코디네이터 결정, 2026-11-25).
 - 다시 그리기 줄이기(`dashboard-screen.tsx`·`run-card.tsx`)는 0225 에서 한다.
