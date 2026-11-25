@@ -201,6 +201,36 @@ describe("앱의 쓰기 요청", () => {
     expect(w.idOf(4)).not.toBe(w.idOf(0));
   });
 
+  it("머지는 고른 방식과 본 head 를 싣고, 같은 머지를 다시 누르면 같은 ID 를 쓴다", async () => {
+    const merge = { action: "merge", method: "squash", expectedHead: "abc" } as const;
+    const w = world([lost, lost, sent]);
+    expect(await w.port.write(run, merge)).toEqual({ kind: "unconfirmed" });
+    expect(await w.port.write(run, merge)).toEqual({ kind: "sent" });
+    expect(w.runAction.mock.calls[0]?.[1]).toEqual({
+      action: "merge",
+      body: { requestId: w.idOf(0), method: "squash", expectedHead: "abc" },
+    });
+    expect(w.idOf(2)).toBe(w.idOf(0));
+  });
+
+  it("머지 방식이나 본 head 가 바뀌면 새 ID 를 쓴다", async () => {
+    const merge = { action: "merge", method: "squash", expectedHead: "abc" } as const;
+    const w = world([lost, lost, lost, lost, sent]);
+    await w.port.write(run, merge);
+    await w.port.write(run, { ...merge, method: "merge" });
+    await w.port.write(run, { ...merge, expectedHead: "def" });
+    expect(new Set([w.idOf(0), w.idOf(2), w.idOf(4)]).size).toBe(3);
+  });
+
+  it("머지 거절은 GitHub 이 준 문장과 함께 돌려준다", async () => {
+    const w = world([
+      { ok: false, failure: { kind: "refused", reason: "blocked", message: "Review required" } },
+    ]);
+    expect(
+      await w.port.write(run, { action: "merge", method: "squash", expectedHead: "abc" }),
+    ).toEqual({ kind: "refused", reason: "blocked", message: "Review required" });
+  });
+
   it("토큰이 거절되면 세션에 알린다", async () => {
     const w = world([{ ok: false, failure: { kind: "token-rejected" } }]);
     await w.port.write(run, { action: "cancel" });

@@ -10,6 +10,7 @@ export const V1_RUN_ACTIONS = [
   "cancel",
   "retry",
   "continue",
+  "merge",
 ] as const;
 export type V1RunAction = (typeof V1_RUN_ACTIONS)[number];
 
@@ -69,6 +70,19 @@ export const continueBodySchema = z.strictObject({
     .refine((text) => Array.from(text).length <= V1_CONTINUE_MESSAGE_MAX_LENGTH),
 });
 export type V1ContinueBody = z.infer<typeof continueBodySchema>;
+
+export const V1_MERGE_METHODS = ["squash", "merge", "rebase"] as const;
+export type V1MergeMethod = (typeof V1_MERGE_METHODS)[number];
+
+export const V1_MERGE_BLOCKS = ["conflict", "behind", "rules", "draft"] as const;
+export type V1MergeBlock = (typeof V1_MERGE_BLOCKS)[number];
+
+export const mergeBodySchema = z.strictObject({
+  requestId: requestIdSchema,
+  method: z.enum(V1_MERGE_METHODS),
+  expectedHead: z.string().min(1).max(200),
+});
+export type V1MergeBody = z.infer<typeof mergeBodySchema>;
 
 export const V1_RETRY_OFFERS = ["available", "unavailable", "not-offered"] as const;
 export type V1RetryOffer = (typeof V1_RETRY_OFFERS)[number];
@@ -141,6 +155,15 @@ export type V1PrReadDiagnosis = z.infer<typeof prReadDiagnosisSchema>;
 
 export const sinceSchema = z.object({ at: z.iso.datetime(), agoMs: z.number() });
 
+export const prMergeSchema = z.object({
+  methods: z.array(z.enum(V1_MERGE_METHODS)).min(1),
+  defaultMethod: z.enum(V1_MERGE_METHODS),
+  blocked: z.enum(V1_MERGE_BLOCKS).nullable(),
+  noPermission: z.boolean(),
+  headCommit: z.string(),
+});
+export type V1PrMerge = z.infer<typeof prMergeSchema>;
+
 export const runDetailSchema = z.object({
   id: z.string(),
   ticketKey: z.string(),
@@ -178,6 +201,7 @@ export const runDetailSchema = z.object({
       problems: z.array(prProblemSchema),
       state: z.enum(V1_PR_STATES),
       stateSince: sinceSchema.nullable(),
+      merge: prMergeSchema.nullable(),
     })
     .nullable(),
   prReadError: z.enum(V1_PR_READ_ERRORS).nullable(),

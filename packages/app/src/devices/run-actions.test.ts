@@ -172,8 +172,8 @@ describe("toV1RunDetail의 PR 상태와 읽기 실패", () => {
 });
 
 describe("parseV1RunAction", () => {
-  it("v1이 여는 다섯 동작만 받고 pause는 받지 않는다", () => {
-    for (const action of ["answer", "human-check", "deny", "resume", "cancel"]) {
+  it("v1이 여는 동작만 받고 pause는 받지 않는다", () => {
+    for (const action of ["answer", "human-check", "deny", "resume", "cancel", "merge"]) {
       expect(parseV1RunAction(action)).toBe(action);
     }
     expect(parseV1RunAction("pause")).toBeNull();

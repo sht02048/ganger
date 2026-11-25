@@ -61,6 +61,18 @@ function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageK
     case "resolved":
     case "state-changed":
       return "actions.refused.run.state-changed";
+    case "no-write-access":
+    case "blocked":
+    case "head-changed":
+    case "method-not-allowed":
+    case "not-open":
+    case "no-pull-request":
+    case "no-code-host":
+    case "unauthorized":
+    case "rate-limited":
+    case "network":
+    case "superseded":
+      return `actions.refused.merge.${reason}`;
   }
 }
 

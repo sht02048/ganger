@@ -30,6 +30,7 @@ import type {
   V1DenyBody,
   V1DeviceNotifications,
   V1HumanCheckBody,
+  V1MergeBody,
   V1Meta,
   V1RunKeyBody,
   V1SaveDeviceNotifications,
@@ -59,16 +60,15 @@ export type V1Result<Data> =
   | { ok: true; data: Data; serverVersion: string }
   | { ok: false; failure: V1Failure };
 
-export type V1RunFailure =
-  | V1Failure
-  | { kind: "refused"; reason: AppRunRefusal }
-  | { kind: "invalid-request" };
+export type V1Refusal = { kind: "refused"; reason: AppRunRefusal; message?: string };
+
+export type V1RunFailure = V1Failure | V1Refusal | { kind: "invalid-request" };
 
 export type V1RunResult<Data> =
   | { ok: true; data: Data; serverVersion: string }
   | { ok: false; failure: V1RunFailure };
 
-type SendFailure = V1Failure | ConnectFailure | { kind: "refused"; reason: AppRunRefusal };
+type SendFailure = V1Failure | ConnectFailure | V1Refusal;
 
 type SendResult<Data> =
   | { ok: true; data: Data; serverVersion: string }
@@ -186,7 +186,12 @@ function failureOfRefusal(body: unknown, status: number): SendFailure {
 function refusalOf(body: unknown, status: number): SendFailure {
   const refusal = appErrorSchema.safeParse(body);
   if (!refusal.success) return { kind: "server-error" };
-  const { reason } = refusal.data.error;
+  const { reason, message } = refusal.data.error;
+  const refused = (known: AppRunRefusal): V1Refusal => ({
+    kind: "refused",
+    reason: known,
+    ...(message === null || message === "" ? {} : { message }),
+  });
   switch (reason) {
     case "invalid-token":
       return { kind: "token-rejected" };
@@ -210,9 +215,20 @@ function refusalOf(body: unknown, status: number): SendFailure {
     case "active-run":
     case "previous-agent":
     case "cannot-assign":
-      return { kind: "refused", reason };
+    case "no-write-access":
+    case "blocked":
+    case "head-changed":
+    case "method-not-allowed":
+    case "not-open":
+    case "no-pull-request":
+    case "no-code-host":
+    case "unauthorized":
+    case "rate-limited":
+    case "network":
+    case "superseded":
+      return refused(reason);
     case "unknown":
-      return status >= 500 ? { kind: "server-error" } : { kind: "refused", reason };
+      return status >= 500 ? { kind: "server-error" } : refused(reason);
   }
 }
 
@@ -262,7 +278,8 @@ export type V1RunActionBody =
   | { action: "human-check"; body: V1HumanCheckBody }
   | { action: "deny"; body: V1DenyBody }
   | { action: "resume" | "cancel" | "retry"; body: V1RunKeyBody }
-  | { action: "continue"; body: V1ContinueBody };
+  | { action: "continue"; body: V1ContinueBody }
+  | { action: "merge"; body: V1MergeBody };
 
 export interface V1RunsClient {
   runDetail(runId: string): Promise<V1RunResult<AppRunDetail>>;

@@ -1,4 +1,4 @@
-import type { AppRunDetail, AppRunRefusal, V1HumanCheckDecision } from "@ganger/api";
+import type { AppRunDetail, AppRunRefusal, V1HumanCheckDecision, V1MergeMethod } from "@ganger/api";
 
 import type { V1Failure, V1RunActionBody, V1RunFailure, V1RunsClient } from "../connection/client";
 import type { DashboardRun } from "../dashboard/model";
@@ -11,12 +11,13 @@ export type RunWrite =
   | { action: "resume" }
   | { action: "cancel" }
   | { action: "retry" }
-  | { action: "continue"; message: string };
+  | { action: "continue"; message: string }
+  | { action: "merge"; method: V1MergeMethod; expectedHead: string };
 
 export type RunWriteOutcome =
   | { kind: "sent" }
   | { kind: "demo" }
-  | { kind: "refused"; reason: AppRunRefusal }
+  | { kind: "refused"; reason: AppRunRefusal; message?: string }
   | { kind: "unconfirmed" }
   | { kind: "failed"; cause: "unreachable" | "invalid-request" | "other" };
 
@@ -51,6 +52,7 @@ function slotOf(runId: string, write: RunWrite): string {
     case "cancel":
     case "retry":
     case "continue":
+    case "merge":
       return `${runId}:${write.action}`;
   }
 }
@@ -83,6 +85,11 @@ function requestOf(write: RunWrite, requestId: string): V1RunActionBody {
       return { action: write.action, body: { requestId } };
     case "continue":
       return { action: "continue", body: { requestId, message: write.message } };
+    case "merge":
+      return {
+        action: "merge",
+        body: { requestId, method: write.method, expectedHead: write.expectedHead },
+      };
   }
 }
 
@@ -97,7 +104,7 @@ function readFailure<Value>(failure: V1RunFailure): RunRead<Value> {
 }
 
 function writeFailure(failure: V1RunFailure): RunWriteOutcome {
-  if (failure.kind === "refused") return { kind: "refused", reason: failure.reason };
+  if (failure.kind === "refused") return failure;
   if (failure.kind === "invalid-request") return { kind: "failed", cause: "invalid-request" };
   return { kind: "failed", cause: failure.kind === "unreachable" ? "unreachable" : "other" };
 }
@@ -256,6 +263,7 @@ export function demoRunDetail(run: DashboardRun): AppRunDetail {
             problems: run.pullRequest.problems,
             state: null,
             stateSince: null,
+            merge: null,
           },
     prReadError: null,
     prReadDiagnosis: null,

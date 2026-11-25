@@ -7,6 +7,21 @@ export const v1MetaSchema = z.object({
 });
 export type V1Meta = z.infer<typeof v1MetaSchema>;
 
+export const V1_MERGE_REFUSALS = [
+  "no-write-access",
+  "blocked",
+  "head-changed",
+  "method-not-allowed",
+  "not-open",
+  "no-pull-request",
+  "no-code-host",
+  "unauthorized",
+  "rate-limited",
+  "network",
+  "superseded",
+] as const;
+export type V1MergeRefusal = (typeof V1_MERGE_REFUSALS)[number];
+
 export const V1_RUN_REFUSALS = [
   "not-found",
   "already-answered",
@@ -20,6 +35,7 @@ export const V1_RUN_REFUSALS = [
   "active-run",
   "previous-agent",
   "cannot-assign",
+  ...V1_MERGE_REFUSALS,
 ] as const;
 export type V1RunRefusal = (typeof V1_RUN_REFUSALS)[number];
 
@@ -36,7 +52,7 @@ export type V1ErrorReason = (typeof V1_ERROR_REASONS)[number];
 
 export const v1ErrorSchema = z.object({
   meta: v1MetaSchema,
-  error: z.object({ reason: z.enum(V1_ERROR_REASONS) }),
+  error: z.object({ reason: z.enum(V1_ERROR_REASONS), message: z.string().optional() }),
 });
 export type V1Error = z.infer<typeof v1ErrorSchema>;
 
