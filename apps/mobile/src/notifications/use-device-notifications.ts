@@ -100,8 +100,7 @@ export function useDeviceNotifications({
       if (!device.supported || !reply.data.enabled || !reply.data.hasPushAddress) return;
       if ((await device.permission()) !== "granted") return;
       const address = await device.pushAddress();
-      if (cancelled || writes.current !== writesAtStart) return;
-      if (address === null) {
+      if (cancelled || writes.current !== writesAtStart || address === null) {
         checkedAt.current = null;
         return;
       }

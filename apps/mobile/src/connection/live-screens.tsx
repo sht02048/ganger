@@ -215,12 +215,12 @@ export function LiveScreens({
     const unfollow = followForeground(AppState, (next) => {
       session.setForeground(next);
       setForeground(next);
-      if (!next) void cache.flush();
+      if (!next) void cache.flush().catch(() => undefined);
     });
     return () => {
       unfollow();
       session.stop();
-      void cache.flush();
+      void cache.flush().catch(() => undefined);
     };
   }, [cache, session]);
 

@@ -304,4 +304,35 @@ describe("전면 복귀 때 알림 설정·푸시 주소 확인 간격(티켓 02
     await render(true);
     expect(view.counts.addressReads).toBe(2);
   });
+
+  it("푸시 주소를 받는 사이 뒤로 가 확인을 마치지 못했으면 다음 전면 복귀 때 다시 한다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-25T00:00:00.000Z") });
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: "ExponentPushToken[old]" },
+    });
+    let giveAddress: (address: string) => void = () => undefined;
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return new Promise((resolve) => {
+        giveAddress = resolve;
+      });
+    };
+    const render = await mountSwitchable(view.Probe);
+    await render(true);
+    await render(false);
+    await act(async () => {
+      giveAddress(NEW_ADDRESS);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(view.saves).toEqual([]);
+
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return Promise.resolve(NEW_ADDRESS);
+    };
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+    expect(view.saves).toMatchObject([{ expoPushToken: NEW_ADDRESS }]);
+  });
 });

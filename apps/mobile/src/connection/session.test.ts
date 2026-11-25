@@ -497,6 +497,34 @@ describe("같은 응답이면 상태를 바꾸지 않기(티켓 0224)", () => {
     expect(listener).not.toHaveBeenCalled();
   });
 
+  it("시간만 흘러 화면의 분 단위가 같으면 그대로 두고, 분이 바뀌면 새로 쓴다", async () => {
+    const w = world();
+    const queued = dashboard.columns.queued[0];
+    if (queued === undefined) throw new Error("demo data has no queued run");
+    const startedAt = Date.now();
+    const timed = (): V1Dashboard => ({
+      ...dashboard,
+      columns: {
+        ...dashboard.columns,
+        queued: [{ ...queued, waitMs: 90_000 + Date.now() - startedAt }],
+      },
+    });
+    w.client.dashboard.mockImplementation(() =>
+      Promise.resolve({ ok: true, data: timed(), serverVersion: "0.4.0" }),
+    );
+    await connect(w);
+    const before = w.session.getState();
+    await vi.advanceTimersByTimeAsync(20_000);
+    w.streams[0]?.onChange(null);
+    await vi.advanceTimersByTimeAsync(CHANGE_DEBOUNCE_MS);
+    expect(w.session.getState()).toBe(before);
+
+    await vi.advanceTimersByTimeAsync(20_000);
+    w.streams[0]?.onChange(null);
+    await vi.advanceTimersByTimeAsync(CHANGE_DEBOUNCE_MS);
+    expect(w.session.getState()).not.toBe(before);
+  });
+
   it("내용이 바뀐 부분만 새 값으로 바꾸고 나머지는 그대로 둔다", async () => {
     const w = world();
     await connect(w);
@@ -600,12 +628,12 @@ describe("전면 복귀와 연결(티켓 0224)", () => {
     expect(reads(w)).toBe(2);
   });
 
-  it("스트림이 바로 끊기면 기다리지 않고 읽는다", async () => {
+  it("스트림이 바로 끊기면 기다리지 않고 기기 정보까지 한 번 읽는다", async () => {
     const w = world();
     w.session.setForeground(true);
     w.streams[0]?.onEnd("failed");
     await settle();
-    expect(reads(w)).toBe(1);
+    expect(requestCounts(w)).toEqual({ dashboard: 1, workspaces: 1, runners: 1, device: 1 });
     await vi.advanceTimersByTimeAsync(STREAM_READY_WAIT_MS);
     expect(reads(w)).toBe(1);
   });

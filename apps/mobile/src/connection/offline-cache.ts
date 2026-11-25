@@ -121,7 +121,6 @@ export class OfflineCache {
     const dashboard = board?.dashboard ?? null;
     if (board === undefined || dashboard === null || dashboard.fetchedAt >= fetchedAt) return;
     board.dashboard = { ...dashboard, fetchedAt };
-    if (this.#workspaceList !== null) this.#workspaceList = { ...this.#workspaceList, fetchedAt };
     this.#touched = true;
   }
 

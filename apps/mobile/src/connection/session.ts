@@ -402,7 +402,8 @@ export class LiveSession {
 
   #fallBackToPolling(): void {
     if (!this.#active) return;
-    const missedChanges = this.#state.transport === "stream" || this.#readyWait !== null;
+    const firstReadPending = this.#readyWait !== null;
+    const missedChanges = this.#state.transport === "stream" || firstReadPending;
     this.#closeStream = null;
     this.#clearSilence();
     this.#clearReadyWait();
@@ -418,7 +419,7 @@ export class LiveSession {
       },
       retryDelay(STREAM_RETRY_MS, this.#streamFailures),
     );
-    if (missedChanges) void this.#read(SERVER_DATA, false);
+    if (missedChanges) void this.#read(firstReadPending ? EVERYTHING : SERVER_DATA, false);
   }
 
   #armSilence(): void {
