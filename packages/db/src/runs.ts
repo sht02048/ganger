@@ -111,6 +111,7 @@ export interface RunRecords {
   pausedMs: number;
   pauseSource: PauseSource | null;
   lastLog: string[] | null;
+  todoSettledAt: Date | null;
 }
 
 export const LAST_LOG_LINES = 200;
@@ -239,6 +240,7 @@ function toRunRecords(row: RunRow): RunRecords {
     pausedMs: row.pausedMs,
     pauseSource: row.pauseSource,
     lastLog: row.lastLog,
+    todoSettledAt: row.todoSettledAt,
   };
 }
 
@@ -647,6 +649,23 @@ export function requestPreviousAgentStop(
   });
 }
 
+export type SettleRunTodoResult = { ok: true } | { ok: false; reason: "not-found" | "not-failed" };
+
+export function settleRunTodo(db: Database, runId: RunId, now: Date): SettleRunTodoResult {
+  return inTransaction(db, (): SettleRunTodoResult => {
+    const row = getRunRow(db, runId);
+    if (row === undefined) return { ok: false, reason: "not-found" };
+    const run = toStoredRun(row);
+    if (run.state !== "ended" || summarizeRunOutcome(run).outcome !== "failed") {
+      return { ok: false, reason: "not-failed" };
+    }
+    if (row.todoSettledAt !== null) return { ok: true };
+    db.update(runs).set({ todoSettledAt: now }).where(eq(runs.id, runId)).run();
+    recordRunChange(db, runId, { now });
+    return { ok: true };
+  });
+}
+
 export function reclaimSourceWorktree(db: Database, sourceRunId: RunId): void {
   inTransaction(db, () => {
     const found = getRunWithRecords(db, sourceRunId);
@@ -990,6 +1009,7 @@ export function updateRunRecords(
       | "agentStopRequestedAt"
       | "prReadError"
       | "worktreeRemoveRequestedAt"
+      | "todoSettledAt"
     >
   >,
 ): boolean {

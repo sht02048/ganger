@@ -102,6 +102,7 @@ export type HomeRun =
       prReadError: PrReadError | null;
       prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
+      todoCleared?: TodoClearedBy | null;
       endedAt: string;
       endedAgoMs: number;
     });
@@ -228,6 +229,17 @@ export interface TodoGroup {
   runs: HomeRun[];
 }
 
+export const TODO_CLEARED_BY = ["pr-merged", "operator"] as const;
+
+export type TodoClearedBy = (typeof TODO_CLEARED_BY)[number];
+
+export function isOpenFailed(run: {
+  summary: SummaryOutcome;
+  todoCleared?: TodoClearedBy | null;
+}): boolean {
+  return run.summary === "failed" && (run.todoCleared ?? null) === null;
+}
+
 export function todoGroupOf(run: HomeRun): TodoGroupKind | null {
   switch (run.state) {
     case "waiting-for-input":
@@ -235,7 +247,7 @@ export function todoGroupOf(run: HomeRun): TodoGroupKind | null {
     case "disconnected":
       return "stopped";
     case "ended":
-      return run.summary === "failed" ? "stopped" : null;
+      return isOpenFailed(run) ? "stopped" : null;
     case "queued":
     case "running":
     case "paused":
@@ -252,7 +264,7 @@ export function todoGroups(attention: ReadonlyArray<AttentionItem>): TodoGroup[]
 
 export type TodoCandidate =
   | { id: RunId; state: Exclude<HomeRun["state"], "ended"> }
-  | { id: RunId; state: "ended"; summary: SummaryOutcome };
+  | { id: RunId; state: "ended"; summary: SummaryOutcome; todoCleared?: TodoClearedBy | null };
 
 export function needsAttention(run: TodoCandidate): boolean {
   switch (run.state) {
@@ -260,7 +272,7 @@ export function needsAttention(run: TodoCandidate): boolean {
     case "disconnected":
       return true;
     case "ended":
-      return run.summary === "failed";
+      return isOpenFailed(run);
     case "queued":
     case "running":
     case "paused":
@@ -350,7 +362,7 @@ export function todoTagOf(run: HomeRun): TodoTag | null {
     case "disconnected":
       return "disconnected";
     case "ended":
-      return run.summary === "failed" ? run.summary : null;
+      return isOpenFailed(run) ? "failed" : null;
     case "queued":
     case "running":
     case "paused":

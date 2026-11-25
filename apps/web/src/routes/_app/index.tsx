@@ -70,6 +70,7 @@ function HomeRoute() {
         onControl={actions.onControl}
         onMerge={actions.onMerge}
         onLoadCommits={actions.onLoadCommits}
+        onClearTodo={actions.onClearTodo}
         openRunId={run === undefined ? undefined : toRunId(run)}
         onOpenRunShown={clearOpenRun}
       />

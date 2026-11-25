@@ -2,13 +2,14 @@ import { execFile } from "node:child_process";
 import { getInstallSettings, saveInstallAddresses } from "@ganger/db";
 import type { Database } from "@ganger/db";
 import { funnelTargetHost, parseServeStatus } from "./funnel-setup.js";
-import type { ServePortUse } from "./funnel-setup.js";
+import type { ServePortUse, ServePorts } from "./funnel-setup.js";
 import { allowedHosts, hostnameOfHostHeader, isHostAllowed } from "./request-guard.js";
 import type { RequestOrigin } from "./settings/actions.js";
 import { defaultTailnetDeps, findTailscaleCli, parseTailnetStatus } from "./tailscale.js";
 import type { TailnetDeps } from "./tailscale.js";
 
 export const MOBILE_SERVE_PORT = 443;
+export const MOBILE_FALLBACK_PORTS: ReadonlyArray<number> = [8444, 8445, 8446, 8447, 8448];
 
 const STATUS_TIMEOUT_MS = 3_000;
 const SERVE_TIMEOUT_MS = 20_000;
@@ -31,7 +32,7 @@ export interface PortInUse {
 export type MobileAccessView =
   | { kind: "needs-tailscale" }
   | { kind: "off"; host: string; portInUse: PortInUse | null }
-  | { kind: "on"; address: string; viaTailscale: boolean };
+  | { kind: "on"; address: string; viaTailscale: boolean; fallbackPort: number | null };
 
 export type MobileAccessRefusal =
   | "no-tailscale"
@@ -51,10 +52,10 @@ export interface MobileAccessContext {
   deps?: MobileAccessDeps;
 }
 
-type ServeOnThisMac =
+type MobileServePick =
   | { kind: "unreadable" }
-  | { kind: "free" }
-  | { kind: "ours" }
+  | { kind: "free"; port: number }
+  | { kind: "ours"; port: number }
   | { kind: "in-use"; portInUse: PortInUse };
 
 type ThisMac = { kind: "missing" } | { kind: "running"; cli: string; host: string };
@@ -63,16 +64,23 @@ export function mobileServeTarget(bindHost: string, webPort: number): string {
   return `http://${funnelTargetHost(bindHost)}:${String(webPort)}`;
 }
 
-export function mobileAddress(host: string): string {
-  return `https://${host}`;
+export function mobileAddress(host: string, port: number): string {
+  return port === MOBILE_SERVE_PORT ? `https://${host}` : `https://${host}:${String(port)}`;
 }
 
-export function serveOnCommand(target: string): string[] {
-  return ["serve", "--bg", "--yes", `--https=${String(MOBILE_SERVE_PORT)}`, target];
+export function tailscalePortOf(address: string, host: string): number | null {
+  const url = URL.parse(address);
+  if (url === null || url.protocol !== "https:" || url.hostname !== host) return null;
+  if (url.pathname !== "/" || url.search !== "" || url.hash !== "") return null;
+  return url.port === "" ? MOBILE_SERVE_PORT : Number(url.port);
 }
 
-export function serveOffCommand(): string[] {
-  return ["serve", `--https=${String(MOBILE_SERVE_PORT)}`, "off"];
+export function serveOnCommand(target: string, port: number): string[] {
+  return ["serve", "--bg", "--yes", `--https=${String(port)}`, target];
+}
+
+export function serveOffCommand(port: number): string[] {
+  return ["serve", `--https=${String(port)}`, "off"];
 }
 
 function isOurs(use: ServePortUse, target: string): boolean {
@@ -86,13 +94,28 @@ function isOurs(use: ServePortUse, target: string): boolean {
   );
 }
 
-export function readServeOnThisMac(output: string | undefined, target: string): ServeOnThisMac {
+function oursPort(ports: ServePorts, target: string): number | undefined {
+  const served = [...ports.entries()]
+    .filter(([, use]) => isOurs(use, target))
+    .map(([port]) => port);
+  return served.includes(MOBILE_SERVE_PORT) ? MOBILE_SERVE_PORT : served.sort((a, b) => a - b)[0];
+}
+
+export function pickMobileServePort(output: string | undefined, target: string): MobileServePick {
   const ports = parseServeStatus(output);
   if (ports === null) return { kind: "unreadable" };
-  const use = ports.get(MOBILE_SERVE_PORT);
-  if (use === undefined) return { kind: "free" };
-  if (isOurs(use, target)) return { kind: "ours" };
-  return { kind: "in-use", portInUse: { uses: use.uses, isPublic: use.isPublic } };
+  const ours = oursPort(ports, target);
+  if (ours !== undefined) return { kind: "ours", port: ours };
+  const main = ports.get(MOBILE_SERVE_PORT);
+  if (main === undefined) return { kind: "free", port: MOBILE_SERVE_PORT };
+  const fallback = MOBILE_FALLBACK_PORTS.find((port) => !ports.has(port));
+  if (fallback !== undefined) return { kind: "free", port: fallback };
+  return { kind: "in-use", portInUse: { uses: main.uses, isPublic: main.isPublic } };
+}
+
+export function isServedHere(output: string | undefined, target: string, port: number): boolean {
+  const use = parseServeStatus(output)?.get(port);
+  return use !== undefined && isOurs(use, target);
 }
 
 export function approvalUrlOf(output: string): string | undefined {
@@ -113,13 +136,8 @@ async function readThisMac(deps: MobileAccessDeps): Promise<ThisMac> {
   return { kind: "running", cli, host: status.self };
 }
 
-async function readServe(
-  deps: MobileAccessDeps,
-  cli: string,
-  target: string,
-): Promise<ServeOnThisMac> {
-  const output = await deps.run(cli, ["serve", "status", "--json"], STATUS_TIMEOUT_MS);
-  return readServeOnThisMac(output, target);
+function readServe(deps: MobileAccessDeps, cli: string): Promise<string | undefined> {
+  return deps.run(cli, ["serve", "status", "--json"], STATUS_TIMEOUT_MS);
 }
 
 export async function loadMobileAccess(context: MobileAccessContext): Promise<MobileAccessView> {
@@ -127,16 +145,17 @@ export async function loadMobileAccess(context: MobileAccessContext): Promise<Mo
   const deps = context.deps ?? defaultMobileAccessDeps;
   const mac = await readThisMac(deps);
   if (saved !== null) {
+    const port = mac.kind === "running" ? tailscalePortOf(saved, mac.host) : null;
     return {
       kind: "on",
       address: saved,
-      viaTailscale: mac.kind === "running" && saved === mobileAddress(mac.host),
+      viaTailscale: port !== null,
+      fallbackPort: port === null || port === MOBILE_SERVE_PORT ? null : port,
     };
   }
   if (mac.kind === "missing") return { kind: "needs-tailscale" };
-  const serve = await readServe(
-    deps,
-    mac.cli,
+  const serve = pickMobileServePort(
+    await readServe(deps, mac.cli),
     mobileServeTarget(context.bindHost, context.webPort),
   );
   return {
@@ -156,15 +175,19 @@ export async function turnOnMobileAccess(
   const mac = await readThisMac(deps);
   if (mac.kind === "missing") return { ok: false, reason: "no-tailscale" };
   const target = mobileServeTarget(context.bindHost, context.webPort);
-  const before = await readServe(deps, mac.cli, target);
-  if (before.kind === "unreadable") return { ok: false, reason: "serve-unreadable" };
-  if (before.kind === "in-use") {
-    return { ok: false, reason: "port-in-use", portInUse: before.portInUse };
+  const pick = pickMobileServePort(await readServe(deps, mac.cli), target);
+  if (pick.kind === "unreadable") return { ok: false, reason: "serve-unreadable" };
+  if (pick.kind === "in-use") {
+    return { ok: false, reason: "port-in-use", portInUse: pick.portInUse };
   }
-  if (before.kind === "free") {
-    const outcome = await deps.command(mac.cli, serveOnCommand(target), SERVE_TIMEOUT_MS);
-    const after = await readServe(deps, mac.cli, target);
-    if (!outcome.ok || after.kind !== "ours") {
+  if (pick.kind === "free") {
+    const outcome = await deps.command(
+      mac.cli,
+      serveOnCommand(target, pick.port),
+      SERVE_TIMEOUT_MS,
+    );
+    const served = isServedHere(await readServe(deps, mac.cli), target, pick.port);
+    if (!outcome.ok || !served) {
       const approvalUrl = approvalUrlOf(outcome.output);
       return {
         ok: false,
@@ -175,7 +198,7 @@ export async function turnOnMobileAccess(
   }
   saveInstallAddresses(
     context.db,
-    { webAddress: mobileAddress(mac.host), webhookAddress: current.webhookAddress },
+    { webAddress: mobileAddress(mac.host, pick.port), webhookAddress: current.webhookAddress },
     now,
   );
   return { ok: true };
@@ -206,13 +229,14 @@ export async function turnOffMobileAccess(
   }
   const deps = context.deps ?? defaultMobileAccessDeps;
   const mac = await readThisMac(deps);
-  if (mac.kind === "running" && current.webAddress === mobileAddress(mac.host)) {
+  const port = mac.kind === "running" ? tailscalePortOf(current.webAddress, mac.host) : null;
+  if (mac.kind === "running" && port !== null) {
     const target = mobileServeTarget(context.bindHost, context.webPort);
-    const serve = await readServe(deps, mac.cli, target);
-    if (serve.kind === "unreadable") return { ok: false, reason: "serve-unreadable" };
-    if (serve.kind === "ours") {
-      const outcome = await deps.command(mac.cli, serveOffCommand(), SERVE_TIMEOUT_MS);
-      if (!outcome.ok || (await readServe(deps, mac.cli, target)).kind === "ours") {
+    const before = await readServe(deps, mac.cli);
+    if (parseServeStatus(before) === null) return { ok: false, reason: "serve-unreadable" };
+    if (isServedHere(before, target, port)) {
+      const outcome = await deps.command(mac.cli, serveOffCommand(port), SERVE_TIMEOUT_MS);
+      if (!outcome.ok || isServedHere(await readServe(deps, mac.cli), target, port)) {
         return { ok: false, reason: "serve-failed" };
       }
     }

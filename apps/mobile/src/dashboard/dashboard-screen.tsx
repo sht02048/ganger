@@ -270,10 +270,36 @@ export function DashboardScreen({
     opening.add(key);
     await open().finally(() => opening.delete(key));
   };
+  const clearingRunIds = useRef(new Set<string>());
+  const clearTodo = async (run: DashboardRun) => {
+    if (clearingRunIds.current.has(run.id)) return;
+    clearingRunIds.current.add(run.id);
+    const outcome = await port
+      .write(run, { action: "clear-todo" })
+      .finally(() => clearingRunIds.current.delete(run.id));
+    if (outcome.kind === "sent") {
+      AccessibilityInfo.announceForAccessibility(t("actions.clearTodo.done"));
+      return;
+    }
+    const message = outcomeMessage("clear-todo", outcome);
+    if (message === null) return;
+    setNoticeSheet({
+      kind: "notice",
+      title:
+        outcome.kind === "demo" ? t("settings.serverDemo") : t("actions.clearTodo.failedTitle"),
+      message,
+    });
+  };
   const runMenu = async (run: DashboardRun, action: RunMenuAction) => {
     switch (action) {
       case "cancel":
         setSheet({ kind: "cancel", run });
+        return;
+      case "clear-todo":
+        await clearTodo(run);
+        return;
+      case "retry":
+        setSheet({ kind: "retry", run });
         return;
       case "open-pr": {
         const url = run.pullRequest?.url;

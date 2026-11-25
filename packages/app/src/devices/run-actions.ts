@@ -31,6 +31,7 @@ import { readQuestion } from "../question.js";
 import {
   answerOnceInput,
   cancelRunOnce,
+  clearTodoOnce,
   continueRunOnce,
   controlRunOnce,
   denyOnceInput,
@@ -120,6 +121,11 @@ export function handleV1RunAction(
       const body = runKeyBodySchema.safeParse(raw);
       if (!body.success) return INVALID;
       return replyOf(retryRunOnce(db, { runId, ...body.data }, now));
+    }
+    case "clear-todo": {
+      const body = runKeyBodySchema.safeParse(raw);
+      if (!body.success) return INVALID;
+      return replyOf(clearTodoOnce(db, { runId, ...body.data }, now));
     }
     case "continue": {
       const body = continueBodySchema.safeParse(raw);

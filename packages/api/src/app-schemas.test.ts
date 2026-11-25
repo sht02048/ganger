@@ -226,6 +226,27 @@ describe("앱의 응답 검사", () => {
     );
   });
 
+  it("끝난 런의 To do 에서 빠진 까닭을 서버 스키마와 같게 읽고, 계약 3 서버는 칸이 없다고 본다(0235)", () => {
+    const ended = {
+      ...base,
+      state: "ended",
+      summary: "failed",
+      agentResult: "timed-out",
+      prState: "open",
+      prReadError: null,
+      todoCleared: "pr-merged",
+      endedAt: "2026-11-25T00:00:00.000Z",
+      endedAgoMs: 60_000,
+    };
+    expect(appDashboardRunSchema.parse(ended)).toEqual(dashboardRunSchema.parse(ended));
+    expect(appDashboardRunSchema.parse({ ...ended, todoCleared: "future" })).toMatchObject({
+      todoCleared: "unknown",
+    });
+    const { todoCleared: _cleared, ...contractThree } = ended;
+    expect(appDashboardRunSchema.parse(contractThree)).not.toHaveProperty("todoCleared");
+    expect(dashboardRunSchema.safeParse(contractThree).success).toBe(false);
+  });
+
   it("열린 PR 의 머지 정보를 서버 스키마와 같게 읽는다", () => {
     const withMerge = { ...detail, pullRequest: openPr };
     expect(appRunDetailSchema.parse(withMerge)).toEqual(runDetailSchema.parse(withMerge));

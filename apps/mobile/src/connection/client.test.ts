@@ -247,6 +247,16 @@ describe("연결 코드 교환", () => {
     expect(init?.body).toBe(JSON.stringify({ code: "c", name: "iPhone" }));
   });
 
+  it("포트 붙은 서버 주소로 그 포트에 연결 코드를 보낸다", async () => {
+    const fetcher = vi.fn<FetchLike>(() =>
+      Promise.resolve(json({ meta: META, data: { deviceId: "d", token: "new" } })),
+    );
+    const server = "https://studio.example.ts.net:8444";
+    const reply = await connectToServer(fetcher, { server, code: "c", name: "iPhone" });
+    expect(reply).toEqual({ ok: true, result: { deviceId: "d", token: "new" } });
+    expect(fetcher.mock.calls[0]?.[0]).toBe(`${server}${V1_PATHS.connect}`);
+  });
+
   it.each(["unknown-code", "expired-code", "used-code"] as const)(
     "%s 거절을 이유 값으로 돌려준다",
     async (reason) => {

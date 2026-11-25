@@ -33,6 +33,7 @@ import type {
   StoredWorkspaceTrackerProject,
 } from "@ganger/db";
 import { z } from "zod";
+import { todoClearedOf } from "../todo-cleared.js";
 import { isWebUrl } from "../format/url.js";
 import { pendingInput } from "../home/load.js";
 import type { BlockerReason } from "../runs/model.js";
@@ -410,6 +411,7 @@ function toTicketRun(
     laterPrState: records.laterPrState?.state ?? null,
     pullRequest: ticketRunPullRequest(records.pullRequest),
     summary: summarizeRunOutcome(run).outcome,
+    todoCleared: todoClearedOf(run, records),
   };
 }
 

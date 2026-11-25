@@ -54,7 +54,7 @@ function demoTodoTag(run: V1DashboardRun): V1DashboardRun["todoTag"] {
     case "disconnected":
       return "disconnected";
     case "ended":
-      return run.summary === "failed" ? "failed" : null;
+      return run.summary === "failed" && run.todoCleared === null ? "failed" : null;
     case "queued":
     case "running":
     case "paused":
@@ -135,6 +135,7 @@ export function busySnapshot(now: Date): DemoSnapshot {
     endedAt: endedAt(agoMs),
     endedAgoMs: agoMs,
     prReadError: null,
+    todoCleared: null,
   });
 
   const runs: V1DashboardRun[] = [
@@ -257,17 +258,18 @@ export function busySnapshot(now: Date): DemoSnapshot {
       ...ended(2 * HOUR),
     },
     {
-      ...base("ACME-118", "결제 위젯 로딩 개선"),
+      ...base("ACME-115", "환불 내역 CSV 내보내기"),
       state: "ended",
-      summary: "succeeded",
-      agentResult: "reported-success",
-      prState: "merged",
+      summary: "failed",
+      agentResult: "timed-out",
+      prState: "open",
       pullRequest: {
-        displayId: prDisplayId(205),
-        url: "https://example.com/acme/pay/pull/205",
+        displayId: prDisplayId(199),
+        url: "https://example.com/acme/pay/pull/199",
         problems: [],
       },
-      ...ended(45 * MINUTE),
+      ...ended(3 * HOUR),
+      todoCleared: "pr-merged",
     },
     {
       ...base("ACME-117", "관리자 환불 권한 분리"),

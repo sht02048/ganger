@@ -27,7 +27,6 @@ import {
   mergeViewOf,
   prDetailsOf,
   prSignalsViewOf,
-  settledPrStateOf,
   toCiView,
 } from "../pr-signals-view.js";
 import { diagnosePrRead } from "../pr-read-diagnosis.js";
@@ -36,6 +35,7 @@ import type { PrCommitView } from "../pr-signals-view.js";
 import { runControlOf, withoutPauses } from "../run-control.js";
 import { describeQueuedReason, loadQueueReasons } from "../runs/queue-reasons.js";
 import { isWebUrl } from "../format/url.js";
+import { latestPrStateOf, todoClearedOf } from "../todo-cleared.js";
 import { runnerLoadView } from "../runners/load-view.js";
 import { runnerLoadHigh } from "../runners/model.js";
 import { resolveWorkspace, runnerIssueCause } from "../shell/model.js";
@@ -46,7 +46,6 @@ import type {
   DashboardRunner,
   DoneRun,
   HomePage,
-  HomePrState,
   HomePullRequest,
   HomeRun,
   InputWait,
@@ -58,26 +57,13 @@ function homePrStateOf(
   records: RunRecords,
   now: Date,
 ): Pick<HomePullRequest, "state" | "settledAt" | "settledAgoMs"> {
-  const later = records.laterPrState;
-  if (later !== null)
-    return {
-      state: later.state,
-      settledAt: later.at.toISOString(),
-      settledAgoMs: Math.max(0, now.getTime() - later.at.getTime()),
-    };
-  const state: HomePrState =
-    run.state === "ended" && (run.prState === "merged" || run.prState === "closed")
-      ? run.prState
-      : "open";
-  const settled = state === "open" ? settledPrStateOf(records) : null;
-  if (settled !== null) {
-    return {
-      state: settled.state,
-      settledAt: settled.at?.toISOString() ?? null,
-      settledAgoMs: settled.at === null ? null : Math.max(0, now.getTime() - settled.at.getTime()),
-    };
-  }
-  return { state, settledAt: null, settledAgoMs: null };
+  const { state, at } = latestPrStateOf(run, records);
+  if (state === "open") return { state, settledAt: null, settledAgoMs: null };
+  return {
+    state,
+    settledAt: at?.toISOString() ?? null,
+    settledAgoMs: at === null ? null : Math.max(0, now.getTime() - at.getTime()),
+  };
 }
 
 function prSummaryOf(
@@ -237,6 +223,7 @@ export function loadHomePage(
             serverGitHub,
           ),
           summary: summarizeRunOutcome(run).outcome,
+          todoCleared: todoClearedOf(run, records),
           endedAt: run.endedAt.toISOString(),
           endedAgoMs: Math.max(0, now.getTime() - run.endedAt.getTime()),
         };

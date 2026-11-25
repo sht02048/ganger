@@ -11,6 +11,7 @@ export const MCP_RUN_TOOLS = [
   "continue_run",
   "cancel_run",
   "start_run_without_waiting",
+  "clear_todo",
   "request_run_log",
 ] as const;
 

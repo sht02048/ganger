@@ -17,6 +17,7 @@ import {
   requestPreviousAgentStop,
   requestRunCancel,
   requestWorktreeRemoval,
+  settleRunTodo,
   skipBlockerWait,
 } from "@ganger/db";
 import type { ContinueRunBlock } from "@ganger/db";
@@ -115,6 +116,27 @@ export const agentMessageInput = z.object({
     .max(AGENT_MESSAGE_MAX_LENGTH)
     .refine((body) => !body.includes("\0")),
 });
+
+export function clearTodoRequest(db: Database, runId: RunId, now: Date): RunActionResult {
+  return settleRunTodo(db, runId, now);
+}
+
+export function clearTodoOnce(
+  db: Database,
+  key: RunActionKey,
+  now: Date,
+  onReplay?: () => void,
+): RunActionResult {
+  return onceForRun(
+    db,
+    key,
+    "clear-todo",
+    [],
+    now,
+    () => clearTodoRequest(db, toRunId(key.runId), now),
+    onReplay === undefined ? {} : { onReplay },
+  );
+}
 
 export function skipBlockerWaitRequest(db: Database, runId: string, now: Date): RunActionResult {
   return skipBlockerWait(db, toRunId(runId), now);

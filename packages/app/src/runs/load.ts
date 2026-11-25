@@ -27,6 +27,7 @@ import { ENDED_RUNS_PAGE_SIZE } from "./model.js";
 import type { RunBoardDays } from "./board.js";
 import type { QueuedReason, RunCondition, RunView, RunsPage } from "./model.js";
 import { withoutPauses } from "../run-control.js";
+import { isOpenFailedRun, todoClearedOf } from "../todo-cleared.js";
 import { diagnosePrRead } from "../pr-read-diagnosis.js";
 import type { ServerGitHub } from "../pr-read-diagnosis.js";
 import { describeQueuedReason, loadQueueReasons } from "./queue-reasons.js";
@@ -77,7 +78,9 @@ export function loadRunsPage(
   const unresolvedLatestIds =
     unresolvedLatest === null ? null : new Set(unresolvedLatest.map(({ run }) => run.id));
   const olderAttention = moreEnded
-    ? (unresolvedLatest ?? []).filter(({ run }) => !recentEndedIds.has(run.id))
+    ? (unresolvedLatest ?? []).filter(
+        ({ run, records }) => !recentEndedIds.has(run.id) && isOpenFailedRun(run, records),
+      )
     : [];
   const stored = [...active, ...recentEnded, ...olderAttention].toSorted(newestFirst);
   const latestByTicket = new Map<string, RunId>();
@@ -90,7 +93,7 @@ export function loadRunsPage(
       unresolvedLatestIds === null
         ? latestByTicket.get(`${run.ticket.connection}\u0000${run.ticket.key}`) === run.id
         : unresolvedLatestIds.has(run.id);
-    return toView(entry, latest && isUnresolvedEndedRun(run));
+    return toView(entry, latest && isOpenFailedRun(run, entry.records));
   });
 
   return {
@@ -225,6 +228,7 @@ export function runViewBuilder(db: Database, now: Date, serverGitHub: ServerGitH
             serverGitHub,
           ),
           summary,
+          todoCleared: todoClearedOf(run, records),
           attention: endedAttention,
         };
       }
@@ -262,10 +266,6 @@ export function describeConditions(
   if (conditions.agent !== undefined) described.push({ key: "agent", agent: conditions.agent });
   if (conditions.days !== undefined) described.push({ key: "days", days: conditions.days });
   return described;
-}
-
-function isUnresolvedEndedRun(run: StoredRun): boolean {
-  return run.state === "ended" && summarizeRunOutcome(run).outcome === "failed";
 }
 
 const UNRESOLVED_ENDED_AXES: ReadonlyArray<EndedAxesFilter> = AGENT_RESULTS.flatMap((agentResult) =>

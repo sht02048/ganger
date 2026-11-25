@@ -16,7 +16,12 @@ import type { DeviceActions } from "./mobile-phones";
 
 const HOST = "studio.example.ts.net";
 const ADDRESS = `https://${HOST}`;
-const ON: MobileAccessView = { kind: "on", address: ADDRESS, viaTailscale: true };
+const ON: MobileAccessView = {
+  kind: "on",
+  address: ADDRESS,
+  viaTailscale: true,
+  fallbackPort: null,
+};
 const OFF: MobileAccessView = { kind: "off", host: HOST, portInUse: null };
 
 function issued(id: string): StartDeviceConnectionResult {
@@ -178,7 +183,7 @@ describe("모바일 페이지의 QR(0230)", () => {
   it("https 가 아닌 옛 주소면 QR 을 만들지 않고 이유를 보인다", () => {
     const h = harness();
     draw(
-      { kind: "on", address: "http://ganger.example.com", viaTailscale: false },
+      { kind: "on", address: "http://ganger.example.com", viaTailscale: false, fallbackPort: null },
       { devices: [], address: null },
       h,
     );

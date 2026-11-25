@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `todo_settled_at` integer;

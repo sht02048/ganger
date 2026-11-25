@@ -17,6 +17,7 @@ import {
 import { space } from "@ganger/ui/tokens.stylex";
 import { useRef, useState, type ReactNode, type RefObject } from "react";
 import { useTranslations } from "use-intl";
+import { particlesOf } from "../format/particles";
 import { PhoneList, PhoneQr, type DeviceActions } from "./mobile-phones";
 import { SettingsFrame } from "./settings-frame";
 
@@ -223,6 +224,16 @@ function TurnedOn({
           >
             {t("turnOff")}
           </Button>
+        }
+        message={
+          access.fallbackPort === null ? null : (
+            <Text variant="meta">
+              {t("fallbackPort", {
+                port: String(access.fallbackPort),
+                direction: particlesOf(String(access.fallbackPort)).direction,
+              })}
+            </Text>
+          )
         }
         expanded={<PhoneQr view={devices} actions={deviceActions} />}
       />

@@ -16,12 +16,18 @@ Requests that change data (including server functions) must also come from a pag
 Settings > **모바일** (mobile) opens this Mac to your phone and other devices with [Tailscale Serve](https://tailscale.com/kb/1242/tailscale-serve), only inside your tailnet. It never uses Funnel, so the app is not published to the internet.
 
 1. Install Tailscale on the server Mac and on your phone, and sign in to the same account on both. Until Tailscale is running on the Mac, the page shows these steps, a link to [download Tailscale](https://tailscale.com/download), and **다시 확인** (check again). Ganger looks for the Tailscale CLI in the same places as the webhook setup (`/usr/local/bin/tailscale`, `/opt/homebrew/bin/tailscale`, the Mac app, or `GANGER_TAILSCALE_CLI`).
-2. Select **켜기** (turn on) on **휴대폰에서 이 Mac 열기** (open this Mac from your phone). Ganger runs `tailscale serve --bg --yes --https=443 http://127.0.0.1:<port>` and saves `https://<device>.<tailnet>.ts.net` as the web address. If your tailnet does not have HTTPS certificates turned on yet, the page links to the Tailscale admin page that turns them on.
+2. Select **켜기** (turn on) on **휴대폰에서 이 Mac 열기** (open this Mac from your phone). Ganger picks an HTTPS port (see below), runs `tailscale serve --bg --yes --https=<serve port> http://127.0.0.1:<port>`, and saves `https://<device>.<tailnet>.ts.net` as the web address, or `https://<device>.<tailnet>.ts.net:<serve port>` when the port is not 443. If your tailnet does not have HTTPS certificates turned on yet, the page links to the Tailscale admin page that turns them on.
 3. The page shows the address, a QR code, and the phones you connected. Scan the QR code with the Ganger app (see [the mobile guide](mobile.md)). A QR code works once, for 10 minutes.
 
-Ganger checks `tailscale serve status --json` first. If port 443 on this Mac already serves something else (another Serve target, or a Funnel such as a webhook route on 443), it does not overwrite it and shows what uses the port; move that service or the webhook Funnel to 8443 or 10000. The webhook Funnel on 8443 or 10000 does not conflict with it.
+Ganger reads `tailscale serve status --json` first and never overwrites a port that serves something else. It picks the port in this order:
 
-**끄기** (turn off) runs `tailscale serve --https=443 off` and clears the web address. It leaves Serve alone when port 443 serves another target. To avoid locking yourself out, turn it off from a page you opened at `http://127.0.0.1:<port>` on the server Mac, not through the address you are turning off.
+1. A port whose `/` already serves this server, inside the tailnet only (not Funnel). Ganger reuses it without running a command.
+2. Port 443, if nothing uses it.
+3. The first of 8444, 8445, 8446, 8447, and 8448 that nothing uses. A port that serves only some paths (for example, a webhook Funnel for `/api/webhooks/` only) counts as used. These ports leave 8443 and 10000 to the webhook Funnel.
+
+When Ganger opens a port other than 443, the page says so under the address. If every port in the list is in use, it does not turn on and shows what uses port 443.
+
+**끄기** (turn off) runs `tailscale serve --https=<serve port> off` for the port in the saved web address, and clears the web address. It leaves Serve alone when that port serves another target, and it never touches other ports or Funnel. To avoid locking yourself out, turn it off from a page you opened at `http://127.0.0.1:<port>` on the server Mac, not through the address you are turning off.
 
 Installations that saved another web address before this page existed keep it: the page shows it as on, it still passes the host check, and the QR code uses it if it is HTTPS. **끄기** (turn off) only clears it.
 

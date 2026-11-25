@@ -1,6 +1,7 @@
 import type { PrSignalsView } from "../pr-signals-view.js";
 import type { CiView } from "../run-detail/model.js";
 import type { AgentResult, PrReadError, PrState, SummaryOutcome } from "@ganger/core";
+import type { TodoClearedBy } from "../home/model.js";
 import type { WorkspaceChoice } from "../shell/model.js";
 import type { StatsPeriodDays } from "../stats/model.js";
 import type { PrReadDiagnosis } from "../pr-read-diagnosis.js";
@@ -79,6 +80,7 @@ export type RunView =
       prReadError: PrReadError | null;
       prReadDiagnosis?: PrReadDiagnosis | null;
       summary: SummaryOutcome;
+      todoCleared?: TodoClearedBy | null;
     });
 
 export interface RunsPage {

@@ -1,4 +1,6 @@
 import type { PrState, SummaryOutcome } from "@ganger/core";
+import { isOpenFailed } from "./home/model.js";
+import type { TodoClearedBy } from "./home/model.js";
 import type { RunDetail } from "./run-detail/model.js";
 import { currentPrState } from "./runs/model.js";
 import type { QueuedReason } from "./runs/model.js";
@@ -39,6 +41,7 @@ export type RunNextStepInput =
   | (NextStepBase & {
       state: "ended";
       summary: SummaryOutcome;
+      todoCleared?: TodoClearedBy | null;
       prState: PrState;
       laterPrState: "merged" | "closed" | null;
       keptWorktree: { removing: boolean } | null;
@@ -79,7 +82,7 @@ function endedNextStep(run: Extract<RunNextStepInput, { state: "ended" }>): RunN
     if (run.pullRequest?.signals?.ciFailed === true) return "pr-ci-failed";
     if (run.pullRequest?.signals?.conflict === true) return "pr-conflict";
   }
-  if (run.summary === "failed") return "failed";
+  if (isOpenFailed(run)) return "failed";
   return run.keptWorktree !== null && !run.keptWorktree.removing ? "kept-worktree" : "none";
 }
 
@@ -117,6 +120,7 @@ export function nextStepInputOfDetail(run: RunNextStepDetail): RunNextStepInput 
         ...base,
         state: "ended",
         summary: status.summary,
+        todoCleared: status.todoCleared ?? null,
         prState: status.prState,
         laterPrState: status.laterPrState?.state ?? null,
         keptWorktree: status.keptWorktree,
