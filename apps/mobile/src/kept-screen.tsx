@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 
+import { ScreenShown } from "./design/components";
+
 export function KeptScreen({
   shown,
   testID,
@@ -16,7 +18,7 @@ export function KeptScreen({
       aria-hidden={!shown}
       style={shown ? styles.shown : styles.hidden}
     >
-      {children}
+      <ScreenShown value={shown}>{children}</ScreenShown>
     </View>
   );
 }

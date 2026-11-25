@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { transformAsync } from "@babel/core";
 import reactCompiler from "babel-plugin-react-compiler";
 import type { LoggerEvent, PluginOptions } from "babel-plugin-react-compiler";
@@ -8,12 +10,17 @@ export interface CompilerReport {
   failures: string[];
 }
 
-const SOURCE = /\/src\/.+\.tsx?$/;
-const NOT_COMPILED = /\.test\.tsx?$|\/src\/testing\//;
+const APP_SOURCE = fileURLToPath(new URL("./src/", import.meta.url));
+const TESTING = `${APP_SOURCE}testing/`;
 
 export function compilesWithReactCompiler(id: string): boolean {
   const path = id.split("?")[0] ?? id;
-  return SOURCE.test(path) && !NOT_COMPILED.test(path);
+  return (
+    path.startsWith(APP_SOURCE) &&
+    !path.startsWith(TESTING) &&
+    /\.tsx?$/.test(path) &&
+    !/\.test\.tsx?$/.test(path)
+  );
 }
 
 function failureOf(filename: string, event: LoggerEvent): string | null {

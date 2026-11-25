@@ -23,11 +23,15 @@ describe("React Compiler(0225)", () => {
   });
 
   it("시험과 시험 도구는 컴파일하지 않고 앱 소스만 컴파일한다", () => {
-    expect(compilesWithReactCompiler("/app/src/dashboard/run-card.tsx")).toBe(true);
-    expect(compilesWithReactCompiler("/app/src/connection/session.ts?v=1")).toBe(true);
-    expect(compilesWithReactCompiler("/app/src/dashboard/run-card.test.tsx")).toBe(false);
-    expect(compilesWithReactCompiler("/app/src/testing/expo-crypto.ts")).toBe(false);
-    expect(compilesWithReactCompiler("/app/app.config.ts")).toBe(false);
+    const app = (path: string) => join(sourceRoot, path);
+    expect(compilesWithReactCompiler(app("dashboard/run-card.tsx"))).toBe(true);
+    expect(compilesWithReactCompiler(`${app("connection/session.ts")}?v=1`)).toBe(true);
+    expect(compilesWithReactCompiler(app("dashboard/run-card.test.tsx"))).toBe(false);
+    expect(compilesWithReactCompiler(app("testing/expo-crypto.ts"))).toBe(false);
+    expect(compilesWithReactCompiler(app("../app.config.ts"))).toBe(false);
+    expect(
+      compilesWithReactCompiler(join(import.meta.dirname, "../../packages/api/src/index.ts")),
+    ).toBe(false);
   });
 
   it("규칙을 어긴 컴포넌트는 건너뛴 것으로 알린다", async () => {

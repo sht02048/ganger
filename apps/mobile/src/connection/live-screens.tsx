@@ -38,14 +38,10 @@ function showsBand(phase: SessionState["phase"]): boolean {
   return phase === "stale" || phase === "host-blocked" || phase === "incompatible";
 }
 
-function bandText(state: SessionState, workspaceId: string, now: number): string | null {
+function bandText(state: SessionState): string | null {
   switch (state.phase) {
-    case "stale": {
-      const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
-      return fetchedAt === undefined
-        ? staleReasonText(state.staleReason)
-        : staleBandText(fetchedAt, now, staleReasonText(state.staleReason));
-    }
+    case "stale":
+      return staleReasonText(state.staleReason);
     case "host-blocked":
       return t("connection.band.hostBlocked");
     case "incompatible":
@@ -75,23 +71,30 @@ function statusText({ phase, staleReason, neededUpdate }: SessionState): string 
   }
 }
 
-function useStaleBandClock(fetchedAt: number | null): number {
+function StaleBand({
+  fetchedAt,
+  reason,
+}: {
+  fetchedAt: number;
+  reason: SessionState["staleReason"];
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (fetchedAt === null) return;
     const timer = setTimeout(
       () => setNow(Date.now()),
       nextStaleBandChangeIn(fetchedAt, Date.now()),
     );
     return () => clearTimeout(timer);
   }, [fetchedAt, now]);
-  return now;
+  return <NoticeBand message={staleBandText(fetchedAt, now, staleReasonText(reason))} />;
 }
 
 function ConnectionBand({ state, workspaceId }: { state: SessionState; workspaceId: string }) {
-  const fetchedAt = state.phase === "stale" ? state.dashboards.get(workspaceId)?.fetchedAt : null;
-  const now = useStaleBandClock(fetchedAt ?? null);
-  const message = bandText(state, workspaceId, now);
+  const fetchedAt = state.dashboards.get(workspaceId)?.fetchedAt;
+  if (state.phase === "stale" && fetchedAt !== undefined) {
+    return <StaleBand key={fetchedAt} fetchedAt={fetchedAt} reason={state.staleReason} />;
+  }
+  const message = bandText(state);
   return message === null ? null : <NoticeBand message={message} />;
 }
 
