@@ -97,4 +97,7 @@ export const pushDevice: PushDevicePort = {
     const subscription = Notifications.addNotificationResponseReceivedListener(deliver);
     return () => subscription.remove();
   },
+  setBadgeCount: async (count) => {
+    await Notifications.setBadgeCountAsync(count).catch(() => false);
+  },
 };

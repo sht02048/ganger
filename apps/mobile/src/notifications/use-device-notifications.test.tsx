@@ -51,6 +51,7 @@ function setup(options: {
     pushAddress: () =>
       Promise.resolve(options.address === undefined ? NEW_ADDRESS : options.address),
     subscribeResponses: () => () => undefined,
+    setBadgeCount: () => Promise.resolve(),
   };
   const memory = {
     load: () => Promise.resolve(stored),
