@@ -1,5 +1,5 @@
 ---
-status: doing
+status: done
 blocked_by: []
 ---
 
@@ -70,5 +70,5 @@ To do 종류 중 끝난 런은 Failed 뿐이다. Disconnected 와 Waiting for In
 - [x] 마이그레이션: 기존 DB 에 적용, 빈 DB.
 - [x] 웹 화면: 패널 버튼 줄, 누른 뒤 패널 닫기·토스트·포커스, 실패 문장, Done 카드 "PR 병합됨".
 - [x] 모바일 화면: 팝오버 항목, 옛 서버에는 없음, 쓰기·거절·데모, Done 줄 "PR 병합됨", 앱 스키마 호환.
-- [x] 스크린숏: 웹 Failed 패널, 모바일 팝오버, Done 의 머지된 Failed(웹·모바일).
+- [x] 스크린숏: 웹 Failed 패널, 모바일 팝오버, Done 의 머지된 Failed(웹·모바일). 운영자가 2026-11-25 승인했다.
 - [x] ADR 0022 한 줄, GLOSSARY "To do에서 치움", 스펙 0002(M60, v1 쓰기), MCP 안내서.
