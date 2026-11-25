@@ -1,10 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { defineProject } from "vitest/config";
 
+import { reactCompilerForTests } from "./react-compiler.mjs";
+
 const esmEntry = (name: string) =>
   fileURLToPath(new URL(`./node_modules/${name}/lib/module/index.js`, import.meta.url));
 
 export default defineProject({
+  plugins: [reactCompilerForTests()],
   define: { __DEV__: "true" },
   resolve: {
     alias: [

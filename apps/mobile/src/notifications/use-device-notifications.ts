@@ -122,12 +122,10 @@ export function useDeviceNotifications({
     writing.current = true;
     writes.current += 1;
     setBusy(true);
-    try {
-      await work();
-    } finally {
+    await work().finally(() => {
       writing.current = false;
       setBusy(false);
-    }
+    });
   }, []);
 
   const turnOn = useCallback(
