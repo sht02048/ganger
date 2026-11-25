@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   Button,
   Card,
+  InlineSwitch,
   RESTING_MASCOT_PATHS,
   RestingMascot,
   Segment,
@@ -177,6 +178,46 @@ describe("SwitchRow", () => {
     const host = mount(<SwitchRow label="처리할 일만" value={false} onChange={onChange} />);
     press(host.querySelector('input[type="checkbox"]'));
     expect(onChange).toHaveBeenCalledWith(true);
+  });
+});
+
+describe("InlineSwitch", () => {
+  it("라벨을 접근 이름으로 갖는 스위치 하나로 읽히고 켜짐 상태를 알린다", () => {
+    const host = mount(<InlineSwitch label="처리할 일만" value onChange={() => {}} />);
+    const switches = [...host.querySelectorAll('[role="switch"]')].filter(
+      (element) => element.closest('[aria-hidden="true"]') === null,
+    );
+    expect(switches).toHaveLength(1);
+    expect(switches[0]?.getAttribute("aria-label")).toBe("처리할 일만");
+    expect(switches[0]?.getAttribute("aria-checked")).toBe("true");
+    const track = host.querySelector('[data-testid="inline-switch-track"]');
+    expect(track?.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("라벨 글자를 눌러도 바뀐 값을 넘긴다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(<InlineSwitch label="처리할 일만" value={false} onChange={onChange} />);
+    const label = [...host.querySelectorAll('[role="switch"] div')].find(
+      (element) => element.textContent === "처리할 일만",
+    );
+    press(label ?? null);
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(true);
+  });
+
+  it("스위치를 눌러도 한 번만 바뀐 값을 넘긴다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(<InlineSwitch label="처리할 일만" value onChange={onChange} />);
+    press(host.querySelector('[data-testid="inline-switch-track"] input'));
+    expect(onChange).toHaveBeenCalledExactlyOnceWith(false);
+  });
+
+  it("꺼져 있으면 넘기지 않는다", () => {
+    const onChange = vi.fn<(next: boolean) => void>();
+    const host = mount(
+      <InlineSwitch label="처리할 일만" value={false} disabled onChange={onChange} />,
+    );
+    press(host.querySelector('[role="switch"]'));
+    expect(onChange).not.toHaveBeenCalled();
   });
 });
 

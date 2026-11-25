@@ -35,7 +35,8 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `Button`        | `primary`는 화면의 주 행동 하나, 카드 행동은 `secondary`, 위험은 `danger` |
 | `BackButton`    | 하위 화면 머리의 뒤로 버튼                                                |
 | `Meter`         | 러너의 공급자 사용량 막대                                                 |
-| `SwitchRow`     | 이름이 붙은 스위치                                                        |
+| `SwitchRow`     | 한 줄을 다 쓰는 스위치(설정). 이름은 왼쪽, 스위치는 오른쪽 끝             |
+| `InlineSwitch`  | 다른 글 옆에 두는 스위치. 이름과 붙어 있고 이름을 눌러도 바뀐다           |
 | `TextField`     | 이름이 붙은 입력. 답·덧붙일 말은 `multiline`을 쓴다                       |
 | `RadioRow`      | 질문 선택지. 모두 같은 모양이고 고르기만 해서는 보내지 않는다             |
 | `TextLink`      | 글 안의 웹 주소. 노랑을 쓰지 않고 밑줄로 보인다                           |
