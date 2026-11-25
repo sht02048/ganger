@@ -28,6 +28,8 @@ import {
   REQUEST_REUSED,
   runActionRequestId,
   skipBlockerWaitOnce,
+  clearTodoOnce,
+  clearTodoRequest,
   skipBlockerWaitRequest,
 } from "@ganger/app/run-detail/actions";
 import { requestRunLogTail } from "@ganger/app/run-detail/load";
@@ -866,6 +868,37 @@ export function registerWriteTools(
           ...base,
           reason: result.reason,
           error: `Could not start without waiting: ${result.reason}.`,
+        });
+      }
+      return done({ ...base, serverHandles: true, replayed });
+    },
+  );
+
+  register(
+    "clear_todo",
+    {
+      title: "Clear a Failed run from To do",
+      description:
+        'Takes a Failed run off To do, the same as "확인했어요" on the Dashboard card. The run stays Failed and can still be assigned again. Use it only after the operator says nothing more needs doing. Sending the same requestId again does nothing more.',
+      annotations: { ...WRITE, idempotentHint: true },
+    },
+    { runId: runIdArg, requestId: requestIdArg },
+    ({ runId, requestId }) => {
+      const run = findRun(runId);
+      if (run === null) return noRun(runId);
+      const base = { target: run.ticket.key, runId: run.id };
+      let replayed = false;
+      const result =
+        requestId === undefined
+          ? clearTodoRequest(context.db, run.id, context.now())
+          : clearTodoOnce(context.db, { runId: run.id, requestId }, context.now(), () => {
+              replayed = true;
+            });
+      if (!result.ok) {
+        return rejected({
+          ...base,
+          reason: result.reason,
+          error: `Could not clear from To do: ${result.reason}.`,
         });
       }
       return done({ ...base, serverHandles: true, replayed });

@@ -80,6 +80,9 @@ export const TODO_TAGS = [
   "failed",
 ] as const;
 
+export const V1_TODO_CLEARED = ["pr-merged", "operator"] as const;
+export type V1TodoCleared = (typeof V1_TODO_CLEARED)[number];
+
 const runControlSchema = z.discriminatedUnion("status", [
   z.object({ control: z.enum(["pause", "resume"]), status: z.literal("pending") }),
   z.object({
@@ -151,6 +154,7 @@ export const dashboardRunSchema = z.discriminatedUnion("state", [
     ]),
     prState: z.enum(["none", "open", "merged", "closed", "unknown"]),
     prReadError: z.enum(["no-access", "other"]).nullable(),
+    todoCleared: z.enum(V1_TODO_CLEARED).nullable(),
     endedAt: z.iso.datetime(),
     endedAgoMs: z.number(),
   }),

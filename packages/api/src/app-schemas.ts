@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   TODO_TAGS,
+  V1_TODO_CLEARED,
   blockerSchema,
   dashboardSummarySchema,
   dashboardWorkspaceSchema,
@@ -156,6 +157,7 @@ export const appDashboardRunSchema = z.union([
       agentResult: tolerantEnum(AGENT_RESULTS),
       prState: tolerantEnum(["none", "open", "merged", "closed", "unknown"]),
       prReadError: tolerantEnum(["no-access", "other"]).nullable(),
+      todoCleared: tolerantEnum(V1_TODO_CLEARED).nullable().optional(),
       endedAt: z.iso.datetime(),
       endedAgoMs: z.number(),
     }),
