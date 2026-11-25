@@ -162,6 +162,17 @@
     "usageValue": "{percent}%",
     "usageNotRead": "사용량을 아직 읽지 않았어요",
     "usageUnreadable": "사용량을 읽지 못했어요",
+    "gh": {
+      "label": "GitHub (gh)",
+      "account": "{login} · {host}",
+      "expired": "{login} · 로그인이 만료됐어요",
+      "notRead": "아직 읽지 않았어요",
+      "unreadable": "읽지 못했어요",
+      "notInstalled": "gh 없음",
+      "loggedOut": "로그인 안 됨",
+      "unknown": "알 수 없는 상태",
+      "expiredProblem": "러너의 gh 계정 {login} 로그인이 만료됐어요. 이 러너로는 push와 PR 열기를 하지 못해요."
+    },
     "window": {
       "session": "5시간",
       "weekly": "주간",
@@ -395,13 +406,22 @@
     "next": "처리할 일",
     "summary": "요약",
     "pr": "PR",
-    "openPr": "GitHub에서 열기",
     "state": "상태",
     "agentResult": "에이전트 결과",
     "report": "에이전트 보고",
     "startError": "시작 오류",
     "noReport": "에이전트 보고가 아직 없어요.",
     "noPr": "아직 PR이 없어요.",
+    "prLink": "PR {pr}",
+    "prLinkLabel": "PR {pr} GitHub에서 열기",
+    "prStateChip": {
+      "open": "Open",
+      "merged": "Merged",
+      "closed": "Closed",
+      "unknown": "알 수 없는 상태",
+      "since": "{state} · {time}"
+    },
+    "prUnreadChip": "PR 못 읽음",
     "ciLabel": "CI {state}",
     "ci": {
       "success": "통과",
@@ -410,6 +430,17 @@
       "none": "없음",
       "unavailable": "읽을 수 없음",
       "unknown": "알 수 없음"
+    },
+    "prUnread": {
+      "no-access": "GitHub 토큰이 이 저장소를 볼 수 없어요. Ganger 웹이나 데스크톱 앱의 Settings에서 토큰의 저장소 권한을 확인해 주세요. 읽을 때까지 워크트리를 남겨 두고 worker가 다시 읽어요.",
+      "other": "GitHub에서 PR을 읽지 못했어요. 읽을 때까지 워크트리를 남겨 두고 worker가 간격을 늘려 가며 다시 읽어요.",
+      "unknown": "알 수 없는 이유로 PR을 읽지 못했어요. 웹이나 데스크톱에서 확인해 주세요."
+    },
+    "prReadDiagnosis": {
+      "differentGh": "러너({runner})는 {runnerLogin}, 서버는 {serverLogins} 계정으로 읽어요. 서버 계정이 이 저장소를 볼 수 없어요.",
+      "differentToken": "러너({runner})는 {runnerLogin} 계정, 서버는 붙여 넣은 토큰으로 읽어요. 붙여 넣은 토큰이 이 저장소를 볼 수 없어요.",
+      "runnerUnknownGh": "서버는 {serverLogins} 계정으로 읽어요. 러너({runner})의 gh 계정을 아직 몰라 서버 계정과 견줘 보지 못했어요.",
+      "runnerUnknownToken": "서버는 붙여 넣은 토큰으로 읽어요. 러너({runner})의 gh 계정을 아직 몰라 토큰과 견줘 보지 못했어요."
     },
     "step": {
       "pr-ci-failed": "PR의 CI가 실패했어요. GitHub에서 확인해 주세요.",

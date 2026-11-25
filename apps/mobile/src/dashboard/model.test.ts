@@ -105,6 +105,8 @@ describe("buildBoard", () => {
     expect(board.done.settled.map((run) => run.ticketKey)).toEqual([
       "ACME-118",
       "ACME-117",
+      "ACME-116",
+      "ACME-114",
       "ACME-112",
     ]);
   });

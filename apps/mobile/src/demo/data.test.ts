@@ -44,7 +44,7 @@ describe("demo snapshots on a runtime without the builtins device Hermes lacks",
     const highestUsage = snapshot.runners.flatMap((runner) =>
       runner.usage?.kind === "read" ? [runner.usage.highest?.window.usedPercent] : [],
     );
-    expect(highestUsage).toEqual([31, 100]);
+    expect(highestUsage).toEqual([31, 22, 100]);
   });
 
   it("builds the empty snapshot and its dashboards", () => {

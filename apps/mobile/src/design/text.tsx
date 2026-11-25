@@ -37,6 +37,7 @@ const variantTone: Record<TextVariant, TextTone> = {
 export function Text({
   variant = "body",
   tone,
+  weight,
   numberOfLines,
   heading = false,
   accessibilityRole,
@@ -44,6 +45,7 @@ export function Text({
 }: {
   variant?: TextVariant;
   tone?: TextTone;
+  weight?: "semibold";
   numberOfLines?: number;
   heading?: boolean;
   accessibilityRole?: "alert";
@@ -54,7 +56,11 @@ export function Text({
       {...(numberOfLines === undefined ? {} : { numberOfLines })}
       {...(heading ? { accessibilityRole: "header" as const } : {})}
       {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
-      style={[styles[variant], { color: toneColor[tone ?? variantTone[variant]] }]}
+      style={[
+        styles[variant],
+        weight === "semibold" ? styles.semibold : null,
+        { color: toneColor[tone ?? variantTone[variant]] },
+      ]}
     >
       {children}
     </NativeText>
@@ -75,6 +81,7 @@ export function TextLink({ label, onPress }: { label: string; onPress: () => voi
 
 const styles = StyleSheet.create({
   link: { textDecorationLine: "underline" },
+  semibold: { fontFamily: fontFamily.semibold },
   page: { fontFamily: fontFamily.semibold, fontSize: fontSize.page, lineHeight: lineHeight.page },
   panel: {
     fontFamily: fontFamily.semibold,

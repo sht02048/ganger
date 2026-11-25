@@ -3,6 +3,7 @@ import type { AppRunDetail } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { Linking } from "react-native";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun } from "../dashboard/model";
@@ -448,16 +449,134 @@ describe("런 상세", () => {
       "요약",
       "완료 보고(실패)",
       "시험이 실패했어요",
-      "PR",
-      "#7",
+      "PR #7",
       "CI 실패",
-      "GitHub에서 열기",
     ]) {
       expect(text).toContain(part);
     }
     for (const hidden of ["지나온 일", "터미널", "타임라인"]) {
       expect(text).not.toContain(hidden);
     }
+  });
+});
+
+describe("런 상세 PR 상자", () => {
+  const prDetail = (patch: Partial<AppRunDetail>): AppRunDetail => ({
+    ...demoRunDetail(failedRun),
+    ...patch,
+  });
+  const pr = (patch: Partial<NonNullable<AppRunDetail["pullRequest"]>>) => ({
+    displayId: "#7",
+    url: "https://example.com/pull/7",
+    ci: "success" as const,
+    problems: [],
+    state: "open" as const,
+    stateSince: null,
+    merge: null,
+    ...patch,
+  });
+  const openDetail = async (detail: AppRunDetail) => {
+    await open({ kind: "detail", run: failedRun }, fakePort({ kind: "sent" }, detail).port);
+    return document.body.textContent ?? "";
+  };
+  const chips = (tone: string) =>
+    Array.from(document.body.querySelectorAll(`[data-testid="chip-${tone}"]`)).map(
+      (chip) => chip.textContent,
+    );
+  const box = () => document.body.querySelector('[data-testid="raised-box"]');
+
+  it("PR 번호가 GitHub 링크이고 따로 열기 버튼을 두지 않는다", async () => {
+    const openURL = vi.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    await openDetail(prDetail({ pullRequest: pr({}) }));
+    const link = byLabel("PR #7 GitHub에서 열기");
+    expect(link?.getAttribute("role")).toBe("link");
+    expect(link?.textContent).toBe("PR #7");
+    expect(document.body.textContent).not.toContain("GitHub에서 열기");
+    expect(box()?.querySelector('[role="button"]')).toBeNull();
+    await press("PR #7 GitHub에서 열기");
+    expect(openURL).toHaveBeenCalledWith("https://example.com/pull/7");
+    openURL.mockRestore();
+  });
+
+  it("열린 PR은 무채색 Open, CI 통과는 진행 색, 충돌은 문제 칩이다", async () => {
+    await openDetail(prDetail({ pullRequest: pr({ problems: [{ kind: "conflict" }] }) }));
+    expect(chips("neutral")).toEqual(["Open"]);
+    expect(chips("progress")).toEqual(["CI 통과"]);
+    expect(chips("problem")).toEqual(["충돌"]);
+  });
+
+  it("병합된 PR은 병합 색 칩에 병합을 본 때를 붙인다", async () => {
+    await openDetail(
+      prDetail({
+        pullRequest: pr({
+          state: "merged",
+          stateSince: { at: "2026-11-23T00:00:00.000Z", agoMs: 3 * 60 * 60_000 },
+        }),
+      }),
+    );
+    expect(chips("merged")).toEqual(["Merged · 3 hr ago"]);
+  });
+
+  it("닫힌 PR은 무채색 Closed다", async () => {
+    await openDetail(prDetail({ pullRequest: pr({ state: "closed" }) }));
+    expect(chips("neutral")).toEqual(["Closed"]);
+  });
+
+  it("CI 실패 문제 칩이 있으면 CI 칩을 겹쳐 보이지 않는다", async () => {
+    await openDetail(
+      prDetail({ pullRequest: pr({ ci: "failure", problems: [{ kind: "ci-failed" }] }) }),
+    );
+    expect(chips("problem")).toEqual(["CI 실패"]);
+  });
+
+  it("계약 1 서버처럼 상태가 없으면 상태 칩을 빼고 CI 칩만 보인다", async () => {
+    await openDetail(prDetail({ pullRequest: pr({ state: null }) }));
+    expect(chips("neutral")).toEqual([]);
+    expect(chips("progress")).toEqual(["CI 통과"]);
+  });
+
+  it("PR을 읽지 못하면 PR 못 읽음 칩 다음 줄에 러너·서버 계정 진단을 보인다", async () => {
+    const text = await openDetail(
+      prDetail({
+        pullRequest: null,
+        prReadError: "no-access",
+        prReadDiagnosis: {
+          kind: "different",
+          runner: "acme-runner",
+          runnerLogin: "acme-dev",
+          server: { kind: "gh", logins: ["acme-bot", "acme-ci"] },
+        },
+      }),
+    );
+    expect(chips("problem")).toEqual(["PR 못 읽음"]);
+    expect(text).toContain(
+      "러너(acme-runner)는 acme-dev, 서버는 acme-bot, acme-ci 계정으로 읽어요. 서버 계정이 이 저장소를 볼 수 없어요.",
+    );
+    expect(text).not.toContain("아직 PR이 없어요");
+  });
+
+  it("붙여 넣은 토큰과 러너 계정을 모르는 경우의 진단 문장을 보인다", async () => {
+    const text = await openDetail(
+      prDetail({
+        prReadError: "no-access",
+        prReadDiagnosis: {
+          kind: "runner-unknown",
+          runner: "acme-runner",
+          server: { kind: "token" },
+        },
+      }),
+    );
+    expect(text).toContain(
+      "서버는 붙여 넣은 토큰으로 읽어요. 러너(acme-runner)의 gh 계정을 아직 몰라 토큰과 견줘 보지 못했어요.",
+    );
+  });
+
+  it("진단이 없거나 모르는 진단이면 읽지 못한 이유를 보인다", async () => {
+    const text = await openDetail(
+      prDetail({ prReadError: "other", prReadDiagnosis: { kind: "unknown" } }),
+    );
+    expect(text).toContain("GitHub에서 PR을 읽지 못했어요");
+    expect(text).not.toContain("러너(");
   });
 });
 
