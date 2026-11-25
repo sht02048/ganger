@@ -239,8 +239,12 @@ _Avoid_: Aborted, Stopped, 취소(상태 이름으로. 취소 버튼과 "취소 
 ### To do
 
 **To do**:
-운영자가 손을 대야 끝나는 런의 목록. Dashboard에서는 따로 칸을 두지 않고 칸반 카드 위 꼬리표로 보인다(Question·Permission·Human Check·Disconnected는 Running 칸, Failed는 Done 칸 맨 위, 티켓 0100·0163). Human Check는 Running 칸 맨 위에 "확인해 주세요"로 따로 묶는다(티켓 0148). 종류는 Question, Permission, Human Check, Failed, Disconnected다. Succeeded는 PR이 열려 있거나 없어도 올리지 않는다(티켓 0145). 러너 문제(Runner Issue)는 넣지 않는다. 종류 이름은 화면에서도 영어 용어 그대로 쓰고, 왜 손대야 하는지는 설명 문장(한국어)으로 쓴다(ADR 0010). 꼬리표는 종류 이름(상태 이름 글자)을 그대로 쓰는 알약이다. Dashboard 머리의 요약 문장은 종류를 하는 일로 모아 말한다(확인할 일, 답할 질문, 멈춘 런). 이 말은 종류를 모아 부르는 화면 문장이라 종류 이름을 대신하지 않는다(ADR 0010 0100 갱신). 티켓마다 최신 런만 보인다. Canceled는 올리지 않는다. Failed는 운영자 결정 목록(Q14~Q21)에는 없었지만 지금처럼 To do에 올린다(스펙 7번, Q82.9). 문장 안에서 To do를 한국어로 말할 때는 처리할 일로 쓴다(아래 Tickets 필터).
+운영자가 손을 대야 끝나는 런의 목록. Dashboard에서는 따로 칸을 두지 않고 칸반 카드 위 꼬리표로 보인다(Question·Permission·Human Check·Disconnected는 Running 칸, Failed는 Done 칸 맨 위, 티켓 0100·0163). Human Check는 Running 칸 맨 위에 "확인해 주세요"로 따로 묶는다(티켓 0148). 종류는 Question, Permission, Human Check, Failed, Disconnected다. Succeeded는 PR이 열려 있거나 없어도 올리지 않는다(티켓 0145). 러너 문제(Runner Issue)는 넣지 않는다. 종류 이름은 화면에서도 영어 용어 그대로 쓰고, 왜 손대야 하는지는 설명 문장(한국어)으로 쓴다(ADR 0010). 꼬리표는 종류 이름(상태 이름 글자)을 그대로 쓰는 알약이다. Dashboard 머리의 요약 문장은 종류를 하는 일로 모아 말한다(확인할 일, 답할 질문, 멈춘 런). 이 말은 종류를 모아 부르는 화면 문장이라 종류 이름을 대신하지 않는다(ADR 0010 0100 갱신). 티켓마다 최신 런만 보인다. Canceled는 올리지 않는다. Failed는 운영자 결정 목록(Q14~Q21)에는 없었지만 지금처럼 To do에 올린다(스펙 7번, Q82.9). 다만 To do에서 치운 Failed 런은 올리지 않는다(아래 To do에서 치움). 문장 안에서 To do를 한국어로 말할 때는 처리할 일로 쓴다(아래 Tickets 필터).
 _Avoid_: 손댈 일(티켓 0059 전의 이름이다), Attention, Inbox, 할 일
+
+**To do에서 치움**:
+Failed 런을 결과는 그대로 둔 채 To do에서 빼는 일(티켓 0235). 둘이다. 그 런의 PR이 병합되면 저절로 치우고(PR 병합으로 치움), 운영자가 Dashboard 런 패널·모바일 카드 "…" 메뉴의 "확인했어요"나 MCP `clear_todo`로 치운다(확인했어요로 치움). 결과는 Failed로 남고([ADR 0022](docs/adr/0022-run-outcome-from-agent-report.md)) Done 칸의 처리할 일 없이 끝난 묶음에 보이며, PR 병합으로 치운 런은 "PR #n 병합됨"을 함께 보인다. Dashboard·레일·모바일 배지, 알림 수, Tickets 처리할 일, 런 단위 처리할 일에서 함께 빠지고, 열린 Failed 알림 사건은 해결된다. 다시 맡기기와 이어서 맡기기는 그대로 할 수 있다. Disconnected와 Waiting for Input은 런이 아직 러너 자리를 잡고 있어 치우지 않는다.
+_Avoid_: 무시, 숨기기, 보관(런이 사라진 것처럼 들린다)
 
 **Question**:
 Waiting for Input 런 중 에이전트가 오케스트레이션으로 운영자에게 질문했고 아직 답하지 않은 To do. Dashboard에서는 카드의 "답하기"나 카드를 눌러 여는 오른쪽 패널에서 답한다(티켓 0100). 답 선택지는 하나를 고르는 라디오 항목이고 모두 같은 모양이며, 고른 뒤 "보내기"를 눌러야 보낸다(ADR 0010 6번). 운영자가 답하면 오케스트레이터가 ssh로 에이전트에게 답을 보낸다.

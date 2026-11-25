@@ -7,6 +7,7 @@
 - **런 결과는 에이전트 보고로만 정한다: Succeeded / Failed / Canceled(R1).** PR은 결과를 정하지 않고 정보(PR #n Open·Merged·Closed)로 붙는다. Human Check는 나중에 에이전트가 요청하는 Waiting for Input 종류로 돌아온다(이번 범위 밖).
 - **PR을 읽지 못해도 런은 바로 끝나고 러너 자리를 비운다(R2).** PR 상태는 `unknown`("못 읽음")으로 두고 이유(`no-access`·`other`)를 함께 저장한다. worker가 간격을 늘려 가며 다시 읽어 채운다(R4). 못 읽음은 런과 Settings에 보인다(R3).
 - **두 티켓으로 나눈다(R6).** 0144가 끝내기에서 PR 읽기를 떼고 `unknown`을 더한다. 결과 이름은 바꾸지 않고, `unknown`의 요약 결과는 지금 이름 체계에서 가장 덜 틀린 값(보고한 런은 Human Check)으로 둔다. 0145가 요약 결과 이름을 Succeeded·Failed·Canceled로 바꾼다.
+- **PR이 병합되면 Failed 런을 To do에서 빼지만 결과는 바꾸지 않는다(티켓 0235).** 운영자가 "확인했어요"로 뺀 런도 같다. 빼는 규칙은 To do 계산만 바꾸고 요약 결과·Stats·MCP `summary`는 Failed 그대로다.
 - **[ADR 0010](0010-ui-words-and-visual-rules.md)의 상태 이름·색 규칙 중 바뀌는 부분은 0145에서 고친다.** 요약 결과 Merged·Human Check는 Succeeded가 되고, To do 종류에서 Human Check가 빠진다. 0144는 ADR 0010을 고치지 않는다.
 
 ## 되돌리기 어려운 이유
