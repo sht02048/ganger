@@ -21,8 +21,10 @@ import {
   StatusPill,
   SwitchRow,
   TodoBadge,
+  buttonColorsOf,
   pillColorsOf,
 } from "./components";
+import { toneColorOf } from "./text";
 import { colors } from "./tokens";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
@@ -69,6 +71,40 @@ describe("Button", () => {
     const host = mount(<Button label="재개하기" onPress={onPress} />);
     press(host.querySelector('[role="button"]'));
     expect(onPress).toHaveBeenCalledOnce();
+  });
+
+  it("answer는 Question 알약 계열, check는 Human Check 알약 계열 색이다", () => {
+    const answer = buttonColorsOf("answer");
+    expect(answer.surface).toBe(colors.answerSoft);
+    expect(toneColorOf(answer.tone)).toBe(colors.answer);
+    expect(answer.surface).toBe(pillColorsOf("question").surface);
+    const check = buttonColorsOf("check");
+    expect(check.surface).toBe(colors.checkSoft);
+    expect(toneColorOf(check.tone)).toBe(colors.check);
+    expect(check.surface).toBe(pillColorsOf("human-check").surface);
+  });
+
+  it("기존 변형의 색은 그대로다", () => {
+    expect(buttonColorsOf("primary").surface).toBe(colors.accent);
+    expect(toneColorOf(buttonColorsOf("primary").tone)).toBe(colors.textOnAccent);
+    expect(buttonColorsOf("secondary").surface).toBe(colors.bgControl);
+    expect(toneColorOf(buttonColorsOf("secondary").tone)).toBe(colors.textPrimary);
+    expect(buttonColorsOf("danger").surface).toBe(colors.bgControl);
+    expect(toneColorOf(buttonColorsOf("danger").tone)).toBe(colors.problem);
+  });
+
+  it("고른 변형을 표시하고, 고르지 않으면 secondary다", () => {
+    const host = mount(
+      <>
+        <Button label="답하기" variant="answer" />
+        <Button label="확인하기" variant="check" />
+        <Button label="재개하기" />
+      </>,
+    );
+    const ids = [...host.querySelectorAll('[role="button"]')].map((button) =>
+      button.getAttribute("data-testid"),
+    );
+    expect(ids).toEqual(["button-answer", "button-check", "button-secondary"]);
   });
 
   it("꺼져 있으면 부르지 않는다", () => {
