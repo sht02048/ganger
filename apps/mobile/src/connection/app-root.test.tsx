@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { APP_CONTRACT_VERSION, CONTRACT_VERSION, V1_PATHS, connectionQrText } from "@ganger/api";
 import type { V1Dashboard } from "@ganger/api";
-import { act } from "react";
+import { Profiler, act } from "react";
 import { createRoot } from "react-dom/client";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,10 +17,58 @@ import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
 import type { CacheFiles } from "./offline-cache";
-import { POLL_INTERVAL_MS, RETRY_MAX_MS } from "./session";
+import { CHANGE_DEBOUNCE_MS, POLL_INTERVAL_MS, RETRY_MAX_MS } from "./session";
 import type { ConnectionStore, StoredConnection } from "./stored-connection";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+
+const renders = vi.hoisted(() => ({ commits: 0, dashboard: 0, cards: new Array<string>() }));
+
+vi.mock("../dashboard/dashboard-screen", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dashboard/dashboard-screen")>();
+  return {
+    ...actual,
+    DashboardScreen: (props: Parameters<typeof actual.DashboardScreen>[0]) => {
+      renders.dashboard += 1;
+      return actual.DashboardScreen(props);
+    },
+  };
+});
+
+vi.mock("../dashboard/run-card", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../dashboard/run-card")>();
+  return {
+    ...actual,
+    RunCard: (props: Parameters<typeof actual.RunCard>[0]) => {
+      renders.cards.push(props.run.id);
+      return actual.RunCard(props);
+    },
+    SettledRow: (props: Parameters<typeof actual.SettledRow>[0]) => {
+      renders.cards.push(props.run.id);
+      return actual.SettledRow(props);
+    },
+  };
+});
+
+function clearRenders() {
+  renders.commits = 0;
+  renders.dashboard = 0;
+  renders.cards = [];
+}
+
+async function streamed() {
+  const server = fakeServer();
+  server.state.liveStream = true;
+  const host = await mount(memoryStore(STORED).store, server.fetcher);
+  await advance(0);
+  expect(byLabel("답하기")?.getAttribute("aria-disabled")).not.toBe("true");
+  return { server, host };
+}
+
+async function serverChanged(server: ReturnType<typeof fakeServer>) {
+  server.emit("event: reset\ndata: {}");
+  await advance(CHANGE_DEBOUNCE_MS);
+}
 
 const NOW = new Date("2026-11-23T03:00:00.000Z");
 const SERVER = "https://ganger.example.com";
@@ -35,13 +83,29 @@ function fakeServer() {
     requests: Array<{ path: string; method: string }>;
     dashboard: V1Dashboard;
     pushEnabled: boolean;
+    liveStream: boolean;
   } = {
     mode: "ok",
+    liveStream: false,
     pushEnabled: false,
     requests: [],
     dashboard: busySnapshot(NOW).dashboardFor("all"),
   };
   const ok = (data: unknown) => Response.json({ meta: META, data });
+  const streams: Array<ReadableStreamDefaultController<Uint8Array>> = [];
+  const emit = (block: string) => {
+    for (const stream of streams) stream.enqueue(new TextEncoder().encode(`${block}\n\n`));
+  };
+  const openStream = () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          streams.push(controller);
+          controller.enqueue(new TextEncoder().encode("event: ready\ndata: {}\n\n"));
+        },
+      }),
+      { headers: { "content-type": "text/event-stream" } },
+    );
   const fetcher: FetchLike = (url, init) => {
     const { pathname: path } = new URL(url);
     const method = init?.method ?? "GET";
@@ -50,7 +114,9 @@ function fakeServer() {
     if (path === IDENTITY_PATH) {
       return Promise.resolve(Response.json({ product: "ganger", webAccess: "host-not-allowed" }));
     }
-    if (path === V1_PATHS.changeStream) return Promise.resolve(new Response("", { status: 503 }));
+    if (path === V1_PATHS.changeStream) {
+      return Promise.resolve(state.liveStream ? openStream() : new Response("", { status: 503 }));
+    }
     if (state.mode === "host-blocked") {
       return Promise.resolve(new Response("Blocked", { status: 403 }));
     }
@@ -103,7 +169,7 @@ function fakeServer() {
         throw new Error(`unexpected request: ${path}`);
     }
   };
-  return { state, fetcher };
+  return { state, fetcher, emit };
 }
 
 function memoryStore(initial: StoredConnection | null) {
@@ -166,25 +232,27 @@ async function mount(
   const root = createRoot(host);
   await act(async () => {
     root.render(
-      <FirstPaintReady.Provider value={markFirstPaint}>
-        <SafeAreaProvider
-          initialMetrics={{
-            frame: { x: 0, y: 0, width: 390, height: 844 },
-            insets: { top: 0, left: 0, right: 0, bottom: 0 },
-          }}
-        >
-          <AppRoot
-            store={store}
-            fetcher={fetcher}
-            devConnection={devConnection}
-            deviceName="Acme iPhone"
-            pushDevice={pushDevice}
-            pushMemory={memoryPush}
-            cacheFiles={cacheFiles}
-            allowPaste
-          />
-        </SafeAreaProvider>
-      </FirstPaintReady.Provider>,
+      <Profiler id="app" onRender={() => (renders.commits += 1)}>
+        <FirstPaintReady.Provider value={markFirstPaint}>
+          <SafeAreaProvider
+            initialMetrics={{
+              frame: { x: 0, y: 0, width: 390, height: 844 },
+              insets: { top: 0, left: 0, right: 0, bottom: 0 },
+            }}
+          >
+            <AppRoot
+              store={store}
+              fetcher={fetcher}
+              devConnection={devConnection}
+              deviceName="Acme iPhone"
+              pushDevice={pushDevice}
+              pushMemory={memoryPush}
+              cacheFiles={cacheFiles}
+              allowPaste
+            />
+          </SafeAreaProvider>
+        </FirstPaintReady.Provider>
+      </Profiler>,
     );
     await vi.advanceTimersByTimeAsync(0);
   });
@@ -514,6 +582,69 @@ describe("화면 갱신", () => {
     await advance(POLL_INTERVAL_MS);
     expect(host.textContent).not.toContain("ACME-138");
     expect(selected()).toContain("Running");
+  });
+});
+
+describe("다시 그리기 줄이기(티켓 0225)", () => {
+  it("같은 응답을 다시 받으면 대시보드도 카드도 다시 그리지 않는다", async () => {
+    const { server } = await streamed();
+    server.state.requests = [];
+    clearRenders();
+    await serverChanged(server);
+    expect(server.state.requests.filter(({ path }) => path === V1_PATHS.dashboard)).toHaveLength(1);
+    expect(renders).toEqual({ commits: 0, dashboard: 0, cards: [] });
+  });
+
+  it("한 런만 바뀌면 그 런의 카드만 다시 그린다", async () => {
+    const { server, host } = await streamed();
+    const board = server.state.dashboard;
+    const [changed, ...others] = board.columns.running.todo;
+    if (changed === undefined || others.length === 0) throw new Error("demo has few todo runs");
+    expect(host.textContent).toContain(changed.ticketTitle);
+    server.state.dashboard = {
+      ...board,
+      columns: {
+        ...board.columns,
+        running: {
+          ...board.columns.running,
+          todo: [{ ...changed, ticketTitle: "새 제목" }, ...others],
+        },
+      },
+    };
+    clearRenders();
+    await serverChanged(server);
+    expect(host.textContent).toContain("새 제목");
+    expect(renders.cards).toEqual([changed.id]);
+  });
+
+  it("띠가 없으면 시간이 흘러도 화면을 다시 그리지 않는다", async () => {
+    const { server } = await streamed();
+    expect(document.body.querySelector('[data-testid="notice-band"]')).toBeNull();
+    clearRenders();
+    for (let tick = 0; tick < 10; tick += 1) {
+      server.emit(": alive");
+      await advance(30_000);
+    }
+    expect(server.state.requests.filter(({ path }) => path === V1_PATHS.dashboard)).toHaveLength(1);
+    expect(renders).toEqual({ commits: 0, dashboard: 0, cards: [] });
+  });
+
+  it("Runners·설정에 갔다 와도 대시보드를 다시 마운트하지 않고, 가 있는 동안 읽히지 않게 숨긴다", async () => {
+    const server = fakeServer();
+    const host = await mount(memoryStore(STORED).store, server.fetcher);
+    const dashboard = host.querySelector('[data-testid="dashboard-screen"]');
+    const scroll = dashboard?.querySelector('[data-testid="dashboard-count-row"]');
+    expect(dashboard?.getAttribute("aria-hidden")).not.toBe("true");
+    const runnersLabel = document.body.querySelector('[aria-label^="Runners"]')?.ariaLabel;
+    for (const away of [runnersLabel ?? "Runners", "설정"]) {
+      await press(away);
+      expect(dashboard?.getAttribute("aria-hidden")).toBe("true");
+      expect(byLabel("뒤로")).not.toBeNull();
+      await press("뒤로");
+      expect(host.querySelector('[data-testid="dashboard-screen"]')).toBe(dashboard);
+      expect(dashboard?.querySelector('[data-testid="dashboard-count-row"]')).toBe(scroll);
+      expect(dashboard?.getAttribute("aria-hidden")).not.toBe("true");
+    }
   });
 });
 

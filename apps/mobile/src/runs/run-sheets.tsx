@@ -9,7 +9,7 @@ import type {
   V1MergeMethod,
 } from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode } from "react";
 import { AccessibilityInfo, StyleSheet, View } from "react-native";
 
 import { staleBandText } from "../connection/stale-band";
@@ -114,12 +114,33 @@ export function outcomeMessage(
   }
 }
 
-const SendingLock = createContext<RefObject<boolean>>({ current: false });
+interface Lock {
+  held: () => boolean;
+  hold: () => boolean;
+  release: () => void;
+}
+
+function createLock(): Lock {
+  let held = false;
+  return {
+    held: () => held,
+    hold: () => {
+      if (held) return false;
+      held = true;
+      return true;
+    },
+    release: () => {
+      held = false;
+    },
+  };
+}
+
+const SendingLock = createContext<Lock>(createLock());
 
 function useCloseUnlessSending(onClose: () => void): () => void {
   const sending = useContext(SendingLock);
   return () => {
-    if (!sending.current) onClose();
+    if (!sending.held()) onClose();
   };
 }
 
@@ -157,15 +178,14 @@ function useRunWrite(
   const [messageTone, setMessageTone] = useState<TextTone>("problem");
   const busy = useContext(SendingLock);
   const send = async (write: RunWrite): Promise<RunWriteOutcome | null> => {
-    if (busy.current) return null;
-    busy.current = true;
+    if (!busy.hold()) return null;
     setPhase("sending");
     setMessage(null);
     const outcome = await port.write(run, write, () => {
       setPhase("confirming");
       AccessibilityInfo.announceForAccessibility(t("actions.confirming"));
     });
-    busy.current = false;
+    busy.release();
     setPhase("idle");
     if (outcome.kind === "sent") {
       onSent();
@@ -1188,7 +1208,7 @@ interface RunSheetsProps {
 }
 
 export function RunSheets({ sheet, ...rest }: RunSheetsProps) {
-  const sendingLock = useRef(false);
+  const [sendingLock] = useState(createLock);
   if (sheet === null) return null;
   return (
     <SendingLock.Provider value={sendingLock}>

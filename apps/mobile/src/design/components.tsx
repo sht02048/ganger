@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import type { ComponentRef, ReactNode } from "react";
 import {
   KeyboardAvoidingView,
@@ -47,6 +47,8 @@ export function Card({
 }
 
 export type ButtonVariant = "primary" | "secondary" | "danger" | "answer" | "check";
+
+export const ScreenShown = createContext(true);
 
 const buttonColors: Record<ButtonVariant, { surface: string; tone: TextTone }> = {
   primary: { surface: colors.accent, tone: "onAccent" },
@@ -436,6 +438,7 @@ export function PopoverMenu({
   const button = useRef<ComponentRef<typeof View>>(null);
   const afterDismiss = useRef<(() => void) | null>(null);
   const [anchor, setAnchor] = useState<PopoverAnchor | null>(null);
+  const screenShown = useContext(ScreenShown);
   const screen = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const filled = groups.filter((group) => group.length > 0);
@@ -485,7 +488,7 @@ export function PopoverMenu({
         </Svg>
       </Pressable>
       <Modal
-        visible={anchor !== null}
+        visible={anchor !== null && screenShown}
         transparent
         animationType="none"
         onRequestClose={close}
@@ -818,8 +821,14 @@ export function Sheet({
   children: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
+  const screenShown = useContext(ScreenShown);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible && screenShown}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <KeyboardAvoidingView
         {...(Platform.OS === "ios" ? { behavior: "padding" as const } : {})}
         style={styles.sheetRoot}

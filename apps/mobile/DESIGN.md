@@ -52,6 +52,8 @@ Ganger iOS 앱의 토큰과 컴포넌트 규칙이다. 웹의 `packages/ui`를 �
 | `SheetFooter`   | `composed` 시트 아래에 고정한 안내와 보내기                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `RestingMascot` | 빈 상태에만 쓴다. 목록 행, 상태 알약, 러너 문제 카드 곁에 두지 않는다                                                                                                                                                                                                                                                                                                                                                                                              |
 
+`Sheet`와 `PopoverMenu`는 떠 있는 레이어(`Modal`)라 부모의 `display: "none"`과 `aria-hidden`을 따르지 않는다. 화면을 다시 마운트하지 않고 숨겨 둘 때(`KeptScreen`)는 `ScreenShown` 문맥이 `false`가 되고, 그 안의 시트·팝오버는 보이지 않는다. 열렸는지는 부른 쪽이 지녀 돌아오면 다시 열리지만, `Modal`이 닫히며 내용을 언마운트해 시트 안의 입력은 처음부터 시작한다.
+
 ## 문구
 
 화면 문구는 `messages/ko.json`에 둔다(ADR 0005). 상태 이름은 GLOSSARY의 영어 용어이고, 설명 문장은 해요체다. Dashboard 머리 요약과 Queued 이유는 웹 `apps/web/messages/ko/home.json`의 문장과 같게 쓴다.

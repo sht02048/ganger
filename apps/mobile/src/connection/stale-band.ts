@@ -4,6 +4,11 @@ const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 
+export function nextStaleBandChangeIn(fetchedAt: number, now: number): number {
+  const ago = Math.max(0, now - fetchedAt);
+  return MINUTE_MS - (ago % MINUTE_MS);
+}
+
 export function staleBandText(fetchedAt: number, now: number, reason: string): string {
   const ago = Math.max(0, now - fetchedAt);
   if (ago < MINUTE_MS) return t("connection.band.staleJustNow", { reason });

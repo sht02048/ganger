@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 
 import { DashboardScreen, INITIAL_DASHBOARD_VIEW } from "./dashboard/dashboard-screen";
 import { busySnapshot, emptySnapshot } from "./demo/data";
+import { KeptScreen } from "./kept-screen";
 import { RunnersScreen } from "./runners/runners-screen";
 import { INITIAL_NOTIFICATION_PREFERENCES, SettingsScreen } from "./settings/settings-screen";
 
@@ -17,9 +18,9 @@ export function AppScreens({ now: fixedNow, onExit }: { now?: Date; onExit?: () 
     () => (emptyPreview ? emptySnapshot() : busySnapshot(now)),
     [emptyPreview, now],
   );
-  switch (screen) {
-    case "dashboard":
-      return (
+  return (
+    <>
+      <KeptScreen testID="dashboard-screen" shown={screen === "dashboard"}>
         <DashboardScreen
           snapshot={snapshot}
           view={dashboardView}
@@ -27,11 +28,11 @@ export function AppScreens({ now: fixedNow, onExit }: { now?: Date; onExit?: () 
           onOpenRunners={() => setScreen("runners")}
           onOpenSettings={() => setScreen("settings")}
         />
-      );
-    case "runners":
-      return <RunnersScreen runners={snapshot.runners} onBack={() => setScreen("dashboard")} />;
-    case "settings":
-      return (
+      </KeptScreen>
+      {screen === "runners" ? (
+        <RunnersScreen runners={snapshot.runners} onBack={() => setScreen("dashboard")} />
+      ) : null}
+      {screen === "settings" ? (
         <SettingsScreen
           demo={{
             emptyPreview,
@@ -45,6 +46,7 @@ export function AppScreens({ now: fixedNow, onExit }: { now?: Date; onExit?: () 
           }}
           onBack={() => setScreen("dashboard")}
         />
-      );
-  }
+      ) : null}
+    </>
+  );
 }

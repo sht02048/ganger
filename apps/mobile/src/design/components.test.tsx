@@ -31,6 +31,7 @@ import {
   popoverPlacement,
 } from "./components";
 import type { MenuItem } from "./components";
+import { KeptScreen } from "../kept-screen";
 import { toneColorOf } from "./text";
 import { colors, size } from "./tokens";
 
@@ -38,27 +39,33 @@ Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
 const mounted: Array<() => void> = [];
 
-function mount(node: ReactNode): HTMLElement {
+function mountRerendering(node: ReactNode) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  act(() => {
-    root.render(
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 390, height: 844 },
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-        }}
-      >
-        {node}
-      </SafeAreaProvider>,
-    );
-  });
+  const rerender = (next: ReactNode) =>
+    act(() => {
+      root.render(
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}
+        >
+          {next}
+        </SafeAreaProvider>,
+      );
+    });
+  rerender(node);
   mounted.push(() => {
     act(() => root.unmount());
     host.remove();
   });
-  return host;
+  return { host, rerender };
+}
+
+function mount(node: ReactNode): HTMLElement {
+  return mountRerendering(node).host;
 }
 
 function press(element: Element | null) {
@@ -379,6 +386,21 @@ describe("Sheet", () => {
       </Sheet>,
     );
     expect(document.body.textContent).not.toContain("숨은 내용");
+  });
+
+  it("숨겨 둔 화면 안에서는 열린 시트를 그리지 않고, 화면이 돌아오면 그린다", () => {
+    const screen = (shown: boolean) => (
+      <KeptScreen shown={shown}>
+        <Sheet visible title="Workspace" closeLabel="닫기" onClose={() => {}}>
+          시트 내용
+        </Sheet>
+      </KeptScreen>
+    );
+    const { host, rerender } = mountRerendering(screen(false));
+    expect(document.body.textContent).not.toContain("시트 내용");
+    expect(host.querySelector('[aria-hidden="true"]')).not.toBeNull();
+    rerender(screen(true));
+    expect(document.body.textContent).toContain("시트 내용");
   });
 });
 

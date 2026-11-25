@@ -4,6 +4,7 @@ import type { V1Client, V1Failure, V1Result } from "./client";
 import type { ChangeStreamHandlers } from "./change-stream";
 import { EVERYTHING, readScopeOf } from "./read-scope";
 import type { ReadPart, ReadScope } from "./read-scope";
+import { reuseRuns } from "./reuse-runs";
 import { sameValue } from "./same-value";
 import type { NeededUpdate } from "./version";
 
@@ -280,10 +281,9 @@ export class LiveSession {
       this.#confirmedAt.set(workspaceId, fetchedAt);
       const previous = state.dashboards.get(workspaceId);
       if (publish || previous === undefined || !sameValue(previous.data, dashboard.data)) {
-        dashboards = new Map([
-          ...state.dashboards,
-          [workspaceId, { data: dashboard.data, fetchedAt }],
-        ]);
+        const data =
+          previous === undefined ? dashboard.data : reuseRuns(previous.data, dashboard.data);
+        dashboards = new Map([...state.dashboards, [workspaceId, { data, fetchedAt }]]);
         dashboardChanged = true;
       }
     }
