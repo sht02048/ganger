@@ -243,6 +243,18 @@ function demoPrState(
   };
 }
 
+function demoMerge(run: DashboardRun): NonNullable<AppRunDetail["pullRequest"]>["merge"] {
+  if (run.pullRequest === null || demoPrState(run).state !== "open") return null;
+  const conflict = run.pullRequest.problems.some((problem) => problem.kind === "conflict");
+  return {
+    methods: ["squash", "merge"],
+    defaultMethod: "squash",
+    blocked: conflict ? "conflict" : null,
+    noPermission: false,
+    headCommit: `demo-${run.id}`,
+  };
+}
+
 function demoPrReadDiagnosis(run: DashboardRun): AppRunDetail["prReadDiagnosis"] {
   if (run.state !== "ended" || run.prReadError !== "no-access" || run.runner === null) return null;
   return {
@@ -283,7 +295,7 @@ export function demoRunDetail(run: DashboardRun): AppRunDetail {
               : "success",
             problems: run.pullRequest.problems,
             ...demoPrState(run),
-            merge: null,
+            merge: demoMerge(run),
           },
     prReadError: ended?.prReadError ?? null,
     prReadDiagnosis: demoPrReadDiagnosis(run),

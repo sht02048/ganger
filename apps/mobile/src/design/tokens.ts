@@ -70,6 +70,7 @@ export const radius = {
 
 export const space = {
   px2: 2,
+  px6: 6,
   s1: 4,
   s2: 8,
   s3: 12,
@@ -82,6 +83,8 @@ export const space = {
 export const size = {
   touchTarget: 44,
   chipRow: 22,
+  splitDividerInset: 10,
+  splitMenuIcon: 12,
   linkIcon: 12,
   backIcon: 24,
   dot: 6,

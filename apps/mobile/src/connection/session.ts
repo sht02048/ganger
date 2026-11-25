@@ -2,12 +2,24 @@ import type { AppDashboard, AppRunner, V1ThisDevice, V1Workspaces } from "@gange
 
 import type { V1Client, V1Failure, V1Result } from "./client";
 import type { ChangeStreamHandlers } from "./change-stream";
+import { EVERYTHING, readScopeOf } from "./read-scope";
+import type { ReadPart, ReadScope } from "./read-scope";
+import { sameValue } from "./same-value";
 import type { NeededUpdate } from "./version";
 
 export const POLL_INTERVAL_MS = 15_000;
-export const STREAM_RETRY_MS = 60_000;
+export const STREAM_RETRY_MS = 15_000;
+export const RETRY_MAX_MS = 60_000;
 export const STREAM_SILENCE_MS = 35_000;
+export const STREAM_READY_WAIT_MS = 2_000;
 export const CHANGE_DEBOUNCE_MS = 300;
+
+const SERVER_DATA: ReadScope = new Set<ReadPart>(["dashboard", "workspaces", "runners"]);
+const DASHBOARD_ONLY: ReadScope = new Set<ReadPart>(["dashboard"]);
+
+export function retryDelay(firstMs: number, failures: number): number {
+  return Math.min(firstMs * 2 ** Math.max(0, failures - 1), RETRY_MAX_MS);
+}
 
 export type SessionPhase =
   | "loading"
@@ -49,6 +61,7 @@ export interface SessionDeps {
     fetchedAt: number,
     workspaces: V1Workspaces["workspaces"],
   ) => void;
+  onDashboardConfirmed?: (workspaceId: string, fetchedAt: number) => void;
 }
 
 export interface SessionRestore {
@@ -64,10 +77,10 @@ const FAILURE_RANK: Record<V1Failure["kind"], number> = {
   unreachable: 0,
 };
 
-function worstFailure(results: ReadonlyArray<V1Result<unknown>>): V1Failure | null {
+function worstFailure(results: ReadonlyArray<V1Result<unknown> | null>): V1Failure | null {
   let worst: V1Failure | null = null;
   for (const result of results) {
-    if (result.ok) continue;
+    if (result === null || result.ok) continue;
     if (worst === null || FAILURE_RANK[result.failure.kind] > FAILURE_RANK[worst.kind]) {
       worst = result.failure;
     }
@@ -87,6 +100,21 @@ function phaseOf(failure: V1Failure): SessionPhase {
     case "unreachable":
       return "stale";
   }
+}
+
+function readIf<Data>(
+  scope: ReadScope,
+  part: ReadPart,
+  read: () => Promise<V1Result<Data>>,
+): Promise<V1Result<Data> | null> {
+  return scope.has(part) ? read() : Promise.resolve(null);
+}
+
+function serverVersionOf(results: ReadonlyArray<V1Result<unknown> | null>): string | null {
+  for (const result of results) {
+    if (result?.ok) return result.serverVersion;
+  }
+  return null;
 }
 
 export class LiveSession {
@@ -111,13 +139,19 @@ export class LiveSession {
   #trustEpoch = 0;
   #readSucceeded = false;
   #active = false;
-  #refreshing = false;
-  #refreshAgain = false;
+  #reading = false;
+  readonly #pending = new Set<ReadPart>();
+  #publishPending = false;
+  readonly #queued = new Set<ReadPart>();
+  readonly #confirmedAt = new Map<string, number>();
+  #pollFailures = 0;
+  #streamFailures = 0;
   #closeStream: (() => void) | null = null;
-  #poll: ReturnType<typeof setInterval> | null = null;
+  #poll: ReturnType<typeof setTimeout> | null = null;
   #retry: ReturnType<typeof setTimeout> | null = null;
   #silence: ReturnType<typeof setTimeout> | null = null;
   #debounce: ReturnType<typeof setTimeout> | null = null;
+  #readyWait: ReturnType<typeof setTimeout> | null = null;
 
   constructor(deps: SessionDeps, workspaceId: string) {
     this.#deps = deps;
@@ -140,9 +174,14 @@ export class LiveSession {
       this.#clearTransport();
       return;
     }
+    this.#pollFailures = 0;
+    this.#streamFailures = 0;
     this.#startPolling();
     this.#openStream();
-    void this.refresh();
+    this.#readyWait = setTimeout(() => {
+      this.#readyWait = null;
+      void this.#read(EVERYTHING, false);
+    }, STREAM_READY_WAIT_MS);
   }
 
   stop(): void {
@@ -155,25 +194,11 @@ export class LiveSession {
     if (workspaceId === this.#workspaceId) return;
     this.#workspaceId = workspaceId;
     this.#distrustActions();
-    if (this.#active) void this.refresh();
+    if (this.#active) void this.#read(DASHBOARD_ONLY, false);
   }
 
-  async refresh(): Promise<void> {
-    if (!this.#active) return;
-    if (this.#refreshing) {
-      this.#refreshAgain = true;
-      return;
-    }
-    this.#refreshing = true;
-    try {
-      await this.#readAll();
-    } finally {
-      this.#refreshing = false;
-      if (this.#refreshAgain) {
-        this.#refreshAgain = false;
-        void this.refresh();
-      }
-    }
+  refresh(): Promise<void> {
+    return this.#read(EVERYTHING, true);
   }
 
   restore({ dashboards, workspaces }: SessionRestore): void {
@@ -200,47 +225,112 @@ export class LiveSession {
     if (this.#state.actionsReady) this.#setState({ ...this.#state, actionsReady: false });
   }
 
-  async #readAll(): Promise<void> {
+  async #read(scope: ReadScope, publish: boolean): Promise<void> {
+    if (!this.#active) return;
+    for (const part of scope) this.#pending.add(part);
+    this.#publishPending ||= publish;
+    if (this.#reading) return;
+    this.#reading = true;
+    try {
+      while (this.#active && this.#pending.size > 0) {
+        const parts = this.#widened(this.#pending);
+        const publishNow = this.#publishPending;
+        this.#pending.clear();
+        this.#publishPending = false;
+        await this.#readOnce(parts, publishNow);
+      }
+    } finally {
+      this.#reading = false;
+    }
+  }
+
+  #widened(scope: ReadScope): ReadScope {
+    if (!this.#readSucceeded) return EVERYTHING;
+    if (this.#state.phase === "live") return new Set(scope);
+    return new Set([...scope, ...SERVER_DATA]);
+  }
+
+  async #readOnce(parts: ReadScope, publishRequested: boolean): Promise<void> {
     const generation = this.#generation;
     const trustEpoch = this.#trustEpoch;
     const workspaceId = this.#workspaceId;
     const { client, timeZone, now } = this.#deps;
     const [dashboard, workspaces, runners, device] = await Promise.all([
-      client.dashboard(workspaceId, timeZone),
-      client.workspaces(),
-      client.runners(),
-      client.thisDevice(),
+      readIf(parts, "dashboard", () => client.dashboard(workspaceId, timeZone)),
+      readIf(parts, "workspaces", () => client.workspaces()),
+      readIf(parts, "runners", () => client.runners()),
+      readIf(parts, "device", () => client.thisDevice()),
     ]);
     if (generation !== this.#generation || !this.#active) return;
-    const failure = worstFailure([dashboard, workspaces, runners, device]);
-    if (failure !== null || !dashboard.ok || !workspaces.ok || !runners.ok || !device.ok) {
-      this.#applyFailure(failure ?? { kind: "server-error" });
+    const results = [dashboard, workspaces, runners, device];
+    const failure = worstFailure(results);
+    if (failure !== null) {
+      this.#pollFailures += 1;
+      this.#applyFailure(failure);
       return;
     }
+    this.#pollFailures = 0;
     this.#readSucceeded = true;
-    const dashboards = new Map(this.#state.dashboards);
+    const state = this.#state;
+    const publish = publishRequested || state.phase !== "live";
     const fetchedAt = now();
-    dashboards.set(workspaceId, { data: dashboard.data, fetchedAt });
-    this.#setState({
-      ...this.#state,
-      phase: "live",
-      dashboards,
-      workspaces: workspaces.data.workspaces,
-      runners: runners.data.runners,
-      runnersRead: true,
-      device: device.data,
-      serverVersion: dashboard.serverVersion,
-      fetchedAt,
-      actionsReady: trustEpoch === this.#trustEpoch,
-    });
-    this.#deps.onDashboardRead?.(
-      workspaceId,
-      dashboard.data,
-      fetchedAt,
-      workspaces.data.workspaces,
-    );
-    if (!this.#state.actionsReady) this.#refreshAgain = true;
+    let dashboards = state.dashboards;
+    let dashboardChanged = false;
+    if (dashboard?.ok) {
+      this.#confirmedAt.set(workspaceId, fetchedAt);
+      const previous = state.dashboards.get(workspaceId);
+      if (publish || previous === undefined || !sameValue(previous.data, dashboard.data)) {
+        dashboards = new Map([
+          ...state.dashboards,
+          [workspaceId, { data: dashboard.data, fetchedAt }],
+        ]);
+        dashboardChanged = true;
+      }
+    }
+    const workspacesChanged =
+      workspaces?.ok === true && !sameValue(state.workspaces, workspaces.data.workspaces);
+    const runnersChanged =
+      runners?.ok === true &&
+      (!state.runnersRead || !sameValue(state.runners, runners.data.runners));
+    const deviceChanged = device?.ok === true && !sameValue(state.device, device.data);
+    const changed = dashboardChanged || workspacesChanged || runnersChanged || deviceChanged;
+    const serverVersion = serverVersionOf(results) ?? state.serverVersion;
+    const actionsReady = trustEpoch === this.#trustEpoch;
+    if (
+      changed ||
+      state.phase !== "live" ||
+      state.serverVersion !== serverVersion ||
+      state.actionsReady !== actionsReady
+    ) {
+      this.#setState({
+        ...state,
+        phase: "live",
+        dashboards,
+        workspaces:
+          workspacesChanged && workspaces?.ok ? workspaces.data.workspaces : state.workspaces,
+        runners: runnersChanged && runners?.ok ? runners.data.runners : state.runners,
+        runnersRead: state.runnersRead || runners !== null,
+        device: deviceChanged && device?.ok ? device.data : state.device,
+        serverVersion,
+        fetchedAt: changed || state.fetchedAt === null ? fetchedAt : state.fetchedAt,
+        actionsReady,
+      });
+    }
+    if (dashboard?.ok) {
+      if (dashboardChanged || workspacesChanged) {
+        this.#deps.onDashboardRead?.(
+          workspaceId,
+          dashboard.data,
+          fetchedAt,
+          this.#state.workspaces,
+        );
+      } else {
+        this.#deps.onDashboardConfirmed?.(workspaceId, fetchedAt);
+      }
+    }
+    if (!actionsReady) for (const part of EVERYTHING) this.#pending.add(part);
     else if (this.#state.transport === "stream") this.#stopPolling();
+    else this.#startPolling();
   }
 
   #applyFailure(failure: V1Failure): void {
@@ -255,6 +345,7 @@ export class LiveSession {
       failure.kind === "incompatible" ? failure.update : this.#state.neededUpdate;
     this.#setState({
       ...this.#state,
+      ...this.#confirmedTimes(),
       phase,
       serverVersion,
       staleReason,
@@ -269,16 +360,41 @@ export class LiveSession {
     this.#startPolling();
   }
 
+  #confirmedTimes(): Pick<SessionState, "dashboards" | "fetchedAt"> {
+    const { dashboards, fetchedAt } = this.#state;
+    let latest = fetchedAt;
+    const refreshed = new Map<string, DashboardEntry>();
+    for (const [workspaceId, at] of this.#confirmedAt) {
+      latest = Math.max(latest ?? at, at);
+      const entry = dashboards.get(workspaceId);
+      if (entry !== undefined && entry.fetchedAt < at)
+        refreshed.set(workspaceId, { ...entry, fetchedAt: at });
+    }
+    if (refreshed.size === 0) return { dashboards, fetchedAt: latest };
+    return { dashboards: new Map([...dashboards, ...refreshed]), fetchedAt: latest };
+  }
+
   #openStream(): void {
     this.#closeStream?.();
     this.#armSilence();
     this.#closeStream = this.#deps.openStream({
       onReady: () => {
+        this.#streamFailures = 0;
         this.#clearRetry();
-        this.#setState({ ...this.#state, transport: "stream" });
-        void this.refresh();
+        this.#clearReadyWait();
+        if (this.#state.transport !== "stream") {
+          this.#setState({ ...this.#state, transport: "stream" });
+        }
+        void this.#read(EVERYTHING, false);
       },
-      onChange: () => this.#scheduleRefresh(),
+      onChange: (notice) =>
+        this.#queueRead(
+          readScopeOf(notice, {
+            workspaceId: this.#workspaceId,
+            hasQueuedRuns:
+              (this.#state.dashboards.get(this.#workspaceId)?.data.columns.queued.length ?? 0) > 0,
+          }),
+        ),
       onAlive: () => this.#armSilence(),
       onEnd: () => this.#fallBackToPolling(),
     });
@@ -286,17 +402,24 @@ export class LiveSession {
 
   #fallBackToPolling(): void {
     if (!this.#active) return;
+    const firstReadPending = this.#readyWait !== null;
+    const missedChanges = this.#state.transport === "stream" || firstReadPending;
     this.#closeStream = null;
     this.#clearSilence();
+    this.#clearReadyWait();
     this.#distrustActions();
     this.#setState({ ...this.#state, transport: "polling" });
     this.#startPolling();
     this.#clearRetry();
-    this.#retry = setTimeout(() => {
-      this.#retry = null;
-      if (this.#active) this.#openStream();
-    }, STREAM_RETRY_MS);
-    void this.refresh();
+    this.#streamFailures += 1;
+    this.#retry = setTimeout(
+      () => {
+        this.#retry = null;
+        if (this.#active) this.#openStream();
+      },
+      retryDelay(STREAM_RETRY_MS, this.#streamFailures),
+    );
+    if (missedChanges) void this.#read(firstReadPending ? EVERYTHING : SERVER_DATA, false);
   }
 
   #armSilence(): void {
@@ -308,20 +431,31 @@ export class LiveSession {
     }, STREAM_SILENCE_MS);
   }
 
-  #scheduleRefresh(): void {
+  #queueRead(scope: ReadScope): void {
+    if (scope.size === 0) return;
+    for (const part of scope) this.#queued.add(part);
     if (this.#debounce !== null) clearTimeout(this.#debounce);
     this.#debounce = setTimeout(() => {
       this.#debounce = null;
-      void this.refresh();
+      const queued = new Set(this.#queued);
+      this.#queued.clear();
+      void this.#read(queued, false);
     }, CHANGE_DEBOUNCE_MS);
   }
 
   #startPolling(): void {
-    this.#poll ??= setInterval(() => void this.refresh(), POLL_INTERVAL_MS);
+    if (this.#poll !== null) return;
+    this.#poll = setTimeout(
+      () => {
+        this.#poll = null;
+        void this.#read(SERVER_DATA, false);
+      },
+      retryDelay(POLL_INTERVAL_MS, this.#pollFailures),
+    );
   }
 
   #stopPolling(): void {
-    if (this.#poll !== null) clearInterval(this.#poll);
+    if (this.#poll !== null) clearTimeout(this.#poll);
     this.#poll = null;
   }
 
@@ -335,14 +469,23 @@ export class LiveSession {
     this.#silence = null;
   }
 
+  #clearReadyWait(): void {
+    if (this.#readyWait !== null) clearTimeout(this.#readyWait);
+    this.#readyWait = null;
+  }
+
   #clearTransport(): void {
     this.#closeStream?.();
     this.#closeStream = null;
     this.#stopPolling();
     this.#clearRetry();
     this.#clearSilence();
+    this.#clearReadyWait();
     if (this.#debounce !== null) clearTimeout(this.#debounce);
     this.#debounce = null;
+    this.#queued.clear();
+    this.#pending.clear();
+    this.#publishPending = false;
     if (this.#state.transport !== "polling") {
       this.#setState({ ...this.#state, transport: "polling" });
     }

@@ -1,28 +1,49 @@
 import { V1_PATHS } from "@ganger/api";
+import { z } from "zod";
 
 import type { FetchLike } from "./client";
 
 export type StreamEnd = "rejected" | "failed";
 
+const changeNoticeSchema = z.object({
+  kind: z.string(),
+  workspaceId: z.string().nullable(),
+  part: z.string().nullable().catch(null),
+});
+
+export type ChangeNotice = z.infer<typeof changeNoticeSchema>;
+
 export interface ChangeStreamHandlers {
   onReady: () => void;
-  onChange: () => void;
+  onChange: (notice: ChangeNotice | null) => void;
   onAlive: () => void;
   onEnd: (reason: StreamEnd) => void;
 }
 
-function eventNameOf(block: string): string | null {
-  for (const line of block.split("\n")) {
-    if (line.startsWith("event:")) return line.slice("event:".length).trim();
+function fieldOf(block: string, field: "event" | "data"): string | null {
+  const values = block
+    .split("\n")
+    .filter((line) => line.startsWith(`${field}:`))
+    .map((line) => line.slice(field.length + 1).replace(/^ /, ""));
+  return values.length === 0 ? null : values.join("\n");
+}
+
+export function changeNoticeOf(data: string | null): ChangeNotice | null {
+  if (data === null) return null;
+  try {
+    const parsed = changeNoticeSchema.safeParse(JSON.parse(data));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
 function dispatch(block: string, handlers: ChangeStreamHandlers): void {
   handlers.onAlive();
-  const event = eventNameOf(block);
+  const event = fieldOf(block, "event")?.trim();
   if (event === "ready") handlers.onReady();
-  if (event === "change" || event === "reset") handlers.onChange();
+  if (event === "change") handlers.onChange(changeNoticeOf(fieldOf(block, "data")));
+  if (event === "reset") handlers.onChange(null);
 }
 
 async function pump(

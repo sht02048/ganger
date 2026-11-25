@@ -2,12 +2,12 @@
 import type { V1DeviceNotifications, V1SaveDeviceNotifications } from "@ganger/api";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { V1PushClient } from "../connection/client";
 import { EMPTY_PUSH_MEMORY } from "./push-port";
 import type { PushDevicePort, PushMemoryValue, PushPermission } from "./push-port";
-import { useDeviceNotifications } from "./use-device-notifications";
+import { PUSH_CHECK_INTERVAL_MS, useDeviceNotifications } from "./use-device-notifications";
 import type { DeviceNotificationsState } from "./use-device-notifications";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
@@ -31,8 +31,17 @@ function setup(options: {
   let server = options.server ?? OFF;
   let stored = options.memory ?? EMPTY_PUSH_MEMORY;
   const saves: V1SaveDeviceNotifications[] = [];
+  const counts = { settingsReads: 0, addressReads: 0 };
+  let readsFail = false;
   const client: V1PushClient = {
-    deviceNotifications: () => Promise.resolve({ ok: true, data: server, serverVersion: "0.4.0" }),
+    deviceNotifications: () => {
+      counts.settingsReads += 1;
+      return Promise.resolve(
+        readsFail
+          ? { ok: false, failure: { kind: "unreachable" } }
+          : { ok: true, data: server, serverVersion: "0.4.0" },
+      );
+    },
     saveDeviceNotifications: (request) => {
       saves.push(request);
       server = {
@@ -48,8 +57,10 @@ function setup(options: {
     supported: true,
     permission: () => Promise.resolve(options.permission ?? "granted"),
     requestPermission: () => Promise.resolve(options.permission ?? "granted"),
-    pushAddress: () =>
-      Promise.resolve(options.address === undefined ? NEW_ADDRESS : options.address),
+    pushAddress: () => {
+      counts.addressReads += 1;
+      return Promise.resolve(options.address === undefined ? NEW_ADDRESS : options.address);
+    },
     subscribeResponses: () => () => undefined,
     setBadgeCount: () => Promise.resolve(),
   };
@@ -62,19 +73,23 @@ function setup(options: {
     clear: () => Promise.resolve(),
   };
   const current: { state: DeviceNotificationsState | null } = { state: null };
-  function Probe() {
-    current.state = useDeviceNotifications({ client, device, memory, foreground: true });
+  function Probe({ foreground = true }: { foreground?: boolean }) {
+    current.state = useDeviceNotifications({ client, device, memory, foreground });
     return null;
   }
-  return { Probe, current, saves, device, stored: () => stored };
+  const failReads = (fail: boolean) => {
+    readsFail = fail;
+  };
+  return { Probe, current, saves, device, counts, failReads, stored: () => stored };
 }
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
   for (const cleanup of cleanups.splice(0)) cleanup();
+  vi.useRealTimers();
 });
 
-async function mount(Probe: () => null) {
+async function mount(Probe: (props: { foreground?: boolean }) => null) {
   const host = document.createElement("div");
   const root = createRoot(host);
   await act(async () => {
@@ -85,6 +100,17 @@ async function mount(Probe: () => null) {
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
   cleanups.push(() => act(() => root.unmount()));
+}
+
+async function mountSwitchable(Probe: (props: { foreground?: boolean }) => null) {
+  const root = createRoot(document.createElement("div"));
+  cleanups.push(() => act(() => root.unmount()));
+  return async (foreground: boolean) => {
+    await act(async () => {
+      root.render(<Probe foreground={foreground} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  };
 }
 
 async function press(work: () => void) {
@@ -211,5 +237,103 @@ describe("앱의 알림 설정(M11, M40, 결정 1)", () => {
     await mount(view.Probe);
     expect(view.saves).toMatchObject([{ enabled: true, expoPushToken: NEW_ADDRESS }]);
     expect(view.stored().address).toBe(NEW_ADDRESS);
+  });
+});
+
+describe("전면 복귀 때 알림 설정·푸시 주소 확인 간격(티켓 0224)", () => {
+  it("하루 안에 다시 앞으로 오면 설정과 푸시 주소를 다시 읽지 않고, 하루가 지나면 한 번 읽는다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-25T00:00:00.000Z") });
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: NEW_ADDRESS },
+    });
+    const render = await mountSwitchable(view.Probe);
+
+    await render(true);
+    expect(view.counts).toEqual({ settingsReads: 1, addressReads: 1 });
+
+    for (let round = 0; round < 3; round += 1) {
+      await render(false);
+      vi.setSystemTime(Date.now() + 60 * 60 * 1000);
+      await render(true);
+    }
+    expect(view.counts).toEqual({ settingsReads: 1, addressReads: 1 });
+
+    await render(false);
+    vi.setSystemTime(Date.now() + PUSH_CHECK_INTERVAL_MS);
+    await render(true);
+    expect(view.counts).toEqual({ settingsReads: 2, addressReads: 2 });
+  });
+
+  it("설정을 읽지 못했으면 다음 전면 복귀 때 다시 읽는다", async () => {
+    const view = setup({});
+    view.failReads(true);
+    const render = await mountSwitchable(view.Probe);
+    await render(true);
+    expect(view.current.state?.notice).toBe("load-failed");
+
+    view.failReads(false);
+    await render(false);
+    await render(true);
+    expect(view.counts.settingsReads).toBe(2);
+    expect(view.current.state?.notice).toBeNull();
+  });
+
+  it("푸시 주소를 받지 못했거나 서버에 넘기지 못했으면 다음 전면 복귀 때 다시 시도한다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-25T00:00:00.000Z") });
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: "ExponentPushToken[old]" },
+    });
+    let address: string | null = null;
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return Promise.resolve(address);
+    };
+    const render = await mountSwitchable(view.Probe);
+    await render(true);
+    expect(view.counts.addressReads).toBe(1);
+
+    address = NEW_ADDRESS;
+    await render(false);
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+    expect(view.saves).toMatchObject([{ expoPushToken: NEW_ADDRESS }]);
+    expect(view.stored().address).toBe(NEW_ADDRESS);
+
+    await render(false);
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+  });
+
+  it("푸시 주소를 받는 사이 뒤로 가 확인을 마치지 못했으면 다음 전면 복귀 때 다시 한다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-25T00:00:00.000Z") });
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: "ExponentPushToken[old]" },
+    });
+    let giveAddress: (address: string) => void = () => undefined;
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return new Promise((resolve) => {
+        giveAddress = resolve;
+      });
+    };
+    const render = await mountSwitchable(view.Probe);
+    await render(true);
+    await render(false);
+    await act(async () => {
+      giveAddress(NEW_ADDRESS);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(view.saves).toEqual([]);
+
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return Promise.resolve(NEW_ADDRESS);
+    };
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+    expect(view.saves).toMatchObject([{ expoPushToken: NEW_ADDRESS }]);
   });
 });

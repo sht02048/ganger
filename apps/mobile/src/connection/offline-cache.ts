@@ -5,6 +5,7 @@ import { z } from "zod";
 export const CACHE_FORMAT_VERSION = 1;
 export const CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export const CACHED_RUNS_PER_WORKSPACE = 20;
+export const CACHE_WRITE_INTERVAL_MS = 30_000;
 
 export interface CacheFiles {
   read(server: string): Promise<string | null>;
@@ -86,7 +87,10 @@ export class OfflineCache {
   #closed = false;
   #readFailed = false;
   #dirty = false;
+  #touched = false;
   #flushing: Promise<void> | null = null;
+  #wait: ReturnType<typeof setTimeout> | null = null;
+  #lastWriteAt: number | null = null;
 
   constructor(files: CacheFiles, server: string, now: () => number) {
     this.#files = files;
@@ -109,6 +113,15 @@ export class OfflineCache {
     this.#boardOf(workspaceId).dashboard = { data, fetchedAt };
     this.#workspaceList = { data: workspaces, fetchedAt };
     this.#schedule();
+  }
+
+  confirmDashboard(workspaceId: string, fetchedAt: number): void {
+    if (this.#closed) return;
+    const board = this.#boards.get(workspaceId);
+    const dashboard = board?.dashboard ?? null;
+    if (board === undefined || dashboard === null || dashboard.fetchedAt >= fetchedAt) return;
+    board.dashboard = { ...dashboard, fetchedAt };
+    this.#touched = true;
   }
 
   saveRun(detail: AppRunDetail, fetchedAt: number): void {
@@ -136,13 +149,19 @@ export class OfflineCache {
   async clear(): Promise<void> {
     this.#closed = true;
     this.#dirty = false;
+    this.#touched = false;
+    this.#clearWait();
     this.#boards.clear();
     this.#workspaceList = null;
     await this.#flushing;
     await this.#files.remove(this.#server);
   }
 
-  async settled(): Promise<void> {
+  async flush(): Promise<void> {
+    await this.#flushing;
+    this.#clearWait();
+    if (!this.#dirty && !this.#touched) return;
+    this.#flushing ??= this.#flush();
     await this.#flushing;
   }
 
@@ -212,18 +231,36 @@ export class OfflineCache {
 
   #schedule(): void {
     this.#dirty = true;
-    this.#flushing ??= this.#flush();
+    if (this.#flushing !== null || this.#wait !== null) return;
+    const waitMs =
+      this.#lastWriteAt === null ? 0 : this.#lastWriteAt + CACHE_WRITE_INTERVAL_MS - this.#now();
+    if (waitMs <= 0) {
+      this.#flushing = this.#flush();
+      return;
+    }
+    this.#wait = setTimeout(() => {
+      this.#wait = null;
+      this.#flushing ??= this.#flush();
+    }, waitMs);
+  }
+
+  #clearWait(): void {
+    if (this.#wait !== null) clearTimeout(this.#wait);
+    this.#wait = null;
   }
 
   async #flush(): Promise<void> {
     try {
       await this.load();
-      while (this.#dirty && !this.#closed && !this.#readFailed) {
+      if ((this.#dirty || this.#touched) && !this.#closed && !this.#readFailed) {
         this.#dirty = false;
+        this.#touched = false;
+        this.#lastWriteAt = this.#now();
         await this.#files.write(this.#server, this.#serialize()).catch(() => undefined);
       }
     } finally {
       this.#flushing = null;
+      if (this.#dirty && !this.#closed && !this.#readFailed) this.#schedule();
     }
   }
 
