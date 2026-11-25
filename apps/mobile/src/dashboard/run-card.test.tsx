@@ -2,10 +2,13 @@
 import { act } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it } from "vitest";
+import { Linking } from "react-native";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { DashboardRun, EndedRun } from "./model";
-import { RunCard, SettledRow, prProblemTone } from "./run-card";
+import { RunCard, SettledRow, prProblemTone, runMenuGroups } from "./run-card";
+import type { RunMenuAction } from "./run-card";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -15,7 +18,18 @@ function mount(node: ReactNode): HTMLElement {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
-  act(() => root.render(node));
+  act(() =>
+    root.render(
+      <SafeAreaProvider
+        initialMetrics={{
+          frame: { x: 0, y: 0, width: 390, height: 844 },
+          insets: { top: 0, left: 0, right: 0, bottom: 0 },
+        }}
+      >
+        {node}
+      </SafeAreaProvider>,
+    ),
+  );
   mounted.push(() => {
     act(() => root.unmount());
     host.remove();
@@ -215,7 +229,8 @@ describe("카드 행동 버튼 배치", () => {
     if (actions === null) throw new Error("card-actions not found");
     expect(getComputedStyle(actions).marginTop).toBe(space.s1);
     expect(getComputedStyle(actions).gap).toBe(space.s2);
-    expect(actions.querySelectorAll('[role="button"]')).toHaveLength(2);
+    expect(actions.querySelectorAll('[role="button"]')).toHaveLength(1);
+    expect(host.textContent).not.toContain("더 보기");
   });
 
   it("Failed 카드는 런 상세와 다시 맡기기를 한 줄에 같은 폭으로 둔다", () => {
@@ -384,5 +399,127 @@ describe("모르는 값", () => {
     };
     const host = mount(<RunCard run={run} onAction={() => undefined} />);
     expect(host.textContent).toContain("알 수 없는 문제");
+  });
+});
+
+describe("카드 … 메뉴", () => {
+  const running: DashboardRun = { ...base, state: "running" };
+  const withPr = (run: EndedRun, url: string): EndedRun => ({
+    ...run,
+    prState: "open",
+    pullRequest: { displayId: "#7", url, problems: [] },
+  });
+  const menuButton = (host: HTMLElement, key = "ACME-1") =>
+    host.querySelector(`[aria-label="${key} 메뉴"]`);
+  const popover = () => document.body.querySelector('[data-testid="popover"]');
+  const itemLabels = () =>
+    Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((item) =>
+      item.getAttribute("aria-label"),
+    );
+
+  async function openMenu(host: HTMLElement) {
+    const button = menuButton(host);
+    if (button === null) throw new Error("menu button not found");
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+  }
+
+  async function choose(label: string) {
+    const item = document.body.querySelector(`[role="menuitem"][aria-label="${label}"]`);
+    if (item === null) throw new Error(`no item: ${label}`);
+    await act(async () => {
+      item.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+  }
+
+  it("진행 중인 런은 링크 묶음과 런 취소를 구분선으로 나눠 보인다", () => {
+    expect(runMenuGroups(running)).toEqual([["open-ticket"], ["cancel"]]);
+    expect(runMenuGroups({ ...running, cancelling: true })).toEqual([["open-ticket"]]);
+  });
+
+  it("끝난 런도 티켓을 열고, PR이 웹 주소이면 PR 열기를 더하며 런 취소는 없다", () => {
+    expect(runMenuGroups(settled)).toEqual([["open-ticket"]]);
+    expect(runMenuGroups(withPr(settled, "https://github.com/acme/app/pull/7"))).toEqual([
+      ["open-ticket", "open-pr"],
+    ]);
+    expect(runMenuGroups(withPr(settled, "javascript:alert(1)"))).toEqual([["open-ticket"]]);
+  });
+
+  it("카드 아래에 더 보기 버튼을 두지 않고, 오른쪽 위 … 버튼으로 메뉴를 연다", async () => {
+    const chosen: RunMenuAction[] = [];
+    const host = mount(
+      <RunCard run={running} onAction={noAction} onMenu={(action) => chosen.push(action)} />,
+    );
+    expect(host.textContent).not.toContain("더 보기");
+    expect(host.querySelector('[data-testid="card-actions"]')).toBeNull();
+    expect(menuButton(host)?.getAttribute("aria-expanded")).toBe("false");
+    expect(popover()).toBeNull();
+    await openMenu(host);
+    expect(menuButton(host)?.getAttribute("aria-expanded")).toBe("true");
+    expect(popover()?.getAttribute("role")).toBe("menu");
+    expect(itemLabels()).toEqual(["Linear에서 열기", "런 취소"]);
+    expect(document.body.querySelectorAll('[data-testid="popover-divider"]')).toHaveLength(1);
+    await choose("런 취소");
+    expect(chosen).toEqual(["cancel"]);
+    expect(popover()).toBeNull();
+  });
+
+  it("바깥을 누르면 아무 항목도 고르지 않고 닫는다", async () => {
+    const chosen: RunMenuAction[] = [];
+    const host = mount(
+      <RunCard run={running} onAction={noAction} onMenu={(action) => chosen.push(action)} />,
+    );
+    await openMenu(host);
+    const backdrop = document.body.querySelector('[aria-label="메뉴 닫기"]');
+    expect(backdrop?.getAttribute("role")).toBe("button");
+    await act(async () => {
+      backdrop?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(popover()).toBeNull();
+    expect(chosen).toEqual([]);
+  });
+
+  it("끝난 Failed 카드와 끝난 런 줄에도 … 메뉴가 있다", async () => {
+    const failed: EndedRun = {
+      ...settled,
+      todoTag: "failed",
+      summary: "failed",
+      agentResult: "reported-failure",
+    };
+    const chosen: RunMenuAction[] = [];
+    const card = mount(
+      <RunCard run={failed} onAction={noAction} onMenu={(action) => chosen.push(action)} />,
+    );
+    await openMenu(card);
+    expect(itemLabels()).toEqual(["Linear에서 열기"]);
+    await choose("Linear에서 열기");
+    expect(chosen).toEqual(["open-ticket"]);
+    const row = mount(
+      <SettledRow
+        run={withPr(settled, "https://github.com/acme/app/pull/7")}
+        onMenu={(action) => chosen.push(action)}
+      />,
+    );
+    await openMenu(row);
+    expect(itemLabels()).toEqual(["Linear에서 열기", "PR #7 GitHub에서 열기"]);
+    await choose("PR #7 GitHub에서 열기");
+    expect(chosen).toEqual(["open-ticket", "open-pr"]);
+  });
+
+  it("onMenu가 없으면 … 버튼을 두지 않는다", () => {
+    const host = mount(<RunCard run={running} onAction={noAction} />);
+    expect(menuButton(host)).toBeNull();
+    expect(mount(<SettledRow run={settled} />).querySelector('[role="button"]')).toBeNull();
+  });
+
+  it("Linking을 직접 부르지 않는다", () => {
+    const openURL = vi.spyOn(Linking, "openURL");
+    mount(<RunCard run={running} onAction={noAction} onMenu={noAction} />);
+    expect(openURL).not.toHaveBeenCalled();
+    openURL.mockRestore();
   });
 });

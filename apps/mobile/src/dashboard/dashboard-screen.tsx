@@ -11,7 +11,8 @@ import { t } from "../i18n";
 import { sheetKindFor } from "../notifications/push-data";
 import { demoRunPort } from "../runs/run-port";
 import type { RunPort } from "../runs/run-port";
-import { RunSheets, outcomeMessage } from "../runs/run-sheets";
+import { openTicket, openWebLink } from "../runs/open-link";
+import { RunSheets, outcomeMessage, ticketOpenMessage } from "../runs/run-sheets";
 import type { OpenRunSheet } from "../runs/run-sheets";
 import type { MobileSnapshot } from "../screen-model";
 import {
@@ -24,7 +25,7 @@ import {
 } from "./model";
 import type { Board, ColumnKey, DashboardRun } from "./model";
 import { RunCard, SettledRow } from "./run-card";
-import type { RunCardAction } from "./run-card";
+import type { RunCardAction, RunMenuAction } from "./run-card";
 
 const COLUMNS: ReadonlyArray<ColumnKey> = ["queued", "running", "done"];
 
@@ -66,7 +67,7 @@ function RunList({
   resumingRunIds: ReadonlySet<string>;
   confirmingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
-  onMenu: (run: DashboardRun) => void;
+  onMenu: (run: DashboardRun, action: RunMenuAction) => void;
 }) {
   return (
     <>
@@ -78,7 +79,7 @@ function RunList({
           actionsDisabled={actionsDisabled || resumingRunIds.has(run.id)}
           confirming={confirmingRunIds.has(run.id)}
           onAction={(action) => onAction(run, action)}
-          onMenu={() => onMenu(run)}
+          onMenu={(action) => onMenu(run, action)}
         />
       ))}
     </>
@@ -104,7 +105,7 @@ function ColumnBody({
   resumingRunIds: ReadonlySet<string>;
   confirmingRunIds: ReadonlySet<string>;
   onAction: (run: DashboardRun, action: RunCardAction) => void;
-  onMenu: (run: DashboardRun) => void;
+  onMenu: (run: DashboardRun, action: RunMenuAction) => void;
 }) {
   const hasTodo = columnTodoCount(board, column) > 0;
   const hasRest = columnRestCount(board, column) > 0;
@@ -155,7 +156,12 @@ function ColumnBody({
                 {t("dashboard.settledGroup")}
               </Text>
               {board.done.settled.map((run) => (
-                <SettledRow key={run.id} run={run} showWorkspace={showWorkspace} />
+                <SettledRow
+                  key={run.id}
+                  run={run}
+                  showWorkspace={showWorkspace}
+                  onMenu={(action) => onMenu(run, action)}
+                />
               ))}
             </View>
           )}
@@ -199,7 +205,7 @@ export function DashboardScreen({
   const [picking, setPicking] = useState(false);
   const [sheet, setSheet] = useState<OpenRunSheet | null>(null);
   const previewedOpenRun = useRef<{ id: string; action: boolean } | null>(null);
-  const [resumeNotice, setResumeNotice] = useState<OpenRunSheet | null>(null);
+  const [noticeSheet, setNoticeSheet] = useState<OpenRunSheet | null>(null);
   const [resumingRunIds, setResumingRunIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmingRunIds, setConfirmingRunIds] = useState<ReadonlySet<string>>(new Set());
   const resume = async (run: DashboardRun) => {
@@ -220,7 +226,28 @@ export function DashboardScreen({
           : outcome.kind === "unconfirmed"
             ? t("actions.unconfirmedTitle")
             : t("actions.resumeFailedTitle");
-      setResumeNotice({ kind: "notice", title, message });
+      setNoticeSheet({ kind: "notice", title, message });
+    }
+  };
+  const runMenu = async (run: DashboardRun, action: RunMenuAction) => {
+    switch (action) {
+      case "cancel":
+        setSheet({ kind: "cancel", run });
+        return;
+      case "open-pr":
+        if (run.pullRequest !== null) await openWebLink(run.pullRequest.url);
+        return;
+      case "open-ticket": {
+        const outcome = await openTicket(port, run);
+        if (outcome === "opened") return;
+        setNoticeSheet({
+          kind: "notice",
+          title:
+            outcome === "demo" ? t("settings.serverDemo") : t("actions.menu.ticketFailedTitle"),
+          message: ticketOpenMessage(outcome),
+        });
+        return;
+      }
     }
   };
   const runAction = (run: DashboardRun, action: RunCardAction) => {
@@ -358,7 +385,7 @@ export function DashboardScreen({
               resumingRunIds={resumingRunIds}
               confirmingRunIds={confirmingRunIds}
               onAction={runAction}
-              onMenu={(run) => setSheet({ kind: "menu", run })}
+              onMenu={(run, action) => void runMenu(run, action)}
             />
           </>
         )}
@@ -382,10 +409,10 @@ export function DashboardScreen({
         ))}
       </Sheet>
       <RunSheets
-        sheet={sheet ?? resumeNotice}
+        sheet={sheet ?? noticeSheet}
         port={port}
         disabled={actionsDisabled}
-        onClose={() => (sheet === null ? setResumeNotice(null) : setSheet(null))}
+        onClose={() => (sheet === null ? setNoticeSheet(null) : setSheet(null))}
       />
     </View>
   );

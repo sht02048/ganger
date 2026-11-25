@@ -8,7 +8,7 @@ import type {
 } from "@ganger/api";
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import type { ReactNode, RefObject } from "react";
-import { AccessibilityInfo, Linking, StyleSheet, View } from "react-native";
+import { AccessibilityInfo, StyleSheet, View } from "react-native";
 
 import { staleBandText } from "../connection/stale-band";
 import type { DashboardRun } from "../dashboard/model";
@@ -18,6 +18,7 @@ import {
   Card,
   Chip,
   ExternalLink,
+  LinkButton,
   NoticeBand,
   RadioRow,
   RaisedBox,
@@ -34,11 +35,12 @@ import { agentName, formatAgo } from "../format";
 import { t } from "../i18n";
 import type { MessageKey } from "../i18n";
 import { bodyParts, isWebLink } from "./body-parts";
+import { openTicket, openWebLink } from "./open-link";
 import type { RunPort, RunRead, RunWrite, RunWriteOutcome } from "./run-port";
 
 export type OpenRunSheet =
   | {
-      kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "menu" | "retry";
+      kind: "answer" | "human-check" | "deny" | "cancel" | "detail" | "retry";
       run: DashboardRun;
     }
   | { kind: "notice"; title: string; message: string };
@@ -228,16 +230,6 @@ function useRunDetail(
     };
   }, [port, run, attempt, useCache]);
   return view;
-}
-
-async function openWebLink(url: string): Promise<boolean> {
-  if (!isWebLink(url)) return false;
-  try {
-    await Linking.openURL(url);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 function ContextLine({ run }: { run: DashboardRun }) {
@@ -658,75 +650,6 @@ function CancelSheet({
   );
 }
 
-function MenuSheet({
-  run,
-  port,
-  disabled,
-  onClose,
-}: {
-  run: DashboardRun;
-  port: RunPort;
-  disabled: boolean;
-  onClose: () => void;
-}) {
-  const [confirmingCancel, setConfirmingCancel] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [messageTone, setMessageTone] = useState<TextTone>("problem");
-  const [opening, setOpening] = useState(false);
-  const closeSheet = useCloseUnlessSending(onClose);
-  const mounted = useRef(false);
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-  const openTicket = async () => {
-    setOpening(true);
-    setMessage(null);
-    const link = await port.ticketLink(run);
-    if (!mounted.current) return;
-    const opened = link.kind === "ok" && (await openWebLink(link.value));
-    if (!mounted.current) return;
-    setOpening(false);
-    if (opened) {
-      onClose();
-      return;
-    }
-    setMessageTone(link.kind === "demo" ? "secondary" : "problem");
-    setMessage(link.kind === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed"));
-  };
-  return (
-    <Sheet
-      visible
-      title={confirmingCancel ? t("actions.cancel.title") : run.ticketKey}
-      closeLabel={t("common.close")}
-      onClose={closeSheet}
-    >
-      {confirmingCancel ? (
-        <CancelConfirm run={run} port={port} disabled={disabled} onClose={onClose} />
-      ) : (
-        <>
-          <Button
-            label={t("actions.menu.openTicket")}
-            disabled={opening}
-            onPress={() => void openTicket()}
-          />
-          {run.cancelling ? null : (
-            <Button
-              variant="danger"
-              label={t("actions.menu.cancel")}
-              disabled={disabled}
-              onPress={() => setConfirmingCancel(true)}
-            />
-          )}
-          <SheetMessage message={message} tone={messageTone} />
-        </>
-      )}
-    </Sheet>
-  );
-}
-
 function RetryForm({
   run,
   detail,
@@ -1080,15 +1003,55 @@ function DetailSheet({
       closeLabel={t("common.close")}
       onClose={onClose}
     >
+      <View style={styles.ticket}>
+        <ContextLine run={run} />
+        <TicketLinkButton run={run} port={port} />
+      </View>
       <DetailGate read={read} staleNotice={staleNotice}>
         {(detail) => (
           <SheetBody>
-            <ContextLine run={run} />
             <RunDetailBody detail={detail} />
           </SheetBody>
         )}
       </DetailGate>
     </Sheet>
+  );
+}
+
+export function ticketOpenMessage(outcome: "demo" | "failed"): string {
+  return outcome === "demo" ? t("common.demoAction") : t("actions.menu.ticketFailed");
+}
+
+function TicketLinkButton({ run, port }: { run: DashboardRun; port: RunPort }) {
+  const [opening, setOpening] = useState(false);
+  const [failure, setFailure] = useState<"demo" | "failed" | null>(null);
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  const open = async () => {
+    setOpening(true);
+    setFailure(null);
+    const outcome = await openTicket(port, run);
+    if (!mounted.current) return;
+    setOpening(false);
+    setFailure(outcome === "opened" ? null : outcome);
+  };
+  return (
+    <>
+      <LinkButton
+        label={t("actions.menu.openTicket")}
+        disabled={opening}
+        onPress={() => void open()}
+      />
+      <SheetMessage
+        message={failure === null ? null : ticketOpenMessage(failure)}
+        tone={failure === "demo" ? "secondary" : "problem"}
+      />
+    </>
   );
 }
 
@@ -1133,16 +1096,6 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
           onClose={onClose}
         />
       );
-    case "menu":
-      return (
-        <MenuSheet
-          key={sheet.run.id}
-          run={sheet.run}
-          port={port}
-          disabled={disabled}
-          onClose={onClose}
-        />
-      );
     case "retry":
       return (
         <RetrySheet
@@ -1177,5 +1130,6 @@ function OpenSheet({ sheet, port, disabled, onClose }: RunSheetsProps & { sheet:
 
 const styles = StyleSheet.create({
   group: { gap: space.s2 },
+  ticket: { gap: space.s2 },
   prHead: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s2 },
 });
