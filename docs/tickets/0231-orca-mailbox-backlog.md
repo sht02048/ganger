@@ -66,3 +66,7 @@ Orca 러너의 에이전트가 보낸 질문, Human Check(`decision_gate`), 막�
 - [x] 3200행을 채워도 Task 시작에 닿지 못하면 `runner.mail_window_short`를 남긴다.
 
 `worker_done`은 메일이 아니라 Task `result`로 안다(ADR 0009, `completionReport`). 운영자 보고의 런도 그렇게 끝났으므로 메일 쪽 시험은 따로 두지 않는다. "저장 뒤에만 ack", "저장 실패면 ack 안 함", "끝난 런 메일 정리" 시험은 ack 하지 않기로 해서 두지 않는다.
+
+## 후속
+
+- 동시에 도는 런마다 같은 inbox 를 따로 읽던 것과 ADR 0009·research 0008 의 낡은 `check --peek` 서술은 [0232](0232-orca-mail-once-per-poll.md)에서 고쳤다.

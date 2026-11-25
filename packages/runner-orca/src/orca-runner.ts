@@ -134,9 +134,11 @@ import {
   MAIL_WINDOW_FIRST,
   MAIL_WINDOW_GROWTH,
   MAIL_WINDOW_MAX,
-  reachesBefore,
-  taskStartedAt,
+  PollCycle,
+  isWholeInbox,
+  windowReaches,
 } from "./mail-window.js";
+import type { MailWindow } from "./mail-window.js";
 import { serviceInstallArgs } from "./service-install.js";
 import { RemoteCommandTooLongError, toRemoteCommand } from "./shell.js";
 import { sshExec } from "./ssh.js";
@@ -202,6 +204,7 @@ export class OrcaRunner implements Runner {
   private readonly exec: RemoteExec;
   private readonly sleep: (ms: number) => Promise<void>;
   private readonly logger: () => Logger;
+  private pollCycle: PollCycle | null = null;
 
   constructor(config: OrcaRunnerConfig, exec?: RemoteExec, options: OrcaRunnerOptions = {}) {
     this.config = config;
@@ -764,14 +767,28 @@ export class OrcaRunner implements Runner {
     };
   }
 
+  beginPollCycle(agents: ReadonlyArray<AgentRef>): void {
+    this.pollCycle = new PollCycle(
+      agents.flatMap((ref) => {
+        const agent = decodeAgent(ref);
+        return agent === null ? [] : [agent];
+      }),
+    );
+  }
+
+  endPollCycle(): void {
+    this.pollCycle = null;
+  }
+
   async pollRun(run: RunOnRunner): Promise<RunProgress> {
     const agent = this.agentOf(run);
     this.mailboxOf(run.mailbox);
+    const cycle = this.pollCycle ?? new PollCycle();
     const worker = await this.orca(
       ["orchestration", "worker-show", "--dispatch", agent.dispatchId],
       workerShowResultSchema,
     );
-    const task = worker.state === "ready" ? undefined : await this.taskOf(agent);
+    const task = worker.state === "ready" ? undefined : await this.taskOf(agent, cycle);
     const taskResult = task?.result ?? null;
     if (completionReport(taskResult) !== null) {
       return decideProgress({
@@ -783,7 +800,7 @@ export class OrcaRunner implements Runner {
         worktreeExists: null,
       });
     }
-    const mails = await this.readMail(agent, task);
+    const mails = await this.readMail(agent, cycle);
     const worktreeRow = await this.worktreeRow(run.worktree);
     const worktreeExists =
       worktreeRow === null || worktreeRow === "unknown"
@@ -814,45 +831,58 @@ export class OrcaRunner implements Runner {
     return `${tabId}:${leafId}`;
   }
 
-  private async taskOf(agent: OrcaAgent): Promise<TaskRow | null> {
-    const { tasks } = await this.orca(
-      ["orchestration", "task-list", "--run", agent.runId, "--full", "--brief"],
-      taskListResultSchema,
-    );
+  private async taskOf(agent: OrcaAgent, cycle: PollCycle): Promise<TaskRow | null> {
+    const tasks = await this.tasksOf(agent.runId);
+    cycle.rememberTasks(agent.runId, tasks);
     return tasks.find((task) => task.id === agent.taskId) ?? null;
   }
 
-  private async readMail(
-    agent: OrcaAgent,
-    knownTask: TaskRow | null | undefined,
-  ): Promise<ReadonlyArray<MailRow>> {
-    let task = knownTask;
-    for (let limit = MAIL_WINDOW_FIRST; ; limit *= MAIL_WINDOW_GROWTH) {
-      const { messages } = await this.orca(
-        [
-          "orchestration",
-          "inbox",
-          "--terminal",
-          `run:${agent.runId}`,
-          "--limit",
-          String(limit),
-          "--full",
-        ],
-        checkResultSchema,
-      );
-      if (messages.length < limit) return messages;
-      if (task === undefined) task = await this.taskOf(agent);
-      const since = taskStartedAt(task);
-      if (since !== null && reachesBefore(messages, since)) return messages;
-      if (limit >= MAIL_WINDOW_MAX) {
+  private async tasksOf(orcaRunId: string): Promise<ReadonlyArray<TaskRow>> {
+    const { tasks } = await this.orca(
+      ["orchestration", "task-list", "--run", orcaRunId, "--full", "--brief"],
+      taskListResultSchema,
+    );
+    return tasks;
+  }
+
+  private async readMail(agent: OrcaAgent, cycle: PollCycle): Promise<ReadonlyArray<MailRow>> {
+    let window =
+      cycle.windowOf(agent.runId) ?? (await this.readInbox(agent.runId, MAIL_WINDOW_FIRST));
+    if (!isWholeInbox(window)) {
+      if (!cycle.knowsTasksOf(agent.runId)) {
+        cycle.rememberTasks(agent.runId, await this.tasksOf(agent.runId));
+      }
+      const earliest = cycle.earliestStartWith(agent);
+      while (!windowReaches(window, earliest) && window.limit < MAIL_WINDOW_MAX) {
+        window = await this.readInbox(agent.runId, window.limit * MAIL_WINDOW_GROWTH);
+      }
+      const since = cycle.startOf(agent);
+      if (!windowReaches(window, since)) {
         this.logger().warn("runner.mail_window_short", {
           orcaRunId: agent.runId,
-          count: messages.length,
+          count: window.messages.length,
           reason: since === null ? "task start unknown" : "newer mail fills the window",
         });
-        return messages;
       }
     }
+    cycle.keepWindow(agent.runId, window);
+    return window.messages;
+  }
+
+  private async readInbox(orcaRunId: string, limit: number): Promise<MailWindow> {
+    const { messages } = await this.orca(
+      [
+        "orchestration",
+        "inbox",
+        "--terminal",
+        `run:${orcaRunId}`,
+        "--limit",
+        String(limit),
+        "--full",
+      ],
+      checkResultSchema,
+    );
+    return { limit, messages };
   }
 
   private async worktreeRow(

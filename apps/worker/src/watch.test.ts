@@ -820,6 +820,44 @@ describe("취소", () => {
   });
 });
 
+describe("폴링 주기(0232)", () => {
+  function agentRefOf(run: StoredRun) {
+    const found = current(run);
+    if (found.state === "queued" || found.agentRef === null) throw new Error("run has not started");
+    return found.agentRef;
+  }
+
+  it("러너마다 그 러너의 런을 알리며 주기를 열고, 런을 모두 폴링한 뒤 닫는다", async () => {
+    const runnerA = h.addRunner({ id: "runner-a", capacity: 2, projects: [projectA] });
+    const runnerB = h.addRunner({ id: "runner-b", capacity: 1, projects: [projectB] });
+    const first = h.assign("ENG-1", projectA);
+    const second = h.assign("ENG-2", projectA);
+    const elsewhere = h.assign("ENG-3", projectB);
+    const worker = h.worker();
+    await worker.tick();
+    expect([first, second, elsewhere].map(stateOf)).toEqual(["running", "running", "running"]);
+    h.runner(runnerA).pollCycleEvents.length = 0;
+    h.runner(runnerB).pollCycleEvents.length = 0;
+
+    await worker.tick();
+
+    const onA = h.runner(runnerA).pollCycleEvents;
+    const bothAgents = [agentRefOf(first), agentRefOf(second)].sort();
+    expect(onA.map((event) => event.kind)).toEqual(["begin", "poll", "poll", "end"]);
+    expect(onA.flatMap((event) => (event.kind === "begin" ? event.agents : [])).sort()).toEqual(
+      bothAgents,
+    );
+    expect(onA.flatMap((event) => (event.kind === "poll" ? [event.agent] : [])).sort()).toEqual(
+      bothAgents,
+    );
+    expect(h.runner(runnerB).pollCycleEvents).toEqual([
+      { kind: "begin", agents: [agentRefOf(elsewhere)] },
+      { kind: "poll", agent: agentRefOf(elsewhere) },
+      { kind: "end" },
+    ]);
+  });
+});
+
 describe("러너 상태 확인", () => {
   it("간격마다 Online/Offline, 확인 시각, 러너 쪽 프로젝트, GitHub 인증을 DB에 쓴다", async () => {
     const runnerId = h.addRunner({ id: "runner-a", capacity: 1, projects: [projectA] });
