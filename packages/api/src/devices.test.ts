@@ -12,6 +12,12 @@ describe("기기 연결 QR", () => {
     expect(parseConnectionQr(connectionQrText(qr))).toEqual(qr);
   });
 
+  it("포트 붙은 https 주소도 연결할 수 있는 주소로 되읽는다", () => {
+    const qr = { server: "https://studio.example.ts.net:8444", code: "abc" };
+    expect(isConnectableAddress(qr.server)).toBe(true);
+    expect(parseConnectionQr(connectionQrText(qr))).toEqual(qr);
+  });
+
   it.each([
     "https://ganger.example.com?code=abc",
     "ganger://connect?server=http%3A%2F%2Fganger.example.com&code=abc",

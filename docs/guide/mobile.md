@@ -140,7 +140,7 @@ Open **Ganger** on the iPhone and choose the Mac's dev server in the list, or sc
 The app connects only to an HTTPS address.
 
 1. Install Tailscale on the phone and sign in to the same account as the server Mac.
-2. On the server, open Settings > **모바일** (mobile) and select **켜기** (turn on) on **휴대폰에서 이 Mac 열기** (open this Mac from your phone). It serves the app at the Mac's Tailscale HTTPS address, for example `https://server.example.ts.net`, only inside your tailnet (see [Open it from your phone](networking.md#open-it-from-your-phone)).
+2. On the server, open Settings > **모바일** (mobile) and select **켜기** (turn on) on **휴대폰에서 이 Mac 열기** (open this Mac from your phone). It serves the app at the Mac's Tailscale HTTPS address, for example `https://server.example.ts.net`, only inside your tailnet. If another service already uses port 443, it picks a free port and the address carries it, for example `https://server.example.ts.net:8444`; the app connects to it the same way (see [Open it from your phone](networking.md#open-it-from-your-phone)).
 3. The page shows a QR code right away. Scan it with the app. If it expired, choose **새 QR 만들기** (new QR code).
 
 The phones you connected are listed under the QR code. **연결 끊기** (disconnect) removes a phone's device token.

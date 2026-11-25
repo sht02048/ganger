@@ -702,6 +702,7 @@
     "turnOff": "끄기",
     "turningOff": "끄는 중…",
     "onDetail": " · 켜짐",
+    "fallbackPort": "443은 다른 곳이 쓰고 있어 {port}{direction} 열었어요.",
     "turnedOn": "켰어요. 휴대폰 Ganger 앱으로 QR을 찍어 주세요.",
     "turnedOff": "껐어요. 이제 휴대폰에서 이 Mac을 열 수 없어요.",
     "portInUse": "이 Mac의 443 포트를 다른 곳에서 쓰고 있어 켤 수 없어요. 쓰는 곳: {uses}",

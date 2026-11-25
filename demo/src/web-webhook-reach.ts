@@ -55,7 +55,18 @@ export function getWebhookPingFetch(): PingFetch {
 }
 
 const DEMO_TAILSCALE_CLI = "/demo/tailscale";
-let demoMobileServe: Record<string, unknown> = {};
+
+function demoMobileServeAtStart(): Record<string, Record<string, unknown>> {
+  if (process.env["GANGER_DEMO_TAILSCALE"] !== "busy-443") return {};
+  return {
+    [`${DEMO_TAILNET_HOST}:443`]: { Handlers: { "/": { Proxy: "http://127.0.0.1:3131" } } },
+    [`${DEMO_TAILNET_HOST}:8443`]: {
+      Handlers: { "/api/webhooks/": { Proxy: "http://127.0.0.1:3000/api/webhooks/" } },
+    },
+  };
+}
+
+const demoMobileServe = demoMobileServeAtStart();
 
 function demoTailscaleStatus(): string {
   if (process.env["GANGER_DEMO_TAILSCALE"] === "missing") {
@@ -70,14 +81,14 @@ export function getMobileAccessDeps(): MobileAccessDeps {
     exists: (path) => path === DEMO_TAILSCALE_CLI,
     run: (_file, args) =>
       Promise.resolve(
-        args[0] === "status" ? demoTailscaleStatus() : JSON.stringify(demoMobileServe),
+        args[0] === "status" ? demoTailscaleStatus() : JSON.stringify({ Web: demoMobileServe }),
       ),
     command: (_file, args) => {
+      const port = args.find((arg) => arg.startsWith("--https="))?.slice("--https=".length) ?? "";
       const target = args.at(-1) ?? "";
-      demoMobileServe =
-        target === "off"
-          ? {}
-          : { Web: { [`${DEMO_TAILNET_HOST}:443`]: { Handlers: { "/": { Proxy: target } } } } };
+      const key = `${DEMO_TAILNET_HOST}:${port}`;
+      if (target === "off") delete demoMobileServe[key];
+      else demoMobileServe[key] = { Handlers: { "/": { Proxy: target } } };
       return Promise.resolve({ ok: true, output: "" });
     },
   };

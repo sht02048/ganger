@@ -49,6 +49,16 @@ describe("기기 연결 코드", () => {
     expect(qr?.code).toHaveLength(32);
   });
 
+  it("443 이 아닌 포트로 연 주소도 그대로 QR에 싣는다", () => {
+    const { codes } = world();
+    const started = startDeviceConnection({
+      codes,
+      webAddress: "https://studio.example.ts.net:8444",
+    });
+    if (!started.ok) throw new Error("QR을 만들지 못했다");
+    expect(parseConnectionQr(started.qr)?.server).toBe("https://studio.example.ts.net:8444");
+  });
+
   it.each([null, "", "http://ganger.example.com"])(
     "다른 기기에서 열 주소가 %j이면 코드를 만들지 않는다",
     (webAddress) => {
