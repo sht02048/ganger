@@ -18,7 +18,7 @@ export function mobileLaunch(args: readonly string[]): {
 } {
   const target = args.includes("--dev-client") ? "--dev-client" : "--go";
   return {
-    serverArgs: args.filter((arg) => arg !== "--dev-client"),
+    serverArgs: args.filter((arg) => arg !== "--dev-client" && arg !== "--go"),
     expoArgs: ["start", target],
   };
 }

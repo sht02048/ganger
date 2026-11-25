@@ -6,7 +6,7 @@ You need:
 
 - An [Apple Developer Program](https://developer.apple.com/programs/) membership. Its Team ID is on the Membership page of your Apple Developer account.
 - An [Expo account](https://expo.dev/signup).
-- An iPhone with iOS 16 or later, and a Mac with this repository and Node 24 (see [CONTRIBUTING](../../CONTRIBUTING.md)).
+- An iPhone, and a Mac with this repository and Node 24 (see [CONTRIBUTING](../../CONTRIBUTING.md)).
 - A Ganger server that your iPhone can open over HTTPS, for example through Tailscale Serve (see [Open it from other devices](networking.md#open-it-from-other-devices)).
 
 Run every `eas` command from `apps/mobile`. EAS reads `apps/mobile/eas.json` there and installs the whole pnpm workspace from the lockfile at the repository root.
@@ -73,6 +73,8 @@ The values live in two places: `apps/mobile/.env` for commands on your Mac, and 
 
 To change a value later, edit `.env` and run steps 2 and 3 again.
 
+Run the `eas` commands in the next steps in the same shell, or load `.env` again first with `set -a; . ./.env; set +a`, so EAS CLI resolves the app configuration with the same values.
+
 The `development` build profile in `apps/mobile/eas.json` sets `GANGER_MOBILE_BUILD=development` (`env`). With it, the build accepts local-network HTTP (for the Metro dev server) and is signed for the APNs development environment (`aps-environment` `development`). It is not an account value, so do not add it to `.env` or to the EAS environment.
 
 ## 4. Upload the push key
@@ -91,7 +93,7 @@ eas device:create
 
 Open the link it prints on the iPhone and install the profile it offers. A development build installs only on registered devices, so register each iPhone before you build. If you add a device later, build again.
 
-On the iPhone, turn on **Settings > Privacy & Security > Developer Mode** and restart when asked. The switch appears after you install a development build for the first time if it is not there yet.
+On iOS 16 or later, turn on **Settings > Privacy & Security > Developer Mode** on the iPhone and restart when asked. The switch appears after you install a development build for the first time if it is not there yet.
 
 ## 6. Build
 

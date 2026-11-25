@@ -27,6 +27,10 @@ describe("모바일 개발 서버의 실행 대상(0227)", () => {
     });
   });
 
+  it("--go 를 직접 줘도 Expo Go 로 띄우고 데모 서버에는 넘기지 않는다", () => {
+    expect(mobileLaunch(["--go"])).toEqual({ serverArgs: [], expoArgs: ["start", "--go"] });
+  });
+
   it("--dev-client 를 주면 개발 빌드로 띄우고 데모 서버에는 넘기지 않는다", () => {
     expect(mobileLaunch(["--dev-client", "--onboarding"])).toEqual({
       serverArgs: ["--onboarding"],
