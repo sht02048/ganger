@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AppScreens } from "../app-screens";
 import type { MessageKey } from "../i18n";
+import { useClearedAppBadge } from "../notifications/app-badge";
 import { useFirstPaint } from "../startup/first-paint";
 import { createV1Client } from "./client";
 import type { FetchLike } from "./client";
@@ -46,6 +47,10 @@ export function AppRoot({
 }) {
   const [route, setRoute] = useState<Route>({ kind: "loading" });
   useFirstPaint(route.kind === "connect" || route.kind === "demo");
+  useClearedAppBadge(
+    pushDevice,
+    route.kind === "connect" || route.kind === "demo" ? route.kind : null,
+  );
 
   useEffect(() => {
     if (devConnection !== null) {

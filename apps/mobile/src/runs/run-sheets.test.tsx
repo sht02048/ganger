@@ -840,28 +840,65 @@ describe("다시 맡기기 시트", () => {
   });
 });
 
-describe("카드 메뉴", () => {
-  it("런 취소는 같은 시트 안에서 확인을 거쳐 보낸다", async () => {
-    const { port, write } = fakePort();
-    await open({ kind: "menu", run: questionRun }, port);
-    const dialogs = () => document.body.querySelectorAll('[aria-modal="true"]').length;
-    const before = dialogs();
-    await press("런 취소");
-    expect(document.body.textContent).toContain("이 런을 취소할까요?");
-    expect(dialogs()).toBe(before);
-    expect(write).not.toHaveBeenCalled();
-    await press("런 취소하기");
-    expect(write.mock.calls[0]?.[1]).toEqual({ action: "cancel" });
+describe("런 상세의 Linear에서 열기", () => {
+  const linear = "https://linear.app/acme/issue/ACME-1/title";
+
+  it("끝난 런 상세의 티켓 줄 아래에 링크 버튼을 두고 트래커 주소를 그대로 연다", async () => {
+    const openURL = vi.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    const port: RunPort = {
+      ...fakePort().port,
+      ticketLink: () => Promise.resolve({ kind: "ok", value: linear }),
+    };
+    await open({ kind: "detail", run: failedRun }, port);
+    const link = byLabel("Linear에서 열기");
+    expect(link?.getAttribute("role")).toBe("link");
+    expect(link?.getAttribute("data-testid")).toBe("link-button");
+    await press("Linear에서 열기");
+    expect(openURL).toHaveBeenCalledExactlyOnceWith(linear);
+    openURL.mockRestore();
   });
 
-  it("Linear에서 열기와 런 취소를 보이고, 취소 중이면 런 취소를 뺀다", async () => {
-    await open({ kind: "menu", run: questionRun }, fakePort().port);
-    expect(byLabel("Linear에서 열기")).not.toBeNull();
-    expect(byLabel("런 취소")).not.toBeNull();
+  it("상세를 읽지 못해도 티켓은 열 수 있다", async () => {
+    const openURL = vi.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    const port: RunPort = {
+      ...fakePort().port,
+      detail: () => Promise.resolve({ kind: "unavailable" }),
+    };
+    await open({ kind: "detail", run: questionRun }, port);
+    await press("Linear에서 열기");
+    expect(openURL).toHaveBeenCalledExactlyOnceWith("https://tracker.example.com/ACME-1");
+    openURL.mockRestore();
+  });
+
+  it("주소를 읽지 못하면 다시 해 달라고 말하고, 웹 주소가 아니면 열지 않는다", async () => {
+    const openURL = vi.spyOn(Linking, "openURL").mockResolvedValue(undefined);
+    await open(
+      { kind: "detail", run: failedRun },
+      { ...fakePort().port, ticketLink: () => Promise.resolve({ kind: "unavailable" }) },
+    );
+    await press("Linear에서 열기");
+    expect(document.body.textContent).toContain("Linear 티켓을 열지 못했어요");
     for (const unmount of mounted.splice(0)) unmount();
-    await open({ kind: "menu", run: { ...questionRun, cancelling: true } }, fakePort().port);
-    expect(byLabel("Linear에서 열기")).not.toBeNull();
-    expect(byLabel("런 취소")).toBeNull();
+    await open(
+      { kind: "detail", run: failedRun },
+      {
+        ...fakePort().port,
+        ticketLink: () => Promise.resolve({ kind: "ok", value: "linear://x" }),
+      },
+    );
+    await press("Linear에서 열기");
+    expect(openURL).not.toHaveBeenCalled();
+    expect(document.body.textContent).toContain("Linear 티켓을 열지 못했어요");
+    openURL.mockRestore();
+  });
+
+  it("데모에서는 데모라고 말한다", async () => {
+    await open(
+      { kind: "detail", run: failedRun },
+      { ...fakePort().port, ticketLink: () => Promise.resolve({ kind: "demo" }) },
+    );
+    await press("Linear에서 열기");
+    expect(document.body.textContent).toContain("데모");
   });
 });
 

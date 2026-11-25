@@ -1,4 +1,5 @@
-import type { ReactNode } from "react";
+import { useRef, useState } from "react";
+import type { ComponentRef, ReactNode } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -9,13 +10,24 @@ import {
   Switch as NativeSwitch,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 
-import { Text } from "./text";
+import { Text, toneColorOf } from "./text";
 import type { TextTone } from "./text";
-import { brandArt, colors, fontFamily, fontSize, lineHeight, radius, size, space } from "./tokens";
+import {
+  brandArt,
+  colors,
+  fontFamily,
+  fontSize,
+  lineHeight,
+  radius,
+  shadow,
+  size,
+  space,
+} from "./tokens";
 
 export function Card({
   emphasis = "none",
@@ -252,6 +264,15 @@ export function Chip({
   );
 }
 
+const MORE_BUTTON_HIT_SLOP = (size.touchTarget - size.moreButton) / 2;
+
+const LINK_BUTTON_HIT_SLOP = {
+  top: (size.touchTarget - size.linkButton) / 2,
+  bottom: (size.touchTarget - size.linkButton) / 2,
+  left: 0,
+  right: 0,
+};
+
 const LINK_HIT_SLOP = {
   top: (size.touchTarget - lineHeight.body) / 2,
   bottom: (size.touchTarget - lineHeight.body) / 2,
@@ -290,6 +311,235 @@ export function ExternalLink({
         />
       </Svg>
     </Pressable>
+  );
+}
+
+export type MenuIcon = "external" | "cancel";
+
+const MENU_ICON_PATHS: Record<MenuIcon, string> = {
+  external: "M4 2h6v6M10 2L3 9",
+  cancel: "M3 3l6 6M9 3L3 9",
+};
+
+function MenuGlyph({ icon, color, iconSize }: { icon: MenuIcon; color: string; iconSize: number }) {
+  return (
+    <Svg width={iconSize} height={iconSize} viewBox="0 0 12 12" aria-hidden>
+      <Path
+        d={MENU_ICON_PATHS[icon]}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export function LinkButton({
+  label,
+  accessibilityLabel,
+  disabled = false,
+  onPress,
+}: {
+  label: string;
+  accessibilityLabel?: string;
+  disabled?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      testID="link-button"
+      accessibilityRole="link"
+      accessibilityLabel={accessibilityLabel ?? label}
+      aria-disabled={disabled}
+      disabled={disabled}
+      hitSlop={LINK_BUTTON_HIT_SLOP}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.linkButton,
+        pressed && !disabled ? styles.pressed : null,
+        disabled ? styles.disabled : null,
+      ]}
+    >
+      <MenuGlyph icon="external" color={colors.textSecondary} iconSize={size.menuIcon} />
+      <Text variant="control" numberOfLines={1}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
+export interface MenuItem {
+  key: string;
+  label: string;
+  icon: MenuIcon;
+  tone?: "primary" | "problem";
+  accessibilityLabel?: string;
+  onSelect: () => void;
+}
+
+export interface PopoverAnchor {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+const POPOVER_BORDER = 1;
+const POPOVER_EDGE = space.s2;
+const POPOVER_GAP = space.s1;
+const POPOVER_PADDING = space.s1;
+const MENU_DIVIDER_SPACE = space.s1;
+
+export function popoverHeight(groups: ReadonlyArray<ReadonlyArray<MenuItem>>): number {
+  const items = groups.reduce((count, group) => count + group.length, 0);
+  const dividers = Math.max(0, groups.length - 1);
+  return (
+    items * size.touchTarget +
+    dividers * (StyleSheet.hairlineWidth + MENU_DIVIDER_SPACE * 2) +
+    POPOVER_PADDING * 2 +
+    POPOVER_BORDER * 2
+  );
+}
+
+export function popoverPlacement({
+  anchor,
+  menuHeight,
+  screen,
+  insets,
+}: {
+  anchor: PopoverAnchor;
+  menuHeight: number;
+  screen: { width: number; height: number };
+  insets: { top: number; bottom: number };
+}): { top: number; left: number } {
+  const rightAligned = anchor.x + anchor.width - size.popoverWidth;
+  const maxLeft = screen.width - size.popoverWidth - POPOVER_EDGE;
+  const left = Math.max(POPOVER_EDGE, Math.min(rightAligned, maxLeft));
+  const below = anchor.y + anchor.height + POPOVER_GAP;
+  const bottomLimit = screen.height - insets.bottom - POPOVER_EDGE;
+  if (below + menuHeight <= bottomLimit) return { top: below, left };
+  const above = anchor.y - POPOVER_GAP - menuHeight;
+  return { top: Math.max(insets.top + POPOVER_EDGE, above), left };
+}
+
+export function PopoverMenu({
+  label,
+  closeLabel,
+  groups,
+}: {
+  label: string;
+  closeLabel: string;
+  groups: ReadonlyArray<ReadonlyArray<MenuItem>>;
+}) {
+  const button = useRef<ComponentRef<typeof View>>(null);
+  const afterDismiss = useRef<(() => void) | null>(null);
+  const [anchor, setAnchor] = useState<PopoverAnchor | null>(null);
+  const screen = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const filled = groups.filter((group) => group.length > 0);
+  if (filled.length === 0) return null;
+  const open = () => {
+    button.current?.measureInWindow((x, y, width, height) => setAnchor({ x, y, width, height }));
+  };
+  const close = () => setAnchor(null);
+  const choose = (item: MenuItem) => {
+    close();
+    if (Platform.OS === "ios") afterDismiss.current = item.onSelect;
+    else item.onSelect();
+  };
+  const dismissed = () => {
+    const chosen = afterDismiss.current;
+    afterDismiss.current = null;
+    chosen?.();
+  };
+  const placement =
+    anchor === null
+      ? null
+      : popoverPlacement({ anchor, menuHeight: popoverHeight(filled), screen, insets });
+  return (
+    <>
+      <Pressable
+        ref={button}
+        testID="popover-button"
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        aria-expanded={anchor !== null}
+        hitSlop={MORE_BUTTON_HIT_SLOP}
+        onPress={open}
+        style={({ pressed }) => [
+          styles.moreButton,
+          anchor === null ? null : styles.moreButtonOpen,
+          pressed ? styles.pressed : null,
+        ]}
+      >
+        <Svg width={size.moreIcon} height={size.moreIcon} viewBox="0 0 20 20" aria-hidden>
+          <Path
+            d="M4.5 10h.01M10 10h.01M15.5 10h.01"
+            fill="none"
+            stroke={colors.textSecondary}
+            strokeWidth={2.5}
+            strokeLinecap="round"
+          />
+        </Svg>
+      </Pressable>
+      <Modal
+        visible={anchor !== null}
+        transparent
+        animationType="none"
+        onRequestClose={close}
+        onDismiss={dismissed}
+      >
+        <View
+          accessibilityViewIsModal
+          onAccessibilityEscape={close}
+          style={StyleSheet.absoluteFill}
+        >
+          <Pressable
+            testID="popover-backdrop"
+            accessibilityRole="button"
+            accessibilityLabel={closeLabel}
+            onPress={close}
+            style={StyleSheet.absoluteFill}
+          />
+          {placement === null ? null : (
+            <View
+              testID="popover"
+              accessibilityRole="menu"
+              accessibilityLabel={label}
+              style={[styles.popover, { top: placement.top, left: placement.left }]}
+            >
+              {filled.map((group, index) => (
+                <View key={group.map((item) => item.key).join(":")}>
+                  {index === 0 ? null : (
+                    <View testID="popover-divider" style={styles.menuDivider} />
+                  )}
+                  {group.map((item) => (
+                    <Pressable
+                      key={item.key}
+                      accessibilityRole="menuitem"
+                      accessibilityLabel={item.accessibilityLabel ?? item.label}
+                      onPress={() => choose(item)}
+                      style={({ pressed }) => [styles.menuItem, pressed ? styles.pressed : null]}
+                    >
+                      <MenuGlyph
+                        icon={item.icon}
+                        color={toneColorOf(item.tone ?? "primary")}
+                        iconSize={size.menuIcon}
+                      />
+                      <Text variant="body" tone={item.tone ?? "primary"} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -785,6 +1035,51 @@ const styles = StyleSheet.create({
   },
   chipRow: { minHeight: size.chipRow, justifyContent: "center" },
   externalLink: { flexDirection: "row", alignItems: "center", gap: space.s1 },
+  linkButton: {
+    alignSelf: "flex-start",
+    height: size.linkButton,
+    paddingHorizontal: space.s3,
+    borderRadius: radius.button,
+    backgroundColor: colors.bgControl,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s2,
+  },
+  moreButton: {
+    width: size.moreButton,
+    height: size.moreButton,
+    marginVertical: (lineHeight.small + space.px2 * 2 - size.moreButton) / 2,
+    marginRight: -space.s1,
+    borderRadius: radius.button,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  moreButtonOpen: { backgroundColor: colors.bgSelected },
+  popover: {
+    position: "absolute",
+    width: size.popoverWidth,
+    paddingVertical: space.s1,
+    backgroundColor: colors.bgRaised,
+    borderRadius: radius.card,
+    borderWidth: POPOVER_BORDER,
+    borderColor: colors.borderDefault,
+    shadowColor: shadow.color,
+    shadowOpacity: shadow.opacity,
+    shadowRadius: space.s4,
+    shadowOffset: { width: 0, height: space.s1 },
+  },
+  menuItem: {
+    height: size.touchTarget,
+    paddingHorizontal: space.s3 + space.px2,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s3,
+  },
+  menuDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: space.s1,
+    backgroundColor: colors.borderDefault,
+  },
   raisedBox: {
     backgroundColor: colors.bgRaised,
     borderRadius: radius.card,

@@ -142,7 +142,7 @@
     "detail": "런 상세",
     "retry": "다시 맡기기",
     "menu": "{key} 메뉴",
-    "menuLabel": "더 보기"
+    "menuClose": "메뉴 닫기"
   },
   "runners": {
     "title": "Runners",
@@ -382,8 +382,13 @@
     },
     "menu": {
       "openTicket": "Linear에서 열기",
+      "openPr": "PR {pr} 열기",
       "cancel": "런 취소",
-      "ticketFailed": "Linear 주소를 읽지 못했어요. 잠시 뒤 다시 해 주세요."
+      "ticketFailedTitle": "Linear를 열지 못했어요",
+      "ticketFailed": "Linear 티켓을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "prFailedTitle": "PR을 열지 못했어요",
+      "prFailed": "GitHub에서 PR을 열지 못했어요. 잠시 뒤 다시 해 주세요.",
+      "demoTitle": "데모 모드"
     },
     "retry": {
       "title": "다시 맡길까요?",

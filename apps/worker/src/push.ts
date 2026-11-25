@@ -19,6 +19,7 @@ import type {
   PushDevice,
   StoredNotificationEvent,
 } from "@ganger/db";
+import { loadShell } from "@ganger/app/shell/load";
 import { z } from "zod";
 import type { WorkerLogger } from "./context.js";
 import { messages } from "./messages.js";
@@ -40,19 +41,21 @@ const MAX_PENDING_RECEIPTS = 10_000;
 
 export interface ExpoMessage {
   to: string;
-  data: PushData;
+  data?: PushData;
   title?: string;
   body?: string;
   sound?: "default";
   mutableContent?: true;
   contentAvailable?: true;
   priority?: "normal";
+  badge?: number;
 }
 
 export type PushEffect =
   | { kind: "sent"; eventIds: number[]; bundleId: string | null }
   | { kind: "reminded"; eventId: number }
-  | { kind: "cleared"; eventIds: number[] };
+  | { kind: "cleared"; eventIds: number[] }
+  | { kind: "badge" };
 
 export interface PlannedPush {
   device: PushDevice;
@@ -242,6 +245,23 @@ export function planPushes(input: {
   });
 }
 
+export function withBadge(planned: ReadonlyArray<PlannedPush>, badge: number): PlannedPush[] {
+  const alerts = planned.map((push) =>
+    push.message.title === undefined ? push : { ...push, message: { ...push.message, badge } },
+  );
+  const clearedDevices = new Map(
+    planned.flatMap((push) =>
+      push.effect.kind === "cleared" ? [[push.device.id, push.device] as const] : [],
+    ),
+  );
+  const badgeOnly = [...clearedDevices.values()].map((device): PlannedPush => ({
+    device,
+    message: { to: device.token, badge: device.enabled ? badge : 0 },
+    effect: { kind: "badge" },
+  }));
+  return [...alerts, ...badgeOnly];
+}
+
 const ticketSchema = z.object({
   status: z.string(),
   id: z.string().min(1).optional(),
@@ -323,6 +343,8 @@ export function createPushDelivery(options: {
       case "cleared":
         recordPushCleared(db, device.id, effect.eventIds, at);
         return;
+      case "badge":
+        return;
     }
   };
 
@@ -403,12 +425,13 @@ export function createPushDelivery(options: {
         reopenClearedPushes(db);
         const devices = listPushDevices(db);
         const deliveries = listPushDeliveries(db);
-        const planned = planPushes({
+        const plan = planPushes({
           devices: devices.filter((device) => (deviceRetryAt.get(device.id) ?? 0) <= at.getTime()),
           open: deferral.releasable(listOpenNotificationEvents(db), at),
           deliveries,
           reminders: deferral.releasableReminders(dueReminders(devices, deliveries, at), at),
         });
+        const planned = plan.length === 0 ? plan : withBadge(plan, loadShell(db).todo.all);
         for (const pushes of Map.groupBy(planned, (push) => push.device.id).values()) {
           for (let start = 0; start < pushes.length; start += PUSH_BATCH_SIZE) {
             try {

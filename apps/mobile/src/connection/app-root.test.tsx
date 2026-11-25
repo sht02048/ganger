@@ -8,10 +8,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { busySnapshot } from "../demo/data";
 import { pushDevice as webPushDevice } from "../notifications/push-device.web";
+import { todoCountOf } from "../notifications/app-badge";
 import { FirstPaintReady } from "../startup/first-paint";
 import { SPLASH_MAX_MS, createSplashGate } from "../startup/splash-gate";
 import { EMPTY_PUSH_MEMORY } from "../notifications/push-port";
-import type { PushMemory } from "../notifications/push-port";
+import type { PushDevicePort, PushMemory } from "../notifications/push-port";
 import { AppRoot } from "./app-root";
 import { IDENTITY_PATH } from "./client";
 import type { FetchLike } from "./client";
@@ -33,8 +34,10 @@ function fakeServer() {
     mode: Mode;
     requests: Array<{ path: string; method: string }>;
     dashboard: V1Dashboard;
+    pushEnabled: boolean;
   } = {
     mode: "ok",
+    pushEnabled: false,
     requests: [],
     dashboard: busySnapshot(NOW).dashboardFor("all"),
   };
@@ -71,8 +74,8 @@ function fakeServer() {
       case V1_PATHS.thisDeviceNotifications:
         return Promise.resolve(
           ok({
-            enabled: false,
-            hasPushAddress: false,
+            enabled: state.pushEnabled,
+            hasPushAddress: state.pushEnabled,
             groups: {
               question: true,
               permission: true,
@@ -156,6 +159,7 @@ async function mount(
   devConnection: { server: string; token: string } | null = null,
   cacheFiles: CacheFiles = memoryCacheFiles().files,
   markFirstPaint: () => void = () => undefined,
+  pushDevice: PushDevicePort = webPushDevice,
 ) {
   const host = document.createElement("div");
   document.body.append(host);
@@ -174,7 +178,7 @@ async function mount(
             fetcher={fetcher}
             devConnection={devConnection}
             deviceName="Acme iPhone"
-            pushDevice={webPushDevice}
+            pushDevice={pushDevice}
             pushMemory={memoryPush}
             cacheFiles={cacheFiles}
             allowPaste
@@ -543,6 +547,63 @@ describe("서버에 닿지 않을 때(M31)", () => {
     await advance(RETRY_MAX_MS);
     expect(host.querySelector('[data-testid="notice-band"]')).toBeNull();
     expect(server.state.requests.filter((request) => request.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("앱 아이콘 배지", () => {
+  function badgeDevice() {
+    const counts: number[] = [];
+    const device: PushDevicePort = {
+      ...webPushDevice,
+      setBadgeCount: (count) => {
+        counts.push(count);
+        return Promise.resolve();
+      },
+    };
+    return { device, counts };
+  }
+
+  it("알림을 켠 기기는 전체 Workspace Dashboard의 처리할 일 수를 배지로 단다", async () => {
+    const server = fakeServer();
+    server.state.pushEnabled = true;
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(STORED).store, server.fetcher, null, undefined, undefined, device);
+    const todo = todoCountOf(server.state.dashboard);
+    expect(todo).toBeGreaterThan(0);
+    expect(counts.at(-1)).toBe(todo);
+  });
+
+  it("알림을 끈 기기는 배지를 지운다", async () => {
+    const { device, counts } = badgeDevice();
+    await mount(
+      memoryStore(STORED).store,
+      fakeServer().fetcher,
+      null,
+      undefined,
+      undefined,
+      device,
+    );
+    expect(counts).toContain(0);
+    expect(counts.every((count) => count === 0)).toBe(true);
+  });
+
+  it("연결을 끊으면 배지를 지운다", async () => {
+    const server = fakeServer();
+    server.state.pushEnabled = true;
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(STORED).store, server.fetcher, null, undefined, undefined, device);
+    expect(counts.at(-1)).toBeGreaterThan(0);
+    await press("설정");
+    await press("이 기기 연결 끊기");
+    expect(counts.at(-1)).toBe(0);
+  });
+
+  it("연결 화면과 데모 모드에서는 배지를 지운다", async () => {
+    const { device, counts } = badgeDevice();
+    await mount(memoryStore(null).store, fakeServer().fetcher, null, undefined, undefined, device);
+    expect(counts).toEqual([0]);
+    await press("데모로 둘러보기");
+    expect(counts).toEqual([0, 0]);
   });
 });
 

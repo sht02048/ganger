@@ -6,6 +6,8 @@ import { Button, NoticeBand, Sheet } from "../design/components";
 import { Text } from "../design/text";
 import { space } from "../design/tokens";
 import { t } from "../i18n";
+import { ALL_WORKSPACES } from "../dashboard/model";
+import { useAppBadge } from "../notifications/app-badge";
 import { destinationOf, pushOpenOf } from "../notifications/push-data";
 import type { PushDevicePort, PushMemory, PushResponse } from "../notifications/push-port";
 import { useDeviceNotifications } from "../notifications/use-device-notifications";
@@ -168,6 +170,12 @@ export function LiveScreens({
     foreground,
   });
   const clearOpenRun = useCallback(() => setOpenRun(null), []);
+  useAppBadge({
+    device: pushDevice,
+    pushEnabled: notifications.preferences?.enabled ?? null,
+    allWorkspaces: state.dashboards.get(ALL_WORKSPACES)?.data ?? null,
+    foreground,
+  });
 
   useEffect(() => {
     const open = async ({ data, actionIdentifier }: PushResponse) => {

@@ -39,6 +39,11 @@ export const colors = {
   idleSoft: "#262626",
 } as const;
 
+export const shadow = {
+  color: "#000000",
+  opacity: 0.5,
+} as const;
+
 export const brandArt = {
   body: "#f5f5f5",
   brim: "#ffbb49",
@@ -92,6 +97,11 @@ export const size = {
   switchWidth: 44,
   switchHeight: 26,
   switchThumb: 20,
+  moreIcon: 20,
+  moreButton: 28,
+  menuIcon: 18,
+  popoverWidth: 220,
+  linkButton: 36,
 } as const;
 
 export const fontFamily = {
@@ -104,6 +114,7 @@ export const fontSize = {
   page: 22,
   panel: 17,
   body: 15,
+  control: 14,
   ui: 13,
   small: 12,
 } as const;
@@ -112,6 +123,7 @@ export const lineHeight = {
   page: 28,
   panel: 24,
   body: 21,
+  control: 20,
   ui: 18,
   small: 16,
 } as const;

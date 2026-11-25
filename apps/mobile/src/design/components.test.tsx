@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { act } from "react";
 import type { ReactNode } from "react";
 import { createRoot } from "react-dom/client";
+import { Platform } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -13,6 +14,8 @@ import {
   Chip,
   ExternalLink,
   InlineSwitch,
+  LinkButton,
+  PopoverMenu,
   RaisedBox,
   SplitButton,
   RESTING_MASCOT_PATHS,
@@ -24,9 +27,12 @@ import {
   TodoBadge,
   buttonColorsOf,
   pillColorsOf,
+  popoverHeight,
+  popoverPlacement,
 } from "./components";
+import type { MenuItem } from "./components";
 import { toneColorOf } from "./text";
-import { colors } from "./tokens";
+import { colors, size } from "./tokens";
 
 Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
 
@@ -386,5 +392,176 @@ describe("RestingMascot", () => {
     const host = mount(<RestingMascot />);
     const mascot = host.querySelector('[data-testid="mascot-resting"]');
     expect(mascot?.getAttribute("aria-hidden")).toBe("true");
+  });
+});
+
+function cssColor(token: string): string {
+  const probe = document.createElement("div");
+  probe.style.backgroundColor = token;
+  return probe.style.backgroundColor;
+}
+
+describe("LinkButton", () => {
+  it("바깥 링크 아이콘과 글을 컨트롤 면 36 높이에 둔다", () => {
+    const onPress = vi.fn<() => void>();
+    const host = mount(<LinkButton label="Linear에서 열기" onPress={onPress} />);
+    const link = host.querySelector('[role="link"]');
+    if (!(link instanceof HTMLElement)) throw new Error("link not found");
+    expect(link.getAttribute("aria-label")).toBe("Linear에서 열기");
+    expect(getComputedStyle(link).height).toBe(`${size.linkButton}px`);
+    expect(getComputedStyle(link).backgroundColor).toBe(cssColor(colors.bgControl));
+    expect(link.querySelector("svg")).not.toBeNull();
+    press(link);
+    expect(onPress).toHaveBeenCalledOnce();
+  });
+});
+
+describe("PopoverMenu", () => {
+  const item = (key: string, onSelect: () => void = () => undefined): MenuItem => ({
+    key,
+    label: key,
+    icon: "external",
+    onSelect,
+  });
+
+  async function openPopover(host: HTMLElement) {
+    const button = host.querySelector('[data-testid="popover-button"]');
+    if (button === null) throw new Error("button not found");
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    return button;
+  }
+
+  it("항목이 하나도 없으면 … 버튼을 두지 않는다", () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[], []]} />,
+    );
+    expect(host.querySelector('[role="button"]')).toBeNull();
+  });
+
+  it("… 버튼은 28 상자이고, 열린 동안 고른 면을 쓴다", async () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[item("열기")]]} />,
+    );
+    const button = host.querySelector('[data-testid="popover-button"]');
+    if (!(button instanceof HTMLElement)) throw new Error("button not found");
+    expect(getComputedStyle(button).width).toBe(`${size.moreButton}px`);
+    expect(getComputedStyle(button).backgroundColor).not.toBe(cssColor(colors.bgSelected));
+    await openPopover(host);
+    expect(getComputedStyle(button).backgroundColor).toBe(cssColor(colors.bgSelected));
+  });
+
+  it("빈 묶음은 빼고 묶음 사이에만 구분선을 둔다. 항목을 고르면 닫고 그 항목을 부른다", async () => {
+    const onSelect = vi.fn<() => void>();
+    const host = mount(
+      <PopoverMenu
+        label="ACME-1 메뉴"
+        closeLabel="메뉴 닫기"
+        groups={[[item("열기"), item("PR 열기")], [], [item("취소", onSelect)]]}
+      />,
+    );
+    await openPopover(host);
+    const menu = document.body.querySelector('[role="menu"]');
+    expect(menu?.getAttribute("aria-label")).toBe("ACME-1 메뉴");
+    expect(document.body.querySelectorAll('[role="menuitem"]')).toHaveLength(3);
+    expect(document.body.querySelectorAll('[data-testid="popover-divider"]')).toHaveLength(1);
+    press(document.body.querySelector('[role="menuitem"][aria-label="취소"]'));
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(document.body.querySelector('[role="menu"]')).toBeNull();
+  });
+
+  it("iOS에서는 팝오버가 다 닫힌 뒤 항목 동작을 불러 다음 시트가 뜨게 한다", async () => {
+    const os = Platform.OS;
+    Reflect.set(Platform, "OS", "ios");
+    try {
+      const order: string[] = [];
+      const host = mount(
+        <PopoverMenu
+          label="ACME-1 메뉴"
+          closeLabel="메뉴 닫기"
+          groups={[[item("취소", () => order.push("selected"))]]}
+        />,
+      );
+      await openPopover(host);
+      await act(async () => {
+        document.body
+          .querySelector('[role="menuitem"]')
+          ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        order.push("pressed");
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      });
+      expect(order).toEqual(["pressed", "selected"]);
+      expect(document.body.querySelector('[role="menu"]')).toBeNull();
+    } finally {
+      Reflect.set(Platform, "OS", os);
+    }
+  });
+
+  it("폭은 220이고 항목 높이는 44다", async () => {
+    const host = mount(
+      <PopoverMenu label="ACME-1 메뉴" closeLabel="메뉴 닫기" groups={[[item("열기")]]} />,
+    );
+    await openPopover(host);
+    const menu = document.body.querySelector('[role="menu"]');
+    if (!(menu instanceof HTMLElement)) throw new Error("menu not found");
+    expect(getComputedStyle(menu).width).toBe(`${size.popoverWidth}px`);
+    const entry = menu.querySelector('[role="menuitem"]');
+    if (!(entry instanceof HTMLElement)) throw new Error("item not found");
+    expect(getComputedStyle(entry).height).toBe(`${size.touchTarget}px`);
+  });
+});
+
+describe("popoverPlacement", () => {
+  const screen = { width: 390, height: 844 };
+  const insets = { top: 47, bottom: 34 };
+  const anchor = { x: 340, y: 100, width: 28, height: 28 };
+
+  it("버튼 바로 아래에 오른쪽을 맞춘다", () => {
+    expect(popoverPlacement({ anchor, menuHeight: 100, screen, insets })).toEqual({
+      top: 132,
+      left: 368 - size.popoverWidth,
+    });
+  });
+
+  it("왼쪽·오른쪽 가장자리에서 잘리지 않는다", () => {
+    const left = popoverPlacement({
+      anchor: { ...anchor, x: 0 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(left.left).toBe(8);
+    const right = popoverPlacement({
+      anchor: { ...anchor, x: 380, width: 28 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(right.left + size.popoverWidth).toBeLessThanOrEqual(screen.width - 8);
+  });
+
+  it("아래 자리가 모자라면 버튼 위로 올리고, 위로도 모자라면 안전 영역 아래에 붙인다", () => {
+    const low = popoverPlacement({
+      anchor: { ...anchor, y: 760 },
+      menuHeight: 100,
+      screen,
+      insets,
+    });
+    expect(low.top).toBe(760 - 4 - 100);
+    const tall = popoverPlacement({
+      anchor: { ...anchor, y: 120 },
+      menuHeight: 760,
+      screen,
+      insets,
+    });
+    expect(tall.top).toBe(47 + 8);
+  });
+
+  it("높이는 항목 수와 구분선으로 센다", () => {
+    const one = [{ key: "a", label: "a", icon: "external" as const, onSelect: () => undefined }];
+    expect(popoverHeight([one, one]) - popoverHeight([one])).toBeGreaterThan(size.touchTarget);
+    expect(popoverHeight([one])).toBe(size.touchTarget + 4 * 2 + 2);
   });
 });

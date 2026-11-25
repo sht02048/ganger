@@ -2,6 +2,7 @@ import { pushDataSchema } from "@ganger/api";
 import { toRunId, toRunnerId, toRunnerKind, toTicketKey } from "@ganger/core";
 import {
   addDevice,
+  changeRunState,
   getDevicePushSettings,
   listPushDeliveries,
   removeDevice,
@@ -10,6 +11,7 @@ import {
   syncNotificationEvents,
 } from "@ganger/db";
 import type { NotificationCause, NotificationEventKind } from "@ganger/db";
+import { loadShell } from "@ganger/app/shell/load";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import {
@@ -18,9 +20,10 @@ import {
   PUSH_RECEIPT_DELAY_MS,
   PUSH_REMIND_AFTER_MS,
   createPushDelivery,
+  withBadge,
 } from "./push.js";
 import type { ExpoMessage } from "./push.js";
-import { Harness, workspaceId } from "./test-fixtures.js";
+import { Harness, projectA, workspaceId } from "./test-fixtures.js";
 
 const ALL_GROUPS = {
   question: true,
@@ -33,6 +36,9 @@ const TOKEN = "ExponentPushToken[device-a]";
 const SECRET_SUBJECT = "ACME-142 비밀 티켓 제목";
 
 const expoBatchSchema = z.array(z.custom<ExpoMessage>());
+
+const withData = (messages: ReadonlyArray<ExpoMessage>) =>
+  messages.filter((message) => message.data !== undefined);
 
 class FakeExpo {
   sent: ExpoMessage[] = [];
@@ -296,7 +302,7 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     await delivery().run();
     const sent = expo.take();
     expect(sent).toHaveLength(4);
-    expect(sent.every((message) => "eventId" in message.data)).toBe(true);
+    expect(sent.every((message) => "eventId" in (message.data ?? {}))).toBe(true);
   });
 
   it("해결된 사건은 소리 없는 조용한 푸시로 한 번 지운다", async () => {
@@ -308,13 +314,14 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
 
     sync([]);
     await push.run();
-    const [clear] = expo.take();
+    const [clear, badge] = expo.take();
     expect(clear).toEqual({
       to: TOKEN,
       contentAvailable: true,
       priority: "normal",
       data: { device: id, clear: ["event-1"] },
     });
+    expect(badge).toEqual({ to: TOKEN, badge: 0 });
 
     await push.run();
     expect(expo.take()).toEqual([]);
@@ -361,7 +368,9 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
 
     sync([]);
     await push.run();
-    expect(expo.take().map((message) => message.data)).toMatchObject([{ clear: ["event-1"] }]);
+    expect(withData(expo.take()).map((message) => message.data)).toMatchObject([
+      { clear: ["event-1"] },
+    ]);
   });
 
   it("지울 사건이 많으면 4KiB 안의 메시지로 나눈다", async () => {
@@ -374,10 +383,59 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
 
     sync([]);
     await push.run();
-    const clears = expo.take();
+    const clears = withData(expo.take());
     expect(clears).toHaveLength(3);
     expect(clears.every((message) => JSON.stringify(message).length < 4096)).toBe(true);
     await push.run();
+    expect(expo.take()).toEqual([]);
+  });
+
+  it("알림 푸시에 Dashboard 처리할 일 수를 앱 아이콘 배지로 싣는다", async () => {
+    for (const key of ["ACME-201", "ACME-202"]) {
+      const run = h.assign(key, projectA);
+      const ended = changeRunState(
+        h.db,
+        run.id,
+        { to: "ended", agentResult: "could-not-start", prState: "none" },
+        h.now,
+      );
+      expect(ended.ok).toBe(true);
+    }
+    const todo = loadShell(h.db).todo.all;
+    expect(todo).toBe(2);
+    addPushDevice();
+    sync([runCause(1)]);
+    await delivery().run();
+    expect(expo.take()).toMatchObject([{ title: "Ganger", badge: todo }]);
+  });
+
+  it("알림을 끈 기기가 지우기 푸시를 받을 때는 배지를 0으로 지운다", async () => {
+    const run = h.assign("ACME-301", projectA);
+    expect(
+      changeRunState(
+        h.db,
+        run.id,
+        { to: "ended", agentResult: "could-not-start", prState: "none" },
+        h.now,
+      ).ok,
+    ).toBe(true);
+    expect(loadShell(h.db).todo.all).toBeGreaterThan(0);
+    const id = addPushDevice();
+    sync([runCause(1)]);
+    const push = delivery();
+    await push.run();
+    expo.take();
+    saveDevicePushSettings(h.db, id, { enabled: false, groups: ALL_GROUPS });
+    sync([]);
+    await push.run();
+    expect(expo.take().filter((message) => message.data === undefined)).toEqual([
+      { to: TOKEN, badge: 0 },
+    ]);
+  });
+
+  it("보낼 푸시가 없으면 배지만 담은 푸시도 보내지 않는다", async () => {
+    addPushDevice();
+    await delivery().run();
     expect(expo.take()).toEqual([]);
   });
 
@@ -513,5 +571,77 @@ describe("worker 의 Expo 푸시(M10~M16, M23, M33, M40)", () => {
     sync([runCause(1), runCause(2)]);
     await push.run();
     expect(expo.take().map((message) => message.to)).toEqual(["ExponentPushToken[renewed]"]);
+  });
+});
+
+describe("withBadge", () => {
+  const device = (id: string) => ({
+    id,
+    token: `ExponentPushToken[${id}]`,
+    enabled: true,
+    groups: ALL_GROUPS,
+  });
+
+  it("알림에만 badge 를 싣고, 조용한 지우기 푸시는 그대로 두며 기기마다 배지만 담은 푸시를 하나 더한다", () => {
+    const a = device("a");
+    const b = device("b");
+    const planned = withBadge(
+      [
+        {
+          device: a,
+          message: {
+            to: a.token,
+            title: "Ganger",
+            body: "처리할 일이 생겼어요",
+            data: { device: "a", eventId: 1 },
+          },
+          effect: { kind: "sent", eventIds: [1], bundleId: null },
+        },
+        {
+          device: a,
+          message: {
+            to: a.token,
+            contentAvailable: true,
+            priority: "normal",
+            data: { device: "a", clear: ["event-2"] },
+          },
+          effect: { kind: "cleared", eventIds: [2] },
+        },
+        {
+          device: a,
+          message: {
+            to: a.token,
+            contentAvailable: true,
+            priority: "normal",
+            data: { device: "a", clear: ["event-3"] },
+          },
+          effect: { kind: "cleared", eventIds: [3] },
+        },
+        {
+          device: b,
+          message: {
+            to: b.token,
+            contentAvailable: true,
+            priority: "normal",
+            data: { device: "b", clear: ["event-4"] },
+          },
+          effect: { kind: "cleared", eventIds: [4] },
+        },
+      ],
+      3,
+    );
+    expect(planned.map((push) => push.message.badge)).toEqual([
+      3,
+      undefined,
+      undefined,
+      undefined,
+      3,
+      3,
+    ]);
+    expect(planned.slice(4).map((push) => push.message)).toEqual([
+      { to: a.token, badge: 3 },
+      { to: b.token, badge: 3 },
+    ]);
+    expect(planned.slice(4).every((push) => push.effect.kind === "badge")).toBe(true);
   });
 });
