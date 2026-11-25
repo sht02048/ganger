@@ -73,4 +73,5 @@ blocked_by: []
 
 ## 남은 일
 
-- 운영자가 문서대로 첫 개발 빌드를 만들어 0109·0222·0226의 실기기 확인을 한다. EAS 빌드 서버에서 루트 `prepare`(`lefthook install`)가 문제를 일으키면 그때 고친다.
+- 운영자가 문서대로 첫 개발 빌드를 만들어 0109·0222·0226의 실기기 확인을 한다.
+- 루트 `prepare`(`lefthook install`)는 git 저장소 밖에서 실패한다. EAS가 올리는 아카이브는 얕은 git 클론이라 `.git`이 들어 있어(Expo 문서 `build-reference/easignore`: `.git`을 빼려면 `.easignore`에 적어야 한다) 설치가 막히지 않을 것으로 본다. 첫 빌드가 `prepare`에서 멈추면 그때 고친다.

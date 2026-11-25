@@ -179,6 +179,16 @@ describe("EAS 개발 빌드(0227)", () => {
       "expo-notifications",
       { mode: "development", enableBackgroundRemoteNotifications: true },
     ]);
+    expect(config.plugins).toContainEqual([
+      "./plugins/with-notification-service.cjs",
+      {
+        targetName: "GangerNotificationService",
+        bundleIdentifier: "com.example.ganger.notification-service",
+        teamId: "ABCDE12345",
+        keychainAccessGroup: "ABCDE12345.com.example.ganger.shared",
+        allowLocalNetworking: true,
+      },
+    ]);
     expect(config.extra).toEqual({
       keychainAccessGroup: "ABCDE12345.com.example.ganger.shared",
       eas: {
