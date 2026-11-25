@@ -116,6 +116,15 @@ describe("Settings › 모바일(0230)", () => {
     expect(html).toContain(`role="group" aria-label="${settings.mobile.qr.label}"`);
   });
 
+  it("포트 숫자에 맞는 조사로 안내한다", () => {
+    const address = `https://${HOST}:8446`;
+    const html = render(
+      { kind: "on", address, viaTailscale: true, fallbackPort: 8446 },
+      { devices: [], address },
+    );
+    expect(textOf(html)).toContain("443은 다른 곳이 쓰고 있어 8446으로 열었어요.");
+  });
+
   it("443 으로 열었으면 포트 안내를 보이지 않는다", () => {
     const html = render(
       { kind: "on", address: `https://${HOST}`, viaTailscale: true, fallbackPort: null },
