@@ -1,3 +1,4 @@
+import { appDashboardSchema, appRunDetailSchema } from "@ganger/api";
 import type { AppDashboard, AppRunDetail } from "@ganger/api";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -60,7 +61,7 @@ describe("저장과 읽기", () => {
   it("서버·Workspace별 Dashboard와 런 상세를 다시 읽는다", async () => {
     const { files } = await savedFile();
     const cache = new OfflineCache(files, SERVER, () => NOW);
-    const content = await cache.load();
+    const content = await cache.load("all");
     expect(content.dashboards.get("all")?.fetchedAt).toBe(NOW);
     expect(content.workspaces).toEqual(workspaces);
     expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
@@ -68,7 +69,7 @@ describe("저장과 읽기", () => {
 
   it("다른 서버의 캐시를 읽지 않는다", async () => {
     const { files } = await savedFile();
-    const content = await new OfflineCache(files, OTHER_SERVER, () => NOW).load();
+    const content = await new OfflineCache(files, OTHER_SERVER, () => NOW).load("all");
     expect(content.dashboards.size).toBe(0);
   });
 
@@ -88,8 +89,9 @@ describe("저장과 읽기", () => {
     const cache = new OfflineCache(files, SERVER, () => NOW);
     cache.saveDashboard("ws-payments", dashboard, NOW, workspaces);
     await cache.flush();
-    const reread = await new OfflineCache(files, SERVER, () => NOW).load();
-    expect([...reread.dashboards.keys()].sort()).toEqual(["all", "ws-payments"]);
+    const reread = new OfflineCache(files, SERVER, () => NOW);
+    expect([...(await reread.load("all")).dashboards.keys()]).toEqual(["all"]);
+    expect([...reread.contentFor("ws-payments").dashboards.keys()]).toEqual(["ws-payments"]);
     expect(saved.size).toBe(1);
   });
 
@@ -100,7 +102,7 @@ describe("저장과 읽기", () => {
     writer.saveRun(unknownRun, NOW);
     await writer.flush();
     const reader = new OfflineCache(memory.files, SERVER, () => NOW);
-    await reader.load();
+    await reader.load("all");
     expect(reader.cachedRun(detail.id)?.data.state).toBe("unknown");
   });
 });
@@ -108,7 +110,7 @@ describe("저장과 읽기", () => {
 describe("버리는 캐시", () => {
   it("손상된 파일은 버리고 지운다", async () => {
     const memory = memoryFiles({ [SERVER]: "{broken" });
-    const content = await new OfflineCache(memory.files, SERVER, () => NOW).load();
+    const content = await new OfflineCache(memory.files, SERVER, () => NOW).load("all");
     expect(content.dashboards.size).toBe(0);
     expect(memory.saved.has(SERVER)).toBe(false);
   });
@@ -120,22 +122,24 @@ describe("버리는 캐시", () => {
       SERVER,
       text.replace(`"version":${CACHE_FORMAT_VERSION}`, `"version":${CACHE_FORMAT_VERSION + 1}`),
     );
-    const content = await new OfflineCache(files, SERVER, () => NOW).load();
+    const content = await new OfflineCache(files, SERVER, () => NOW).load("all");
     expect(content.dashboards.size).toBe(0);
     expect(saved.has(SERVER)).toBe(false);
   });
 
   it("정확히 7일이면 보이고 7일을 넘으면 버린다", async () => {
     const { files } = await savedFile();
-    const atLimit = await new OfflineCache(files, SERVER, () => NOW + CACHE_MAX_AGE_MS).load();
+    const atLimit = await new OfflineCache(files, SERVER, () => NOW + CACHE_MAX_AGE_MS).load("all");
     expect(atLimit.dashboards.size).toBe(1);
-    const past = await new OfflineCache(files, SERVER, () => NOW + CACHE_MAX_AGE_MS + 1).load();
+    const past = await new OfflineCache(files, SERVER, () => NOW + CACHE_MAX_AGE_MS + 1).load(
+      "all",
+    );
     expect(past.dashboards.size).toBe(0);
   });
 
   it("저장 시각이 미래면 버린다", async () => {
     const { files } = await savedFile();
-    const content = await new OfflineCache(files, SERVER, () => NOW - 1).load();
+    const content = await new OfflineCache(files, SERVER, () => NOW - 1).load("all");
     expect(content.dashboards.size).toBe(0);
   });
 
@@ -145,7 +149,7 @@ describe("버리는 캐시", () => {
     const broken = JSON.stringify(file).replace('"columns":', '"notColumns":');
     saved.set(SERVER, broken);
     const cache = new OfflineCache(files, SERVER, () => NOW);
-    const content = await cache.load();
+    const content = await cache.load("all");
     expect(content.dashboards.size).toBe(0);
     expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
   });
@@ -162,7 +166,7 @@ describe("글자로 풀 수 없는 파일", () => {
         readCacheText({ text: undecodable, bytes: () => Promise.resolve(new Uint8Array([255])) }),
     };
     const cache = new OfflineCache(files, SERVER, () => NOW);
-    expect((await cache.load()).dashboards.size).toBe(0);
+    expect((await cache.load("all")).dashboards.size).toBe(0);
     expect(memory.saved.has(SERVER)).toBe(false);
     cache.saveDashboard("all", dashboard, NOW, workspaces);
     await cache.flush();
@@ -196,7 +200,7 @@ describe("메모리에 남은 런 상세", () => {
     const { files } = await savedFile();
     let now = NOW;
     const cache = new OfflineCache(files, SERVER, () => now);
-    await cache.load();
+    await cache.load("all");
     now = NOW + CACHE_MAX_AGE_MS + 1;
     expect(cache.cachedRun(detail.id)).toBeNull();
   });
@@ -206,7 +210,7 @@ describe("지우기", () => {
   it("지운 뒤에는 늦게 온 저장이 파일을 되살리지 않는다", async () => {
     const memory = await savedFile();
     const cache = new OfflineCache(memory.files, SERVER, () => NOW);
-    await cache.load();
+    await cache.load("all");
     cache.saveDashboard("all", dashboard, NOW, workspaces);
     await cache.clear();
     cache.saveRun(detail, NOW);
@@ -274,7 +278,7 @@ describe("쓰기 묶기(티켓 0224)", () => {
 
     await cache.flush();
     expect(counted.writes()).toBe(2);
-    const reread = await new OfflineCache(counted.files, SERVER, () => NOW + 90_000).load();
+    const reread = await new OfflineCache(counted.files, SERVER, () => NOW + 90_000).load("all");
     expect(reread.dashboards.get("all")?.fetchedAt).toBe(NOW + 90_000);
     await cache.flush();
     expect(counted.writes()).toBe(2);
@@ -292,5 +296,75 @@ describe("쓰기 묶기(티켓 0224)", () => {
     await vi.advanceTimersByTimeAsync(CACHE_WRITE_INTERVAL_MS);
     expect(counted.writes()).toBe(2);
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe("지연 파싱(티켓 0226)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function fileWithTwoWorkspaces() {
+    const memory = memoryFiles();
+    const writer = new OfflineCache(memory.files, SERVER, () => NOW);
+    writer.saveDashboard("all", dashboard, NOW, workspaces);
+    writer.saveDashboard("ws-payments", dashboard, NOW, workspaces);
+    writer.saveRun(detail, NOW);
+    writer.saveRun({ ...detail, id: "run-other" }, NOW);
+    await writer.flush();
+    return memory;
+  }
+
+  it("처음 읽을 때는 보는 Workspace 대시보드만 계약으로 파싱한다", async () => {
+    const { files } = await fileWithTwoWorkspaces();
+    const dashboardParses = vi.spyOn(appDashboardSchema, "safeParse");
+    const runParses = vi.spyOn(appRunDetailSchema, "safeParse");
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    const content = await cache.load("all");
+    expect([...content.dashboards.keys()]).toEqual(["all"]);
+    expect(content.workspaces).toEqual(workspaces);
+    expect(dashboardParses).toHaveBeenCalledTimes(1);
+    expect(runParses).not.toHaveBeenCalled();
+  });
+
+  it("다른 Workspace 대시보드는 그 Workspace를 볼 때 한 번만 파싱한다", async () => {
+    const { files } = await fileWithTwoWorkspaces();
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    await cache.load("all");
+    const dashboardParses = vi.spyOn(appDashboardSchema, "safeParse");
+    expect(cache.contentFor("ws-payments").dashboards.get("ws-payments")?.fetchedAt).toBe(NOW);
+    expect(cache.contentFor("ws-payments").dashboards.size).toBe(1);
+    expect(dashboardParses).toHaveBeenCalledTimes(1);
+  });
+
+  it("런 상세는 열 때 그 런만 한 번 파싱한다", async () => {
+    const { files } = await fileWithTwoWorkspaces();
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    await cache.load("all");
+    const runParses = vi.spyOn(appRunDetailSchema, "safeParse");
+    expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
+    expect(cache.cachedRun(detail.id)?.data.id).toBe(detail.id);
+    expect(runParses).toHaveBeenCalledTimes(1);
+  });
+
+  it("파싱하지 않은 항목도 다시 쓸 때 그대로 남는다", async () => {
+    const memory = await fileWithTwoWorkspaces();
+    const cache = new OfflineCache(memory.files, SERVER, () => NOW);
+    await cache.load("all");
+    cache.saveDashboard("all", dashboard, NOW + 1, workspaces);
+    await cache.flush();
+    const reread = new OfflineCache(memory.files, SERVER, () => NOW + 1);
+    await reread.load("all");
+    expect(reread.contentFor("ws-payments").dashboards.size).toBe(1);
+    expect(reread.cachedRun("run-other")?.data.id).toBe("run-other");
+  });
+
+  it("계약에 맞지 않는 런 상세는 열 때 버린다", async () => {
+    const { saved, files } = await fileWithTwoWorkspaces();
+    saved.set(SERVER, (saved.get(SERVER) ?? "").replaceAll('"workspace":', '"notWorkspace":'));
+    const cache = new OfflineCache(files, SERVER, () => NOW);
+    await cache.load("all");
+    expect(cache.cachedRun(detail.id)).toBeNull();
+    expect(cache.cachedRun(detail.id)).toBeNull();
   });
 });

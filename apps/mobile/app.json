@@ -23,7 +23,18 @@
           "recordAudioAndroid": false
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./node_modules/pretendard/dist/public/static/Pretendard-Regular.otf",
+            "./node_modules/pretendard/dist/public/static/Pretendard-Medium.otf",
+            "./node_modules/pretendard/dist/public/static/Pretendard-SemiBold.otf"
+          ]
+        }
+      ],
+      ["expo-splash-screen", { "backgroundColor": "#090909" }]
     ]
   }
 }

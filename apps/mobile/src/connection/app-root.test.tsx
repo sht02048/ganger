@@ -8,6 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { busySnapshot } from "../demo/data";
 import { pushDevice as webPushDevice } from "../notifications/push-device.web";
+import { FirstPaintReady } from "../startup/first-paint";
+import { SPLASH_MAX_MS, createSplashGate } from "../startup/splash-gate";
 import { EMPTY_PUSH_MEMORY } from "../notifications/push-port";
 import type { PushMemory } from "../notifications/push-port";
 import { AppRoot } from "./app-root";
@@ -153,29 +155,32 @@ async function mount(
   fetcher: FetchLike,
   devConnection: { server: string; token: string } | null = null,
   cacheFiles: CacheFiles = memoryCacheFiles().files,
+  markFirstPaint: () => void = () => undefined,
 ) {
   const host = document.createElement("div");
   document.body.append(host);
   const root = createRoot(host);
   await act(async () => {
     root.render(
-      <SafeAreaProvider
-        initialMetrics={{
-          frame: { x: 0, y: 0, width: 390, height: 844 },
-          insets: { top: 0, left: 0, right: 0, bottom: 0 },
-        }}
-      >
-        <AppRoot
-          store={store}
-          fetcher={fetcher}
-          devConnection={devConnection}
-          deviceName="Acme iPhone"
-          pushDevice={webPushDevice}
-          pushMemory={memoryPush}
-          cacheFiles={cacheFiles}
-          allowPaste
-        />
-      </SafeAreaProvider>,
+      <FirstPaintReady.Provider value={markFirstPaint}>
+        <SafeAreaProvider
+          initialMetrics={{
+            frame: { x: 0, y: 0, width: 390, height: 844 },
+            insets: { top: 0, left: 0, right: 0, bottom: 0 },
+          }}
+        >
+          <AppRoot
+            store={store}
+            fetcher={fetcher}
+            devConnection={devConnection}
+            deviceName="Acme iPhone"
+            pushDevice={webPushDevice}
+            pushMemory={memoryPush}
+            cacheFiles={cacheFiles}
+            allowPaste
+          />
+        </SafeAreaProvider>
+      </FirstPaintReady.Provider>,
     );
     await vi.advanceTimersByTimeAsync(0);
   });
@@ -538,5 +543,103 @@ describe("서버에 닿지 않을 때(M31)", () => {
     await advance(RETRY_MAX_MS);
     expect(host.querySelector('[data-testid="notice-band"]')).toBeNull();
     expect(server.state.requests.filter((request) => request.method !== "GET")).toEqual([]);
+  });
+});
+
+describe("첫 화면과 스플래시(티켓 0226)", () => {
+  function fakeSplash() {
+    const splash = { hides: 0, hide: () => (splash.hides += 1) };
+    return splash;
+  }
+
+  async function seededCache() {
+    const cache = memoryCacheFiles();
+    await mount(memoryStore(STORED).store, fakeServer().fetcher, null, cache.files);
+    await press("Workspace 고르기, 모든 Workspace");
+    await press("Payments");
+    for (const unmount of mounted.splice(0)) unmount();
+    await advance(0);
+    return cache;
+  }
+
+  function never<Value>(): Promise<Value> {
+    return new Promise(() => undefined);
+  }
+
+  it("저장된 연결과 캐시 첫 화면이 보이면 서버 응답을 기다리지 않고 스플래시를 내린다", async () => {
+    const cache = await seededCache();
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const server = fakeServer();
+    const held: FetchLike = (url, init) =>
+      new URL(url).pathname === V1_PATHS.dashboard ? never() : server.fetcher(url, init);
+    const host = await mount(memoryStore(STORED).store, held, null, cache.files, gate.ready);
+    expect(host.textContent).toContain("ACME-138");
+    expect(splash.hides).toBe(1);
+    await advance(SPLASH_MAX_MS);
+    expect(splash.hides).toBe(1);
+  });
+
+  it("캐시를 다 읽기 전에는 스플래시를 내리지 않는다", async () => {
+    const cache = await seededCache();
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    let release: () => void = () => undefined;
+    const slowFiles: CacheFiles = {
+      ...cache.files,
+      read: (server) =>
+        new Promise((resolve) => {
+          release = () => void cache.files.read(server).then(resolve);
+        }),
+    };
+    const server = fakeServer();
+    const held: FetchLike = (url, init) =>
+      new URL(url).pathname === V1_PATHS.dashboard ? never() : server.fetcher(url, init);
+    const host = await mount(memoryStore(STORED).store, held, null, slowFiles, gate.ready);
+    await advance(SPLASH_MAX_MS / 2);
+    expect(splash.hides).toBe(0);
+    await act(async () => {
+      release();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(host.textContent).toContain("ACME-138");
+    expect(splash.hides).toBe(1);
+  });
+
+  it("저장된 연결이 없으면 연결 화면을 보인 뒤 스플래시를 내린다", async () => {
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const host = await mount(
+      memoryStore(null).store,
+      fakeServer().fetcher,
+      null,
+      memoryCacheFiles().files,
+      gate.ready,
+    );
+    expect(host.textContent).toContain("서버에 연결해요");
+    expect(splash.hides).toBe(1);
+  });
+
+  it("연결 정보를 읽지 못하고 있으면 상한 시간에 스플래시를 내린다", async () => {
+    const splash = fakeSplash();
+    const gate = createSplashGate(splash);
+    const stuck: ConnectionStore = { ...memoryStore(null).store, load: () => never() };
+    await mount(stuck, fakeServer().fetcher, null, memoryCacheFiles().files, gate.ready);
+    await advance(SPLASH_MAX_MS - 1);
+    expect(splash.hides).toBe(0);
+    await advance(1);
+    expect(splash.hides).toBe(1);
+  });
+
+  it("오프라인으로 켜도 다른 Workspace의 캐시 대시보드를 그 Workspace로 갈 때 꺼내 보인다", async () => {
+    const cache = await seededCache();
+    const server = fakeServer();
+    server.state.mode = "offline";
+    const host = await mount(memoryStore(STORED).store, server.fetcher, null, cache.files);
+    await press("Workspace 고르기, 모든 Workspace");
+    await press("Payments");
+    expect(host.textContent).not.toContain("이 Workspace는 아직 받은 내용이 없어요.");
+    expect(host.textContent).toContain("ACME-138");
+    expect(host.querySelector('[data-testid="notice-band"]')?.textContent).toContain("기준");
   });
 });
