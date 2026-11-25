@@ -220,6 +220,7 @@ export function LiveScreens({
     return () => {
       unfollow();
       session.stop();
+      void cache.flush();
     };
   }, [cache, session]);
 

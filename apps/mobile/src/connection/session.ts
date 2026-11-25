@@ -387,7 +387,14 @@ export class LiveSession {
         }
         void this.#read(EVERYTHING, false);
       },
-      onChange: (notice) => this.#queueRead(readScopeOf(notice, this.#workspaceId)),
+      onChange: (notice) =>
+        this.#queueRead(
+          readScopeOf(notice, {
+            workspaceId: this.#workspaceId,
+            hasQueuedRuns:
+              (this.#state.dashboards.get(this.#workspaceId)?.data.columns.queued.length ?? 0) > 0,
+          }),
+        ),
       onAlive: () => this.#armSilence(),
       onEnd: () => this.#fallBackToPolling(),
     });

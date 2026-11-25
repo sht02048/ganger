@@ -277,4 +277,31 @@ describe("전면 복귀 때 알림 설정·푸시 주소 확인 간격(티켓 02
     expect(view.counts.settingsReads).toBe(2);
     expect(view.current.state?.notice).toBeNull();
   });
+
+  it("푸시 주소를 받지 못했거나 서버에 넘기지 못했으면 다음 전면 복귀 때 다시 시도한다", async () => {
+    vi.useFakeTimers({ toFake: ["Date"], now: Date.parse("2026-11-25T00:00:00.000Z") });
+    const view = setup({
+      server: { enabled: true, groups: GROUPS, hasPushAddress: true },
+      memory: { asked: true, registered: true, address: "ExponentPushToken[old]" },
+    });
+    let address: string | null = null;
+    view.device.pushAddress = () => {
+      view.counts.addressReads += 1;
+      return Promise.resolve(address);
+    };
+    const render = await mountSwitchable(view.Probe);
+    await render(true);
+    expect(view.counts.addressReads).toBe(1);
+
+    address = NEW_ADDRESS;
+    await render(false);
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+    expect(view.saves).toMatchObject([{ expoPushToken: NEW_ADDRESS }]);
+    expect(view.stored().address).toBe(NEW_ADDRESS);
+
+    await render(false);
+    await render(true);
+    expect(view.counts.addressReads).toBe(2);
+  });
 });

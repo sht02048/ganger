@@ -395,11 +395,24 @@ describe("변경 종류에 맞춰 필요한 만큼만 다시 읽기(티켓 0224)
     part,
   });
 
+  const withoutQueued: V1Dashboard = {
+    ...dashboard,
+    columns: { ...dashboard.columns, queued: [] },
+  };
+
   async function countsAfter(
     viewing: string,
     notice: Parameters<ChangeStreamHandlers["onChange"]>[0],
+    { queued = false } = {},
   ) {
     const w = world(viewing);
+    if (!queued) {
+      w.client.dashboard.mockResolvedValue({
+        ok: true,
+        data: withoutQueued,
+        serverVersion: "0.4.0",
+      });
+    }
     await connect(w);
     clearRequests(w);
     w.streams[0]?.onChange(notice);
@@ -408,10 +421,10 @@ describe("변경 종류에 맞춰 필요한 만큼만 다시 읽기(티켓 0224)
   }
 
   it.each([
-    ["보는 Workspace의 런", "ws-a", change("run", "ws-a"), { dashboard: 1 }],
-    ["모든 Workspace 보기의 런", "all", change("run", "ws-b"), { dashboard: 1 }],
-    ["다른 Workspace의 런", "ws-a", change("run", "ws-b"), {}],
-    ["다른 Workspace의 배정", "ws-a", change("assignment", "ws-b"), {}],
+    ["보는 Workspace의 런", "ws-a", change("run", "ws-a"), { dashboard: 1, runners: 1 }],
+    ["모든 Workspace 보기의 런", "all", change("run", "ws-b"), { dashboard: 1, runners: 1 }],
+    ["다른 Workspace의 런(자리 수만 바뀜)", "ws-a", change("run", "ws-b"), { runners: 1 }],
+    ["다른 Workspace의 배정", "ws-a", change("assignment", "ws-b"), { runners: 1 }],
     ["런의 log 부분", "ws-a", change("run", "ws-a", "log"), {}],
     ["러너(부하 수치 포함)", "ws-a", change("runner", null), { runners: 1, dashboard: 1 }],
     ["다른 Workspace 목록 변경", "ws-a", change("workspace", "ws-b"), { workspaces: 1 }],
@@ -443,6 +456,14 @@ describe("변경 종류에 맞춰 필요한 만큼만 다시 읽기(티켓 0224)
     w.streams[0]?.onChange(change("run", "ws-b"));
     await vi.advanceTimersByTimeAsync(CHANGE_DEBOUNCE_MS);
     expect(requestCounts(w)).toEqual({ ...NO_REQUESTS, dashboard: 1, runners: 1 });
+  });
+
+  it("보는 Workspace에 대기 런이 있으면 다른 Workspace의 런 변경에도 대기 사유를 위해 대시보드를 읽는다", async () => {
+    expect(await countsAfter("ws-a", change("run", "ws-b"), { queued: true })).toEqual({
+      ...NO_REQUESTS,
+      dashboard: 1,
+      runners: 1,
+    });
   });
 
   it("stale 뒤 변경이 오면 서버 내용을 모두 읽어 되살린다", async () => {

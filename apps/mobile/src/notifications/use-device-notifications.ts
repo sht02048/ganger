@@ -101,9 +101,15 @@ export function useDeviceNotifications({
       if ((await device.permission()) !== "granted") return;
       const address = await device.pushAddress();
       if (cancelled || writes.current !== writesAtStart) return;
-      if (address === null || address === stored.address) return;
+      if (address === null) {
+        checkedAt.current = null;
+        return;
+      }
+      if (address === stored.address) return;
       if (await save(toPreferences(reply.data.enabled, reply.data.groups), address)) {
         await remember({ ...stored, address });
+      } else {
+        checkedAt.current = null;
       }
     };
     void refresh();
