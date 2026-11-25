@@ -16,6 +16,7 @@ import { RunnersScreen } from "../runners/runners-screen";
 import { createLiveRunPort } from "../runs/run-port";
 import type { MobileSnapshot } from "../screen-model";
 import { SettingsScreen } from "../settings/settings-screen";
+import { KeptScreen } from "../kept-screen";
 import { useFirstPaint } from "../startup/first-paint";
 import { followForeground, isForegroundAppState } from "./app-state";
 import { openChangeStream } from "./change-stream";
@@ -25,14 +26,16 @@ import { OfflineCache } from "./offline-cache";
 import type { CacheFiles } from "./offline-cache";
 import { LiveSession } from "./session";
 import type { SessionState } from "./session";
-import { staleBandText } from "./stale-band";
-
-const BAND_TICK_MS = 30_000;
+import { nextStaleBandChangeIn, staleBandText } from "./stale-band";
 
 function staleReasonText(reason: SessionState["staleReason"]): string {
   return reason === "server-error"
     ? t("connection.band.reasonServerError")
     : t("connection.band.reasonUnreachable");
+}
+
+function showsBand(phase: SessionState["phase"]): boolean {
+  return phase === "stale" || phase === "host-blocked" || phase === "incompatible";
 }
 
 function bandText(state: SessionState, workspaceId: string, now: number): string | null {
@@ -72,13 +75,24 @@ function statusText({ phase, staleReason, neededUpdate }: SessionState): string 
   }
 }
 
-function useClock(intervalMs: number): number {
+function useStaleBandClock(fetchedAt: number | null): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(timer);
-  }, [intervalMs]);
+    if (fetchedAt === null) return;
+    const timer = setTimeout(
+      () => setNow(Date.now()),
+      nextStaleBandChangeIn(fetchedAt, Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [fetchedAt, now]);
   return now;
+}
+
+function ConnectionBand({ state, workspaceId }: { state: SessionState; workspaceId: string }) {
+  const fetchedAt = state.phase === "stale" ? state.dashboards.get(workspaceId)?.fetchedAt : null;
+  const now = useStaleBandClock(fetchedAt ?? null);
+  const message = bandText(state, workspaceId, now);
+  return message === null ? null : <NoticeBand message={message} />;
 }
 
 type Screen = "dashboard" | "runners" | "settings";
@@ -162,7 +176,6 @@ export function LiveScreens({
     action: boolean;
     requestedAt: number;
   } | null>(null);
-  const now = useClock(BAND_TICK_MS);
   const notifications = useDeviceNotifications({
     client,
     device: pushDevice,
@@ -275,8 +288,9 @@ export function LiveScreens({
     } else setForgetFailed(true);
   };
 
-  const message = bandText(state, view.workspaceId, now);
-  const band = message === null ? null : <NoticeBand message={message} />;
+  const band = showsBand(state.phase) ? (
+    <ConnectionBand state={state} workspaceId={view.workspaceId} />
+  ) : null;
   const settings = (
     <SettingsScreen
       band={band}
@@ -328,38 +342,35 @@ export function LiveScreens({
       <Button label={t("settings.pushAskDecline")} onPress={notifications.decline} />
     </Sheet>
   );
-  switch (screen) {
-    case "dashboard":
-      return (
-        <>
-          <DashboardScreen
-            openRun={openRun}
-            openRunSettled={
-              openRun !== null &&
-              view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
-              (state.phase === "stale" ||
-                state.phase === "host-blocked" ||
-                state.phase === "incompatible" ||
-                (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
-            }
-            onOpenRunHandled={clearOpenRun}
-            snapshot={snapshot}
-            view={view}
-            onViewChange={setView}
-            onOpenRunners={() => setScreen("runners")}
-            onOpenSettings={() => setScreen("settings")}
-            band={band}
-            actionsDisabled={state.phase !== "live" || !state.actionsReady}
-            port={port}
-            {...(state.phase === "loading" || state.phase === "live"
-              ? {}
-              : { onRetry: () => void session.refresh() })}
-          />
-          {askSheet}
-        </>
-      );
-    case "runners":
-      return (
+  return (
+    <>
+      <KeptScreen testID="dashboard-screen" shown={screen === "dashboard"}>
+        <DashboardScreen
+          openRun={openRun}
+          openRunSettled={
+            openRun !== null &&
+            view.workspaceId === INITIAL_DASHBOARD_VIEW.workspaceId &&
+            (state.phase === "stale" ||
+              state.phase === "host-blocked" ||
+              state.phase === "incompatible" ||
+              (state.dashboards.get(view.workspaceId)?.fetchedAt ?? 0) >= openRun.requestedAt)
+          }
+          onOpenRunHandled={clearOpenRun}
+          snapshot={snapshot}
+          view={view}
+          onViewChange={setView}
+          onOpenRunners={() => setScreen("runners")}
+          onOpenSettings={() => setScreen("settings")}
+          band={screen === "dashboard" ? band : null}
+          actionsDisabled={state.phase !== "live" || !state.actionsReady}
+          port={port}
+          {...(state.phase === "loading" || state.phase === "live"
+            ? {}
+            : { onRetry: () => void session.refresh() })}
+        />
+      </KeptScreen>
+      {screen === "dashboard" ? askSheet : null}
+      {screen === "runners" ? (
         <RunnersScreen
           band={band}
           loading={state.phase === "loading"}
@@ -367,10 +378,10 @@ export function LiveScreens({
           runners={state.runners}
           onBack={() => setScreen("dashboard")}
         />
-      );
-    case "settings":
-      return settings;
-  }
+      ) : null}
+      {screen === "settings" ? settings : null}
+    </>
+  );
 }
 
 const styles = StyleSheet.create({

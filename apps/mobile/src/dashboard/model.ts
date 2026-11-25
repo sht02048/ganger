@@ -42,6 +42,11 @@ export function buildBoard({ columns }: AppDashboard): Board {
   };
 }
 
+export function runsOf({ columns }: AppDashboard): DashboardRun[] {
+  const { queued, running, done } = columns;
+  return [...queued, ...running.todo, ...running.rest, ...done.todo, ...done.rest];
+}
+
 export function hasNoRuns({ columns }: AppDashboard): boolean {
   return [
     columns.queued,

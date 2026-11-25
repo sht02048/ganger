@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import type { AppDashboard } from "@ganger/api";
 import { AccessibilityInfo, ScrollView, StyleSheet, View } from "react-native";
 
 import { Button, InlineSwitch, RestingMascot, Segment, Sheet } from "../design/components";
@@ -22,8 +21,9 @@ import {
   columnTodoCount,
   firstColumn,
   hasNoRuns,
+  runsOf,
 } from "./model";
-import type { Board, ColumnKey, DashboardRun } from "./model";
+import type { Board, ColumnKey, DashboardRun, EndedRun } from "./model";
 import { RunCard, SettledRow } from "./run-card";
 import type { RunCardAction, RunMenuAction } from "./run-card";
 
@@ -52,6 +52,50 @@ function countLine(board: Board, column: ColumnKey): string {
     : [t("dashboard.countTodo", { count: todo }), rest].join(t("dashboard.countSeparator"));
 }
 
+type RunActionHandler = (run: DashboardRun, action: RunCardAction) => void;
+type RunMenuHandler = (run: DashboardRun, action: RunMenuAction) => void;
+
+const RunItem = memo(function RunItem({
+  run,
+  showWorkspace,
+  actionsDisabled,
+  confirming,
+  onAction,
+  onMenu,
+}: {
+  run: DashboardRun;
+  showWorkspace: boolean;
+  actionsDisabled: boolean;
+  confirming: boolean;
+  onAction: RunActionHandler;
+  onMenu: RunMenuHandler;
+}) {
+  return (
+    <RunCard
+      run={run}
+      showWorkspace={showWorkspace}
+      actionsDisabled={actionsDisabled}
+      confirming={confirming}
+      onAction={(action) => onAction(run, action)}
+      onMenu={(action) => onMenu(run, action)}
+    />
+  );
+});
+
+const SettledItem = memo(function SettledItem({
+  run,
+  showWorkspace,
+  onMenu,
+}: {
+  run: EndedRun;
+  showWorkspace: boolean;
+  onMenu: RunMenuHandler;
+}) {
+  return (
+    <SettledRow run={run} showWorkspace={showWorkspace} onMenu={(action) => onMenu(run, action)} />
+  );
+});
+
 function RunList({
   runs,
   showWorkspace,
@@ -66,20 +110,20 @@ function RunList({
   actionsDisabled: boolean;
   resumingRunIds: ReadonlySet<string>;
   confirmingRunIds: ReadonlySet<string>;
-  onAction: (run: DashboardRun, action: RunCardAction) => void;
-  onMenu: (run: DashboardRun, action: RunMenuAction) => void;
+  onAction: RunActionHandler;
+  onMenu: RunMenuHandler;
 }) {
   return (
     <>
       {runs.map((run) => (
-        <RunCard
+        <RunItem
           key={run.id}
           run={run}
           showWorkspace={showWorkspace}
           actionsDisabled={actionsDisabled || resumingRunIds.has(run.id)}
           confirming={confirmingRunIds.has(run.id)}
-          onAction={(action) => onAction(run, action)}
-          onMenu={(action) => onMenu(run, action)}
+          onAction={onAction}
+          onMenu={onMenu}
         />
       ))}
     </>
@@ -104,8 +148,8 @@ function ColumnBody({
   actionsDisabled: boolean;
   resumingRunIds: ReadonlySet<string>;
   confirmingRunIds: ReadonlySet<string>;
-  onAction: (run: DashboardRun, action: RunCardAction) => void;
-  onMenu: (run: DashboardRun, action: RunMenuAction) => void;
+  onAction: RunActionHandler;
+  onMenu: RunMenuHandler;
 }) {
   const hasTodo = columnTodoCount(board, column) > 0;
   const hasRest = columnRestCount(board, column) > 0;
@@ -156,23 +200,13 @@ function ColumnBody({
                 {t("dashboard.settledGroup")}
               </Text>
               {board.done.settled.map((run) => (
-                <SettledRow
-                  key={run.id}
-                  run={run}
-                  showWorkspace={showWorkspace}
-                  onMenu={(action) => onMenu(run, action)}
-                />
+                <SettledItem key={run.id} run={run} showWorkspace={showWorkspace} onMenu={onMenu} />
               ))}
             </View>
           )}
         </>
       );
   }
-}
-
-function runsOf({ columns }: AppDashboard): DashboardRun[] {
-  const { queued, running, done } = columns;
-  return [...queued, ...running.todo, ...running.rest, ...done.todo, ...done.rest];
 }
 
 export function DashboardScreen({
@@ -231,13 +265,10 @@ export function DashboardScreen({
   };
   const openingLinks = useRef(new Set<string>());
   const openOnce = async (key: string, open: () => Promise<void>) => {
-    if (openingLinks.current.has(key)) return;
-    openingLinks.current.add(key);
-    try {
-      await open();
-    } finally {
-      openingLinks.current.delete(key);
-    }
+    const opening = openingLinks.current;
+    if (opening.has(key)) return;
+    opening.add(key);
+    await open().finally(() => opening.delete(key));
   };
   const runMenu = async (run: DashboardRun, action: RunMenuAction) => {
     switch (action) {
@@ -273,6 +304,7 @@ export function DashboardScreen({
         return;
     }
   };
+  const openRunMenu: RunMenuHandler = (run, action) => void runMenu(run, action);
   const runAction = (run: DashboardRun, action: RunCardAction) => {
     if (action === "resume") void resume(run);
     else setSheet({ kind: action, run });
@@ -408,7 +440,7 @@ export function DashboardScreen({
               resumingRunIds={resumingRunIds}
               confirmingRunIds={confirmingRunIds}
               onAction={runAction}
-              onMenu={(run, action) => void runMenu(run, action)}
+              onMenu={openRunMenu}
             />
           </>
         )}
