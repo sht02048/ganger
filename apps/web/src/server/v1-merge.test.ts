@@ -229,6 +229,12 @@ describe("v1 머지 쓰기 (0220)", () => {
     expect(world.codeHost.merges).toEqual([]);
   });
 
+  it("런은 있는데 GitHub 에 PR 이 없으면 404 가 아니라 pr-not-found 로 거절한다", async () => {
+    const world = seedWorld();
+    world.codeHost.mergeOutcome = { ok: false, reason: "not-found", message: null };
+    expect(await world.merge(body)).toEqual({ status: 409, reason: "pr-not-found" });
+  });
+
   it("없는 런은 404 다", async () => {
     const world = seedWorld();
     expect(

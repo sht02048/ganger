@@ -14,6 +14,7 @@ export const V1_MERGE_REFUSALS = [
   "method-not-allowed",
   "not-open",
   "no-pull-request",
+  "pr-not-found",
   "no-code-host",
   "unauthorized",
   "rate-limited",

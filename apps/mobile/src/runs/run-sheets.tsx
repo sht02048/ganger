@@ -67,6 +67,7 @@ function refusalKey(action: RunWrite["action"], reason: AppRunRefusal): MessageK
     case "method-not-allowed":
     case "not-open":
     case "no-pull-request":
+    case "pr-not-found":
     case "no-code-host":
     case "unauthorized":
     case "rate-limited":

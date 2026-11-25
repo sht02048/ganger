@@ -221,6 +221,7 @@ function refusalOf(body: unknown, status: number): SendFailure {
     case "method-not-allowed":
     case "not-open":
     case "no-pull-request":
+    case "pr-not-found":
     case "no-code-host":
     case "unauthorized":
     case "rate-limited":

@@ -150,8 +150,10 @@ export async function handleV1Merge(
   if (!body.success) return INVALID;
   const result = await mergeRunPullRequest(context, { runId, ...body.data }, now);
   if (result.ok) return { status: 200 };
-  const reason = refusalOf(result.reason);
-  if (reason === "not-found") return { status: 404, reason };
+  if (result.reason === "not-found" && getRunWithRecords(context.db, toRunId(runId)) === null) {
+    return { status: 404, reason: "not-found" };
+  }
+  const reason = result.reason === "not-found" ? "pr-not-found" : refusalOf(result.reason);
   const status = CODE_HOST_FAILURES.has(reason) ? 502 : 409;
   return { status, reason, ...(result.message === null ? {} : { message: result.message }) };
 }
@@ -257,7 +259,7 @@ export function loadV1RunDetail(
   const stored = getRunWithRecords(db, toRunId(runId));
   if (stored === null) return toV1RunDetail(page.run);
   const merge =
-    page.run.pullRequest === null || worktreeTakenOverBy(db, stored.run.id) !== null
+    worktreeTakenOverBy(db, stored.run.id) !== null
       ? null
       : mergeViewOf(stored.run, stored.records);
   return toV1RunDetail(page.run, retryOfferOf(db, stored.run, now), merge);

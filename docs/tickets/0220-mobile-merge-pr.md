@@ -16,7 +16,7 @@ ADR [0024](../adr/0024-operator-merges-pr-from-ganger.md)(티켓 0201)로 운영
 ## 할 일
 
 1. v1 쓰기에 머지(`POST /api/v1/runs/:id/merge`)를 더한다. 같은 핵심 함수 `mergeRunPullRequest`를 쓰고, 다른 v1 쓰기와 같은 요청 번호·재전송 규칙(0194, ADR 0024 결정 7)을 따른다. 본문은 `requestId`, 고른 방식 `method`, 화면이 본 head 커밋 `expectedHead`다(ADR 0024 결정 2).
-   - 거절 이유는 그 함수의 이유 값을 v1 거절 값에 더해 그대로 돌려준다. GitHub이 준 문장은 `error.message`에 싣는다. GitHub에 닿지 못한 거절(`unauthorized`, `rate-limited`, `network`)은 502, 없는 런은 404, 그 밖은 409다.
+   - 거절 이유는 그 함수의 이유 값을 v1 거절 값에 더해 그대로 돌려준다. GitHub이 준 문장은 `error.message`에 싣는다. GitHub에 닿지 못한 거절(`unauthorized`, `rate-limited`, `network`)은 502, 없는 런은 404, 그 밖은 409다. 런은 있는데 GitHub에 PR이 없으면 런 없음과 가르려고 `pr-not-found`(409)로 돌려준다.
 2. v1 런 상세 `pullRequest`에 `merge`(허용 방식, 레포 기본 방식, 막는 이유, 권한 거절, 본 head 커밋)를 더한다. 웹 「PR」 탭과 같은 `mergeViewOf`로 만들고, 다른 런이 워크트리를 이어받은 런과 열리지 않은 PR은 비운다.
    - 호환 범위(0194): 더하기만 하는 변경이라 `CONTRACT_VERSION`을 3으로 올리고 `MIN_CLIENT_CONTRACT_VERSION`과 앱의 `MIN_SERVER_CONTRACT_VERSION`은 1로 둔다. 앱 스키마는 `merge`가 없는 계약 1·2 서버 응답도 읽고(머지 버튼이 없다), 모르는 방식은 빼고 모르는 막는 이유는 `unknown`으로 읽는다.
 3. 모바일 런 상세 PR 구역(0219가 만든 상자)에 머지 버튼을 둔다. ADR 0024 결정을 그대로 따른다.
